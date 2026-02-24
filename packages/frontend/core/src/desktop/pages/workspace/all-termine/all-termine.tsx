@@ -1,18 +1,22 @@
-import { type DateCell, DatePicker, useConfirmModal, usePromptModal } from '@affine/component';
+import { useConfirmModal, usePromptModal } from '@affine/component';
 import { useI18n } from '@affine/i18n';
 import { LiveData, useLiveData, useService } from '@toeverything/infra';
 import dayjs from 'dayjs';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
-import { GerichtsterminService, TERMIN_STATUS_LABELS,TERMINART_LABELS } from '../../../../modules/case-assistant';
-import { CaseAssistantStore } from '../../../../modules/case-assistant/stores/case-assistant';
-import type { ClientRecord, Gerichtstermin, MatterRecord } from '../../../../modules/case-assistant/types';
 import {
-  ViewBody,
-  ViewIcon,
-  ViewTitle,
-} from '../../../../modules/workbench';
+  GerichtsterminService,
+  TERMIN_STATUS_LABELS,
+  TERMINART_LABELS,
+} from '../../../../modules/case-assistant';
+import { CaseAssistantStore } from '../../../../modules/case-assistant/stores/case-assistant';
+import type {
+  ClientRecord,
+  Gerichtstermin,
+  MatterRecord,
+} from '../../../../modules/case-assistant/types';
+import { ViewBody, ViewIcon, ViewTitle } from '../../../../modules/workbench';
 import { WorkbenchService } from '../../../../modules/workbench';
 import * as styles from '../all-fristen/all-fristen.css';
 import { AllDocSidebarTabs } from '../layouts/all-doc-sidebar-tabs';
@@ -23,7 +27,12 @@ type TerminFilterMode = 'all' | 'upcoming' | 'past' | 'cancelled';
 type SortKey = 'datum' | 'gericht' | 'status' | 'terminart';
 type SortDir = 'asc' | 'desc';
 type ReviewFilter = 'all' | 'needs_review' | 'no_review';
-type KategorieFilter = 'all' | 'gerichtstermin' | 'gespraech' | 'sonstiger' | 'unknown';
+type KategorieFilter =
+  | 'all'
+  | 'gerichtstermin'
+  | 'gespraech'
+  | 'sonstiger'
+  | 'unknown';
 type ConfidenceFilter = 'all' | 'high' | 'medium' | 'low' | 'unknown';
 
 interface EnrichedTermin extends Gerichtstermin {
@@ -44,7 +53,9 @@ function toDateKey(raw: string | undefined | null): string {
   return parsed.toISOString().slice(0, 10);
 }
 
-function getTerminUrgency(item: Gerichtstermin): 'critical' | 'soon' | 'normal' {
+function getTerminUrgency(
+  item: Gerichtstermin
+): 'critical' | 'soon' | 'normal' {
   if (item.status === 'abgesagt' || item.status === 'abgeschlossen') {
     return 'normal';
   }
@@ -92,7 +103,9 @@ function statusSortRank(status: Gerichtstermin['status']): number {
   }
 }
 
-function parseDateTimeInput(raw: string): { isoDate: string; time?: string } | null {
+function parseDateTimeInput(
+  raw: string
+): { isoDate: string; time?: string } | null {
   const value = raw.trim();
   const match = value.match(/^(\d{4}-\d{2}-\d{2})(?:\s+(\d{2}:\d{2}))?$/);
   if (!match) {
@@ -104,8 +117,11 @@ function parseDateTimeInput(raw: string): { isoDate: string; time?: string } | n
   };
 }
 
-function confidenceBucket(confidence?: number): 'high' | 'medium' | 'low' | 'unknown' {
-  if (typeof confidence !== 'number' || !Number.isFinite(confidence)) return 'unknown';
+function confidenceBucket(
+  confidence?: number
+): 'high' | 'medium' | 'low' | 'unknown' {
+  if (typeof confidence !== 'number' || !Number.isFinite(confidence))
+    return 'unknown';
   if (confidence >= 0.85) return 'high';
   if (confidence >= 0.7) return 'medium';
   return 'low';
@@ -139,10 +155,16 @@ export const AllTerminePage = () => {
   const legalDocs = useLiveData(store.watchLegalDocuments()) ?? [];
   const termine =
     useLiveData(
-      useMemo(() => LiveData.from(terminService.termineList$, []), [terminService])
+      useMemo(
+        () => LiveData.from(terminService.termineList$, []),
+        [terminService]
+      )
     ) ?? [];
 
-  const query = useMemo(() => new URLSearchParams(location.search), [location.search]);
+  const query = useMemo(
+    () => new URLSearchParams(location.search),
+    [location.search]
+  );
   const deepLinkMatterId = query.get('matterId')?.trim() ?? '';
   const deepLinkClientId = query.get('clientId')?.trim() ?? '';
   const urlMode = query.get('mode')?.trim() ?? '';
@@ -152,18 +174,18 @@ export const AllTerminePage = () => {
   const [sortKey, setSortKey] = useState<SortKey>('datum');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
   const [reviewFilter, setReviewFilter] = useState<ReviewFilter>('all');
-  const [kategorieFilter, setKategorieFilter] = useState<KategorieFilter>('all');
-  const [confidenceFilter, setConfidenceFilter] = useState<ConfidenceFilter>('all');
-  const [selectedDateKey, setSelectedDateKey] = useState(() => dayjs().format('YYYY-MM-DD'));
-  const [isCalendarDayFilterActive, setIsCalendarDayFilterActive] = useState(true);
-  const [calendarCursor, setCalendarCursor] = useState(() => dayjs());
+  const [kategorieFilter, setKategorieFilter] =
+    useState<KategorieFilter>('all');
+  const [confidenceFilter, setConfidenceFilter] =
+    useState<ConfidenceFilter>('all');
+  const [selectedDateKey, setSelectedDateKey] = useState(() =>
+    dayjs().format('YYYY-MM-DD')
+  );
+  const [isCalendarDayFilterActive, setIsCalendarDayFilterActive] =
+    useState(true);
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [actionStatus, setActionStatus] = useState<string | null>(null);
   const [showInitialSkeleton, setShowInitialSkeleton] = useState(true);
-
-  const [terminart, setTerminart] = useState<Gerichtstermin['terminart']>('muendliche_verhandlung');
-  const [datum, setDatum] = useState(new Date().toISOString().slice(0, 10));
-  const [uhrzeit, setUhrzeit] = useState('09:00');
-  const [gericht, setGericht] = useState('');
 
   const [isBulkConfirming, setIsBulkConfirming] = useState(false);
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
@@ -175,25 +197,26 @@ export const AllTerminePage = () => {
 
   const showActionStatus = useCallback((msg: string) => {
     setActionStatus(msg);
-    if (actionStatusTimerRef.current) window.clearTimeout(actionStatusTimerRef.current);
-    actionStatusTimerRef.current = window.setTimeout(() => setActionStatus(null), 4000);
+    if (actionStatusTimerRef.current)
+      window.clearTimeout(actionStatusTimerRef.current);
+    actionStatusTimerRef.current = window.setTimeout(
+      () => setActionStatus(null),
+      4000
+    );
   }, []);
 
-  useEffect(() => () => {
-    if (actionStatusTimerRef.current) window.clearTimeout(actionStatusTimerRef.current);
-  }, []);
+  useEffect(
+    () => () => {
+      if (actionStatusTimerRef.current)
+        window.clearTimeout(actionStatusTimerRef.current);
+    },
+    []
+  );
 
   useEffect(() => {
     const timer = window.setTimeout(() => setShowInitialSkeleton(false), 420);
     return () => window.clearTimeout(timer);
   }, []);
-
-  useEffect(() => {
-    const cursor = dayjs(selectedDateKey);
-    if (cursor.isValid() && !cursor.isSame(calendarCursor, 'day')) {
-      setCalendarCursor(cursor);
-    }
-  }, [calendarCursor, selectedDateKey]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -212,20 +235,17 @@ export const AllTerminePage = () => {
   const clients = useMemo(() => graph.clients ?? {}, [graph.clients]);
   const caseFiles = useMemo(() => graph.cases ?? {}, [graph.cases]);
 
-  const applyReviewPreset = useCallback(
-    (mode: 'review' | 'default') => {
-      if (mode === 'review') {
-        setFilterMode('upcoming');
-        setReviewFilter('needs_review');
-        setKategorieFilter('all');
-        setConfidenceFilter('all');
-        setSearchQuery('');
-      } else {
-        setReviewFilter('all');
-      }
-    },
-    []
-  );
+  const applyReviewPreset = useCallback((mode: 'review' | 'default') => {
+    if (mode === 'review') {
+      setFilterMode('upcoming');
+      setReviewFilter('needs_review');
+      setKategorieFilter('all');
+      setConfidenceFilter('all');
+      setSearchQuery('');
+    } else {
+      setReviewFilter('all');
+    }
+  }, []);
 
   useEffect(() => {
     if (urlMode === 'review') {
@@ -252,7 +272,9 @@ export const AllTerminePage = () => {
   const enriched: EnrichedTermin[] = useMemo(() => {
     return termine.map(termin => {
       const matter = matters[termin.matterId] as MatterRecord | undefined;
-      const client = matter?.clientId ? (clients[matter.clientId] as ClientRecord | undefined) : undefined;
+      const client = matter?.clientId
+        ? (clients[matter.clientId] as ClientRecord | undefined)
+        : undefined;
       const sourceDocTitles = (termin.sourceDocIds ?? [])
         .map((id: string) => legalDocTitleById.get(id) ?? `Dokument: ${id}`)
         .filter(Boolean);
@@ -278,7 +300,9 @@ export const AllTerminePage = () => {
     (docId: string, item: EnrichedTermin) => {
       const doc = legalDocById.get(docId);
       if (!doc) {
-        showActionStatus('Quelle nicht mehr verfügbar (Dokument wurde gelöscht oder ist nicht indexiert).');
+        showActionStatus(
+          'Quelle nicht mehr verfügbar (Dokument wurde gelöscht oder ist nicht indexiert).'
+        );
         return;
       }
 
@@ -298,14 +322,18 @@ export const AllTerminePage = () => {
   const stats = useMemo(() => {
     const now = Date.now();
     const upcoming = enriched.filter(item => {
-      if (item.status === 'abgesagt' || item.status === 'abgeschlossen') return false;
+      if (item.status === 'abgesagt' || item.status === 'abgeschlossen')
+        return false;
       return new Date(item.datum).getTime() >= now;
     }).length;
     const past = enriched.filter(item => {
-      if (item.status === 'abgeschlossen' || item.status === 'abgesagt') return true;
+      if (item.status === 'abgeschlossen' || item.status === 'abgesagt')
+        return true;
       return new Date(item.datum).getTime() < now;
     }).length;
-    const cancelled = enriched.filter(item => item.status === 'abgesagt').length;
+    const cancelled = enriched.filter(
+      item => item.status === 'abgesagt'
+    ).length;
     return {
       total: enriched.length,
       upcoming,
@@ -332,7 +360,8 @@ export const AllTerminePage = () => {
       const prev = map.get(key) ?? { count: 0, criticalCount: 0 };
       const next = {
         count: prev.count + 1,
-        criticalCount: prev.criticalCount + (getTerminUrgency(item) === 'critical' ? 1 : 0),
+        criticalCount:
+          prev.criticalCount + (getTerminUrgency(item) === 'critical' ? 1 : 0),
       };
       map.set(key, next);
     }
@@ -341,7 +370,9 @@ export const AllTerminePage = () => {
   }, [deepLinkClientId, deepLinkMatterId, enriched]);
 
   const selectedDayMeta = useMemo(() => {
-    return calendarDayMeta.get(selectedDateKey) ?? { count: 0, criticalCount: 0 };
+    return (
+      calendarDayMeta.get(selectedDateKey) ?? { count: 0, criticalCount: 0 }
+    );
   }, [calendarDayMeta, selectedDateKey]);
 
   const selectedDateLabel = useMemo(() => {
@@ -355,48 +386,11 @@ export const AllTerminePage = () => {
     });
   }, [language, selectedDateKey]);
 
-  const handleCalendarDateSelect = useCallback((date: string) => {
-    if (!date) return;
-    setSelectedDateKey(date);
-    setIsCalendarDayFilterActive(true);
-  }, []);
-
   const handleJumpToToday = useCallback(() => {
     const todayKey = dayjs().format('YYYY-MM-DD');
     setSelectedDateKey(todayKey);
-    setCalendarCursor(dayjs(todayKey));
     setIsCalendarDayFilterActive(true);
   }, []);
-
-  const customCalendarDayRenderer = useCallback(
-    (cell: DateCell) => {
-      const dateKey = cell.date.format('YYYY-MM-DD');
-      const meta = calendarDayMeta.get(dateKey);
-      const isCriticalDay = (meta?.criticalCount ?? 0) > 0;
-
-      return (
-        <button
-          type="button"
-          className={styles.termineDateCell}
-          data-selected={cell.selected}
-          data-today={cell.isToday}
-          data-not-current-month={cell.notCurrentMonth}
-          data-has-items={(meta?.count ?? 0) > 0}
-          data-critical={isCriticalDay}
-          tabIndex={cell.focused ? 0 : -1}
-          aria-label={`${cell.date.format('DD.MM.YYYY')}: ${meta?.count ?? 0} Termin(e)$
-{isCriticalDay ? ', kritisch (unter 48 Stunden oder überfällig)' : ''}`}
-        >
-          <span>{cell.label}</span>
-          {(meta?.count ?? 0) > 0 ? (
-            <span className={styles.termineDateCount}>{meta!.count > 9 ? '9+' : String(meta!.count)}</span>
-          ) : null}
-          {isCriticalDay ? <span className={styles.termineDateAlarmDot} aria-hidden="true" /> : null}
-        </button>
-      );
-    },
-    [calendarDayMeta]
-  );
 
   const filtered = useMemo(() => {
     const now = Date.now();
@@ -419,13 +413,15 @@ export const AllTerminePage = () => {
       switch (filterMode) {
         case 'upcoming':
           result = result.filter(item => {
-            if (item.status === 'abgesagt' || item.status === 'abgeschlossen') return false;
+            if (item.status === 'abgesagt' || item.status === 'abgeschlossen')
+              return false;
             return new Date(item.datum).getTime() >= now;
           });
           break;
         case 'past':
           result = result.filter(item => {
-            if (item.status === 'abgeschlossen' || item.status === 'abgesagt') return true;
+            if (item.status === 'abgeschlossen' || item.status === 'abgesagt')
+              return true;
             return new Date(item.datum).getTime() < now;
           });
           break;
@@ -453,7 +449,9 @@ export const AllTerminePage = () => {
     }
 
     if (confidenceFilter !== 'all') {
-      result = result.filter(item => confidenceBucket(item.detectionConfidence) === confidenceFilter);
+      result = result.filter(
+        item => confidenceBucket(item.detectionConfidence) === confidenceFilter
+      );
     }
 
     if (deepLinkMatterId) {
@@ -472,13 +470,26 @@ export const AllTerminePage = () => {
           item.matterTitle.toLowerCase().includes(q) ||
           item.clientName.toLowerCase().includes(q) ||
           item.sourceDocTitles.some(title => title.toLowerCase().includes(q)) ||
-          (item.evidenceSnippets ?? []).some(snippet => snippet.toLowerCase().includes(q))
+          (item.evidenceSnippets ?? []).some(snippet =>
+            snippet.toLowerCase().includes(q)
+          )
         );
       });
     }
 
     return result;
-  }, [confidenceFilter, deepLinkClientId, deepLinkMatterId, enriched, filterMode, isCalendarDayFilterActive, kategorieFilter, reviewFilter, searchQuery, selectedDateKey]);
+  }, [
+    confidenceFilter,
+    deepLinkClientId,
+    deepLinkMatterId,
+    enriched,
+    filterMode,
+    isCalendarDayFilterActive,
+    kategorieFilter,
+    reviewFilter,
+    searchQuery,
+    selectedDateKey,
+  ]);
 
   const sorted = useMemo(() => {
     const arr = [...filtered];
@@ -492,7 +503,10 @@ export const AllTerminePage = () => {
           cmp = statusSortRank(a.status) - statusSortRank(b.status);
           break;
         case 'terminart':
-          cmp = TERMINART_LABELS[a.terminart].localeCompare(TERMINART_LABELS[b.terminart], language);
+          cmp = TERMINART_LABELS[a.terminart].localeCompare(
+            TERMINART_LABELS[b.terminart],
+            language
+          );
           break;
         case 'datum':
         default:
@@ -504,18 +518,33 @@ export const AllTerminePage = () => {
     return arr;
   }, [filtered, language, sortDir, sortKey]);
 
+  const hasAdvancedFiltersApplied =
+    reviewFilter !== 'all' ||
+    kategorieFilter !== 'all' ||
+    confidenceFilter !== 'all' ||
+    sortKey !== 'datum' ||
+    sortDir !== 'asc' ||
+    searchQuery.trim().length > 0;
+
   const bulkSelection = useBulkSelection({
     itemIds: useMemo(() => sorted.map(item => item.id), [sorted]),
   });
 
   const srSummaryText = useMemo(() => {
-    const dayScope = isCalendarDayFilterActive ? `Kalendertag aktiv: ${selectedDateLabel}.` : 'Kalendertag-Filter deaktiviert.';
+    const dayScope = isCalendarDayFilterActive
+      ? `Kalendertag aktiv: ${selectedDateLabel}.`
+      : 'Kalendertag-Filter deaktiviert.';
     const criticalText =
       selectedDayMeta.criticalCount > 0
         ? ` ${selectedDayMeta.criticalCount} kritisch (unter 48 Stunden oder überfällig).`
         : '';
     return `${dayScope} ${sorted.length} Termin(e) sichtbar.${criticalText}`;
-  }, [isCalendarDayFilterActive, selectedDateLabel, selectedDayMeta.criticalCount, sorted.length]);
+  }, [
+    isCalendarDayFilterActive,
+    selectedDateLabel,
+    selectedDayMeta.criticalCount,
+    sorted.length,
+  ]);
 
   const handleOpenTermin = useCallback(
     (item: EnrichedTermin) => {
@@ -548,32 +577,73 @@ export const AllTerminePage = () => {
       (deepLinkMatterId
         ? allCases.find(caseFile => caseFile.matterId === deepLinkMatterId)
         : undefined) ??
-      [...allCases].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())[0];
+      [...allCases].sort(
+        (a, b) =>
+          new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+      )[0];
 
     if (!targetCase?.matterId) {
       showActionStatus('Kein gültiger Case mit Akte gefunden.');
       return;
     }
-    if (!gericht.trim()) {
-      showActionStatus('Bitte Gericht angeben.');
-      return;
-    }
+    const targetMatterId = targetCase.matterId;
 
-    const isoDate = `${datum}T00:00:00.000Z`;
-    await terminService.createTermin({
-      workspaceId: targetCase.workspaceId,
-      caseId: targetCase.id,
-      matterId: targetCase.matterId,
-      terminart,
-      datum: isoDate,
-      uhrzeit: uhrzeit || undefined,
-      gericht: gericht.trim(),
-      teilnehmer: [],
+    openPromptModal({
+      title: 'Neu+ Termin',
+      label: 'Gericht + Datum / Uhrzeit',
+      inputOptions: {
+        placeholder: 'z. B. LG Wien @2026-03-10 09:30',
+      },
+      confirmText: 'Termin anlegen',
+      cancelText: t['com.affine.auth.sign-out.confirm-modal.cancel'](),
+      confirmButtonOptions: { variant: 'primary' },
+      onConfirm: async rawValue => {
+        const input = rawValue.trim();
+        if (!input) {
+          showActionStatus('Bitte Gericht und Terminzeit angeben.');
+          return;
+        }
+
+        const parsed = input.match(
+          /^(.*?)(?:\s*@\s*(\d{4}-\d{2}-\d{2}(?:\s+\d{2}:\d{2})?))?$/
+        );
+        const gerichtValue = (parsed?.[1] ?? '').trim();
+        const dateToken = parsed?.[2]?.trim();
+
+        if (!gerichtValue) {
+          showActionStatus('Bitte Gericht angeben.');
+          return;
+        }
+
+        const dateTime = dateToken ? parseDateTimeInput(dateToken) : null;
+        const fallbackDate = dayjs().add(7, 'day').format('YYYY-MM-DD');
+
+        const isoDate = dateTime?.isoDate ?? `${fallbackDate}T00:00:00.000Z`;
+        const time = dateTime?.time ?? '09:00';
+
+        await terminService.createTermin({
+          workspaceId: targetCase.workspaceId,
+          caseId: targetCase.id,
+          matterId: targetMatterId,
+          terminart: 'muendliche_verhandlung',
+          datum: isoDate,
+          uhrzeit: time,
+          gericht: gerichtValue,
+          teilnehmer: [],
+        });
+
+        showActionStatus('Termin angelegt.');
+      },
     });
-
-    setGericht('');
-    showActionStatus('Termin angelegt.');
-  }, [caseFiles, datum, deepLinkMatterId, gericht, showActionStatus, terminService, terminart, uhrzeit, workbench]);
+  }, [
+    caseFiles,
+    deepLinkMatterId,
+    openPromptModal,
+    showActionStatus,
+    t,
+    terminService,
+    workbench,
+  ]);
 
   const handleRescheduleTermin = useCallback(
     (item: EnrichedTermin) => {
@@ -589,10 +659,16 @@ export const AllTerminePage = () => {
         onConfirm: async rawValue => {
           const parsed = parseDateTimeInput(rawValue);
           if (!parsed) {
-            showActionStatus('Ungültiges Format. Bitte YYYY-MM-DD oder YYYY-MM-DD HH:MM nutzen.');
+            showActionStatus(
+              'Ungültiges Format. Bitte YYYY-MM-DD oder YYYY-MM-DD HH:MM nutzen.'
+            );
             return;
           }
-          await terminService.rescheduleTermin(item.id, parsed.isoDate, parsed.time);
+          await terminService.rescheduleTermin(
+            item.id,
+            parsed.isoDate,
+            parsed.time
+          );
           showActionStatus('Termin verschoben.');
         },
       });
@@ -612,7 +688,10 @@ export const AllTerminePage = () => {
         cancelText: t['com.affine.auth.sign-out.confirm-modal.cancel'](),
         confirmButtonOptions: { variant: 'error' },
         onConfirm: async rawReason => {
-          await terminService.cancelTermin(item.id, rawReason.trim() || undefined);
+          await terminService.cancelTermin(
+            item.id,
+            rawReason.trim() || undefined
+          );
           showActionStatus('Termin abgesagt.');
         },
       });
@@ -663,14 +742,19 @@ export const AllTerminePage = () => {
   );
 
   const handleBulkConfirm = useCallback(async () => {
-    const targets = sorted.filter(item => bulkSelection.selectedIds.has(item.id) && item.status === 'geplant');
+    const targets = sorted.filter(
+      item =>
+        bulkSelection.selectedIds.has(item.id) && item.status === 'geplant'
+    );
     if (!targets.length) {
       showActionStatus('Keine geplanten Termine in der Auswahl.');
       return;
     }
     setIsBulkConfirming(true);
     try {
-      await Promise.all(targets.map(target => terminService.confirmTermin(target.id)));
+      await Promise.all(
+        targets.map(target => terminService.confirmTermin(target.id))
+      );
       showActionStatus(`${targets.length} Termin(e) bestätigt.`);
       bulkSelection.clear();
     } finally {
@@ -689,14 +773,19 @@ export const AllTerminePage = () => {
         requiresReview: false,
         detectionConfidence: Math.max(base.detectionConfidence ?? 0.72, 0.86),
       });
-      showActionStatus(updated ? 'Review als erledigt markiert.' : 'Review konnte nicht aktualisiert werden.');
+      showActionStatus(
+        updated
+          ? 'Review als erledigt markiert.'
+          : 'Review konnte nicht aktualisiert werden.'
+      );
     },
     [graph.termine, showActionStatus, terminService]
   );
 
   const handleBulkMarkReviewed = useCallback(() => {
     const targets = sorted.filter(
-      item => bulkSelection.selectedIds.has(item.id) && Boolean(item.requiresReview)
+      item =>
+        bulkSelection.selectedIds.has(item.id) && Boolean(item.requiresReview)
     );
     if (!targets.length) {
       showActionStatus('Keine Review-Termine in der Auswahl.');
@@ -719,7 +808,10 @@ export const AllTerminePage = () => {
               if (!base) return null;
               return await terminService.updateTermin(item.id, {
                 requiresReview: false,
-                detectionConfidence: Math.max(base.detectionConfidence ?? 0.72, 0.86),
+                detectionConfidence: Math.max(
+                  base.detectionConfidence ?? 0.72,
+                  0.86
+                ),
               });
             })
           );
@@ -736,10 +828,21 @@ export const AllTerminePage = () => {
         }
       },
     });
-  }, [bulkSelection, graph.termine, isBulkReviewing, openConfirmModal, showActionStatus, sorted, t, terminService]);
+  }, [
+    bulkSelection,
+    graph.termine,
+    isBulkReviewing,
+    openConfirmModal,
+    showActionStatus,
+    sorted,
+    t,
+    terminService,
+  ]);
 
   const handleBulkDelete = useCallback(() => {
-    const targets = sorted.filter(item => bulkSelection.selectedIds.has(item.id));
+    const targets = sorted.filter(item =>
+      bulkSelection.selectedIds.has(item.id)
+    );
     if (!targets.length) {
       showActionStatus('Keine Termine ausgewählt.');
       return;
@@ -753,7 +856,9 @@ export const AllTerminePage = () => {
       onConfirm: async () => {
         setIsBulkDeleting(true);
         try {
-          await Promise.all(targets.map(target => terminService.deleteTermin(target.id)));
+          await Promise.all(
+            targets.map(target => terminService.deleteTermin(target.id))
+          );
           showActionStatus(`${targets.length} Termin(e) gelöscht.`);
           bulkSelection.clear();
         } finally {
@@ -761,7 +866,14 @@ export const AllTerminePage = () => {
         }
       },
     });
-  }, [bulkSelection, openConfirmModal, showActionStatus, sorted, t, terminService]);
+  }, [
+    bulkSelection,
+    openConfirmModal,
+    showActionStatus,
+    sorted,
+    t,
+    terminService,
+  ]);
 
   const handleShowTerminDetails = useCallback(
     (item: EnrichedTermin) => {
@@ -774,12 +886,24 @@ export const AllTerminePage = () => {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               <div style={{ fontWeight: 600 }}>
-                {TERMINART_LABELS[item.terminart]} — {formatDateTime(item.datum, item.uhrzeit, language)}
+                {TERMINART_LABELS[item.terminart]} —{' '}
+                {formatDateTime(item.datum, item.uhrzeit, language)}
               </div>
-              {item.gericht ? <div style={{ opacity: 0.8 }}>{item.gericht}</div> : null}
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 4 }}>
+              {item.gericht ? (
+                <div style={{ opacity: 0.8 }}>{item.gericht}</div>
+              ) : null}
+              <div
+                style={{
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  gap: 8,
+                  marginTop: 4,
+                }}
+              >
                 {item.kategorie ? (
-                  <span className={`${styles.statusBadge} ${item.kategorie === 'gerichtstermin' ? styles.statusPending : styles.statusCompleted}`}>
+                  <span
+                    className={`${styles.statusBadge} ${item.kategorie === 'gerichtstermin' ? styles.statusPending : styles.statusCompleted}`}
+                  >
                     {item.kategorie === 'gerichtstermin'
                       ? 'Gericht'
                       : item.kategorie === 'gespraech'
@@ -787,7 +911,11 @@ export const AllTerminePage = () => {
                         : 'Sonstiges'}
                   </span>
                 ) : (
-                  <span className={`${styles.statusBadge} ${styles.statusPending}`}>Kategorie: unbekannt</span>
+                  <span
+                    className={`${styles.statusBadge} ${styles.statusPending}`}
+                  >
+                    Kategorie: unbekannt
+                  </span>
                 )}
                 <span
                   className={`${styles.statusBadge} ${
@@ -803,12 +931,24 @@ export const AllTerminePage = () => {
                   {confidenceLabel(item.detectionConfidence)}
                 </span>
                 {item.requiresReview ? (
-                  <span className={`${styles.statusBadge} ${styles.statusExpired}`}>Review nötig</span>
+                  <span
+                    className={`${styles.statusBadge} ${styles.statusExpired}`}
+                  >
+                    Review nötig
+                  </span>
                 ) : (
-                  <span className={`${styles.statusBadge} ${styles.statusCompleted}`}>Review ok</span>
+                  <span
+                    className={`${styles.statusBadge} ${styles.statusCompleted}`}
+                  >
+                    Review ok
+                  </span>
                 )}
                 {item.derivedFrom ? (
-                  <span className={`${styles.statusBadge} ${styles.statusPending}`}>Quelle: {item.derivedFrom}</span>
+                  <span
+                    className={`${styles.statusBadge} ${styles.statusPending}`}
+                  >
+                    Quelle: {item.derivedFrom}
+                  </span>
                 ) : null}
               </div>
             </div>
@@ -851,7 +991,14 @@ export const AllTerminePage = () => {
               )}
             </div>
 
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 4 }}>
+            <div
+              style={{
+                display: 'flex',
+                gap: 8,
+                flexWrap: 'wrap',
+                marginTop: 4,
+              }}
+            >
               {item.requiresReview ? (
                 <button
                   type="button"
@@ -859,7 +1006,9 @@ export const AllTerminePage = () => {
                   onClick={e => {
                     e.preventDefault();
                     handleMarkTerminReviewed(item).catch(() => {
-                      showActionStatus('Review konnte nicht aktualisiert werden.');
+                      showActionStatus(
+                        'Review konnte nicht aktualisiert werden.'
+                      );
                     });
                   }}
                 >
@@ -924,14 +1073,28 @@ export const AllTerminePage = () => {
         },
       });
     },
-    [handleCancelTermin, handleCompleteTermin, handleDeleteTermin, handleMarkTerminReviewed, handleRescheduleTermin, language, openConfirmModal, showActionStatus, terminService]
+    [
+      handleCancelTermin,
+      handleCompleteTermin,
+      handleDeleteTermin,
+      handleMarkTerminReviewed,
+      handleRescheduleTermin,
+      language,
+      openConfirmModal,
+      showActionStatus,
+      terminService,
+    ]
   );
 
   const bulkPrimaryAction = useCallback(() => {
-    const selected = sorted.filter(item => bulkSelection.selectedIds.has(item.id));
+    const selected = sorted.filter(item =>
+      bulkSelection.selectedIds.has(item.id)
+    );
     if (selected.some(item => item.status === 'geplant')) {
       handleBulkConfirm().catch(() => {
-        showActionStatus('Bulk-Bestätigung fehlgeschlagen. Bitte erneut versuchen.');
+        showActionStatus(
+          'Bulk-Bestätigung fehlgeschlagen. Bitte erneut versuchen.'
+        );
       });
       return;
     }
@@ -940,12 +1103,21 @@ export const AllTerminePage = () => {
       return;
     }
     showActionStatus('Keine passende Bulk-Aktion für die Auswahl.');
-  }, [bulkSelection.selectedIds, handleBulkConfirm, handleBulkMarkReviewed, showActionStatus, sorted]);
+  }, [
+    bulkSelection.selectedIds,
+    handleBulkConfirm,
+    handleBulkMarkReviewed,
+    showActionStatus,
+    sorted,
+  ]);
 
   const bulkPrimaryLabel = useMemo(() => {
-    const selected = sorted.filter(item => bulkSelection.selectedIds.has(item.id));
+    const selected = sorted.filter(item =>
+      bulkSelection.selectedIds.has(item.id)
+    );
     if (selected.some(item => item.status === 'geplant')) return 'Bestätigen';
-    if (selected.some(item => Boolean(item.requiresReview))) return 'Review erledigt';
+    if (selected.some(item => Boolean(item.requiresReview)))
+      return 'Review erledigt';
     return 'Aktion';
   }, [bulkSelection.selectedIds, sorted]);
 
@@ -957,7 +1129,11 @@ export const AllTerminePage = () => {
       <ViewIcon icon="allDocs" />
       <ViewBody>
         <div className={styles.body}>
-          <div className={styles.srOnlyLive} aria-live="polite" aria-atomic="true">
+          <div
+            className={styles.srOnlyLive}
+            aria-live="polite"
+            aria-atomic="true"
+          >
             {actionStatus ?? srSummaryText}
           </div>
 
@@ -968,104 +1144,186 @@ export const AllTerminePage = () => {
                   type="button"
                   className={styles.filterChip}
                   data-active={isCalendarDayFilterActive}
-                  onClick={() => setIsCalendarDayFilterActive(current => !current)}
+                  onClick={() =>
+                    setIsCalendarDayFilterActive(current => !current)
+                  }
                   aria-pressed={isCalendarDayFilterActive}
-                  aria-label={isCalendarDayFilterActive ? 'Kalendertag-Filter deaktivieren' : 'Kalendertag-Filter aktivieren'}
+                  aria-label={
+                    isCalendarDayFilterActive
+                      ? 'Kalendertag-Filter deaktivieren'
+                      : 'Kalendertag-Filter aktivieren'
+                  }
                 >
-                  {isCalendarDayFilterActive ? `Kalendertag: ${selectedDateKey}` : 'Alle Tage'}
+                  {isCalendarDayFilterActive
+                    ? `Kalendertag: ${selectedDateKey}`
+                    : 'Alle Tage'}
                 </button>
-                <button type="button" className={styles.filterChipLowPriority} onClick={handleJumpToToday}>
+                <button
+                  type="button"
+                  className={`${styles.filterChip} ${styles.filterChipLowPriority}`}
+                  onClick={handleJumpToToday}
+                >
                   Heute
                 </button>
+                <label className={styles.toolbarControl}>
+                  <span className={styles.toolbarLabel}>Ansicht</span>
+                  <select
+                    className={styles.toolbarSelect}
+                    value={filterMode}
+                    onChange={event =>
+                      setFilterMode(event.target.value as TerminFilterMode)
+                    }
+                    aria-label="Termin-Statusfilter"
+                  >
+                    <option value="all">Alle ({stats.total})</option>
+                    <option value="upcoming">Kommend ({stats.upcoming})</option>
+                    <option value="past">Historie ({stats.past})</option>
+                    <option value="cancelled">
+                      Abgesagt ({stats.cancelled})
+                    </option>
+                  </select>
+                </label>
+              </div>
+              <div className={styles.filterGroupRight}>
                 <button
                   type="button"
                   className={styles.filterChip}
                   data-active={urlMode === 'review'}
                   onClick={() => {
-                    applyReviewPreset('review');
                     const next = new URLSearchParams(location.search);
-                    next.set('mode', 'review');
+                    if (urlMode === 'review') {
+                      applyReviewPreset('default');
+                      next.delete('mode');
+                    } else {
+                      applyReviewPreset('review');
+                      next.set('mode', 'review');
+                    }
                     navigate({ search: next.toString() }, { replace: true });
                   }}
                 >
-                  Review Queue
+                  {urlMode === 'review' ? 'Review-Queue: An' : 'Review-Queue'}
                 </button>
                 <button
                   type="button"
-                  className={styles.filterChip}
-                  onClick={() => {
-                    applyReviewPreset('default');
-                    const next = new URLSearchParams(location.search);
-                    next.delete('mode');
-                    navigate({ search: next.toString() }, { replace: true });
-                  }}
+                  className={`${styles.filterChip} ${styles.filterChipLowPriority}`}
+                  data-active={showAdvancedFilters}
+                  onClick={() => setShowAdvancedFilters(current => !current)}
+                  aria-pressed={showAdvancedFilters}
                 >
-                  Reset
+                  {showAdvancedFilters
+                    ? 'Erweiterte Filter ausblenden'
+                    : 'Erweiterte Filter'}
                 </button>
-                <button type="button" className={styles.filterChip} data-active={filterMode === 'all'} onClick={() => setFilterMode('all')}>
-                  Alle ({stats.total})
-                </button>
-                <button type="button" className={styles.filterChip} data-active={filterMode === 'upcoming'} onClick={() => setFilterMode('upcoming')}>
-                  Kommend ({stats.upcoming})
-                </button>
-                <button type="button" className={styles.filterChip} data-active={filterMode === 'past'} onClick={() => setFilterMode('past')}>
-                  Historie ({stats.past})
-                </button>
-                <button type="button" className={styles.filterChip} data-active={filterMode === 'cancelled'} onClick={() => setFilterMode('cancelled')}>
-                  Abgesagt ({stats.cancelled})
-                </button>
+
+                {!showAdvancedFilters && hasAdvancedFiltersApplied ? (
+                  <>
+                    <span className={styles.filterChip}>Filter aktiv</span>
+                    <button
+                      type="button"
+                      className={`${styles.filterChip} ${styles.filterChipLowPriority}`}
+                      onClick={() => {
+                        setReviewFilter('all');
+                        setKategorieFilter('all');
+                        setConfidenceFilter('all');
+                        setSortKey('datum');
+                        setSortDir('asc');
+                        setSearchQuery('');
+                      }}
+                    >
+                      Filter zurücksetzen
+                    </button>
+                  </>
+                ) : null}
+              </div>
+            </div>
+
+            <div className={styles.filterRow}>
+              <div className={styles.filterGroup}>
+                {showAdvancedFilters ? (
+                  <>
+                    <label className={styles.toolbarControl}>
+                      <span className={styles.toolbarLabel}>Review</span>
+                      <select
+                        className={styles.toolbarSelect}
+                        value={reviewFilter}
+                        onChange={event =>
+                          setReviewFilter(event.target.value as ReviewFilter)
+                        }
+                      >
+                        <option value="all">Alle</option>
+                        <option value="needs_review">Review nötig</option>
+                        <option value="no_review">Ohne Review</option>
+                      </select>
+                    </label>
+                    <label className={styles.toolbarControl}>
+                      <span className={styles.toolbarLabel}>Kategorie</span>
+                      <select
+                        className={styles.toolbarSelect}
+                        value={kategorieFilter}
+                        onChange={event =>
+                          setKategorieFilter(
+                            event.target.value as KategorieFilter
+                          )
+                        }
+                      >
+                        <option value="all">Alle</option>
+                        <option value="gerichtstermin">Gericht</option>
+                        <option value="gespraech">Gespräch</option>
+                        <option value="sonstiger">Sonstiges</option>
+                        <option value="unknown">Unbekannt</option>
+                      </select>
+                    </label>
+                    <label className={styles.toolbarControl}>
+                      <span className={styles.toolbarLabel}>Confidence</span>
+                      <select
+                        className={styles.toolbarSelect}
+                        value={confidenceFilter}
+                        onChange={event =>
+                          setConfidenceFilter(
+                            event.target.value as ConfidenceFilter
+                          )
+                        }
+                      >
+                        <option value="all">Alle</option>
+                        <option value="high">Hoch</option>
+                        <option value="medium">Mittel</option>
+                        <option value="low">Niedrig</option>
+                        <option value="unknown">Unbekannt</option>
+                      </select>
+                    </label>
+                  </>
+                ) : null}
               </div>
               <div className={styles.filterGroupRight}>
-                <label className={styles.toolbarControl}>
-                  <span className={styles.toolbarLabel}>Review</span>
-                  <select
-                    className={styles.toolbarSelect}
-                    value={reviewFilter}
-                    onChange={event => setReviewFilter(event.target.value as ReviewFilter)}
-                  >
-                    <option value="all">Alle</option>
-                    <option value="needs_review">Review nötig</option>
-                    <option value="no_review">Ohne Review</option>
-                  </select>
-                </label>
-                <label className={styles.toolbarControl}>
-                  <span className={styles.toolbarLabel}>Kategorie</span>
-                  <select
-                    className={styles.toolbarSelect}
-                    value={kategorieFilter}
-                    onChange={event => setKategorieFilter(event.target.value as KategorieFilter)}
-                  >
-                    <option value="all">Alle</option>
-                    <option value="gerichtstermin">Gericht</option>
-                    <option value="gespraech">Gespräch</option>
-                    <option value="sonstiger">Sonstiges</option>
-                    <option value="unknown">Unbekannt</option>
-                  </select>
-                </label>
-                <label className={styles.toolbarControl}>
-                  <span className={styles.toolbarLabel}>Confidence</span>
-                  <select
-                    className={styles.toolbarSelect}
-                    value={confidenceFilter}
-                    onChange={event => setConfidenceFilter(event.target.value as ConfidenceFilter)}
-                  >
-                    <option value="all">Alle</option>
-                    <option value="high">Hoch</option>
-                    <option value="medium">Mittel</option>
-                    <option value="low">Niedrig</option>
-                    <option value="unknown">Unbekannt</option>
-                  </select>
-                </label>
+                <button
+                  type="button"
+                  className={styles.filterChip}
+                  onClick={() => void handleCreateTermin()}
+                >
+                  Neu+ Termin
+                </button>
                 <label className={styles.toolbarControl}>
                   <span className={styles.toolbarLabel}>Sortierung</span>
-                  <select className={styles.toolbarSelect} value={sortKey} onChange={event => setSortKey(event.target.value as SortKey)}>
+                  <select
+                    className={styles.toolbarSelect}
+                    value={sortKey}
+                    onChange={event =>
+                      setSortKey(event.target.value as SortKey)
+                    }
+                  >
                     <option value="datum">Datum</option>
                     <option value="gericht">Gericht</option>
                     <option value="status">Status</option>
                     <option value="terminart">Terminart</option>
                   </select>
                 </label>
-                <button type="button" className={styles.toolbarSortDirectionButton} onClick={() => setSortDir(current => (current === 'desc' ? 'asc' : 'desc'))}>
+                <button
+                  type="button"
+                  className={styles.toolbarSortDirectionButton}
+                  onClick={() =>
+                    setSortDir(current => (current === 'desc' ? 'asc' : 'desc'))
+                  }
+                >
                   {sortDir === 'desc' ? '↓' : '↑'}
                 </button>
                 <div className={styles.searchWrap}>
@@ -1092,88 +1350,24 @@ export const AllTerminePage = () => {
                 </div>
               </div>
             </div>
-
-            <div className={styles.filterRow}>
-              <div className={styles.filterGroup}>
-                <label className={styles.toolbarControl}>
-                  <span className={styles.toolbarLabel}>Terminart</span>
-                  <select className={styles.toolbarSelect} value={terminart} onChange={e => setTerminart(e.target.value as Gerichtstermin['terminart'])}>
-                    {Object.keys(TERMINART_LABELS).map(key => (
-                      <option key={key} value={key}>
-                        {TERMINART_LABELS[key as Gerichtstermin['terminart']]}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className={styles.toolbarControl}>
-                  <span className={styles.toolbarLabel}>Datum</span>
-                  <input className={styles.toolbarSelect} type="date" value={datum} onChange={e => setDatum(e.target.value)} />
-                </label>
-                <label className={styles.toolbarControl}>
-                  <span className={styles.toolbarLabel}>Uhrzeit</span>
-                  <input className={styles.toolbarSelect} type="time" value={uhrzeit} onChange={e => setUhrzeit(e.target.value)} />
-                </label>
-                <label className={styles.toolbarControl}>
-                  <span className={styles.toolbarLabel}>Gericht</span>
-                  <input className={styles.toolbarSelect} type="text" value={gericht} onChange={e => setGericht(e.target.value)} placeholder="z. B. LG Wien" />
-                </label>
-                <button type="button" className={styles.filterChip} onClick={() => void handleCreateTermin()}>
-                  Neu+ Termin
-                </button>
-              </div>
-            </div>
           </div>
 
-          <section className={styles.termineCalendarPanel} aria-label="Termine-Kalender">
-            <div className={styles.termineCalendarHeader}>
-              <div className={styles.termineCalendarTitleWrap}>
-                <h3 className={styles.termineCalendarTitle}>Kalender</h3>
-                <div className={styles.termineCalendarMeta}>
-                  {selectedDateLabel} · {selectedDayMeta.count} Termin(e)
-                  {selectedDayMeta.criticalCount > 0
-                    ? ` · ${selectedDayMeta.criticalCount} kritisch (<48h oder überfällig)`
-                    : ''}
-                </div>
-              </div>
-              <div className={styles.termineCalendarHeaderActions}>
-                <button type="button" className={styles.filterChipLowPriority} onClick={() => setIsCalendarDayFilterActive(true)}>
-                  Tag aktivieren
-                </button>
-                <button
-                  type="button"
-                  className={styles.filterChipLowPriority}
-                  onClick={() => setIsCalendarDayFilterActive(false)}
-                  aria-pressed={!isCalendarDayFilterActive}
-                >
-                  Alle anzeigen
-                </button>
-              </div>
-            </div>
-            <div className={styles.termineCalendarPickerWrap}>
-              <DatePicker
-                weekDays={t['com.affine.calendar-date-picker.week-days']()}
-                monthNames={t['com.affine.calendar-date-picker.month-names']()}
-                todayLabel={t['com.affine.calendar-date-picker.today']()}
-                customDayRenderer={customCalendarDayRenderer}
-                value={selectedDateKey}
-                onChange={handleCalendarDateSelect}
-                onCursorChange={setCalendarCursor}
-                cellSize={34}
-              />
-            </div>
-            <p className={styles.termineCalendarHint}>
-              Klick auf einen Tag zeigt automatisch die verknüpften Termine mit Detail-Link.
-            </p>
-          </section>
-
           {actionStatus ? (
-            <div className={styles.actionStatus} role="status" aria-live="polite">
+            <div
+              className={styles.actionStatus}
+              role="status"
+              aria-live="polite"
+            >
               {actionStatus}
             </div>
           ) : null}
 
           <div className={styles.scrollArea}>
-            <div className={styles.listContainer} role="grid" aria-label="Termine">
+            <div
+              className={styles.listContainer}
+              role="grid"
+              aria-label="Termine"
+            >
               <div className={styles.headerRow} role="row">
                 <span className={styles.selectionCell} role="columnheader">
                   <input
@@ -1182,27 +1376,47 @@ export const AllTerminePage = () => {
                     checked={bulkSelection.headerState.checked}
                     ref={el => {
                       if (el) {
-                        el.indeterminate = bulkSelection.headerState.indeterminate;
+                        el.indeterminate =
+                          bulkSelection.headerState.indeterminate;
                       }
                     }}
-                    onChange={e => bulkSelection.selectAllVisible(e.target.checked)}
+                    onChange={e =>
+                      bulkSelection.selectAllVisible(e.target.checked)
+                    }
                     aria-label="Alle sichtbaren Termine auswählen"
                   />
                 </span>
-                <span className={styles.sortButton} role="columnheader">Termin</span>
-                <span className={styles.sortButton} role="columnheader">Datum</span>
-                <span className={styles.fristMeta} role="columnheader">Akte</span>
-                <span className={styles.fristMetaHideSm} role="columnheader">Mandant</span>
-                <span className={styles.sortButton} role="columnheader">Status</span>
+                <span className={styles.sortButton} role="columnheader">
+                  Termin
+                </span>
+                <span className={styles.sortButton} role="columnheader">
+                  Datum
+                </span>
+                <span className={styles.fristMeta} role="columnheader">
+                  Akte
+                </span>
+                <span className={styles.fristMetaHideSm} role="columnheader">
+                  Mandant
+                </span>
+                <span className={styles.sortButton} role="columnheader">
+                  Status
+                </span>
               </div>
 
               {isInitialLoading ? (
                 Array.from({ length: 8 }).map((_, index) => (
-                  <div key={`termine-skeleton-${index}`} className={styles.skeletonRow} role="row" aria-hidden="true" />
+                  <div
+                    key={`termine-skeleton-${index}`}
+                    className={styles.skeletonRow}
+                    role="row"
+                    aria-hidden="true"
+                  />
                 ))
               ) : sorted.length === 0 ? (
                 <div className={styles.emptyState}>
-                  <div className={styles.emptyTitle}>Keine Termine gefunden</div>
+                  <div className={styles.emptyTitle}>
+                    Keine Termine gefunden
+                  </div>
                   <div className={styles.emptyDescription}>
                     {isCalendarDayFilterActive
                       ? 'Für den ausgewählten Kalendertag wurden keine Termine gefunden.'
@@ -1227,151 +1441,193 @@ export const AllTerminePage = () => {
 
                   return (
                     <button
-                    key={item.id}
-                    type="button"
-                    className={[styles.fristRow, rowUrgencyClass].filter(Boolean).join(' ')}
-                    onClick={() => handleOpenTermin(item)}
-                    aria-label={`Termin öffnen: ${TERMINART_LABELS[item.terminart]}`}
-                  >
-                    <div className={styles.selectionCell} onClick={e => e.stopPropagation()}>
-                      <input
-                        type="checkbox"
-                        className={styles.selectionCheckbox}
-                        checked={bulkSelection.isSelected(item.id)}
-                        onChange={e => {
-                          bulkSelection.toggleWithRange(item.id, {
-                            shiftKey: (e.nativeEvent as any).shiftKey,
-                          });
-                        }}
+                      key={item.id}
+                      type="button"
+                      className={[styles.fristRow, rowUrgencyClass]
+                        .filter(Boolean)
+                        .join(' ')}
+                      onClick={() => handleOpenTermin(item)}
+                      aria-label={`Termin öffnen: ${TERMINART_LABELS[item.terminart]}`}
+                    >
+                      <div
+                        className={styles.selectionCell}
                         onClick={e => e.stopPropagation()}
-                        aria-label={`Termin auswählen: ${TERMINART_LABELS[item.terminart]}`}
-                      />
-                    </div>
-                    <div className={styles.fristMainCell}>
-                      <div className={styles.fristTitle}>{TERMINART_LABELS[item.terminart]}</div>
-                      <div className={styles.fristSubtitle}>{item.gericht}</div>
-                      <div className={styles.deadlineInsightRow}>
-                        {item.kategorie ? (
-                          <span className={`${styles.statusBadge} ${item.kategorie === 'gerichtstermin' ? styles.statusPending : styles.statusCompleted}`}>
-                            {item.kategorie === 'gerichtstermin'
-                              ? 'Gericht'
-                              : item.kategorie === 'gespraech'
-                                ? 'Gespräch'
-                                : 'Sonstiges'}
-                          </span>
-                        ) : null}
-                        {item.requiresReview ? (
-                          <span className={`${styles.statusBadge} ${styles.statusExpired}`}>
-                            Review nötig
-                          </span>
-                        ) : null}
-                        <span
-                          className={`${styles.statusBadge} ${
-                            confidenceBucket(item.detectionConfidence) === 'high'
-                              ? styles.statusCompleted
-                              : confidenceBucket(item.detectionConfidence) === 'medium'
-                                ? styles.statusPending
-                                : confidenceBucket(item.detectionConfidence) === 'low'
-                                  ? styles.statusExpired
-                                  : styles.statusPending
-                          }`}
-                        >
-                          {confidenceLabel(item.detectionConfidence)}
-                        </span>
-                        {item.sourceDocTitles.length > 0 ? (
-                          <span className={`${styles.statusBadge} ${styles.statusPending}`}>
-                            Quelle: {item.sourceDocTitles[0]}
-                            {item.sourceDocTitles.length > 1 ? ` (+${item.sourceDocTitles.length - 1})` : ''}
-                          </span>
-                        ) : null}
-                        {item.status === 'geplant' ? (
-                          <button
-                            type="button"
-                            className={styles.deadlineReviewAction}
-                            onClick={e => {
-                              e.stopPropagation();
-                              terminService
-                                .confirmTermin(item.id)
-                                .then(() => {
-                                  showActionStatus('Termin bestätigt.');
-                                })
-                                .catch(() => {
-                                  showActionStatus('Termin konnte nicht bestätigt werden.');
-                                });
-                            }}
-                          >
-                            Bestätigen
-                          </button>
-                        ) : null}
-                        {(item.sourceDocTitles.length > 0 || (item.evidenceSnippets ?? []).length > 0 || item.derivedFrom) ? (
-                          <button
-                            type="button"
-                            className={styles.deadlineReviewAction}
-                            onClick={e => {
-                              e.stopPropagation();
-                              handleShowTerminDetails(item);
-                            }}
-                          >
-                            Details
-                          </button>
-                        ) : null}
-                        {item.status !== 'abgesagt' && item.status !== 'abgeschlossen' ? (
-                          <button
-                            type="button"
-                            className={styles.deadlineReviewAction}
-                            onClick={e => {
-                              e.stopPropagation();
-                              handleRescheduleTermin(item);
-                            }}
-                          >
-                            Verschieben
-                          </button>
-                        ) : null}
-                        {item.status !== 'abgesagt' && item.status !== 'abgeschlossen' ? (
-                          <button
-                            type="button"
-                            className={styles.deadlineReviewAction}
-                            onClick={e => {
-                              e.stopPropagation();
-                              handleCancelTermin(item);
-                            }}
-                          >
-                            Absagen
-                          </button>
-                        ) : null}
-                        {item.status !== 'abgeschlossen' ? (
-                          <button
-                            type="button"
-                            className={styles.deadlineReviewAction}
-                            onClick={e => {
-                              e.stopPropagation();
-                              handleCompleteTermin(item);
-                            }}
-                          >
-                            Abschließen
-                          </button>
-                        ) : null}
-                        <button
-                          type="button"
-                          className={styles.deadlineReviewAction}
-                          onClick={e => {
-                            e.stopPropagation();
-                            handleDeleteTermin(item);
+                      >
+                        <input
+                          type="checkbox"
+                          className={styles.selectionCheckbox}
+                          checked={bulkSelection.isSelected(item.id)}
+                          onChange={e => {
+                            bulkSelection.toggleWithRange(item.id, {
+                              shiftKey: (e.nativeEvent as any).shiftKey,
+                            });
                           }}
-                        >
-                          Löschen
-                        </button>
+                          onClick={e => e.stopPropagation()}
+                          aria-label={`Termin auswählen: ${TERMINART_LABELS[item.terminart]}`}
+                        />
                       </div>
-                    </div>
-                    <span className={[styles.dueDate, dueDateUrgencyClass].filter(Boolean).join(' ')}>{formatDateTime(item.datum, item.uhrzeit, language)}</span>
-                    <span className={styles.fristMeta}>{item.matterExternalRef ? `${item.matterExternalRef} — ` : ''}{item.matterTitle || '—'}</span>
-                    <span className={styles.fristMetaHideSm}>{item.clientName || '—'}</span>
-                    <span>
-                      <span className={`${styles.statusBadge} ${item.status === 'abgesagt' ? styles.statusExpired : item.status === 'abgeschlossen' ? styles.statusCompleted : styles.statusPending}`}>
-                        {TERMIN_STATUS_LABELS[item.status]}
+                      <div className={styles.fristMainCell}>
+                        <div className={styles.fristTitle}>
+                          {TERMINART_LABELS[item.terminart]}
+                        </div>
+                        <div className={styles.fristSubtitle}>
+                          {item.gericht}
+                        </div>
+                        <div className={styles.deadlineInsightRow}>
+                          {item.kategorie ? (
+                            <span
+                              className={`${styles.statusBadge} ${item.kategorie === 'gerichtstermin' ? styles.statusPending : styles.statusCompleted}`}
+                            >
+                              {item.kategorie === 'gerichtstermin'
+                                ? 'Gericht'
+                                : item.kategorie === 'gespraech'
+                                  ? 'Gespräch'
+                                  : 'Sonstiges'}
+                            </span>
+                          ) : null}
+                          {item.requiresReview ? (
+                            <span
+                              className={`${styles.statusBadge} ${styles.statusExpired}`}
+                            >
+                              Review nötig
+                            </span>
+                          ) : null}
+                          <span
+                            className={`${styles.statusBadge} ${
+                              confidenceBucket(item.detectionConfidence) ===
+                              'high'
+                                ? styles.statusCompleted
+                                : confidenceBucket(item.detectionConfidence) ===
+                                    'medium'
+                                  ? styles.statusPending
+                                  : confidenceBucket(
+                                        item.detectionConfidence
+                                      ) === 'low'
+                                    ? styles.statusExpired
+                                    : styles.statusPending
+                            }`}
+                          >
+                            {confidenceLabel(item.detectionConfidence)}
+                          </span>
+                          {item.sourceDocTitles.length > 0 ? (
+                            <span
+                              className={`${styles.statusBadge} ${styles.statusPending}`}
+                            >
+                              Quelle: {item.sourceDocTitles[0]}
+                              {item.sourceDocTitles.length > 1
+                                ? ` (+${item.sourceDocTitles.length - 1})`
+                                : ''}
+                            </span>
+                          ) : null}
+                          {item.status === 'geplant' ? (
+                            <button
+                              type="button"
+                              className={styles.deadlineReviewAction}
+                              onClick={e => {
+                                e.stopPropagation();
+                                terminService
+                                  .confirmTermin(item.id)
+                                  .then(() => {
+                                    showActionStatus('Termin bestätigt.');
+                                  })
+                                  .catch(() => {
+                                    showActionStatus(
+                                      'Termin konnte nicht bestätigt werden.'
+                                    );
+                                  });
+                              }}
+                            >
+                              Bestätigen
+                            </button>
+                          ) : null}
+                          {item.sourceDocTitles.length > 0 ||
+                          (item.evidenceSnippets ?? []).length > 0 ||
+                          item.derivedFrom ? (
+                            <button
+                              type="button"
+                              className={styles.deadlineReviewAction}
+                              onClick={e => {
+                                e.stopPropagation();
+                                handleShowTerminDetails(item);
+                              }}
+                            >
+                              Details
+                            </button>
+                          ) : null}
+                          {item.status !== 'abgesagt' &&
+                          item.status !== 'abgeschlossen' ? (
+                            <button
+                              type="button"
+                              className={styles.deadlineReviewAction}
+                              onClick={e => {
+                                e.stopPropagation();
+                                handleRescheduleTermin(item);
+                              }}
+                            >
+                              Verschieben
+                            </button>
+                          ) : null}
+                          {item.status !== 'abgesagt' &&
+                          item.status !== 'abgeschlossen' ? (
+                            <button
+                              type="button"
+                              className={styles.deadlineReviewAction}
+                              onClick={e => {
+                                e.stopPropagation();
+                                handleCancelTermin(item);
+                              }}
+                            >
+                              Absagen
+                            </button>
+                          ) : null}
+                          {item.status !== 'abgeschlossen' ? (
+                            <button
+                              type="button"
+                              className={styles.deadlineReviewAction}
+                              onClick={e => {
+                                e.stopPropagation();
+                                handleCompleteTermin(item);
+                              }}
+                            >
+                              Abschließen
+                            </button>
+                          ) : null}
+                          <button
+                            type="button"
+                            className={styles.deadlineReviewAction}
+                            onClick={e => {
+                              e.stopPropagation();
+                              handleDeleteTermin(item);
+                            }}
+                          >
+                            Löschen
+                          </button>
+                        </div>
+                      </div>
+                      <span
+                        className={[styles.dueDate, dueDateUrgencyClass]
+                          .filter(Boolean)
+                          .join(' ')}
+                      >
+                        {formatDateTime(item.datum, item.uhrzeit, language)}
                       </span>
-                    </span>
-                  </button>
+                      <span className={styles.fristMeta}>
+                        {item.matterExternalRef
+                          ? `${item.matterExternalRef} — `
+                          : ''}
+                        {item.matterTitle || '—'}
+                      </span>
+                      <span className={styles.fristMetaHideSm}>
+                        {item.clientName || '—'}
+                      </span>
+                      <span>
+                        <span
+                          className={`${styles.statusBadge} ${item.status === 'abgesagt' ? styles.statusExpired : item.status === 'abgeschlossen' ? styles.statusCompleted : styles.statusPending}`}
+                        >
+                          {TERMIN_STATUS_LABELS[item.status]}
+                        </span>
+                      </span>
+                    </button>
                   );
                 })
               )}

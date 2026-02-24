@@ -93,11 +93,18 @@ function daysUntil(dateStr: string): number {
 }
 
 function fmtEur(value: number): string {
-  return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(value);
+  return new Intl.NumberFormat('de-DE', {
+    style: 'currency',
+    currency: 'EUR',
+  }).format(value);
 }
 
 function fmtDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  return new Date(iso).toLocaleDateString('de-DE', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
 }
 
 function fmtDuration(minutes: number): string {
@@ -114,10 +121,18 @@ function getInitials(name: string): string {
     .join('');
 }
 
-type TabId = 'akten' | 'finanzen' | 'fristen' | 'dokumente' | 'notizen' | 'zeit';
+type TabId =
+  | 'akten'
+  | 'finanzen'
+  | 'fristen'
+  | 'dokumente'
+  | 'notizen'
+  | 'zeit';
 type ComplianceFocusTarget = 'vollmacht' | 'ausweis';
 
-function isLikelyAusweisDocument(doc: Pick<LegalDocumentRecord, 'title' | 'sourceRef' | 'tags'>): boolean {
+function isLikelyAusweisDocument(
+  doc: Pick<LegalDocumentRecord, 'title' | 'sourceRef' | 'tags'>
+): boolean {
   const haystack = [doc.title, doc.sourceRef, ...(doc.tags ?? [])]
     .filter(Boolean)
     .join(' ')
@@ -179,8 +194,15 @@ export const MandantDetailPage = () => {
   // ═══ Matters ═══
   const matters = useMemo(() => {
     return Object.values(graph.matters ?? {})
-      .filter((m: MatterRecord) => m.clientId === clientId || (m.clientIds ?? []).includes(clientId))
-      .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+      .filter(
+        (m: MatterRecord) =>
+          (m.clientId === clientId || (m.clientIds ?? []).includes(clientId)) &&
+          m.status !== 'archived'
+      )
+      .sort(
+        (a, b) =>
+          new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+      );
   }, [graph.matters, clientId]);
 
   const matterIds = useMemo(() => new Set(matters.map(m => m.id)), [matters]);
@@ -216,11 +238,14 @@ export const MandantDetailPage = () => {
     return ids
       .map(id => graph.deadlines?.[id] as CaseDeadline | undefined)
       .filter((d): d is CaseDeadline => Boolean(d))
-      .sort((a, b) => new Date(a.dueAt).getTime() - new Date(b.dueAt).getTime());
+      .sort(
+        (a, b) => new Date(a.dueAt).getTime() - new Date(b.dueAt).getTime()
+      );
   }, [caseFiles, graph.deadlines]);
 
   const openDeadlines = useMemo(
-    () => deadlines.filter(d => d.status !== 'completed' && d.status !== 'expired'),
+    () =>
+      deadlines.filter(d => d.status !== 'completed' && d.status !== 'expired'),
     [deadlines]
   );
 
@@ -231,7 +256,11 @@ export const MandantDetailPage = () => {
 
   // ═══ Documents ═══
   const docs = useMemo(
-    () => legalDocs.filter((doc: LegalDocumentRecord) => caseIds.has(doc.caseId) && doc.workspaceId === client?.workspaceId),
+    () =>
+      legalDocs.filter(
+        (doc: LegalDocumentRecord) =>
+          caseIds.has(doc.caseId) && doc.workspaceId === client?.workspaceId
+      ),
     [legalDocs, caseIds, client?.workspaceId]
   );
 
@@ -256,7 +285,9 @@ export const MandantDetailPage = () => {
 
   useEffect(() => {
     if (!focusTargetFromQuery) return;
-    setActiveTab(focusTargetFromQuery === 'vollmacht' ? 'notizen' : 'dokumente');
+    setActiveTab(
+      focusTargetFromQuery === 'vollmacht' ? 'notizen' : 'dokumente'
+    );
     setHighlightedFocusTarget(focusTargetFromQuery);
   }, [focusTargetFromQuery]);
 
@@ -284,74 +315,142 @@ export const MandantDetailPage = () => {
 
   // ═══ Finanzen ═══
   const clientRechnungen = useMemo(
-    () => (allRechnungen as RechnungRecord[]).filter((r: RechnungRecord) => r.clientId === clientId || matterIds.has(r.matterId))
-      .sort((a: RechnungRecord, b: RechnungRecord) => new Date(b.rechnungsdatum).getTime() - new Date(a.rechnungsdatum).getTime()),
+    () =>
+      (allRechnungen as RechnungRecord[])
+        .filter(
+          (r: RechnungRecord) =>
+            r.clientId === clientId || matterIds.has(r.matterId)
+        )
+        .sort(
+          (a: RechnungRecord, b: RechnungRecord) =>
+            new Date(b.rechnungsdatum).getTime() -
+            new Date(a.rechnungsdatum).getTime()
+        ),
     [allRechnungen, clientId, matterIds]
   );
 
   const clientAuslagen = useMemo(
-    () => (allAuslagen as AuslageRecord[]).filter((r: AuslageRecord) => r.clientId === clientId || matterIds.has(r.matterId))
-      .sort((a: AuslageRecord, b: AuslageRecord) => new Date(b.datum).getTime() - new Date(a.datum).getTime()),
+    () =>
+      (allAuslagen as AuslageRecord[])
+        .filter(
+          (r: AuslageRecord) =>
+            r.clientId === clientId || matterIds.has(r.matterId)
+        )
+        .sort(
+          (a: AuslageRecord, b: AuslageRecord) =>
+            new Date(b.datum).getTime() - new Date(a.datum).getTime()
+        ),
     [allAuslagen, clientId, matterIds]
   );
 
   const finanzSummary = useMemo(() => {
-    const totalBrutto = clientRechnungen.reduce((s: number, r: RechnungRecord) => s + r.brutto, 0);
-    const totalBezahlt = clientRechnungen.reduce((s: number, r: RechnungRecord) => s + (r.bezahlterBetrag ?? 0), 0);
+    const totalBrutto = clientRechnungen.reduce(
+      (s: number, r: RechnungRecord) => s + r.brutto,
+      0
+    );
+    const totalBezahlt = clientRechnungen.reduce(
+      (s: number, r: RechnungRecord) => s + (r.bezahlterBetrag ?? 0),
+      0
+    );
     const offenePosten = clientRechnungen
-      .filter((r: RechnungRecord) => r.status === 'versendet' || r.status === 'teilbezahlt' || r.status === 'mahnung_1' || r.status === 'mahnung_2')
-      .reduce((s: number, r: RechnungRecord) => s + r.brutto - (r.bezahlterBetrag ?? 0), 0);
-    const totalAuslagen = clientAuslagen.reduce((s: number, a: AuslageRecord) => s + a.betrag, 0);
+      .filter(
+        (r: RechnungRecord) =>
+          r.status === 'versendet' ||
+          r.status === 'teilbezahlt' ||
+          r.status === 'mahnung_1' ||
+          r.status === 'mahnung_2'
+      )
+      .reduce(
+        (s: number, r: RechnungRecord) =>
+          s + r.brutto - (r.bezahlterBetrag ?? 0),
+        0
+      );
+    const totalAuslagen = clientAuslagen.reduce(
+      (s: number, a: AuslageRecord) => s + a.betrag,
+      0
+    );
     return { totalBrutto, totalBezahlt, offenePosten, totalAuslagen };
   }, [clientRechnungen, clientAuslagen]);
 
   // ═══ Time Entries ═══
   const clientTimeEntries = useMemo(
-    () => (allTimeEntries as TimeEntry[]).filter(e => e.clientId === clientId || matterIds.has(e.matterId))
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
+    () =>
+      (allTimeEntries as TimeEntry[])
+        .filter(e => e.clientId === clientId || matterIds.has(e.matterId))
+        .sort(
+          (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+        ),
     [allTimeEntries, clientId, matterIds]
   );
 
-  const totalTimeMinutes = useMemo(() => clientTimeEntries.reduce((s, e) => s + e.durationMinutes, 0), [clientTimeEntries]);
-  const totalTimeAmount = useMemo(() => clientTimeEntries.reduce((s, e) => s + e.amount, 0), [clientTimeEntries]);
+  const totalTimeMinutes = useMemo(
+    () => clientTimeEntries.reduce((s, e) => s + e.durationMinutes, 0),
+    [clientTimeEntries]
+  );
+  const totalTimeAmount = useMemo(
+    () => clientTimeEntries.reduce((s, e) => s + e.amount, 0),
+    [clientTimeEntries]
+  );
 
   // ═══ Aktennotizen ═══
   const clientNotizen = useMemo(
-    () => (allAktennotizen as Aktennotiz[]).filter(n => n.clientId === clientId || matterIds.has(n.matterId))
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
+    () =>
+      (allAktennotizen as Aktennotiz[])
+        .filter(n => n.clientId === clientId || matterIds.has(n.matterId))
+        .sort(
+          (a, b) =>
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        ),
     [allAktennotizen, clientId, matterIds]
   );
 
   // ═══ Vollmachten ═══
   const clientVollmachten = useMemo(
-    () => (allVollmachten as Vollmacht[]).filter(v => v.clientId === clientId)
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
+    () =>
+      (allVollmachten as Vollmacht[])
+        .filter(v => v.clientId === clientId)
+        .sort(
+          (a, b) =>
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        ),
     [allVollmachten, clientId]
   );
 
   // ═══ Matter status helper ═══
   const getMatterStatusStyle = useCallback((status: MatterRecord['status']) => {
     return `${styles.statusBadgeCompact} ${
-      status === 'open' ? styles.statusOpen
-        : status === 'closed' ? styles.statusClosed
+      status === 'open'
+        ? styles.statusOpen
+        : status === 'closed'
+          ? styles.statusClosed
           : styles.statusArchived
     }`;
   }, []);
 
   // ═══ Rechnung status helper ═══
-  const getRechnungStatusStyle = useCallback((status: RechnungRecord['status']) => {
-    return `${styles.statusBadgeCompact} ${
-      status === 'bezahlt' ? styles.statusCompleted
-        : status === 'storniert' ? styles.statusArchived
-          : status === 'mahnung_1' || status === 'mahnung_2' || status === 'inkasso' ? styles.statusError
-            : status === 'versendet' || status === 'teilbezahlt' ? styles.statusWarning
-              : styles.statusPending
-    }`;
-  }, []);
+  const getRechnungStatusStyle = useCallback(
+    (status: RechnungRecord['status']) => {
+      return `${styles.statusBadgeCompact} ${
+        status === 'bezahlt'
+          ? styles.statusCompleted
+          : status === 'storniert'
+            ? styles.statusArchived
+            : status === 'mahnung_1' ||
+                status === 'mahnung_2' ||
+                status === 'inkasso'
+              ? styles.statusError
+              : status === 'versendet' || status === 'teilbezahlt'
+                ? styles.statusWarning
+                : styles.statusPending
+      }`;
+    },
+    []
+  );
 
   const openMainChatForClient = useCallback(() => {
     const preferredCase = [...caseFiles].sort(
-      (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+      (a, b) =>
+        new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
     )[0];
     const preferredMatter = preferredCase?.matterId
       ? matterMap.get(preferredCase.matterId)
@@ -371,14 +470,40 @@ export const MandantDetailPage = () => {
   }, [caseFiles, clientId, matterMap, matters, workbench]);
 
   // ═══ Tab config ═══
-  const tabs: Array<{ id: TabId; label: string; count?: number; urgent?: boolean }> = useMemo(() => [
-    { id: 'akten', label: 'Akten', count: matters.length },
-    { id: 'finanzen', label: 'Finanzen', count: clientRechnungen.length },
-    { id: 'fristen', label: 'Fristen', count: openDeadlines.length, urgent: overdueCount > 0 },
-    { id: 'dokumente', label: 'Dokumente', count: docs.length },
-    { id: 'zeit', label: 'Zeiterfassung', count: clientTimeEntries.length },
-    { id: 'notizen', label: 'Notizen & Vollmachten', count: clientNotizen.length + clientVollmachten.length },
-  ], [matters.length, clientRechnungen.length, openDeadlines.length, overdueCount, docs.length, clientTimeEntries.length, clientNotizen.length, clientVollmachten.length]);
+  const tabs: Array<{
+    id: TabId;
+    label: string;
+    count?: number;
+    urgent?: boolean;
+  }> = useMemo(
+    () => [
+      { id: 'akten', label: 'Akten', count: matters.length },
+      { id: 'finanzen', label: 'Finanzen', count: clientRechnungen.length },
+      {
+        id: 'fristen',
+        label: 'Fristen',
+        count: openDeadlines.length,
+        urgent: overdueCount > 0,
+      },
+      { id: 'dokumente', label: 'Dokumente', count: docs.length },
+      { id: 'zeit', label: 'Zeiterfassung', count: clientTimeEntries.length },
+      {
+        id: 'notizen',
+        label: 'Notizen & Vollmachten',
+        count: clientNotizen.length + clientVollmachten.length,
+      },
+    ],
+    [
+      matters.length,
+      clientRechnungen.length,
+      openDeadlines.length,
+      overdueCount,
+      docs.length,
+      clientTimeEntries.length,
+      clientNotizen.length,
+      clientVollmachten.length,
+    ]
+  );
 
   // ═══ NOT FOUND ═══
   if (!client) {
@@ -390,7 +515,9 @@ export const MandantDetailPage = () => {
           <div className={styles.body}>
             <div className={styles.scrollArea}>
               <div className={styles.content}>
-                <div className={styles.empty}>Mandant konnte nicht geladen werden.</div>
+                <div className={styles.empty}>
+                  Mandant konnte nicht geladen werden.
+                </div>
               </div>
             </div>
           </div>
@@ -408,7 +535,6 @@ export const MandantDetailPage = () => {
         <div className={styles.body}>
           <div className={styles.scrollArea}>
             <div className={styles.content}>
-
               {/* ── Breadcrumb ── */}
               <div className={styles.breadcrumb}>
                 <button
@@ -433,25 +559,41 @@ export const MandantDetailPage = () => {
                       <div className={styles.title}>{client.displayName}</div>
                       <div className={styles.subtitle}>
                         <span>{clientKindLabel[client.kind]}</span>
-                        <span className={styles.subtitleSep} aria-hidden="true" />
+                        <span
+                          className={styles.subtitleSep}
+                          aria-hidden="true"
+                        />
                         <span>{client.archived ? 'Archiviert' : 'Aktiv'}</span>
-                        {client.identifiers && client.identifiers.length > 0 && (
-                          <>
-                            <span className={styles.subtitleSep} aria-hidden="true" />
-                            <span>{client.identifiers.join(', ')}</span>
-                          </>
-                        )}
+                        {client.identifiers &&
+                          client.identifiers.length > 0 && (
+                            <>
+                              <span
+                                className={styles.subtitleSep}
+                                aria-hidden="true"
+                              />
+                              <span>{client.identifiers.join(', ')}</span>
+                            </>
+                          )}
                       </div>
                       <div className={styles.contactRow}>
                         <div className={styles.contactItem}>
-                          E-Mail: <span className={styles.contactItemValue}>{client.primaryEmail || '—'}</span>
+                          E-Mail:{' '}
+                          <span className={styles.contactItemValue}>
+                            {client.primaryEmail || '—'}
+                          </span>
                         </div>
                         <div className={styles.contactItem}>
-                          Telefon: <span className={styles.contactItemValue}>{client.primaryPhone || '—'}</span>
+                          Telefon:{' '}
+                          <span className={styles.contactItemValue}>
+                            {client.primaryPhone || '—'}
+                          </span>
                         </div>
                         {client.address && (
                           <div className={styles.contactItem}>
-                            Adresse: <span className={styles.contactItemValue}>{client.address}</span>
+                            Adresse:{' '}
+                            <span className={styles.contactItemValue}>
+                              {client.address}
+                            </span>
                           </div>
                         )}
                       </div>
@@ -470,13 +612,18 @@ export const MandantDetailPage = () => {
                 {client.tags && client.tags.length > 0 && (
                   <div className={styles.tagsRow}>
                     {client.tags.map(t => (
-                      <span key={t} className={styles.tag}>{t}</span>
+                      <span key={t} className={styles.tag}>
+                        {t}
+                      </span>
                     ))}
                   </div>
                 )}
                 {client.notes && (
                   <div className={styles.contactItem} style={{ marginTop: 0 }}>
-                    Notiz: <span className={styles.contactItemValue}>{client.notes}</span>
+                    Notiz:{' '}
+                    <span className={styles.contactItemValue}>
+                      {client.notes}
+                    </span>
                   </div>
                 )}
               </div>
@@ -485,7 +632,11 @@ export const MandantDetailPage = () => {
               <div className={styles.statsGrid}>
                 <div className={styles.statCard}>
                   <div className={styles.statLabel}>Akten</div>
-                  <div className={`${styles.statValue} ${styles.statValueAccent}`}>{matters.length}</div>
+                  <div
+                    className={`${styles.statValue} ${styles.statValueAccent}`}
+                  >
+                    {matters.length}
+                  </div>
                 </div>
                 <div className={styles.statCard}>
                   <div className={styles.statLabel}>Dokumente</div>
@@ -493,21 +644,33 @@ export const MandantDetailPage = () => {
                 </div>
                 <div className={styles.statCard}>
                   <div className={styles.statLabel}>Offene Fristen</div>
-                  <div className={`${styles.statValue} ${overdueCount > 0 ? styles.statValueError : ''}`}>
+                  <div
+                    className={`${styles.statValue} ${overdueCount > 0 ? styles.statValueError : ''}`}
+                  >
                     {openDeadlines.length}
-                    {overdueCount > 0 && <span className={styles.statUnit}>({overdueCount} überfällig)</span>}
+                    {overdueCount > 0 && (
+                      <span className={styles.statUnit}>
+                        ({overdueCount} überfällig)
+                      </span>
+                    )}
                   </div>
                 </div>
                 <div className={styles.statCard}>
                   <div className={styles.statLabel}>Offene Posten</div>
-                  <div className={`${styles.statValue} ${finanzSummary.offenePosten > 0 ? styles.statValueError : styles.statValueSuccess}`}>
+                  <div
+                    className={`${styles.statValue} ${finanzSummary.offenePosten > 0 ? styles.statValueError : styles.statValueSuccess}`}
+                  >
                     {fmtEur(finanzSummary.offenePosten)}
                   </div>
                 </div>
               </div>
 
               {/* ── Tab Bar ── */}
-              <div className={styles.tabBar} role="tablist" aria-label="Mandanten-Bereiche">
+              <div
+                className={styles.tabBar}
+                role="tablist"
+                aria-label="Mandanten-Bereiche"
+              >
                 {tabs.map(tab => (
                   <button
                     key={tab.id}
@@ -520,7 +683,9 @@ export const MandantDetailPage = () => {
                   >
                     {tab.label}
                     {tab.count != null && tab.count > 0 && (
-                      <span className={`${styles.tabBadge} ${tab.urgent ? styles.tabBadgeUrgent : ''}`}>
+                      <span
+                        className={`${styles.tabBadge} ${tab.urgent ? styles.tabBadgeUrgent : ''}`}
+                      >
                         {tab.count}
                       </span>
                     )}
@@ -534,19 +699,30 @@ export const MandantDetailPage = () => {
               {activeTab === 'akten' && (
                 <div className={styles.tabPanel} role="tabpanel">
                   {matters.length === 0 ? (
-                    <div className={styles.empty}>Keine Akten mit diesem Mandanten verknüpft.</div>
+                    <div className={styles.empty}>
+                      Keine Akten mit diesem Mandanten verknüpft.
+                    </div>
                   ) : (
                     <div className={styles.twoColGrid}>
                       {matters.map(matter => {
-                        const matterCases = caseFiles.filter(c => c.matterId === matter.id);
-                        const matterDocs = docs.filter((d: LegalDocumentRecord) =>
-                          matterCases.some(c => c.id === d.caseId)
+                        const matterCases = caseFiles.filter(
+                          c => c.matterId === matter.id
+                        );
+                        const matterDocs = docs.filter(
+                          (d: LegalDocumentRecord) =>
+                            matterCases.some(c => c.id === d.caseId)
                         );
                         const matterDeadlineCount = matterCases
                           .flatMap(c => c.deadlineIds ?? [])
                           .filter(dId => {
-                            const d = graph.deadlines?.[dId] as CaseDeadline | undefined;
-                            return d && d.status !== 'completed' && d.status !== 'expired';
+                            const d = graph.deadlines?.[dId] as
+                              | CaseDeadline
+                              | undefined;
+                            return (
+                              d &&
+                              d.status !== 'completed' &&
+                              d.status !== 'expired'
+                            );
                           }).length;
 
                         return (
@@ -557,19 +733,31 @@ export const MandantDetailPage = () => {
                             onClick={() => workbench.openAkte(matter.id)}
                           >
                             {matter.externalRef && (
-                              <div className={styles.akteCardRef}>{matter.externalRef}</div>
+                              <div className={styles.akteCardRef}>
+                                {matter.externalRef}
+                              </div>
                             )}
-                            <div className={styles.akteCardTitle}>{matter.title}</div>
+                            <div className={styles.akteCardTitle}>
+                              {matter.title}
+                            </div>
                             <div className={styles.akteCardMeta}>
-                              <span className={getMatterStatusStyle(matter.status)}>
+                              <span
+                                className={getMatterStatusStyle(matter.status)}
+                              >
                                 {matterStatusLabel[matter.status]}
                               </span>
                               {matter.gericht && (
-                                <span className={styles.akteCardMetaItem}>{matter.gericht}</span>
+                                <span className={styles.akteCardMetaItem}>
+                                  {matter.gericht}
+                                </span>
                               )}
-                              <span className={styles.akteCardMetaItem}>{matterDocs.length} Dok.</span>
+                              <span className={styles.akteCardMetaItem}>
+                                {matterDocs.length} Dok.
+                              </span>
                               {matterDeadlineCount > 0 && (
-                                <span className={styles.akteCardMetaItem}>{matterDeadlineCount} Fristen</span>
+                                <span className={styles.akteCardMetaItem}>
+                                  {matterDeadlineCount} Fristen
+                                </span>
                               )}
                               <span className={styles.akteCardMetaItem}>
                                 {fmtDate(matter.updatedAt)}
@@ -588,28 +776,46 @@ export const MandantDetailPage = () => {
               {/* ═══════════════════════════════════════════════════════════ */}
               {activeTab === 'finanzen' && (
                 <div className={styles.tabPanel} role="tabpanel">
-
                   {/* Finance Summary Cards */}
                   <div className={styles.finanzSummaryGrid}>
                     <div className={styles.finanzMiniCard}>
-                      <div className={styles.finanzMiniLabel}>Gesamt (Brutto)</div>
-                      <div className={styles.finanzMiniValue}>{fmtEur(finanzSummary.totalBrutto)}</div>
+                      <div className={styles.finanzMiniLabel}>
+                        Gesamt (Brutto)
+                      </div>
+                      <div className={styles.finanzMiniValue}>
+                        {fmtEur(finanzSummary.totalBrutto)}
+                      </div>
                     </div>
                     <div className={styles.finanzMiniCard}>
                       <div className={styles.finanzMiniLabel}>Bezahlt</div>
-                      <div className={styles.finanzMiniValue} style={{ color: 'var(--affine-success-color)' }}>
+                      <div
+                        className={styles.finanzMiniValue}
+                        style={{ color: 'var(--affine-success-color)' }}
+                      >
                         {fmtEur(finanzSummary.totalBezahlt)}
                       </div>
                     </div>
                     <div className={styles.finanzMiniCard}>
-                      <div className={styles.finanzMiniLabel}>Offene Posten</div>
-                      <div className={styles.finanzMiniValue} style={{ color: finanzSummary.offenePosten > 0 ? 'var(--affine-error-color)' : undefined }}>
+                      <div className={styles.finanzMiniLabel}>
+                        Offene Posten
+                      </div>
+                      <div
+                        className={styles.finanzMiniValue}
+                        style={{
+                          color:
+                            finanzSummary.offenePosten > 0
+                              ? 'var(--affine-error-color)'
+                              : undefined,
+                        }}
+                      >
                         {fmtEur(finanzSummary.offenePosten)}
                       </div>
                     </div>
                     <div className={styles.finanzMiniCard}>
                       <div className={styles.finanzMiniLabel}>Auslagen</div>
-                      <div className={styles.finanzMiniValue}>{fmtEur(finanzSummary.totalAuslagen)}</div>
+                      <div className={styles.finanzMiniValue}>
+                        {fmtEur(finanzSummary.totalAuslagen)}
+                      </div>
                     </div>
                   </div>
 
@@ -620,7 +826,9 @@ export const MandantDetailPage = () => {
                     </div>
                     <div className={styles.sectionBody}>
                       {clientRechnungen.length === 0 ? (
-                        <div className={styles.emptyInline}>Keine Rechnungen vorhanden.</div>
+                        <div className={styles.emptyInline}>
+                          Keine Rechnungen vorhanden.
+                        </div>
                       ) : (
                         <div className={styles.tableWrap}>
                           <table className={styles.table}>
@@ -630,32 +838,56 @@ export const MandantDetailPage = () => {
                                 <th className={styles.th}>Datum</th>
                                 <th className={styles.th}>Betreff</th>
                                 <th className={styles.th}>Akte</th>
-                                <th className={`${styles.th} ${styles.thRight}`}>Brutto</th>
+                                <th
+                                  className={`${styles.th} ${styles.thRight}`}
+                                >
+                                  Brutto
+                                </th>
                                 <th className={styles.th}>Status</th>
                               </tr>
                             </thead>
                             <tbody>
-                              {clientRechnungen.slice(0, 50).map((r: RechnungRecord) => {
-                                const matter = matterMap.get(r.matterId);
-                                return (
-                                  <tr key={r.id} className={styles.tableRow}>
-                                    <td className={`${styles.td} ${styles.tdBold}`}>{r.rechnungsnummer}</td>
-                                    <td className={styles.td}>{fmtDate(r.rechnungsdatum)}</td>
-                                    <td className={styles.td}>{r.betreff}</td>
-                                    <td className={`${styles.td} ${styles.tdSecondary}`}>
-                                      {matter ? (matter.externalRef ? `${matter.externalRef} — ` : '') + matter.title : '—'}
-                                    </td>
-                                    <td className={`${styles.td} ${styles.tdRight} ${styles.tdBold}`}>
-                                      {fmtEur(r.brutto)}
-                                    </td>
-                                    <td className={styles.td}>
-                                      <span className={getRechnungStatusStyle(r.status)}>
-                                        {RECHNUNG_STATUS_LABELS[r.status]}
-                                      </span>
-                                    </td>
-                                  </tr>
-                                );
-                              })}
+                              {clientRechnungen
+                                .slice(0, 50)
+                                .map((r: RechnungRecord) => {
+                                  const matter = matterMap.get(r.matterId);
+                                  return (
+                                    <tr key={r.id} className={styles.tableRow}>
+                                      <td
+                                        className={`${styles.td} ${styles.tdBold}`}
+                                      >
+                                        {r.rechnungsnummer}
+                                      </td>
+                                      <td className={styles.td}>
+                                        {fmtDate(r.rechnungsdatum)}
+                                      </td>
+                                      <td className={styles.td}>{r.betreff}</td>
+                                      <td
+                                        className={`${styles.td} ${styles.tdSecondary}`}
+                                      >
+                                        {matter
+                                          ? (matter.externalRef
+                                              ? `${matter.externalRef} — `
+                                              : '') + matter.title
+                                          : '—'}
+                                      </td>
+                                      <td
+                                        className={`${styles.td} ${styles.tdRight} ${styles.tdBold}`}
+                                      >
+                                        {fmtEur(r.brutto)}
+                                      </td>
+                                      <td className={styles.td}>
+                                        <span
+                                          className={getRechnungStatusStyle(
+                                            r.status
+                                          )}
+                                        >
+                                          {RECHNUNG_STATUS_LABELS[r.status]}
+                                        </span>
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
                             </tbody>
                           </table>
                         </div>
@@ -670,7 +902,9 @@ export const MandantDetailPage = () => {
                     </div>
                     <div className={styles.sectionBody}>
                       {clientAuslagen.length === 0 ? (
-                        <div className={styles.emptyInline}>Keine Auslagen vorhanden.</div>
+                        <div className={styles.emptyInline}>
+                          Keine Auslagen vorhanden.
+                        </div>
                       ) : (
                         <div className={styles.tableWrap}>
                           <table className={styles.table}>
@@ -680,32 +914,54 @@ export const MandantDetailPage = () => {
                                 <th className={styles.th}>Bezeichnung</th>
                                 <th className={styles.th}>Kategorie</th>
                                 <th className={styles.th}>Akte</th>
-                                <th className={`${styles.th} ${styles.thRight}`}>Betrag</th>
+                                <th
+                                  className={`${styles.th} ${styles.thRight}`}
+                                >
+                                  Betrag
+                                </th>
                                 <th className={styles.th}>Weiterberechnet</th>
                               </tr>
                             </thead>
                             <tbody>
-                              {clientAuslagen.slice(0, 50).map((a: AuslageRecord) => {
-                                const matter = matterMap.get(a.matterId);
-                                return (
-                                  <tr key={a.id} className={styles.tableRow}>
-                                    <td className={styles.td}>{fmtDate(a.datum)}</td>
-                                    <td className={`${styles.td} ${styles.tdBold}`}>{a.bezeichnung}</td>
-                                    <td className={`${styles.td} ${styles.tdSecondary}`}>{a.kategorie}</td>
-                                    <td className={`${styles.td} ${styles.tdSecondary}`}>
-                                      {matter ? matter.title : '—'}
-                                    </td>
-                                    <td className={`${styles.td} ${styles.tdRight} ${styles.tdBold}`}>
-                                      {fmtEur(a.betrag)}
-                                    </td>
-                                    <td className={styles.td}>
-                                      <span className={`${styles.statusBadgeCompact} ${a.weiterberechnet ? styles.statusCompleted : styles.statusPending}`}>
-                                        {a.weiterberechnet ? 'Ja' : 'Nein'}
-                                      </span>
-                                    </td>
-                                  </tr>
-                                );
-                              })}
+                              {clientAuslagen
+                                .slice(0, 50)
+                                .map((a: AuslageRecord) => {
+                                  const matter = matterMap.get(a.matterId);
+                                  return (
+                                    <tr key={a.id} className={styles.tableRow}>
+                                      <td className={styles.td}>
+                                        {fmtDate(a.datum)}
+                                      </td>
+                                      <td
+                                        className={`${styles.td} ${styles.tdBold}`}
+                                      >
+                                        {a.bezeichnung}
+                                      </td>
+                                      <td
+                                        className={`${styles.td} ${styles.tdSecondary}`}
+                                      >
+                                        {a.kategorie}
+                                      </td>
+                                      <td
+                                        className={`${styles.td} ${styles.tdSecondary}`}
+                                      >
+                                        {matter ? matter.title : '—'}
+                                      </td>
+                                      <td
+                                        className={`${styles.td} ${styles.tdRight} ${styles.tdBold}`}
+                                      >
+                                        {fmtEur(a.betrag)}
+                                      </td>
+                                      <td className={styles.td}>
+                                        <span
+                                          className={`${styles.statusBadgeCompact} ${a.weiterberechnet ? styles.statusCompleted : styles.statusPending}`}
+                                        >
+                                          {a.weiterberechnet ? 'Ja' : 'Nein'}
+                                        </span>
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
                             </tbody>
                           </table>
                         </div>
@@ -722,7 +978,9 @@ export const MandantDetailPage = () => {
                 <div className={styles.tabPanel} role="tabpanel">
                   <div className={styles.sectionCard}>
                     <div className={styles.sectionHeader}>
-                      <div className={styles.sectionTitle}>Alle Fristen ({deadlines.length})</div>
+                      <div className={styles.sectionTitle}>
+                        Alle Fristen ({deadlines.length})
+                      </div>
                       <button
                         type="button"
                         className={styles.sectionAction}
@@ -733,15 +991,28 @@ export const MandantDetailPage = () => {
                     </div>
                     <div className={styles.sectionBody}>
                       {deadlines.length === 0 ? (
-                        <div className={styles.emptyInline}>Keine Fristen vorhanden.</div>
+                        <div className={styles.emptyInline}>
+                          Keine Fristen vorhanden.
+                        </div>
                       ) : (
                         <div className={styles.deadlineList}>
                           {deadlines.map(deadline => {
                             const days = daysUntil(deadline.dueAt);
-                            const isOverdue = days < 0 && deadline.status !== 'completed' && deadline.status !== 'expired';
-                            const isUrgent = days <= 3 && days >= 0 && deadline.status !== 'completed' && deadline.status !== 'expired';
-                            const matterId = deadlineToMatterId.get(deadline.id);
-                            const matter = matterId ? matterMap.get(matterId) : undefined;
+                            const isOverdue =
+                              days < 0 &&
+                              deadline.status !== 'completed' &&
+                              deadline.status !== 'expired';
+                            const isUrgent =
+                              days <= 3 &&
+                              days >= 0 &&
+                              deadline.status !== 'completed' &&
+                              deadline.status !== 'expired';
+                            const matterId = deadlineToMatterId.get(
+                              deadline.id
+                            );
+                            const matter = matterId
+                              ? matterMap.get(matterId)
+                              : undefined;
 
                             return (
                               <button
@@ -749,30 +1020,59 @@ export const MandantDetailPage = () => {
                                 type="button"
                                 className={styles.deadlineRow}
                                 onClick={() => {
-                                  if (matterId) { workbench.openAkte(matterId); return; }
+                                  if (matterId) {
+                                    workbench.openAkte(matterId);
+                                    return;
+                                  }
                                   workbench.open('/fristen');
                                 }}
-                                style={{ cursor: 'pointer', appearance: 'none', border: 0, background: 'transparent', textAlign: 'left', font: 'inherit', color: 'inherit', width: '100%' }}
+                                style={{
+                                  cursor: 'pointer',
+                                  appearance: 'none',
+                                  border: 0,
+                                  background: 'transparent',
+                                  textAlign: 'left',
+                                  font: 'inherit',
+                                  color: 'inherit',
+                                  width: '100%',
+                                }}
                               >
-                                <div className={`${styles.deadlineDate} ${isOverdue || isUrgent ? styles.deadlineDateUrgent : ''}`}>
+                                <div
+                                  className={`${styles.deadlineDate} ${isOverdue || isUrgent ? styles.deadlineDateUrgent : ''}`}
+                                >
                                   {fmtDate(deadline.dueAt)}
                                 </div>
                                 <div className={styles.deadlineInfo}>
-                                  <div className={styles.deadlineTitle}>{deadline.title}</div>
+                                  <div className={styles.deadlineTitle}>
+                                    {deadline.title}
+                                  </div>
                                   {matter && (
                                     <div className={styles.deadlineMatter}>
-                                      {matter.externalRef ? `${matter.externalRef} — ` : ''}{matter.title}
+                                      {matter.externalRef
+                                        ? `${matter.externalRef} — `
+                                        : ''}
+                                      {matter.title}
                                     </div>
                                   )}
                                 </div>
-                                <span className={`${styles.statusBadgeCompact} ${
-                                  deadline.status === 'completed' ? styles.statusCompleted
-                                    : deadline.status === 'expired' || isOverdue ? styles.statusExpired
-                                      : isUrgent ? styles.statusWarning
-                                        : styles.statusPending
-                                }`}>
-                                  {isOverdue ? `${Math.abs(days)}d überfällig`
-                                    : isUrgent ? (days === 0 ? 'Heute' : `${days}d`)
+                                <span
+                                  className={`${styles.statusBadgeCompact} ${
+                                    deadline.status === 'completed'
+                                      ? styles.statusCompleted
+                                      : deadline.status === 'expired' ||
+                                          isOverdue
+                                        ? styles.statusExpired
+                                        : isUrgent
+                                          ? styles.statusWarning
+                                          : styles.statusPending
+                                  }`}
+                                >
+                                  {isOverdue
+                                    ? `${Math.abs(days)}d überfällig`
+                                    : isUrgent
+                                      ? days === 0
+                                        ? 'Heute'
+                                        : `${days}d`
                                       : deadlineStatusLabel[deadline.status]}
                                 </span>
                               </button>
@@ -793,11 +1093,15 @@ export const MandantDetailPage = () => {
                   <div
                     ref={ausweisSectionRef}
                     className={`${styles.sectionCard} ${
-                      highlightedFocusTarget === 'ausweis' ? styles.focusHighlightCard : ''
+                      highlightedFocusTarget === 'ausweis'
+                        ? styles.focusHighlightCard
+                        : ''
                     }`}
                   >
                     <div className={styles.sectionHeader}>
-                      <div className={styles.sectionTitle}>Ausweisdokumente ({ausweisDocs.length})</div>
+                      <div className={styles.sectionTitle}>
+                        Ausweisdokumente ({ausweisDocs.length})
+                      </div>
                       {ausweisDocs.length === 0 ? (
                         <button
                           type="button"
@@ -811,16 +1115,21 @@ export const MandantDetailPage = () => {
                     <div className={styles.sectionBody}>
                       {ausweisDocs.length === 0 ? (
                         <div className={styles.emptyInline}>
-                          Kein Ausweisdokument erkannt. Bitte Ausweis zur rechtssicheren Mandantenakte hochladen.
+                          Kein Ausweisdokument erkannt. Bitte Ausweis zur
+                          rechtssicheren Mandantenakte hochladen.
                         </div>
                       ) : (
                         <div className={styles.docGroup}>
                           {ausweisDocs.map((doc: LegalDocumentRecord) => (
                             <div key={doc.id} className={styles.docRow}>
                               <div className={styles.docName}>
-                                {doc.title || doc.sourceRef || 'Unbenanntes Dokument'}
+                                {doc.title ||
+                                  doc.sourceRef ||
+                                  'Unbenanntes Dokument'}
                               </div>
-                              <div className={styles.docMeta}>{doc.kind ?? '—'}</div>
+                              <div className={styles.docMeta}>
+                                {doc.kind ?? '—'}
+                              </div>
                               <div className={styles.docMeta}>
                                 {doc.createdAt ? fmtDate(doc.createdAt) : '—'}
                               </div>
@@ -833,37 +1142,53 @@ export const MandantDetailPage = () => {
 
                   <div className={styles.sectionCard}>
                     <div className={styles.sectionHeader}>
-                      <div className={styles.sectionTitle}>Weitere Dokumente ({nonAusweisDocs.length})</div>
+                      <div className={styles.sectionTitle}>
+                        Weitere Dokumente ({nonAusweisDocs.length})
+                      </div>
                     </div>
                     <div className={styles.sectionBody}>
                       {nonAusweisDocs.length === 0 ? (
-                        <div className={styles.emptyInline}>Keine Dokumente vorhanden.</div>
+                        <div className={styles.emptyInline}>
+                          Keine Dokumente vorhanden.
+                        </div>
                       ) : (
                         <>
                           {/* Group docs by matter */}
                           {matters.map(matter => {
-                            const matterCases = caseFiles.filter(c => c.matterId === matter.id);
-                            const matterCaseIds = new Set(matterCases.map(c => c.id));
-                            const matterDocs = nonAusweisDocs.filter((d: LegalDocumentRecord) =>
-                              matterCaseIds.has(d.caseId)
+                            const matterCases = caseFiles.filter(
+                              c => c.matterId === matter.id
+                            );
+                            const matterCaseIds = new Set(
+                              matterCases.map(c => c.id)
+                            );
+                            const matterDocs = nonAusweisDocs.filter(
+                              (d: LegalDocumentRecord) =>
+                                matterCaseIds.has(d.caseId)
                             );
                             if (matterDocs.length === 0) return null;
 
                             return (
                               <div key={matter.id} className={styles.docGroup}>
                                 <div className={styles.docGroupTitle}>
-                                  {matter.externalRef ? `${matter.externalRef} — ` : ''}{matter.title}
+                                  {matter.externalRef
+                                    ? `${matter.externalRef} — `
+                                    : ''}
+                                  {matter.title}
                                 </div>
                                 {matterDocs.map((doc: LegalDocumentRecord) => (
                                   <div key={doc.id} className={styles.docRow}>
                                     <div className={styles.docName}>
-                                      {doc.title || doc.sourceRef || 'Unbenanntes Dokument'}
+                                      {doc.title ||
+                                        doc.sourceRef ||
+                                        'Unbenanntes Dokument'}
                                     </div>
                                     <div className={styles.docMeta}>
                                       {doc.kind ?? '—'}
                                     </div>
                                     <div className={styles.docMeta}>
-                                      {doc.createdAt ? fmtDate(doc.createdAt) : '—'}
+                                      {doc.createdAt
+                                        ? fmtDate(doc.createdAt)
+                                        : '—'}
                                     </div>
                                   </div>
                                 ))}
@@ -882,25 +1207,33 @@ export const MandantDetailPage = () => {
               {/* ═══════════════════════════════════════════════════════════ */}
               {activeTab === 'zeit' && (
                 <div className={styles.tabPanel} role="tabpanel">
-
                   {/* Summary mini-cards */}
                   <div className={styles.finanzSummaryGrid}>
                     <div className={styles.finanzMiniCard}>
                       <div className={styles.finanzMiniLabel}>Gesamtzeit</div>
-                      <div className={styles.finanzMiniValue}>{fmtDuration(totalTimeMinutes)}</div>
+                      <div className={styles.finanzMiniValue}>
+                        {fmtDuration(totalTimeMinutes)}
+                      </div>
                     </div>
                     <div className={styles.finanzMiniCard}>
                       <div className={styles.finanzMiniLabel}>Honorarwert</div>
-                      <div className={styles.finanzMiniValue}>{fmtEur(totalTimeAmount)}</div>
+                      <div className={styles.finanzMiniValue}>
+                        {fmtEur(totalTimeAmount)}
+                      </div>
                     </div>
                     <div className={styles.finanzMiniCard}>
                       <div className={styles.finanzMiniLabel}>Einträge</div>
-                      <div className={styles.finanzMiniValue}>{clientTimeEntries.length}</div>
+                      <div className={styles.finanzMiniValue}>
+                        {clientTimeEntries.length}
+                      </div>
                     </div>
                     <div className={styles.finanzMiniCard}>
                       <div className={styles.finanzMiniLabel}>Abgerechnet</div>
                       <div className={styles.finanzMiniValue}>
-                        {clientTimeEntries.filter(e => e.status === 'invoiced').length}
+                        {
+                          clientTimeEntries.filter(e => e.status === 'invoiced')
+                            .length
+                        }
                       </div>
                     </div>
                   </div>
@@ -911,7 +1244,9 @@ export const MandantDetailPage = () => {
                     </div>
                     <div className={styles.sectionBody}>
                       {clientTimeEntries.length === 0 ? (
-                        <div className={styles.emptyInline}>Keine Zeiteinträge vorhanden.</div>
+                        <div className={styles.emptyInline}>
+                          Keine Zeiteinträge vorhanden.
+                        </div>
                       ) : (
                         <div className={styles.tableWrap}>
                           <table className={styles.table}>
@@ -921,8 +1256,16 @@ export const MandantDetailPage = () => {
                                 <th className={styles.th}>Tätigkeit</th>
                                 <th className={styles.th}>Beschreibung</th>
                                 <th className={styles.th}>Akte</th>
-                                <th className={`${styles.th} ${styles.thRight}`}>Dauer</th>
-                                <th className={`${styles.th} ${styles.thRight}`}>Betrag</th>
+                                <th
+                                  className={`${styles.th} ${styles.thRight}`}
+                                >
+                                  Dauer
+                                </th>
+                                <th
+                                  className={`${styles.th} ${styles.thRight}`}
+                                >
+                                  Betrag
+                                </th>
                                 <th className={styles.th}>Status</th>
                               </tr>
                             </thead>
@@ -930,32 +1273,58 @@ export const MandantDetailPage = () => {
                               {clientTimeEntries.slice(0, 50).map(entry => {
                                 const matter = matterMap.get(entry.matterId);
                                 return (
-                                  <tr key={entry.id} className={styles.tableRow}>
-                                    <td className={styles.td}>{fmtDate(entry.date)}</td>
-                                    <td className={`${styles.td} ${styles.tdBold}`}>
-                                      {timeEntryActivityLabel[entry.activityType] ?? entry.activityType}
+                                  <tr
+                                    key={entry.id}
+                                    className={styles.tableRow}
+                                  >
+                                    <td className={styles.td}>
+                                      {fmtDate(entry.date)}
                                     </td>
-                                    <td className={styles.td}>{entry.description}</td>
-                                    <td className={`${styles.td} ${styles.tdSecondary}`}>
+                                    <td
+                                      className={`${styles.td} ${styles.tdBold}`}
+                                    >
+                                      {timeEntryActivityLabel[
+                                        entry.activityType
+                                      ] ?? entry.activityType}
+                                    </td>
+                                    <td className={styles.td}>
+                                      {entry.description}
+                                    </td>
+                                    <td
+                                      className={`${styles.td} ${styles.tdSecondary}`}
+                                    >
                                       {matter ? matter.title : '—'}
                                     </td>
-                                    <td className={`${styles.td} ${styles.tdRight}`}>
+                                    <td
+                                      className={`${styles.td} ${styles.tdRight}`}
+                                    >
                                       {fmtDuration(entry.durationMinutes)}
                                     </td>
-                                    <td className={`${styles.td} ${styles.tdRight} ${styles.tdBold}`}>
+                                    <td
+                                      className={`${styles.td} ${styles.tdRight} ${styles.tdBold}`}
+                                    >
                                       {fmtEur(entry.amount)}
                                     </td>
                                     <td className={styles.td}>
-                                      <span className={`${styles.statusBadgeCompact} ${
-                                        entry.status === 'invoiced' ? styles.statusCompleted
-                                          : entry.status === 'approved' ? styles.statusOpen
-                                            : entry.status === 'rejected' ? styles.statusError
-                                              : styles.statusPending
-                                      }`}>
-                                        {entry.status === 'draft' ? 'Entwurf'
-                                          : entry.status === 'submitted' ? 'Eingereicht'
-                                            : entry.status === 'approved' ? 'Genehmigt'
-                                              : entry.status === 'invoiced' ? 'Abgerechnet'
+                                      <span
+                                        className={`${styles.statusBadgeCompact} ${
+                                          entry.status === 'invoiced'
+                                            ? styles.statusCompleted
+                                            : entry.status === 'approved'
+                                              ? styles.statusOpen
+                                              : entry.status === 'rejected'
+                                                ? styles.statusError
+                                                : styles.statusPending
+                                        }`}
+                                      >
+                                        {entry.status === 'draft'
+                                          ? 'Entwurf'
+                                          : entry.status === 'submitted'
+                                            ? 'Eingereicht'
+                                            : entry.status === 'approved'
+                                              ? 'Genehmigt'
+                                              : entry.status === 'invoiced'
+                                                ? 'Abgerechnet'
                                                 : 'Abgelehnt'}
                                       </span>
                                     </td>
@@ -976,39 +1345,59 @@ export const MandantDetailPage = () => {
               {/* ═══════════════════════════════════════════════════════════ */}
               {activeTab === 'notizen' && (
                 <div className={styles.tabPanel} role="tabpanel">
-
                   {/* Vollmachten */}
                   <div
                     ref={vollmachtSectionRef}
                     className={`${styles.sectionCard} ${
-                      highlightedFocusTarget === 'vollmacht' ? styles.focusHighlightCard : ''
+                      highlightedFocusTarget === 'vollmacht'
+                        ? styles.focusHighlightCard
+                        : ''
                     }`}
                   >
                     <div className={styles.sectionHeader}>
-                      <div className={styles.sectionTitle}>Vollmachten ({clientVollmachten.length})</div>
+                      <div className={styles.sectionTitle}>
+                        Vollmachten ({clientVollmachten.length})
+                      </div>
                     </div>
                     <div className={styles.sectionBody}>
                       {clientVollmachten.length === 0 ? (
-                        <div className={styles.emptyInline}>Keine Vollmachten hinterlegt.</div>
+                        <div className={styles.emptyInline}>
+                          Keine Vollmachten hinterlegt.
+                        </div>
                       ) : (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        <div
+                          style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: 8,
+                          }}
+                        >
                           {clientVollmachten.map(v => (
                             <div key={v.id} className={styles.vollmachtCard}>
                               <div className={styles.vollmachtInfo}>
-                                <div className={styles.vollmachtTitle}>{v.title}</div>
+                                <div className={styles.vollmachtTitle}>
+                                  {v.title}
+                                </div>
                                 <div className={styles.vollmachtMeta}>
                                   {vollmachtTypeLabel[v.type]}
                                   {' · '}An: {v.grantedToName}
                                   {' · '}Gültig ab {fmtDate(v.validFrom)}
-                                  {v.validUntil ? ` bis ${fmtDate(v.validUntil)}` : ' (unbefristet)'}
+                                  {v.validUntil
+                                    ? ` bis ${fmtDate(v.validUntil)}`
+                                    : ' (unbefristet)'}
                                 </div>
                               </div>
-                              <span className={`${styles.statusBadgeCompact} ${
-                                v.status === 'active' ? styles.statusOpen
-                                  : v.status === 'expired' ? styles.statusExpired
-                                    : v.status === 'revoked' ? styles.statusError
-                                      : styles.statusPending
-                              }`}>
+                              <span
+                                className={`${styles.statusBadgeCompact} ${
+                                  v.status === 'active'
+                                    ? styles.statusOpen
+                                    : v.status === 'expired'
+                                      ? styles.statusExpired
+                                      : v.status === 'revoked'
+                                        ? styles.statusError
+                                        : styles.statusPending
+                                }`}
+                              >
                                 {vollmachtStatusLabel[v.status]}
                               </span>
                             </div>
@@ -1021,27 +1410,41 @@ export const MandantDetailPage = () => {
                   {/* Aktennotizen */}
                   <div className={styles.sectionCard}>
                     <div className={styles.sectionHeader}>
-                      <div className={styles.sectionTitle}>Aktennotizen ({clientNotizen.length})</div>
+                      <div className={styles.sectionTitle}>
+                        Aktennotizen ({clientNotizen.length})
+                      </div>
                     </div>
                     <div className={styles.sectionBody}>
                       {clientNotizen.length === 0 ? (
-                        <div className={styles.emptyInline}>Keine Aktennotizen vorhanden.</div>
+                        <div className={styles.emptyInline}>
+                          Keine Aktennotizen vorhanden.
+                        </div>
                       ) : (
                         <div className={styles.twoColGrid}>
                           {clientNotizen.slice(0, 20).map(n => {
                             const matter = matterMap.get(n.matterId);
                             return (
                               <div key={n.id} className={styles.noteCard}>
-                                <div className={styles.noteTitle}>{n.title}</div>
+                                <div className={styles.noteTitle}>
+                                  {n.title}
+                                </div>
                                 {n.content && (
-                                  <div className={styles.noteContent}>{n.content}</div>
+                                  <div className={styles.noteContent}>
+                                    {n.content}
+                                  </div>
                                 )}
                                 <div className={styles.noteMeta}>
-                                  <span className={`${styles.statusBadgeCompact} ${styles.statusPending}`}>
+                                  <span
+                                    className={`${styles.statusBadgeCompact} ${styles.statusPending}`}
+                                  >
                                     {aktennotizKindLabel[n.kind]}
                                   </span>
                                   {n.isInternal && (
-                                    <span className={`${styles.statusBadgeCompact} ${styles.statusWarning}`}>Intern</span>
+                                    <span
+                                      className={`${styles.statusBadgeCompact} ${styles.statusWarning}`}
+                                    >
+                                      Intern
+                                    </span>
                                   )}
                                   {matter && <span>{matter.title}</span>}
                                   <span>{fmtDate(n.createdAt)}</span>
@@ -1055,7 +1458,6 @@ export const MandantDetailPage = () => {
                   </div>
                 </div>
               )}
-
             </div>
           </div>
         </div>

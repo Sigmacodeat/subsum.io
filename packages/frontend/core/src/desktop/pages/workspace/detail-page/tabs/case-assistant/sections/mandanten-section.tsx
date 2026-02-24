@@ -10,17 +10,17 @@ import type {
   MatterRecord,
   Vollmacht,
 } from '@affine/core/modules/case-assistant';
-import type { VollmachtSigningRequestRecord } from '@affine/core/modules/case-assistant/types';
-import type { ComplianceAuditEntry } from '@affine/core/modules/case-assistant/types';
-import type { Workspace } from '@affine/core/modules/workspace';
 import {
   GWG_RISK_LABELS,
   GWG_STATUS_LABELS,
 } from '@affine/core/modules/case-assistant';
 import type { GwGOnboardingRecord } from '@affine/core/modules/case-assistant/services/gwg-compliance';
+import type { VollmachtSigningRequestRecord } from '@affine/core/modules/case-assistant/types';
+import type { ComplianceAuditEntry } from '@affine/core/modules/case-assistant/types';
+import type { Workspace } from '@affine/core/modules/workspace';
 import { cssVarV2 } from '@toeverything/theme/v2';
 import { assignInlineVars } from '@vanilla-extract/dynamic';
-import { memo, type RefObject,useEffect, useRef, useState } from 'react';
+import { memo, type RefObject, useEffect, useRef, useState } from 'react';
 
 import * as styles from '../../case-assistant.css';
 import {
@@ -64,7 +64,9 @@ type Props = {
     clientName: string;
     clientKind: ClientKind;
   }) => Promise<void>;
-  getGwgOnboardingForClient?: (clientId: string) => GwGOnboardingRecord | undefined;
+  getGwgOnboardingForClient?: (
+    clientId: string
+  ) => GwGOnboardingRecord | undefined;
 
   clientSearchQuery: string;
   setClientSearchQuery: (q: string) => void;
@@ -72,7 +74,10 @@ type Props = {
   setShowArchivedClients: (v: boolean) => void;
 
   canAction: (action: CaseAssistantAction) => boolean;
-  runAsyncUiAction: (action: () => void | Promise<unknown>, errorContext: string) => void;
+  runAsyncUiAction: (
+    action: () => void | Promise<unknown>,
+    errorContext: string
+  ) => void;
 
   onSelectMatter: (matterId: string) => void;
   /** When set, auto-expands and highlights this matter (e.g. navigated from Akten-Suche) */
@@ -90,8 +95,8 @@ function sanitize(text: string): string {
 
 function bytesToBase64(bytes: Uint8Array) {
   let binary = '';
-  for (let i = 0; i < bytes.length; i++) {
-    binary += String.fromCharCode(bytes[i]);
+  for (const byte of bytes) {
+    binary += String.fromCharCode(byte);
   }
   return btoa(binary);
 }
@@ -183,28 +188,35 @@ function CountChip({ count, label }: { count: number; label: string }) {
 }
 
 function TagPill({ tag }: { tag: string }) {
-  return (
-    <span className={localStyles.tagPill}>
-      {tag}
-    </span>
-  );
+  return <span className={localStyles.tagPill}>{tag}</span>;
 }
 
 function resolveVollmachtStatus(input: {
   vollmachten: Vollmacht[];
   clientId: string;
 }): { status: 'missing' | 'pending' | 'active'; label: string; meta?: string } {
-  const clientV = (input.vollmachten ?? []).filter(v => v.clientId === input.clientId);
+  const clientV = (input.vollmachten ?? []).filter(
+    v => v.clientId === input.clientId
+  );
   const now = new Date().toISOString();
-  const active = clientV.find(v => v.type === 'general' && v.status === 'active' && (!v.validUntil || v.validUntil >= now));
+  const active = clientV.find(
+    v =>
+      v.type === 'general' &&
+      v.status === 'active' &&
+      (!v.validUntil || v.validUntil >= now)
+  );
   if (active) {
     return {
       status: 'active',
       label: 'Aktiv',
-      meta: active.validUntil ? `gültig bis ${new Date(active.validUntil).toLocaleDateString('de-AT')}` : 'unbefristet',
+      meta: active.validUntil
+        ? `gültig bis ${new Date(active.validUntil).toLocaleDateString('de-AT')}`
+        : 'unbefristet',
     };
   }
-  const pending = clientV.find(v => v.type === 'general' && v.status === 'pending');
+  const pending = clientV.find(
+    v => v.type === 'general' && v.status === 'pending'
+  );
   if (pending) {
     return {
       status: 'pending',
@@ -235,22 +247,35 @@ export const MandantenSection = memo((props: Props) => {
   const [expandedClientId, setExpandedClientId] = useState<string | null>(null);
   const [expandedMatterId, setExpandedMatterId] = useState<string | null>(null);
   const highlightedMatterRef = useRef<HTMLDivElement | null>(null);
-  const [reviewNoteBySigningRequestId, setReviewNoteBySigningRequestId] = useState<Record<string, string>>({});
-  const [pendingDecisionBySigningRequestId, setPendingDecisionBySigningRequestId] = useState<Record<string, 'approve' | 'reject' | null>>({});
+  const [reviewNoteBySigningRequestId, setReviewNoteBySigningRequestId] =
+    useState<Record<string, string>>({});
+  const [
+    pendingDecisionBySigningRequestId,
+    setPendingDecisionBySigningRequestId,
+  ] = useState<Record<string, 'approve' | 'reject' | null>>({});
 
   useEffect(() => {
     if (!props.highlightMatterId) return;
-    const targetMatter = props.matters.find(m => m.id === props.highlightMatterId);
+    const targetMatter = props.matters.find(
+      m => m.id === props.highlightMatterId
+    );
     if (targetMatter) {
       setExpandedClientId(targetMatter.clientId);
       setExpandedMatterId(props.highlightMatterId);
       requestAnimationFrame(() => {
-        highlightedMatterRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        highlightedMatterRef.current?.scrollIntoView({
+          behavior: 'smooth',
+          block: 'nearest',
+        });
       });
     }
   }, [props.highlightMatterId, props.matters]);
 
   const filteredClients = props.clients.filter(client => {
+    const clientVisibleMatters = props.matters.filter(
+      m => m.clientId === client.id && m.status !== 'archived'
+    );
+    if (clientVisibleMatters.length === 0) return false;
     if (!props.showArchivedClients && client.archived) return false;
     const q = props.clientSearchQuery.trim().toLowerCase();
     if (!q) return true;
@@ -263,12 +288,16 @@ export const MandantenSection = memo((props: Props) => {
   });
 
   const mattersByClient = (clientId: string): MatterRecord[] =>
-    props.matters.filter(m => m.clientId === clientId);
+    props.matters.filter(
+      m => m.clientId === clientId && m.status !== 'archived'
+    );
 
   const docsByMatter = (matterId: string): LegalDocumentRecord[] => {
-    const matterCaseIds = new Set(props.cases
-      .filter((c: CaseFile) => c.matterId === matterId)
-      .map((c: CaseFile) => c.id));
+    const matterCaseIds = new Set(
+      props.cases
+        .filter((c: CaseFile) => c.matterId === matterId)
+        .map((c: CaseFile) => c.id)
+    );
     return props.legalDocuments.filter(d => matterCaseIds.has(d.caseId));
   };
 
@@ -280,11 +309,14 @@ export const MandantenSection = memo((props: Props) => {
       return null;
     }
     try {
-      const blobRecord = await props.workspace.engine.blob.get(doc.sourceBlobId);
+      const blobRecord = await props.workspace.engine.blob.get(
+        doc.sourceBlobId
+      );
       if (!blobRecord?.data) {
         return null;
       }
-      const mime = doc.sourceMimeType || blobRecord.mime || 'application/octet-stream';
+      const mime =
+        doc.sourceMimeType || blobRecord.mime || 'application/octet-stream';
       const base64 = bytesToBase64(blobRecord.data);
       return `data:${mime};base64,${base64}`;
     } catch {
@@ -292,7 +324,10 @@ export const MandantenSection = memo((props: Props) => {
     }
   };
 
-  const openOrDownloadDocument = async (documentId: string, mode: 'open' | 'download') => {
+  const openOrDownloadDocument = async (
+    documentId: string,
+    mode: 'open' | 'download'
+  ) => {
     const doc = props.legalDocuments.find(d => d.id === documentId);
     if (!doc) {
       return false;
@@ -308,7 +343,9 @@ export const MandantenSection = memo((props: Props) => {
     }
 
     const ext = getDownloadExtension(doc.sourceMimeType);
-    const safeName = (doc.title || 'dokument').trim().replace(/[\\/:*?"<>|]+/g, '-');
+    const safeName = (doc.title || 'dokument')
+      .trim()
+      .replace(/[\\/:*?"<>|]+/g, '-');
     const fileName = `${safeName}${ext}`;
     const a = document.createElement('a');
     a.href = dataUrl;
@@ -325,7 +362,9 @@ export const MandantenSection = memo((props: Props) => {
     if (!doc) return false;
     const relatedCase = props.cases.find(c => c.id === doc.caseId);
     if (!relatedCase) return false;
-    const relatedMatter = props.matters.find(m => m.id === relatedCase.matterId);
+    const relatedMatter = props.matters.find(
+      m => m.id === relatedCase.matterId
+    );
     if (!relatedMatter) return false;
     setExpandedClientId(relatedMatter.clientId);
     setExpandedMatterId(relatedMatter.id);
@@ -340,18 +379,29 @@ export const MandantenSection = memo((props: Props) => {
     return list[0] ?? null;
   };
 
-  const getAuditEntriesForSigningRequest = (signingRequest: VollmachtSigningRequestRecord | null) => {
+  const getAuditEntriesForSigningRequest = (
+    signingRequest: VollmachtSigningRequestRecord | null
+  ) => {
     if (!signingRequest) return [];
     const keys = new Set<string>();
     keys.add(signingRequest.id);
-    if (signingRequest.portalRequestId) keys.add(signingRequest.portalRequestId);
+    if (signingRequest.portalRequestId)
+      keys.add(signingRequest.portalRequestId);
     if (signingRequest.vollmachtId) keys.add(signingRequest.vollmachtId);
 
     return (props.auditEntries ?? [])
       .filter(entry => {
         if (entry.workspaceId !== signingRequest.workspaceId) return false;
-        if (signingRequest.caseId && entry.caseId && entry.caseId !== signingRequest.caseId) return false;
-        if (entry.action.startsWith('portal.vollmacht') || entry.action.startsWith('vollmacht.signing')) {
+        if (
+          signingRequest.caseId &&
+          entry.caseId &&
+          entry.caseId !== signingRequest.caseId
+        )
+          return false;
+        if (
+          entry.action.startsWith('portal.vollmacht') ||
+          entry.action.startsWith('vollmacht.signing')
+        ) {
           return true;
         }
         const meta = entry.metadata ?? {};
@@ -367,22 +417,29 @@ export const MandantenSection = memo((props: Props) => {
 
   const findingsByMatter = (matterId: string): LegalFinding[] => {
     if (!props.legalFindings || props.legalFindings.length === 0) return [];
-    const matterCaseIds = new Set(props.cases
-      .filter((c: CaseFile) => c.matterId === matterId)
-      .map((c: CaseFile) => c.id));
+    const matterCaseIds = new Set(
+      props.cases
+        .filter((c: CaseFile) => c.matterId === matterId)
+        .map((c: CaseFile) => c.id)
+    );
     return props.legalFindings.filter(f => matterCaseIds.has(f.caseId));
   };
 
-  const totalMatters = props.matters.length;
-  const activeMatters = props.matters.filter(m => m.status === 'open').length;
+  const visibleMatters = props.matters.filter(m => m.status !== 'archived');
+  const totalMatters = visibleMatters.length;
+  const activeMatters = visibleMatters.filter(m => m.status === 'open').length;
 
   return (
     <section ref={props.sectionRef} className={styles.section}>
       <div className={styles.headerRow}>
         <h3 className={styles.sectionTitle}>Mandantenverwaltung</h3>
         <div className={localStyles.statsRow}>
-          <span className={styles.chip}>{filteredClients.length} Mandanten</span>
-          <span className={styles.chip}>{activeMatters}/{totalMatters} Akten aktiv</span>
+          <span className={styles.chip}>
+            {filteredClients.length} Mandanten
+          </span>
+          <span className={styles.chip}>
+            {activeMatters}/{totalMatters} Akten aktiv
+          </span>
         </div>
       </div>
 
@@ -404,7 +461,9 @@ export const MandantenSection = memo((props: Props) => {
         <Button
           variant={props.showArchivedClients ? 'secondary' : 'plain'}
           aria-pressed={props.showArchivedClients}
-          onClick={() => props.setShowArchivedClients(!props.showArchivedClients)}
+          onClick={() =>
+            props.setShowArchivedClients(!props.showArchivedClients)
+          }
           className={localStyles.nowrapButton}
         >
           {props.showArchivedClients ? '✓ Archivierte' : 'Archivierte'}
@@ -415,14 +474,21 @@ export const MandantenSection = memo((props: Props) => {
         <div className={`${styles.empty} ${localStyles.emptyState}`}>
           {props.clientSearchQuery ? (
             <>
-              <div className={localStyles.emptyTitle}>Keine Treffer für „{sanitize(props.clientSearchQuery)}"</div>
-              <div className={localStyles.emptyHint}>Suche nach Name, E-Mail, Telefon oder Tag.</div>
+              <div className={localStyles.emptyTitle}>
+                Keine Treffer für „{sanitize(props.clientSearchQuery)}"
+              </div>
+              <div className={localStyles.emptyHint}>
+                Suche nach Name, E-Mail, Telefon oder Tag.
+              </div>
             </>
           ) : (
             <>
-              <div className={localStyles.emptyTitle}>Noch keine Mandanten angelegt</div>
+              <div className={localStyles.emptyTitle}>
+                Noch keine Mandanten angelegt
+              </div>
               <div className={localStyles.emptyHint}>
-                Wechseln Sie zu „Werkzeuge" → Mandanten &amp; Akten, um den ersten Mandanten anzulegen.
+                Wechseln Sie zu „Werkzeuge" → Mandanten &amp; Akten, um den
+                ersten Mandanten anzulegen.
               </div>
             </>
           )}
@@ -432,8 +498,13 @@ export const MandantenSection = memo((props: Props) => {
           {filteredClients.map(client => {
             const clientMatters = mattersByClient(client.id);
             const isExpanded = expandedClientId === client.id;
-            const totalDocs = clientMatters.reduce((sum, m) => sum + docsByMatter(m.id).length, 0);
-            const openMatters = clientMatters.filter(m => m.status === 'open').length;
+            const totalDocs = clientMatters.reduce(
+              (sum, m) => sum + docsByMatter(m.id).length,
+              0
+            );
+            const openMatters = clientMatters.filter(
+              m => m.status === 'open'
+            ).length;
 
             const vollmachtStatus = resolveVollmachtStatus({
               vollmachten: props.vollmachten,
@@ -444,13 +515,17 @@ export const MandantenSection = memo((props: Props) => {
               signingRequest?.metadata?.signedDocumentId ||
               signingRequest?.uploadedDocumentId ||
               '';
-            const signatureImageDocId = signingRequest?.metadata?.signatureDocumentId || '';
-            const canReview = signingRequest?.status === 'review_required' && signingRequest.reviewStatus === 'pending';
+            const signatureImageDocId =
+              signingRequest?.metadata?.signatureDocumentId || '';
+            const canReview =
+              signingRequest?.status === 'review_required' &&
+              signingRequest.reviewStatus === 'pending';
             const isSignedLike =
               signingRequest?.status === 'provider_signed' ||
               signingRequest?.status === 'approved' ||
               signingRequest?.status === 'review_required';
-            const missingSignedDoc = Boolean(signingRequest) && isSignedLike && !signedDocId;
+            const missingSignedDoc =
+              Boolean(signingRequest) && isSignedLike && !signedDocId;
             const auditTrail = getAuditEntriesForSigningRequest(signingRequest);
 
             const gwgRecord = props.getGwgOnboardingForClient
@@ -462,9 +537,15 @@ export const MandantenSection = memo((props: Props) => {
                 key={client.id}
                 className={localStyles.clientCard}
                 style={assignInlineVars({
-                  [localStyles.accentColorVar]: isExpanded ? cssVarV2('button/primary') : cssVarV2('layer/insideBorder/border'),
-                  [localStyles.borderVar]: isExpanded ? cssVarV2('button/primary') : cssVarV2('layer/insideBorder/border'),
-                  [localStyles.surfaceVar]: isExpanded ? cssVarV2('layer/background/secondary') : cssVarV2('layer/background/primary'),
+                  [localStyles.accentColorVar]: isExpanded
+                    ? cssVarV2('button/primary')
+                    : cssVarV2('layer/insideBorder/border'),
+                  [localStyles.borderVar]: isExpanded
+                    ? cssVarV2('button/primary')
+                    : cssVarV2('layer/insideBorder/border'),
+                  [localStyles.surfaceVar]: isExpanded
+                    ? cssVarV2('layer/background/secondary')
+                    : cssVarV2('layer/background/primary'),
                 })}
               >
                 {/* Mandanten-Header */}
@@ -473,7 +554,9 @@ export const MandantenSection = memo((props: Props) => {
                   className={localStyles.clientHeaderButton}
                   aria-expanded={isExpanded}
                   aria-label={`Mandant ${client.displayName} ${isExpanded ? 'einklappen' : 'ausklappen'}`}
-                  onClick={() => setExpandedClientId(isExpanded ? null : client.id)}
+                  onClick={() =>
+                    setExpandedClientId(isExpanded ? null : client.id)
+                  }
                 >
                   <span className={localStyles.kindIcon}>
                     {KIND_ICON[client.kind] ?? 'Sonstige'}
@@ -482,11 +565,17 @@ export const MandantenSection = memo((props: Props) => {
                     <div className={localStyles.primaryTitle}>
                       {sanitize(client.displayName)}
                     </div>
-                    {(client.primaryEmail || client.primaryPhone) ? (
+                    {client.primaryEmail || client.primaryPhone ? (
                       <div className={localStyles.headerSubline}>
-                        {client.primaryEmail ? `E-Mail: ${sanitize(client.primaryEmail)}` : ''}
-                        {client.primaryEmail && client.primaryPhone ? '  ·  ' : ''}
-                        {client.primaryPhone ? `Telefon: ${sanitize(client.primaryPhone)}` : ''}
+                        {client.primaryEmail
+                          ? `E-Mail: ${sanitize(client.primaryEmail)}`
+                          : ''}
+                        {client.primaryEmail && client.primaryPhone
+                          ? '  ·  '
+                          : ''}
+                        {client.primaryPhone
+                          ? `Telefon: ${sanitize(client.primaryPhone)}`
+                          : ''}
                       </div>
                     ) : null}
                   </div>
@@ -495,27 +584,35 @@ export const MandantenSection = memo((props: Props) => {
                       {clientKindLabel[client.kind]}
                     </span>
                     {openMatters > 0 ? (
-                      <span className={`${localStyles.neutralChip} ${localStyles.positiveChip}`}>
+                      <span
+                        className={`${localStyles.neutralChip} ${localStyles.positiveChip}`}
+                      >
                         {openMatters} aktiv
                       </span>
                     ) : null}
                     <CountChip count={clientMatters.length} label="Akten" />
                     <CountChip count={totalDocs} label="Dokumente" />
                     {client.archived ? (
-                      <span className={`${localStyles.neutralChip} ${localStyles.archivedChip}`}>
+                      <span
+                        className={`${localStyles.neutralChip} ${localStyles.archivedChip}`}
+                      >
                         Archiviert
                       </span>
                     ) : null}
-                    <span className={localStyles.caret}>{isExpanded ? 'Schließen' : 'Öffnen'}</span>
+                    <span className={localStyles.caret}>
+                      {isExpanded ? 'Schließen' : 'Öffnen'}
+                    </span>
                   </div>
                 </button>
 
                 {/* Tags */}
                 {client.tags && client.tags.some(t => !t.startsWith('__')) ? (
                   <div className={localStyles.tagsWrap}>
-                    {client.tags.filter(t => !t.startsWith('__')).map(tag => (
-                      <TagPill key={tag} tag={tag} />
-                    ))}
+                    {client.tags
+                      .filter(t => !t.startsWith('__'))
+                      .map(tag => (
+                        <TagPill key={tag} tag={tag} />
+                      ))}
                   </div>
                 ) : null}
 
@@ -532,7 +629,9 @@ export const MandantenSection = memo((props: Props) => {
                     <div className={localStyles.clientDetailGrid}>
                       <div className={localStyles.detailCard}>
                         <div className={localStyles.detailCardHeader}>
-                          <div className={localStyles.detailCardTitle}>Vollmacht</div>
+                          <div className={localStyles.detailCardTitle}>
+                            Vollmacht
+                          </div>
                           <span
                             className={localStyles.statusPill}
                             style={assignInlineVars({
@@ -557,35 +656,47 @@ export const MandantenSection = memo((props: Props) => {
                           {signingRequest ? (
                             <div className={localStyles.detailMetaLine}>
                               Signatur-Status:{' '}
-                              {SIGNING_STATUS_LABEL[signingRequest.status] ?? signingRequest.status}
+                              {SIGNING_STATUS_LABEL[signingRequest.status] ??
+                                signingRequest.status}
                             </div>
                           ) : null}
                           {vollmachtStatus.meta ? (
-                            <div className={localStyles.detailMetaHint}>{vollmachtStatus.meta}</div>
+                            <div className={localStyles.detailMetaHint}>
+                              {vollmachtStatus.meta}
+                            </div>
                           ) : (
                             <div className={localStyles.detailMetaHint}>
-                              Für Mandatsannahme und Kommunikation sollte eine Vollmacht vorliegen.
+                              Für Mandatsannahme und Kommunikation sollte eine
+                              Vollmacht vorliegen.
                             </div>
                           )}
                           {signingRequest ? (
                             <div className={localStyles.detailMetaHint}>
-                              Letzte Aktualisierung: {formatDate(signingRequest.updatedAt)}
-                              {signingRequest.mode ? ` · Modus: ${signingRequest.mode}` : ''}
-                              {signingRequest.provider && signingRequest.provider !== 'none'
+                              Letzte Aktualisierung:{' '}
+                              {formatDate(signingRequest.updatedAt)}
+                              {signingRequest.mode
+                                ? ` · Modus: ${signingRequest.mode}`
+                                : ''}
+                              {signingRequest.provider &&
+                              signingRequest.provider !== 'none'
                                 ? ` · Provider: ${signingRequest.provider}`
                                 : ''}
                             </div>
                           ) : null}
                           {missingSignedDoc ? (
                             <div className={localStyles.detailMetaHint}>
-                              Hinweis: Es gibt einen Signatur-Status, aber aktuell ist kein Dokument verlinkt.
-                              Bitte prüfen Sie den Workflow/Audit-Trail oder den Provider-Webhook.
+                              Hinweis: Es gibt einen Signatur-Status, aber
+                              aktuell ist kein Dokument verlinkt. Bitte prüfen
+                              Sie den Workflow/Audit-Trail oder den
+                              Provider-Webhook.
                             </div>
                           ) : null}
                           <div className={localStyles.detailActionRow}>
                             <Button
                               variant="secondary"
-                              disabled={!props.activeAnwaltId || !props.activeAnwaltName}
+                              disabled={
+                                !props.activeAnwaltId || !props.activeAnwaltName
+                              }
                               onClick={() =>
                                 props.runAsyncUiAction(
                                   () =>
@@ -603,15 +714,15 @@ export const MandantenSection = memo((props: Props) => {
                               <Button
                                 variant="plain"
                                 onClick={() => {
-                                  props.runAsyncUiAction(
-                                    async () => {
-                                      const ok = await openOrDownloadDocument(signedDocId, 'open');
-                                      if (!ok) {
-                                        focusDocument(signedDocId);
-                                      }
-                                    },
-                                    'vollmacht open signed doc'
-                                  );
+                                  props.runAsyncUiAction(async () => {
+                                    const ok = await openOrDownloadDocument(
+                                      signedDocId,
+                                      'open'
+                                    );
+                                    if (!ok) {
+                                      focusDocument(signedDocId);
+                                    }
+                                  }, 'vollmacht open signed doc');
                                 }}
                               >
                                 Öffnen
@@ -622,7 +733,11 @@ export const MandantenSection = memo((props: Props) => {
                                 variant="plain"
                                 onClick={() => {
                                   props.runAsyncUiAction(
-                                    () => openOrDownloadDocument(signedDocId, 'download'),
+                                    () =>
+                                      openOrDownloadDocument(
+                                        signedDocId,
+                                        'download'
+                                      ),
                                     'vollmacht download signed doc'
                                   );
                                 }}
@@ -634,15 +749,15 @@ export const MandantenSection = memo((props: Props) => {
                               <Button
                                 variant="plain"
                                 onClick={() => {
-                                  props.runAsyncUiAction(
-                                    async () => {
-                                      const ok = await openOrDownloadDocument(signatureImageDocId, 'open');
-                                      if (!ok) {
-                                        focusDocument(signatureImageDocId);
-                                      }
-                                    },
-                                    'vollmacht open signature image'
-                                  );
+                                  props.runAsyncUiAction(async () => {
+                                    const ok = await openOrDownloadDocument(
+                                      signatureImageDocId,
+                                      'open'
+                                    );
+                                    if (!ok) {
+                                      focusDocument(signatureImageDocId);
+                                    }
+                                  }, 'vollmacht open signature image');
                                 }}
                               >
                                 Signatur öffnen
@@ -653,7 +768,11 @@ export const MandantenSection = memo((props: Props) => {
                                 variant="plain"
                                 onClick={() => {
                                   props.runAsyncUiAction(
-                                    () => openOrDownloadDocument(signatureImageDocId, 'download'),
+                                    () =>
+                                      openOrDownloadDocument(
+                                        signatureImageDocId,
+                                        'download'
+                                      ),
                                     'vollmacht download signature image'
                                   );
                                 }}
@@ -664,7 +783,9 @@ export const MandantenSection = memo((props: Props) => {
                           </div>
                           {auditTrail.length > 0 ? (
                             <div className={localStyles.detailMetaHint}>
-                              <div style={{ marginBottom: 6, fontWeight: 600 }}>Audit (letzte Events)</div>
+                              <div style={{ marginBottom: 6, fontWeight: 600 }}>
+                                Audit (letzte Events)
+                              </div>
                               <div style={{ display: 'grid', gap: 6 }}>
                                 {auditTrail.map((entry, idx) => (
                                   <div
@@ -676,11 +797,21 @@ export const MandantenSection = memo((props: Props) => {
                                       background: 'transparent',
                                     }}
                                   >
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+                                    <div
+                                      style={{
+                                        display: 'flex',
+                                        justifyContent: 'space-between',
+                                        gap: 12,
+                                      }}
+                                    >
                                       <strong>{entry.action}</strong>
-                                      <span style={{ opacity: 0.8 }}>{formatDate(entry.createdAt)}</span>
+                                      <span style={{ opacity: 0.8 }}>
+                                        {formatDate(entry.createdAt)}
+                                      </span>
                                     </div>
-                                    <div style={{ opacity: 0.9 }}>{sanitize(entry.details)}</div>
+                                    <div style={{ opacity: 0.9 }}>
+                                      {sanitize(entry.details)}
+                                    </div>
                                   </div>
                                 ))}
                               </div>
@@ -689,15 +820,23 @@ export const MandantenSection = memo((props: Props) => {
                           {canReview ? (
                             <div className={localStyles.detailActionRow}>
                               <div style={{ flex: 1, minWidth: 220 }}>
-                                <div className={localStyles.detailMetaHint} style={{ marginBottom: 6 }}>
+                                <div
+                                  className={localStyles.detailMetaHint}
+                                  style={{ marginBottom: 6 }}
+                                >
                                   Interne Notiz (optional)
                                 </div>
                                 <textarea
-                                  value={reviewNoteBySigningRequestId[signingRequest.id] ?? ''}
+                                  value={
+                                    reviewNoteBySigningRequestId[
+                                      signingRequest.id
+                                    ] ?? ''
+                                  }
                                   onChange={e =>
                                     setReviewNoteBySigningRequestId(prev => ({
                                       ...prev,
-                                      [signingRequest.id]: e.currentTarget.value,
+                                      [signingRequest.id]:
+                                        e.currentTarget.value,
                                     }))
                                   }
                                   rows={2}
@@ -712,56 +851,100 @@ export const MandantenSection = memo((props: Props) => {
                                   }}
                                 />
                               </div>
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                              <div
+                                style={{
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  gap: 8,
+                                }}
+                              >
                                 <Button
-                                  variant={pendingDecisionBySigningRequestId[signingRequest.id] === 'approve' ? 'secondary' : 'plain'}
+                                  variant={
+                                    pendingDecisionBySigningRequestId[
+                                      signingRequest.id
+                                    ] === 'approve'
+                                      ? 'secondary'
+                                      : 'plain'
+                                  }
                                   onClick={() =>
-                                    setPendingDecisionBySigningRequestId(prev => ({
-                                      ...prev,
-                                      [signingRequest.id]: prev[signingRequest.id] === 'approve' ? null : 'approve',
-                                    }))
+                                    setPendingDecisionBySigningRequestId(
+                                      prev => ({
+                                        ...prev,
+                                        [signingRequest.id]:
+                                          prev[signingRequest.id] === 'approve'
+                                            ? null
+                                            : 'approve',
+                                      })
+                                    )
                                   }
                                 >
-                                  {pendingDecisionBySigningRequestId[signingRequest.id] === 'approve'
+                                  {pendingDecisionBySigningRequestId[
+                                    signingRequest.id
+                                  ] === 'approve'
                                     ? 'Freigabe bestätigen'
                                     : 'Freigeben'}
                                 </Button>
                                 <Button
-                                  variant={pendingDecisionBySigningRequestId[signingRequest.id] === 'reject' ? 'secondary' : 'plain'}
+                                  variant={
+                                    pendingDecisionBySigningRequestId[
+                                      signingRequest.id
+                                    ] === 'reject'
+                                      ? 'secondary'
+                                      : 'plain'
+                                  }
                                   onClick={() =>
-                                    setPendingDecisionBySigningRequestId(prev => ({
-                                      ...prev,
-                                      [signingRequest.id]: prev[signingRequest.id] === 'reject' ? null : 'reject',
-                                    }))
+                                    setPendingDecisionBySigningRequestId(
+                                      prev => ({
+                                        ...prev,
+                                        [signingRequest.id]:
+                                          prev[signingRequest.id] === 'reject'
+                                            ? null
+                                            : 'reject',
+                                      })
+                                    )
                                   }
                                 >
-                                  {pendingDecisionBySigningRequestId[signingRequest.id] === 'reject'
+                                  {pendingDecisionBySigningRequestId[
+                                    signingRequest.id
+                                  ] === 'reject'
                                     ? 'Ablehnung bestätigen'
                                     : 'Ablehnen'}
                                 </Button>
                               </div>
-                              {pendingDecisionBySigningRequestId[signingRequest.id] ? (
+                              {pendingDecisionBySigningRequestId[
+                                signingRequest.id
+                              ] ? (
                                 <Button
                                   variant="secondary"
                                   onClick={() => {
-                                    const decision = pendingDecisionBySigningRequestId[signingRequest.id];
+                                    const decision =
+                                      pendingDecisionBySigningRequestId[
+                                        signingRequest.id
+                                      ];
                                     if (!decision) return;
-                                    const decisionNote = reviewNoteBySigningRequestId[signingRequest.id] ?? '';
+                                    const decisionNote =
+                                      reviewNoteBySigningRequestId[
+                                        signingRequest.id
+                                      ] ?? '';
                                     props.runAsyncUiAction(
                                       () =>
                                         props.onDecideVollmachtSigningRequest({
                                           signingRequestId: signingRequest.id,
                                           decision,
-                                          decisionNote: decisionNote.trim() ? decisionNote.trim() : undefined,
+                                          decisionNote: decisionNote.trim()
+                                            ? decisionNote.trim()
+                                            : undefined,
                                         }),
                                       decision === 'approve'
                                         ? 'vollmacht approve failed'
                                         : 'vollmacht reject failed'
                                     );
-                                    setPendingDecisionBySigningRequestId(prev => ({
-                                      ...prev,
-                                      [signingRequest.id]: null,
-                                    }));
+                                    setPendingDecisionBySigningRequestId(
+                                      prev => ({
+                                        ...prev,
+                                        [signingRequest.id]: null,
+                                      })
+                                    );
                                   }}
                                 >
                                   Entscheidung ausführen
@@ -774,20 +957,24 @@ export const MandantenSection = memo((props: Props) => {
 
                       <div className={localStyles.detailCard}>
                         <div className={localStyles.detailCardHeader}>
-                          <div className={localStyles.detailCardTitle}>KYC / GwG</div>
+                          <div className={localStyles.detailCardTitle}>
+                            KYC / GwG
+                          </div>
                           <span
                             className={localStyles.statusPill}
                             style={assignInlineVars({
                               [localStyles.accentColorVar]: gwgRecord
-                                ? (gwgRecord.status === 'approved'
-                                    ? cssVarV2('status/success')
-                                    : gwgRecord.status === 'rejected'
-                                      ? cssVarV2('status/error')
-                                      : cssVarV2('text/primary'))
+                                ? gwgRecord.status === 'approved'
+                                  ? cssVarV2('status/success')
+                                  : gwgRecord.status === 'rejected'
+                                    ? cssVarV2('status/error')
+                                    : cssVarV2('text/primary')
                                 : cssVarV2('status/error'),
                             })}
                           >
-                            {gwgRecord ? GWG_STATUS_LABELS[gwgRecord.status] : 'Nicht gestartet'}
+                            {gwgRecord
+                              ? GWG_STATUS_LABELS[gwgRecord.status]
+                              : 'Nicht gestartet'}
                           </span>
                         </div>
                         <div className={localStyles.detailCardBody}>
@@ -797,12 +984,15 @@ export const MandantenSection = memo((props: Props) => {
                                 Risiko: {GWG_RISK_LABELS[gwgRecord.riskLevel]}
                               </div>
                               <div className={localStyles.detailMetaHint}>
-                                Status basiert auf GwG-Workflow. Identifikation kann manuell erfasst werden.
+                                Status basiert auf GwG-Workflow. Identifikation
+                                kann manuell erfasst werden.
                               </div>
                             </>
                           ) : (
                             <div className={localStyles.detailMetaHint}>
-                              Für viele Mandate ist eine Identifizierung erforderlich. Starte das Onboarding, um den Prüfpfad zu tracken.
+                              Für viele Mandate ist eine Identifizierung
+                              erforderlich. Starte das Onboarding, um den
+                              Prüfpfad zu tracken.
                             </div>
                           )}
                           <div className={localStyles.detailActionRow}>
@@ -828,21 +1018,32 @@ export const MandantenSection = memo((props: Props) => {
                     </div>
 
                     {clientMatters.length === 0 ? (
-                      <div className={`${styles.empty} ${localStyles.compactEmpty}`}>
-                        <div className={localStyles.compactEmptyTitle}>Keine Akten für diesen Mandanten.</div>
-                        <div className={localStyles.compactEmptyHint}>Legen Sie unter „Werkzeuge" eine neue Akte an.</div>
+                      <div
+                        className={`${styles.empty} ${localStyles.compactEmpty}`}
+                      >
+                        <div className={localStyles.compactEmptyTitle}>
+                          Keine Akten für diesen Mandanten.
+                        </div>
+                        <div className={localStyles.compactEmptyHint}>
+                          Legen Sie unter „Werkzeuge" eine neue Akte an.
+                        </div>
                       </div>
                     ) : (
                       clientMatters.map(matter => {
                         const matterDocs = docsByMatter(matter.id);
                         const isMatterExpanded = expandedMatterId === matter.id;
-                        const isHighlighted = props.highlightMatterId === matter.id;
-                        const assignedAnwalt = matter.assignedAnwaltId ? props.anwaelteById?.get(matter.assignedAnwaltId) : undefined;
+                        const isHighlighted =
+                          props.highlightMatterId === matter.id;
+                        const assignedAnwalt = matter.assignedAnwaltId
+                          ? props.anwaelteById?.get(matter.assignedAnwaltId)
+                          : undefined;
 
                         return (
                           <div
                             key={matter.id}
-                            ref={isHighlighted ? highlightedMatterRef : undefined}
+                            ref={
+                              isHighlighted ? highlightedMatterRef : undefined
+                            }
                             className={localStyles.matterCard}
                             style={assignInlineVars({
                               [localStyles.borderVar]: isHighlighted
@@ -861,7 +1062,11 @@ export const MandantenSection = memo((props: Props) => {
                               className={localStyles.matterHeaderButton}
                               aria-label={`Akte ${matter.title} ${isMatterExpanded ? 'einklappen' : 'ausklappen'}`}
                               aria-expanded={isMatterExpanded}
-                              onClick={() => setExpandedMatterId(isMatterExpanded ? null : matter.id)}
+                              onClick={() =>
+                                setExpandedMatterId(
+                                  isMatterExpanded ? null : matter.id
+                                )
+                              }
                             >
                               <div className={localStyles.contentCol}>
                                 <div className={localStyles.matterTitle}>
@@ -875,12 +1080,21 @@ export const MandantenSection = memo((props: Props) => {
                               </div>
                               <div className={localStyles.chipRowTight}>
                                 <StatusBadge status={matter.status} />
-                                {assignedAnwalt ? <AnwaltChip anwalt={assignedAnwalt} /> : null}
-                                <CountChip count={matterDocs.length} label="Dokumente" />
+                                {assignedAnwalt ? (
+                                  <AnwaltChip anwalt={assignedAnwalt} />
+                                ) : null}
+                                <CountChip
+                                  count={matterDocs.length}
+                                  label="Dokumente"
+                                />
                                 {(() => {
                                   const mf = findingsByMatter(matter.id);
-                                  const critical = mf.filter(f => f.severity === 'critical').length;
-                                  const high = mf.filter(f => f.severity === 'high').length;
+                                  const critical = mf.filter(
+                                    f => f.severity === 'critical'
+                                  ).length;
+                                  const high = mf.filter(
+                                    f => f.severity === 'high'
+                                  ).length;
                                   if (mf.length === 0) return null;
                                   const findingAccent =
                                     critical > 0
@@ -892,13 +1106,18 @@ export const MandantenSection = memo((props: Props) => {
                                     <span
                                       title={`${mf.length} Findings`}
                                       className={localStyles.findingsChip}
-                                      style={assignInlineVars({ [localStyles.accentColorVar]: findingAccent })}
+                                      style={assignInlineVars({
+                                        [localStyles.accentColorVar]:
+                                          findingAccent,
+                                      })}
                                     >
                                       {mf.length} Findings
                                     </span>
                                   );
                                 })()}
-                                <span className={localStyles.caret}>{isMatterExpanded ? 'Schließen' : 'Öffnen'}</span>
+                                <span className={localStyles.caret}>
+                                  {isMatterExpanded ? 'Schließen' : 'Öffnen'}
+                                </span>
                               </div>
                             </button>
 
@@ -914,7 +1133,9 @@ export const MandantenSection = memo((props: Props) => {
                               ) : null}
                               {matter.tags && matter.tags.length > 0 ? (
                                 <div className={localStyles.tagsWrap}>
-                                  {matter.tags.map(tag => <TagPill key={tag} tag={tag} />)}
+                                  {matter.tags.map(tag => (
+                                    <TagPill key={tag} tag={tag} />
+                                  ))}
                                 </div>
                               ) : null}
                               <Button
@@ -927,31 +1148,68 @@ export const MandantenSection = memo((props: Props) => {
                             </div>
 
                             {/* Findings-Zusammenfassung */}
-                            {isMatterExpanded ? (() => {
-                              const mf = findingsByMatter(matter.id);
-                              if (mf.length === 0) return null;
-                              const critical = mf.filter(f => f.severity === 'critical');
-                              const high = mf.filter(f => f.severity === 'high');
-                              const topFindings = [...critical, ...high].slice(0, 3);
-                              return (
-                                <div className={localStyles.findingsSummary}>
-                                  <div className={localStyles.findingsSummaryTitle}>{mf.length} Findings ({critical.length} kritisch, {high.length} hoch)</div>
-                                  {topFindings.map(f => (
-                                    <div key={f.id} className={localStyles.findingRow}>
-                                      <span className={localStyles.findingTitle}>{f.title}</span>
+                            {isMatterExpanded
+                              ? (() => {
+                                  const mf = findingsByMatter(matter.id);
+                                  if (mf.length === 0) return null;
+                                  const critical = mf.filter(
+                                    f => f.severity === 'critical'
+                                  );
+                                  const high = mf.filter(
+                                    f => f.severity === 'high'
+                                  );
+                                  const topFindings = [
+                                    ...critical,
+                                    ...high,
+                                  ].slice(0, 3);
+                                  return (
+                                    <div
+                                      className={localStyles.findingsSummary}
+                                    >
+                                      <div
+                                        className={
+                                          localStyles.findingsSummaryTitle
+                                        }
+                                      >
+                                        {mf.length} Findings ({critical.length}{' '}
+                                        kritisch, {high.length} hoch)
+                                      </div>
+                                      {topFindings.map(f => (
+                                        <div
+                                          key={f.id}
+                                          className={localStyles.findingRow}
+                                        >
+                                          <span
+                                            className={localStyles.findingTitle}
+                                          >
+                                            {f.title}
+                                          </span>
+                                        </div>
+                                      ))}
+                                      {mf.length > 3 ? (
+                                        <div
+                                          className={localStyles.findingMore}
+                                        >
+                                          +{mf.length - 3} weitere Findings
+                                        </div>
+                                      ) : null}
                                     </div>
-                                  ))}
-                                  {mf.length > 3 ? <div className={localStyles.findingMore}>+{mf.length - 3} weitere Findings</div> : null}
-                                </div>
-                              );
-                            })() : null}
+                                  );
+                                })()
+                              : null}
 
                             {/* Dokument-Liste */}
                             {isMatterExpanded ? (
                               <div className={localStyles.documentsBlock}>
                                 {matterDocs.length === 0 ? (
-                                  <div className={`${styles.empty} ${localStyles.compactEmpty}`}>
-                                    <div className={localStyles.compactEmptyTitle}>Keine Dokumente in dieser Akte.</div>
+                                  <div
+                                    className={`${styles.empty} ${localStyles.compactEmpty}`}
+                                  >
+                                    <div
+                                      className={localStyles.compactEmptyTitle}
+                                    >
+                                      Keine Dokumente in dieser Akte.
+                                    </div>
                                   </div>
                                 ) : (
                                   matterDocs.map(doc => (
@@ -960,29 +1218,59 @@ export const MandantenSection = memo((props: Props) => {
                                       className={localStyles.documentRow}
                                     >
                                       <div className={localStyles.documentBody}>
-                                        <div className={localStyles.documentTitle}>
-                                          {sanitize(doc.title) || 'Unbenanntes Dokument'}
+                                        <div
+                                          className={localStyles.documentTitle}
+                                        >
+                                          {sanitize(doc.title) ||
+                                            'Unbenanntes Dokument'}
                                         </div>
-                                        <div className={localStyles.documentMetaRow}>
-                                          <span className={localStyles.metaText}>
+                                        <div
+                                          className={
+                                            localStyles.documentMetaRow
+                                          }
+                                        >
+                                          <span
+                                            className={localStyles.metaText}
+                                          >
                                             {legalDocumentKindLabel[doc.kind]}
                                           </span>
-                                          <span className={localStyles.metaText}>
-                                            {legalDocumentStatusLabel[doc.status]}
+                                          <span
+                                            className={localStyles.metaText}
+                                          >
+                                            {
+                                              legalDocumentStatusLabel[
+                                                doc.status
+                                              ]
+                                            }
                                           </span>
-                                          <span className={localStyles.metaText}>
+                                          <span
+                                            className={localStyles.metaText}
+                                          >
                                             {formatDate(doc.updatedAt)}
                                           </span>
                                           {doc.internalFileNumber ? (
-                                            <span className={localStyles.documentFileNo} title="Interne Aktennummer">
+                                            <span
+                                              className={
+                                                localStyles.documentFileNo
+                                              }
+                                              title="Interne Aktennummer"
+                                            >
                                               AZ: {doc.internalFileNumber}
                                             </span>
                                           ) : null}
                                         </div>
-                                        {doc.paragraphReferences && doc.paragraphReferences.length > 0 ? (
-                                          <div className={localStyles.documentRefs} title="Normbezüge">
-                                            {doc.paragraphReferences.slice(0, 4).join(' · ')}
-                                            {doc.paragraphReferences.length > 4 ? ` +${doc.paragraphReferences.length - 4}` : ''}
+                                        {doc.paragraphReferences &&
+                                        doc.paragraphReferences.length > 0 ? (
+                                          <div
+                                            className={localStyles.documentRefs}
+                                            title="Normbezüge"
+                                          >
+                                            {doc.paragraphReferences
+                                              .slice(0, 4)
+                                              .join(' · ')}
+                                            {doc.paragraphReferences.length > 4
+                                              ? ` +${doc.paragraphReferences.length - 4}`
+                                              : ''}
                                           </div>
                                         ) : null}
                                       </div>

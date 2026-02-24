@@ -4,12 +4,13 @@ import type { CaseAssistantStore } from '../stores/case-assistant';
 import type {
   Aktennotiz,
   AuditChainAnchor,
+  AuslageRecord,
   CaseAssistantAction,
   CaseAssistantRole,
   CaseBlueprint,
   CaseDeadline,
-  CaseMemoryEvent,
   CaseFile,
+  CaseMemoryEvent,
   CitationChain,
   ClientRecord,
   ComplianceAuditEntry,
@@ -19,27 +20,26 @@ import type {
   CourtDecision,
   DocumentQualityReport,
   EmailRecord,
+  ExportJournalRecord,
+  FiscalSignatureRecord,
   Gerichtstermin,
   IngestionJob,
   IngestionJobStatus,
   IntakeSourceType,
   JudikaturSuggestion,
+  KassenbelegRecord,
+  KycSubmissionRecord,
   LegalDocumentRecord,
   LegalFinding,
   LegalNormRegistryRecord,
   MatterRecord,
   OcrJob,
   PortalRequestRecord,
-  KycSubmissionRecord,
   RechnungRecord,
-  AuslageRecord,
-  KassenbelegRecord,
-  FiscalSignatureRecord,
-  ExportJournalRecord,
   SemanticChunk,
   TimeEntry,
-  VollmachtSigningRequestRecord,
   Vollmacht,
+  VollmachtSigningRequestRecord,
   Wiedervorlage,
   WorkflowEvent,
   WorkflowEventType,
@@ -94,7 +94,8 @@ export class CasePlatformOrchestrationService extends Service {
   readonly qualityReports$ = this.store.watchQualityReports();
   readonly emails$ = this.store.watchEmails();
   readonly portalRequests$ = this.store.watchPortalRequests();
-  readonly vollmachtSigningRequests$ = this.store.watchVollmachtSigningRequests();
+  readonly vollmachtSigningRequests$ =
+    this.store.watchVollmachtSigningRequests();
   readonly kycSubmissions$ = this.store.watchKycSubmissions();
   readonly timeEntries$ = this.store.watchTimeEntries();
   readonly wiedervorlagen$ = this.store.watchWiedervorlagen();
@@ -121,7 +122,8 @@ export class CasePlatformOrchestrationService extends Service {
   }
 
   async setWorkspaceResidencyPolicy(policy: WorkspaceResidencyPolicy) {
-    const permission = await this.accessControlService.evaluate('residency.manage');
+    const permission =
+      await this.accessControlService.evaluate('residency.manage');
     if (!permission.ok) {
       await this.appendAuditEntry({
         workspaceId: policy.workspaceId,
@@ -172,12 +174,18 @@ export class CasePlatformOrchestrationService extends Service {
 
   private getConnectorById(connectorId: string) {
     return (
-      (this.connectors$.value ?? []).find((item: ConnectorConfig) => item.id === connectorId) ?? null
+      (this.connectors$.value ?? []).find(
+        (item: ConnectorConfig) => item.id === connectorId
+      ) ?? null
     );
   }
 
   private getJobById(jobId: string) {
-    return (this.ingestionJobs$.value ?? []).find((item: IngestionJob) => item.id === jobId) ?? null;
+    return (
+      (this.ingestionJobs$.value ?? []).find(
+        (item: IngestionJob) => item.id === jobId
+      ) ?? null
+    );
   }
 
   private async purgeExpiredDocumentTrash() {
@@ -198,7 +206,7 @@ export class CasePlatformOrchestrationService extends Service {
     const expiredMatters = matters.filter(
       m => m.trashedAt && m.purgeAt && new Date(m.purgeAt).getTime() <= nowMs
     );
-    
+
     if (expiredMatters.length === 0) {
       return;
     }
@@ -292,7 +300,9 @@ export class CasePlatformOrchestrationService extends Service {
     if (existing) {
       const caseFile = graph.cases?.[existing.caseId];
       if (caseFile) {
-        const nextTerminIds = (caseFile.terminIds ?? []).filter(id => id !== terminId);
+        const nextTerminIds = (caseFile.terminIds ?? []).filter(
+          id => id !== terminId
+        );
         if (nextTerminIds.length !== (caseFile.terminIds ?? []).length) {
           await this.store.upsertCaseFile({
             ...caseFile,
@@ -330,7 +340,8 @@ export class CasePlatformOrchestrationService extends Service {
       return false;
     }
 
-    const workspaceId = Object.values(graph.cases ?? {})[0]?.workspaceId ?? 'workspace:unknown';
+    const workspaceId =
+      Object.values(graph.cases ?? {})[0]?.workspaceId ?? 'workspace:unknown';
     const permission = await this.accessControlService.evaluate('task.manage');
     if (!permission.ok) {
       await this.appendAuditEntry({
@@ -394,7 +405,8 @@ export class CasePlatformOrchestrationService extends Service {
       updatedAt?: string;
     }
   ) {
-    const permission = await this.accessControlService.evaluate('client.manage');
+    const permission =
+      await this.accessControlService.evaluate('client.manage');
     if (!permission.ok) {
       await this.appendAuditEntry({
         workspaceId: input.workspaceId,
@@ -450,7 +462,8 @@ export class CasePlatformOrchestrationService extends Service {
       updatedAt?: string;
     }
   ) {
-    const permission = await this.accessControlService.evaluate('matter.manage');
+    const permission =
+      await this.accessControlService.evaluate('matter.manage');
     if (!permission.ok) {
       await this.appendAuditEntry({
         workspaceId: input.workspaceId,
@@ -487,10 +500,12 @@ export class CasePlatformOrchestrationService extends Service {
       ...(input.assignedAnwaltIds ?? []),
     ].filter(Boolean);
     const uniqueAssignedAnwaltIds = [...new Set(normalizedAssignedAnwaltIds)];
-    const invalidAssignedAnwaltIds = uniqueAssignedAnwaltIds.filter(anwaltId => {
-      const anwalt = graph.anwaelte?.[anwaltId];
-      return !anwalt || !anwalt.isActive;
-    });
+    const invalidAssignedAnwaltIds = uniqueAssignedAnwaltIds.filter(
+      anwaltId => {
+        const anwalt = graph.anwaelte?.[anwaltId];
+        return !anwalt || !anwalt.isActive;
+      }
+    );
     if (invalidAssignedAnwaltIds.length > 0) {
       await this.appendAuditEntry({
         workspaceId: input.workspaceId,
@@ -512,7 +527,9 @@ export class CasePlatformOrchestrationService extends Service {
       ...input,
       assignedAnwaltId: uniqueAssignedAnwaltIds[0],
       assignedAnwaltIds:
-        uniqueAssignedAnwaltIds.length > 0 ? uniqueAssignedAnwaltIds : undefined,
+        uniqueAssignedAnwaltIds.length > 0
+          ? uniqueAssignedAnwaltIds
+          : undefined,
       createdAt: input.createdAt ?? current?.createdAt ?? now,
       updatedAt: input.updatedAt ?? now,
     };
@@ -608,7 +625,8 @@ export class CasePlatformOrchestrationService extends Service {
     }
   ) {
     const graph = await this.store.getGraph();
-    const workspaceId = Object.values(graph.cases ?? {})[0]?.workspaceId ?? 'workspace:unknown';
+    const workspaceId =
+      Object.values(graph.cases ?? {})[0]?.workspaceId ?? 'workspace:unknown';
 
     const permission = await this.accessControlService.evaluate('task.manage');
     if (!permission.ok) {
@@ -639,7 +657,9 @@ export class CasePlatformOrchestrationService extends Service {
       ...input,
       status: input.status ?? current?.status ?? 'open',
       reminderOffsetsInMinutes:
-        normalizedOffsets.length > 0 ? normalizedOffsets : DEFAULT_REMINDER_OFFSETS,
+        normalizedOffsets.length > 0
+          ? normalizedOffsets
+          : DEFAULT_REMINDER_OFFSETS,
       createdAt: current?.createdAt ?? now,
       updatedAt: input.updatedAt ?? now,
     };
@@ -671,8 +691,13 @@ export class CasePlatformOrchestrationService extends Service {
     return record;
   }
 
-  async assignCaseMatter(input: { caseId: string; workspaceId: string; matterId: string }) {
-    const permission = await this.accessControlService.evaluate('matter.manage');
+  async assignCaseMatter(input: {
+    caseId: string;
+    workspaceId: string;
+    matterId: string;
+  }) {
+    const permission =
+      await this.accessControlService.evaluate('matter.manage');
     if (!permission.ok) {
       await this.appendAuditEntry({
         caseId: input.caseId,
@@ -695,7 +720,10 @@ export class CasePlatformOrchestrationService extends Service {
     if (!caseFile || !matter) {
       return null;
     }
-    if (caseFile.workspaceId !== input.workspaceId || matter.workspaceId !== input.workspaceId) {
+    if (
+      caseFile.workspaceId !== input.workspaceId ||
+      matter.workspaceId !== input.workspaceId
+    ) {
       return null;
     }
 
@@ -752,7 +780,8 @@ export class CasePlatformOrchestrationService extends Service {
       return null;
     }
 
-    const permission = await this.accessControlService.evaluate('matter.manage');
+    const permission =
+      await this.accessControlService.evaluate('matter.manage');
     if (!permission.ok) {
       await this.appendAuditEntry({
         workspaceId: matter.workspaceId,
@@ -775,7 +804,9 @@ export class CasePlatformOrchestrationService extends Service {
       }
     }
 
-    const { trashedAt, purgeAt } = buildTrashTimestamps(MATTER_TRASH_RETENTION_DAYS);
+    const { trashedAt, purgeAt } = buildTrashTimestamps(
+      MATTER_TRASH_RETENTION_DAYS
+    );
     const updated = await this.upsertMatter({
       ...matter,
       status: 'archived',
@@ -807,7 +838,8 @@ export class CasePlatformOrchestrationService extends Service {
       return null;
     }
 
-    const permission = await this.accessControlService.evaluate('matter.manage');
+    const permission =
+      await this.accessControlService.evaluate('matter.manage');
     if (!permission.ok) {
       await this.appendAuditEntry({
         workspaceId: matter.workspaceId,
@@ -853,7 +885,8 @@ export class CasePlatformOrchestrationService extends Service {
       return false;
     }
 
-    const permission = await this.accessControlService.evaluate('matter.manage');
+    const permission =
+      await this.accessControlService.evaluate('matter.manage');
     if (!permission.ok) {
       await this.appendAuditEntry({
         workspaceId: matter.workspaceId,
@@ -874,18 +907,10 @@ export class CasePlatformOrchestrationService extends Service {
     );
     const linkedCaseIds = linkedCases.map(c => c.id);
     const linkedDeadlineIds = Array.from(
-      new Set(
-        linkedCases
-          .flatMap(c => c.deadlineIds ?? [])
-          .filter(Boolean)
-      )
+      new Set(linkedCases.flatMap(c => c.deadlineIds ?? []).filter(Boolean))
     );
     const linkedTerminIds = Array.from(
-      new Set(
-        linkedCases
-          .flatMap(c => c.terminIds ?? [])
-          .filter(Boolean)
-      )
+      new Set(linkedCases.flatMap(c => c.terminIds ?? []).filter(Boolean))
     );
 
     const legalDocs = await this.store.getLegalDocuments();
@@ -895,7 +920,8 @@ export class CasePlatformOrchestrationService extends Service {
         workspaceId: matter.workspaceId,
         action: 'matter.purge.rejected',
         severity: 'warning',
-        details: 'Akte kann nicht endgültig gelöscht werden, solange Dokumente verknüpft sind.',
+        details:
+          'Akte kann nicht endgültig gelöscht werden, solange Dokumente verknüpft sind.',
         metadata: {
           matterId,
           linkedDocsCount: String(linkedDocs.length),
@@ -911,7 +937,10 @@ export class CasePlatformOrchestrationService extends Service {
 
       if (graph.memoryEvents) {
         for (const memoryEvent of Object.values(graph.memoryEvents)) {
-          if (memoryEvent.deadlineId && linkedDeadlineIds.includes(memoryEvent.deadlineId)) {
+          if (
+            memoryEvent.deadlineId &&
+            linkedDeadlineIds.includes(memoryEvent.deadlineId)
+          ) {
             delete graph.memoryEvents[memoryEvent.id];
           }
         }
@@ -931,21 +960,29 @@ export class CasePlatformOrchestrationService extends Service {
     await this.store.setGraph(graph);
 
     if (linkedCaseIds.length > 0) {
-      const [ingestionJobs, ocrJobs, findings, chunks, workflowEvents, auditEntries] =
-        await Promise.all([
-          this.store.getIngestionJobs(),
-          this.store.getOcrJobs(),
-          this.store.getLegalFindings(),
-          this.store.getSemanticChunks(),
-          this.store.getWorkflowEvents(),
-          this.store.getAuditEntries(),
-        ]);
+      const [
+        ingestionJobs,
+        ocrJobs,
+        findings,
+        chunks,
+        workflowEvents,
+        auditEntries,
+      ] = await Promise.all([
+        this.store.getIngestionJobs(),
+        this.store.getOcrJobs(),
+        this.store.getLegalFindings(),
+        this.store.getSemanticChunks(),
+        this.store.getWorkflowEvents(),
+        this.store.getAuditEntries(),
+      ]);
 
       await Promise.all([
         this.store.setIngestionJobs(
           ingestionJobs.filter(j => !linkedCaseIds.includes(j.caseId))
         ),
-        this.store.setOcrJobs(ocrJobs.filter(j => !linkedCaseIds.includes(j.caseId))),
+        this.store.setOcrJobs(
+          ocrJobs.filter(j => !linkedCaseIds.includes(j.caseId))
+        ),
         this.store.setLegalFindings(
           findings.filter(f => !linkedCaseIds.includes(f.caseId))
         ),
@@ -988,7 +1025,6 @@ export class CasePlatformOrchestrationService extends Service {
     });
 
     return true;
-
   }
 
   async archiveClient(clientId: string) {
@@ -1025,7 +1061,8 @@ export class CasePlatformOrchestrationService extends Service {
       return false;
     }
 
-    const permission = await this.accessControlService.evaluate('matter.manage');
+    const permission =
+      await this.accessControlService.evaluate('matter.manage');
     if (!permission.ok) {
       await this.appendAuditEntry({
         workspaceId: matter.workspaceId,
@@ -1050,7 +1087,8 @@ export class CasePlatformOrchestrationService extends Service {
         workspaceId: matter.workspaceId,
         action: 'matter.delete.rejected',
         severity: 'warning',
-        details: 'Akte kann nicht gelöscht werden, solange Cases verknüpft sind.',
+        details:
+          'Akte kann nicht gelöscht werden, solange Cases verknüpft sind.',
         metadata: {
           matterId,
           linkedCaseId: linkedCase.id,
@@ -1106,7 +1144,8 @@ export class CasePlatformOrchestrationService extends Service {
       return false;
     }
 
-    const permission = await this.accessControlService.evaluate('matter.manage');
+    const permission =
+      await this.accessControlService.evaluate('matter.manage');
     if (!permission.ok) {
       await this.appendAuditEntry({
         workspaceId: matter.workspaceId,
@@ -1127,18 +1166,10 @@ export class CasePlatformOrchestrationService extends Service {
     );
     const linkedCaseIds = linkedCases.map(c => c.id);
     const linkedDeadlineIds = Array.from(
-      new Set(
-        linkedCases
-          .flatMap(c => c.deadlineIds ?? [])
-          .filter(Boolean)
-      )
+      new Set(linkedCases.flatMap(c => c.deadlineIds ?? []).filter(Boolean))
     );
     const linkedTerminIds = Array.from(
-      new Set(
-        linkedCases
-          .flatMap(c => c.terminIds ?? [])
-          .filter(Boolean)
-      )
+      new Set(linkedCases.flatMap(c => c.terminIds ?? []).filter(Boolean))
     );
 
     const legalDocs = await this.store.getLegalDocuments();
@@ -1179,7 +1210,10 @@ export class CasePlatformOrchestrationService extends Service {
 
       if (graph.memoryEvents) {
         for (const memoryEvent of Object.values(graph.memoryEvents)) {
-          if (memoryEvent.deadlineId && linkedDeadlineIds.includes(memoryEvent.deadlineId)) {
+          if (
+            memoryEvent.deadlineId &&
+            linkedDeadlineIds.includes(memoryEvent.deadlineId)
+          ) {
             delete graph.memoryEvents[memoryEvent.id];
           }
         }
@@ -1199,21 +1233,29 @@ export class CasePlatformOrchestrationService extends Service {
     await this.store.setGraph(graph);
 
     if (linkedCaseIds.length > 0) {
-      const [ingestionJobs, ocrJobs, findings, chunks, workflowEvents, auditEntries] =
-        await Promise.all([
-          this.store.getIngestionJobs(),
-          this.store.getOcrJobs(),
-          this.store.getLegalFindings(),
-          this.store.getSemanticChunks(),
-          this.store.getWorkflowEvents(),
-          this.store.getAuditEntries(),
-        ]);
+      const [
+        ingestionJobs,
+        ocrJobs,
+        findings,
+        chunks,
+        workflowEvents,
+        auditEntries,
+      ] = await Promise.all([
+        this.store.getIngestionJobs(),
+        this.store.getOcrJobs(),
+        this.store.getLegalFindings(),
+        this.store.getSemanticChunks(),
+        this.store.getWorkflowEvents(),
+        this.store.getAuditEntries(),
+      ]);
 
       await Promise.all([
         this.store.setIngestionJobs(
           ingestionJobs.filter(j => !linkedCaseIds.includes(j.caseId))
         ),
-        this.store.setOcrJobs(ocrJobs.filter(j => !linkedCaseIds.includes(j.caseId))),
+        this.store.setOcrJobs(
+          ocrJobs.filter(j => !linkedCaseIds.includes(j.caseId))
+        ),
         this.store.setLegalFindings(
           findings.filter(f => !linkedCaseIds.includes(f.caseId))
         ),
@@ -1265,7 +1307,8 @@ export class CasePlatformOrchestrationService extends Service {
       return false;
     }
 
-    const permission = await this.accessControlService.evaluate('client.manage');
+    const permission =
+      await this.accessControlService.evaluate('client.manage');
     if (!permission.ok) {
       await this.appendAuditEntry({
         workspaceId: client.workspaceId,
@@ -1303,7 +1346,8 @@ export class CasePlatformOrchestrationService extends Service {
         workspaceId: client.workspaceId,
         action: 'client.delete.rejected',
         severity: 'warning',
-        details: 'Mandant kann nicht gelöscht werden, solange Akten verknüpft sind.',
+        details:
+          'Mandant kann nicht gelöscht werden, solange Akten verknüpft sind.',
         metadata: {
           clientId,
           linkedMatterId: linkedMatter.id,
@@ -1351,13 +1395,47 @@ export class CasePlatformOrchestrationService extends Service {
     return true;
   }
 
+  async deleteClientsBulk(clientIds: string[]): Promise<{
+    total: number;
+    succeededIds: string[];
+    blockedIds: string[];
+    failedIds: string[];
+  }> {
+    const uniqueClientIds = [...new Set(clientIds.filter(Boolean))];
+    const succeededIds: string[] = [];
+    const blockedIds: string[] = [];
+    const failedIds: string[] = [];
+
+    for (const clientId of uniqueClientIds) {
+      try {
+        const deleted = await this.deleteClient(clientId);
+        if (deleted) {
+          succeededIds.push(clientId);
+        } else {
+          blockedIds.push(clientId);
+        }
+      } catch {
+        failedIds.push(clientId);
+      }
+    }
+
+    return {
+      total: uniqueClientIds.length,
+      succeededIds,
+      blockedIds,
+      failedIds,
+    };
+  }
+
   async saveConnectorConfiguration(
     input: Omit<ConnectorConfig, 'createdAt' | 'updatedAt'> & {
       createdAt?: string;
       updatedAt?: string;
     }
   ) {
-    const permission = await this.accessControlService.evaluate('connector.configure');
+    const permission = await this.accessControlService.evaluate(
+      'connector.configure'
+    );
     if (!permission.ok) {
       await this.appendAuditEntry({
         workspaceId: input.workspaceId,
@@ -1382,7 +1460,8 @@ export class CasePlatformOrchestrationService extends Service {
       return null;
     }
 
-    const permission = await this.accessControlService.evaluate('connector.toggle');
+    const permission =
+      await this.accessControlService.evaluate('connector.toggle');
     if (!permission.ok) {
       await this.appendAuditEntry({
         workspaceId: current.workspaceId,
@@ -1471,13 +1550,17 @@ export class CasePlatformOrchestrationService extends Service {
 
   async upsertSemanticChunks(documentId: string, chunks: SemanticChunk[]) {
     if (chunks.some(chunk => chunk.documentId !== documentId)) {
-      throw new Error('Semantic chunk payload mismatch: documentId is inconsistent.');
+      throw new Error(
+        'Semantic chunk payload mismatch: documentId is inconsistent.'
+      );
     }
 
     const caseIds = new Set(chunks.map(chunk => chunk.caseId));
     const workspaceIds = new Set(chunks.map(chunk => chunk.workspaceId));
     if (caseIds.size > 1 || workspaceIds.size > 1) {
-      throw new Error('Semantic chunk payload mismatch: mixed case/workspace data detected.');
+      throw new Error(
+        'Semantic chunk payload mismatch: mixed case/workspace data detected.'
+      );
     }
 
     // GAP-5 FIX: Optimized upsert — avoid full-array serialization when possible.
@@ -1487,7 +1570,9 @@ export class CasePlatformOrchestrationService extends Service {
     const existing = await this.store.getSemanticChunks();
 
     // Fast path: if no existing chunks for this document, just append
-    const hasExisting = existing.some((c: SemanticChunk) => c.documentId === documentId);
+    const hasExisting = existing.some(
+      (c: SemanticChunk) => c.documentId === documentId
+    );
     if (!hasExisting) {
       // Append-only — avoids full array copy + filter
       await this.store.setSemanticChunks(existing.concat(chunks));
@@ -1495,23 +1580,30 @@ export class CasePlatformOrchestrationService extends Service {
     }
 
     // Replace path: only rebuild if document already had chunks
-    const filtered = existing.filter((c: SemanticChunk) => c.documentId !== documentId);
+    const filtered = existing.filter(
+      (c: SemanticChunk) => c.documentId !== documentId
+    );
     await this.store.setSemanticChunks(filtered.concat(chunks));
   }
 
   async upsertQualityReport(report: DocumentQualityReport) {
-    const existingDoc = (await this.store.getLegalDocuments()).find(d => d.id === report.documentId);
-    if (existingDoc) {
-      if (
-        existingDoc.caseId !== report.caseId ||
-        existingDoc.workspaceId !== report.workspaceId
-      ) {
-        throw new Error('Quality report payload mismatch: case/workspace differs from source document.');
-      }
+    const existingDoc = (await this.store.getLegalDocuments()).find(
+      d => d.id === report.documentId
+    );
+    if (
+      existingDoc &&
+      (existingDoc.caseId !== report.caseId ||
+        existingDoc.workspaceId !== report.workspaceId)
+    ) {
+      throw new Error(
+        'Quality report payload mismatch: case/workspace differs from source document.'
+      );
     }
 
     const existing = await this.store.getQualityReports();
-    const filtered = existing.filter((r: DocumentQualityReport) => r.documentId !== report.documentId);
+    const filtered = existing.filter(
+      (r: DocumentQualityReport) => r.documentId !== report.documentId
+    );
     await this.store.setQualityReports([...filtered, report]);
   }
 
@@ -1667,7 +1759,8 @@ export class CasePlatformOrchestrationService extends Service {
       status: params.status,
       progress: params.progress ?? current.progress,
       errorMessage: params.errorMessage,
-      startedAt: current.startedAt ?? (params.status === 'running' ? now : undefined),
+      startedAt:
+        current.startedAt ?? (params.status === 'running' ? now : undefined),
       finishedAt:
         params.status === 'completed' ||
         params.status === 'failed' ||
@@ -1824,7 +1917,8 @@ export class CasePlatformOrchestrationService extends Service {
         workspaceId: current.workspaceId,
         action: 'job.delete.blocked_running',
         severity: 'warning',
-        details: 'Job kann nur gelöscht werden, wenn er nicht queued/running ist. Bitte zuerst abbrechen.',
+        details:
+          'Job kann nur gelöscht werden, wenn er nicht queued/running ist. Bitte zuerst abbrechen.',
         metadata: {
           jobId,
           status: current.status,
@@ -1877,15 +1971,20 @@ export class CasePlatformOrchestrationService extends Service {
     }
 
     const existingJobs = await this.store.getIngestionJobs();
-    const caseJobs = existingJobs.filter(j => j.caseId === input.caseId && j.workspaceId === input.workspaceId);
-    const hasRunning = caseJobs.some(j => j.status === 'queued' || j.status === 'running');
+    const caseJobs = existingJobs.filter(
+      j => j.caseId === input.caseId && j.workspaceId === input.workspaceId
+    );
+    const hasRunning = caseJobs.some(
+      j => j.status === 'queued' || j.status === 'running'
+    );
     if (hasRunning) {
       await this.appendAuditEntry({
         caseId: input.caseId,
         workspaceId: input.workspaceId,
         action: 'job.history_clear.blocked_running',
         severity: 'warning',
-        details: 'Verlauf kann nicht gelöscht werden solange Jobs queued/running sind. Bitte zuerst abbrechen.',
+        details:
+          'Verlauf kann nicht gelöscht werden solange Jobs queued/running sind. Bitte zuerst abbrechen.',
       });
       return [];
     }
@@ -2041,10 +2140,12 @@ export class CasePlatformOrchestrationService extends Service {
     const deadline = graph.deadlines?.[deadlineId] as CaseDeadline | undefined;
     if (!deadline) return null;
 
-    const caseFile = Object.values(graph.cases ?? {}).find(
-      (c: CaseFile) => (c.deadlineIds ?? []).includes(deadlineId)
+    const caseFile = Object.values(graph.cases ?? {}).find((c: CaseFile) =>
+      (c.deadlineIds ?? []).includes(deadlineId)
     );
-    const matter = caseFile?.matterId ? graph.matters?.[caseFile.matterId] : undefined;
+    const matter = caseFile?.matterId
+      ? graph.matters?.[caseFile.matterId]
+      : undefined;
 
     return { deadline, caseFile: caseFile ?? null, matter: matter ?? null };
   }
@@ -2053,7 +2154,8 @@ export class CasePlatformOrchestrationService extends Service {
     const ctx = await this.resolveDeadlineContext(deadlineId);
     if (!ctx) return null;
 
-    const permission = await this.accessControlService.evaluate('deadline.manage');
+    const permission =
+      await this.accessControlService.evaluate('deadline.manage');
     if (!permission.ok) {
       await this.appendAuditEntry({
         caseId: ctx.caseFile?.id,
@@ -2070,7 +2172,10 @@ export class CasePlatformOrchestrationService extends Service {
       return null;
     }
 
-    if (ctx.deadline.status === 'acknowledged' || ctx.deadline.status === 'completed') {
+    if (
+      ctx.deadline.status === 'acknowledged' ||
+      ctx.deadline.status === 'completed'
+    ) {
       return ctx.deadline;
     }
 
@@ -2116,7 +2221,8 @@ export class CasePlatformOrchestrationService extends Service {
     const ctx = await this.resolveDeadlineContext(deadlineId);
     if (!ctx) return null;
 
-    const permission = await this.accessControlService.evaluate('deadline.manage');
+    const permission =
+      await this.accessControlService.evaluate('deadline.manage');
     if (!permission.ok) {
       await this.appendAuditEntry({
         caseId: ctx.caseFile?.id,
@@ -2188,7 +2294,8 @@ export class CasePlatformOrchestrationService extends Service {
     const ctx = await this.resolveDeadlineContext(deadlineId);
     if (!ctx) return updated;
 
-    const permission = await this.accessControlService.evaluate('deadline.manage');
+    const permission =
+      await this.accessControlService.evaluate('deadline.manage');
     if (!permission.ok) {
       await this.appendAuditEntry({
         caseId: ctx.caseFile?.id,
@@ -2260,7 +2367,8 @@ export class CasePlatformOrchestrationService extends Service {
     const ctx = await this.resolveDeadlineContext(deadlineId);
     if (!ctx) return null;
 
-    const permission = await this.accessControlService.evaluate('deadline.manage');
+    const permission =
+      await this.accessControlService.evaluate('deadline.manage');
     if (!permission.ok) {
       await this.appendAuditEntry({
         caseId: ctx.caseFile?.id,
@@ -2322,7 +2430,8 @@ export class CasePlatformOrchestrationService extends Service {
     const finding = findings.find((f: LegalFinding) => f.id === findingId);
     if (!finding) return null;
 
-    const permission = await this.accessControlService.evaluate('finding.manage');
+    const permission =
+      await this.accessControlService.evaluate('finding.manage');
     if (!permission.ok) {
       await this.appendAuditEntry({
         caseId: finding.caseId,
@@ -2376,7 +2485,8 @@ export class CasePlatformOrchestrationService extends Service {
     const finding = findings.find((f: LegalFinding) => f.id === findingId);
     if (!finding) return null;
 
-    const permission = await this.accessControlService.evaluate('finding.manage');
+    const permission =
+      await this.accessControlService.evaluate('finding.manage');
     if (!permission.ok) {
       await this.appendAuditEntry({
         caseId: finding.caseId,
@@ -2426,7 +2536,9 @@ export class CasePlatformOrchestrationService extends Service {
   // ═══ Anwalt-Workflow Features (Gaps) ═══
 
   async upsertTimeEntry(entry: TimeEntry) {
-    const existing = (await this.store.getTimeEntries()).find(e => e.id === entry.id);
+    const existing = (await this.store.getTimeEntries()).find(
+      e => e.id === entry.id
+    );
     if (existing) {
       const updated = (await this.store.getTimeEntries()).map(e =>
         e.id === entry.id ? entry : e
@@ -2440,12 +2552,16 @@ export class CasePlatformOrchestrationService extends Service {
   }
 
   async deleteTimeEntry(entryId: string) {
-    const entries = (await this.store.getTimeEntries()).filter(e => e.id !== entryId);
+    const entries = (await this.store.getTimeEntries()).filter(
+      e => e.id !== entryId
+    );
     await this.store.setTimeEntries(entries);
   }
 
   async upsertWiedervorlage(entry: Wiedervorlage) {
-    const existing = (await this.store.getWiedervorlagen()).find(e => e.id === entry.id);
+    const existing = (await this.store.getWiedervorlagen()).find(
+      e => e.id === entry.id
+    );
     if (existing) {
       const updated = (await this.store.getWiedervorlagen()).map(e =>
         e.id === entry.id ? entry : e
@@ -2459,12 +2575,16 @@ export class CasePlatformOrchestrationService extends Service {
   }
 
   async deleteWiedervorlage(entryId: string) {
-    const entries = (await this.store.getWiedervorlagen()).filter(e => e.id !== entryId);
+    const entries = (await this.store.getWiedervorlagen()).filter(
+      e => e.id !== entryId
+    );
     await this.store.setWiedervorlagen(entries);
   }
 
   async upsertAktennotiz(entry: Aktennotiz) {
-    const existing = (await this.store.getAktennotizen()).find(e => e.id === entry.id);
+    const existing = (await this.store.getAktennotizen()).find(
+      e => e.id === entry.id
+    );
     if (existing) {
       const updated = (await this.store.getAktennotizen()).map(e =>
         e.id === entry.id ? entry : e
@@ -2478,12 +2598,16 @@ export class CasePlatformOrchestrationService extends Service {
   }
 
   async deleteAktennotiz(entryId: string) {
-    const entries = (await this.store.getAktennotizen()).filter(e => e.id !== entryId);
+    const entries = (await this.store.getAktennotizen()).filter(
+      e => e.id !== entryId
+    );
     await this.store.setAktennotizen(entries);
   }
 
   async upsertVollmacht(entry: Vollmacht) {
-    const existing = (await this.store.getVollmachten()).find(e => e.id === entry.id);
+    const existing = (await this.store.getVollmachten()).find(
+      e => e.id === entry.id
+    );
     if (existing) {
       const updated = (await this.store.getVollmachten()).map(e =>
         e.id === entry.id ? entry : e
@@ -2497,12 +2621,16 @@ export class CasePlatformOrchestrationService extends Service {
   }
 
   async deleteVollmacht(entryId: string) {
-    const entries = (await this.store.getVollmachten()).filter(e => e.id !== entryId);
+    const entries = (await this.store.getVollmachten()).filter(
+      e => e.id !== entryId
+    );
     await this.store.setVollmachten(entries);
   }
 
   async upsertRechnung(entry: RechnungRecord) {
-    const existing = (await this.store.getRechnungen()).find(e => e.id === entry.id);
+    const existing = (await this.store.getRechnungen()).find(
+      e => e.id === entry.id
+    );
     if (existing) {
       const updated = (await this.store.getRechnungen()).map(e =>
         e.id === entry.id ? entry : e
@@ -2516,12 +2644,16 @@ export class CasePlatformOrchestrationService extends Service {
   }
 
   async deleteRechnung(entryId: string) {
-    const entries = (await this.store.getRechnungen()).filter(e => e.id !== entryId);
+    const entries = (await this.store.getRechnungen()).filter(
+      e => e.id !== entryId
+    );
     await this.store.setRechnungen(entries);
   }
 
   async upsertAuslage(entry: AuslageRecord) {
-    const existing = (await this.store.getAuslagen()).find(e => e.id === entry.id);
+    const existing = (await this.store.getAuslagen()).find(
+      e => e.id === entry.id
+    );
     if (existing) {
       const updated = (await this.store.getAuslagen()).map(e =>
         e.id === entry.id ? entry : e
@@ -2535,12 +2667,16 @@ export class CasePlatformOrchestrationService extends Service {
   }
 
   async deleteAuslage(entryId: string) {
-    const entries = (await this.store.getAuslagen()).filter(e => e.id !== entryId);
+    const entries = (await this.store.getAuslagen()).filter(
+      e => e.id !== entryId
+    );
     await this.store.setAuslagen(entries);
   }
 
   async upsertKassenbeleg(entry: KassenbelegRecord) {
-    const existing = (await this.store.getKassenbelege()).find(e => e.id === entry.id);
+    const existing = (await this.store.getKassenbelege()).find(
+      e => e.id === entry.id
+    );
     if (existing) {
       const updated = (await this.store.getKassenbelege()).map(e =>
         e.id === entry.id ? entry : e
@@ -2554,12 +2690,16 @@ export class CasePlatformOrchestrationService extends Service {
   }
 
   async deleteKassenbeleg(entryId: string) {
-    const entries = (await this.store.getKassenbelege()).filter(e => e.id !== entryId);
+    const entries = (await this.store.getKassenbelege()).filter(
+      e => e.id !== entryId
+    );
     await this.store.setKassenbelege(entries);
   }
 
   async upsertFiscalSignature(entry: FiscalSignatureRecord) {
-    const existing = (await this.store.getFiscalSignatures()).find(e => e.id === entry.id);
+    const existing = (await this.store.getFiscalSignatures()).find(
+      e => e.id === entry.id
+    );
     if (existing) {
       const updated = (await this.store.getFiscalSignatures()).map(e =>
         e.id === entry.id ? entry : e
@@ -2580,7 +2720,9 @@ export class CasePlatformOrchestrationService extends Service {
   }
 
   async upsertExportJournal(entry: ExportJournalRecord) {
-    const existing = (await this.store.getExportJournal()).find(e => e.id === entry.id);
+    const existing = (await this.store.getExportJournal()).find(
+      e => e.id === entry.id
+    );
     if (existing) {
       const updated = (await this.store.getExportJournal()).map(e =>
         e.id === entry.id ? entry : e

@@ -1,42 +1,43 @@
-import { useLiveData, useService } from '@toeverything/infra';
-import { useI18n } from '@affine/i18n';
 import { useConfirmModal, usePromptModal } from '@affine/component';
+import { useI18n } from '@affine/i18n';
+import { useLiveData, useService } from '@toeverything/infra';
 import {
+  type KeyboardEvent,
   useCallback,
   useEffect,
   useMemo,
   useRef,
   useState,
-  type KeyboardEvent,
 } from 'react';
 
-import {
-  ViewBody,
-  ViewIcon,
-  ViewTitle,
-} from '../../../../modules/workbench';
-import { WorkbenchService } from '../../../../modules/workbench';
-import { WorkspaceService } from '../../../../modules/workspace';
 import { LegalCopilotWorkflowService } from '../../../../modules/case-assistant/services/legal-copilot-workflow';
 import { CasePlatformOrchestrationService } from '../../../../modules/case-assistant/services/platform-orchestration';
 import { CaseAssistantStore } from '../../../../modules/case-assistant/stores/case-assistant';
 import type {
   CaseDeadline,
-  ClientRecord,
   ClientKind,
+  ClientRecord,
   LegalDocumentRecord,
   MatterRecord,
   Vollmacht,
 } from '../../../../modules/case-assistant/types';
-import { AllDocSidebarTabs } from '../layouts/all-doc-sidebar-tabs';
+import { ViewBody, ViewIcon, ViewTitle } from '../../../../modules/workbench';
+import { WorkbenchService } from '../../../../modules/workbench';
+import { WorkspaceService } from '../../../../modules/workspace';
 import { createLocalRecordId } from '../detail-page/tabs/case-assistant/utils';
+import { AllDocSidebarTabs } from '../layouts/all-doc-sidebar-tabs';
 import { BulkActionBar } from '../layouts/bulk-action-bar';
 import { useBulkSelection } from '../layouts/use-bulk-selection';
 import * as styles from './all-mandanten.css';
 
 type SortKey = 'updatedAt' | 'displayName' | 'kind' | 'aktenCount';
 type SortDir = 'asc' | 'desc';
-type MandantenSavedView = 'active' | 'companies' | 'authorities' | 'archived' | 'custom';
+type MandantenSavedView =
+  | 'active'
+  | 'companies'
+  | 'authorities'
+  | 'archived'
+  | 'custom';
 type ComplianceFocusTarget = 'vollmacht' | 'ausweis';
 
 const kindLabelKey: Record<ClientKind, string> = {
@@ -67,7 +68,12 @@ const sortKeyLabelKey: Record<SortKey, string> = {
   aktenCount: 'com.affine.caseAssistant.allMandanten.sort.aktenCount',
 };
 
-function getClientStateVisual(client: Pick<MandantWithStats, 'archived' | 'criticalAlertsCount' | 'openAktenCount'>): {
+function getClientStateVisual(
+  client: Pick<
+    MandantWithStats,
+    'archived' | 'criticalAlertsCount' | 'openAktenCount'
+  >
+): {
   label: string;
   className: string;
 } {
@@ -93,7 +99,9 @@ function daysUntil(dateStr: string): number {
 
 type ComplianceState = 'ok' | 'missing' | 'na';
 
-function isLikelyAusweisDocument(doc: Pick<LegalDocumentRecord, 'title' | 'sourceRef' | 'tags'>): boolean {
+function isLikelyAusweisDocument(
+  doc: Pick<LegalDocumentRecord, 'title' | 'sourceRef' | 'tags'>
+): boolean {
   const haystack = [doc.title, doc.sourceRef, ...(doc.tags ?? [])]
     .filter(Boolean)
     .join(' ')
@@ -138,13 +146,17 @@ export const AllMandantenPage = () => {
   const workbench = useService(WorkbenchService).workbench;
   const workspace = useService(WorkspaceService).workspace;
   const legalCopilotWorkflowService = useService(LegalCopilotWorkflowService);
-  const casePlatformOrchestrationService = useService(CasePlatformOrchestrationService);
+  const casePlatformOrchestrationService = useService(
+    CasePlatformOrchestrationService
+  );
   const { openPromptModal } = usePromptModal();
   const { openConfirmModal } = useConfirmModal();
 
   const graph = useLiveData(store.watchGraph());
-  const legalDocs = useLiveData(legalCopilotWorkflowService.legalDocuments$) ?? [];
-  const allVollmachten = useLiveData(casePlatformOrchestrationService.vollmachten$) ?? [];
+  const legalDocs =
+    useLiveData(legalCopilotWorkflowService.legalDocuments$) ?? [];
+  const allVollmachten =
+    useLiveData(casePlatformOrchestrationService.vollmachten$) ?? [];
 
   const [kindFilter, setKindFilter] = useState<ClientKind | 'all'>('all');
   const [savedView, setSavedView] = useState<MandantenSavedView>('active');
@@ -185,15 +197,26 @@ export const AllMandantenPage = () => {
   );
 
   const searchPlaceholder = useMemo(() => {
-    const localized = t['com.affine.caseAssistant.allMandanten.search.placeholder']();
-    return localized === 'com.affine.caseAssistant.allMandanten.search.placeholder'
+    const localized =
+      t['com.affine.caseAssistant.allMandanten.search.placeholder']();
+    return localized ===
+      'com.affine.caseAssistant.allMandanten.search.placeholder'
       ? 'Mandant suchen'
       : localized;
   }, [t]);
 
-  const allClients = useMemo(() => Object.values(graph.clients ?? {}), [graph.clients]);
-  const allMatters = useMemo(() => Object.values(graph.matters ?? {}), [graph.matters]);
-  const caseFiles = useMemo(() => Object.values(graph.cases ?? {}), [graph.cases]);
+  const allClients = useMemo(
+    () => Object.values(graph.clients ?? {}),
+    [graph.clients]
+  );
+  const allMatters = useMemo(
+    () => Object.values(graph.matters ?? {}),
+    [graph.matters]
+  );
+  const caseFiles = useMemo(
+    () => Object.values(graph.cases ?? {}),
+    [graph.cases]
+  );
   const allDeadlines = useMemo(() => graph.deadlines ?? {}, [graph.deadlines]);
 
   const matterById = useMemo(() => {
@@ -228,8 +251,13 @@ export const AllMandantenPage = () => {
     const nowTs = Date.now();
 
     for (const vollmacht of allVollmachten as Vollmacht[]) {
-      if (vollmacht.status !== 'active' && vollmacht.status !== 'pending') continue;
-      if (vollmacht.validUntil && new Date(vollmacht.validUntil).getTime() < nowTs) continue;
+      if (vollmacht.status !== 'active' && vollmacht.status !== 'pending')
+        continue;
+      if (
+        vollmacht.validUntil &&
+        new Date(vollmacht.validUntil).getTime() < nowTs
+      )
+        continue;
       activeVollmachtClientIds.add(vollmacht.clientId);
     }
 
@@ -238,7 +266,10 @@ export const AllMandantenPage = () => {
       if (!caseFile.matterId) continue;
       const matter = matterById.get(caseFile.matterId);
       if (!matter) continue;
-      const ids = new Set<string>([matter.clientId, ...(matter.clientIds ?? [])]);
+      const ids = new Set<string>([
+        matter.clientId,
+        ...(matter.clientIds ?? []),
+      ]);
       caseClientIds.set(caseFile.id, ids);
     }
 
@@ -253,7 +284,10 @@ export const AllMandantenPage = () => {
       }
     }
 
-    const map = new Map<string, { vollmacht: ComplianceState; ausweis: ComplianceState }>();
+    const map = new Map<
+      string,
+      { vollmacht: ComplianceState; ausweis: ComplianceState }
+    >();
     for (const client of allClients) {
       if (client.kind === 'authority' || client.kind === 'other') {
         map.set(client.id, { vollmacht: 'na', ausweis: 'na' });
@@ -286,8 +320,12 @@ export const AllMandantenPage = () => {
 
   const showActionStatus = useCallback((msg: string) => {
     setActionStatus(msg);
-    if (actionStatusTimerRef.current) window.clearTimeout(actionStatusTimerRef.current);
-    actionStatusTimerRef.current = window.setTimeout(() => setActionStatus(null), 4000);
+    if (actionStatusTimerRef.current)
+      window.clearTimeout(actionStatusTimerRef.current);
+    actionStatusTimerRef.current = window.setTimeout(
+      () => setActionStatus(null),
+      4000
+    );
   }, []);
 
   const cancelEditClient = useCallback(() => {
@@ -319,25 +357,33 @@ export const AllMandantenPage = () => {
         e.preventDefault();
         setFocusedIndex(prev => {
           const next = Math.min(prev + 1, items.length - 1);
-          document.querySelector<HTMLElement>(`[data-mandant-row-index="${next}"]`)?.focus();
+          document
+            .querySelector<HTMLElement>(`[data-mandant-row-index="${next}"]`)
+            ?.focus();
           return next;
         });
       } else if (e.key === 'ArrowUp') {
         e.preventDefault();
         setFocusedIndex(prev => {
           const next = Math.max(prev - 1, 0);
-          document.querySelector<HTMLElement>(`[data-mandant-row-index="${next}"]`)?.focus();
+          document
+            .querySelector<HTMLElement>(`[data-mandant-row-index="${next}"]`)
+            ?.focus();
           return next;
         });
       } else if (e.key === 'Home') {
         e.preventDefault();
         setFocusedIndex(0);
-        document.querySelector<HTMLElement>('[data-mandant-row-index="0"]')?.focus();
+        document
+          .querySelector<HTMLElement>('[data-mandant-row-index="0"]')
+          ?.focus();
       } else if (e.key === 'End') {
         e.preventDefault();
         const last = items.length - 1;
         setFocusedIndex(last);
-        document.querySelector<HTMLElement>(`[data-mandant-row-index="${last}"]`)?.focus();
+        document
+          .querySelector<HTMLElement>(`[data-mandant-row-index="${last}"]`)
+          ?.focus();
       }
     },
     []
@@ -349,23 +395,35 @@ export const AllMandantenPage = () => {
       const clientMatters = allMatters.filter(
         m => m.clientId === client.id || (m.clientIds ?? []).includes(client.id)
       );
-      const openAkten = clientMatters.filter(m => m.status === 'open');
-      const latestMatter = clientMatters.reduce<MatterRecord | null>((latest, m) => {
-        if (!latest) return m;
-        return new Date(m.updatedAt) > new Date(latest.updatedAt) ? m : latest;
-      }, null);
+      const visibleMatters = clientMatters.filter(m => m.status !== 'archived');
+      const openAkten = visibleMatters.filter(m => m.status === 'open');
+      const latestMatter = visibleMatters.reduce<MatterRecord | null>(
+        (latest, m) => {
+          if (!latest) return m;
+          return new Date(m.updatedAt) > new Date(latest.updatedAt)
+            ? m
+            : latest;
+        },
+        null
+      );
 
       // Find next deadline for this client's matters
-      const clientMatterIds = new Set(clientMatters.map(m => m.id));
+      const clientMatterIds = new Set(visibleMatters.map(m => m.id));
       const clientDeadlineIds = caseFiles
         .filter(c => c.matterId && clientMatterIds.has(c.matterId))
         .flatMap(c => c.deadlineIds ?? []);
       const clientDeadlines = clientDeadlineIds
         .map(dId => allDeadlines[dId])
-        .filter((d): d is CaseDeadline =>
-          Boolean(d) && d.status !== 'completed' && d.status !== 'expired' && Boolean(d.dueAt)
+        .filter(
+          (d): d is CaseDeadline =>
+            Boolean(d) &&
+            d.status !== 'completed' &&
+            d.status !== 'expired' &&
+            Boolean(d.dueAt)
         )
-        .sort((a, b) => new Date(a.dueAt).getTime() - new Date(b.dueAt).getTime());
+        .sort(
+          (a, b) => new Date(a.dueAt).getTime() - new Date(b.dueAt).getTime()
+        );
 
       const nextDeadline = clientDeadlines[0] ?? null;
       let nextDeadlineLabel: string | null = null;
@@ -381,7 +439,8 @@ export const AllMandantenPage = () => {
             }
           );
         else if (days === 0)
-          nextDeadlineLabel = t['com.affine.caseAssistant.allMandanten.deadline.today']();
+          nextDeadlineLabel =
+            t['com.affine.caseAssistant.allMandanten.deadline.today']();
         else if (days <= 7)
           nextDeadlineLabel = t.t(
             'com.affine.caseAssistant.allMandanten.deadline.inDays',
@@ -395,14 +454,19 @@ export const AllMandantenPage = () => {
           );
       }
 
-      const criticalAlertsCount = clientDeadlines.filter(d => daysUntil(d.dueAt) <= 0).length;
-      const docCount = clientMatters.reduce(
+      const criticalAlertsCount = clientDeadlines.filter(
+        d => daysUntil(d.dueAt) <= 0
+      ).length;
+      const docCount = visibleMatters.reduce(
         (sum, matter) => sum + (docCountByMatter.get(matter.id) ?? 0),
         0
       );
 
-      const linkedMattersPreview = [...clientMatters]
-        .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+      const linkedMattersPreview = [...visibleMatters]
+        .sort(
+          (a, b) =>
+            new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+        )
         .slice(0, 3)
         .map(m => {
           return {
@@ -413,7 +477,7 @@ export const AllMandantenPage = () => {
 
       return {
         ...client,
-        aktenCount: clientMatters.length,
+        aktenCount: visibleMatters.length,
         openAktenCount: openAkten.length,
         docCount,
         criticalAlertsCount,
@@ -423,7 +487,15 @@ export const AllMandantenPage = () => {
         linkedMattersPreview,
       };
     });
-  }, [allClients, allDeadlines, allMatters, caseFiles, docCountByMatter, language, t]);
+  }, [
+    allClients,
+    allDeadlines,
+    allMatters,
+    caseFiles,
+    docCountByMatter,
+    language,
+    t,
+  ]);
 
   const archivedCount = useMemo(
     () => enrichedClients.filter(client => client.archived).length,
@@ -432,7 +504,7 @@ export const AllMandantenPage = () => {
 
   // Filtering
   const filtered = useMemo(() => {
-    let result = enrichedClients;
+    let result = enrichedClients.filter(c => c.aktenCount > 0);
 
     if (savedView === 'archived') {
       result = result.filter(c => c.archived);
@@ -454,13 +526,16 @@ export const AllMandantenPage = () => {
 
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase().trim();
-      result = result.filter(c =>
-        c.displayName.toLowerCase().includes(q) ||
-        (c.primaryEmail ?? '').toLowerCase().includes(q) ||
-        (c.primaryPhone ?? '').toLowerCase().includes(q) ||
-        (c.address ?? '').toLowerCase().includes(q) ||
-        (c.notes ?? '').toLowerCase().includes(q) ||
-        c.linkedMattersPreview.some(item => item.label.toLowerCase().includes(q))
+      result = result.filter(
+        c =>
+          c.displayName.toLowerCase().includes(q) ||
+          (c.primaryEmail ?? '').toLowerCase().includes(q) ||
+          (c.primaryPhone ?? '').toLowerCase().includes(q) ||
+          (c.address ?? '').toLowerCase().includes(q) ||
+          (c.notes ?? '').toLowerCase().includes(q) ||
+          c.linkedMattersPreview.some(item =>
+            item.label.toLowerCase().includes(q)
+          )
       );
     }
     return result;
@@ -484,10 +559,16 @@ export const AllMandantenPage = () => {
         case 'updatedAt':
         default: {
           const aTime = a.latestMatterUpdatedAt
-            ? Math.max(new Date(a.updatedAt).getTime(), new Date(a.latestMatterUpdatedAt).getTime())
+            ? Math.max(
+                new Date(a.updatedAt).getTime(),
+                new Date(a.latestMatterUpdatedAt).getTime()
+              )
             : new Date(a.updatedAt).getTime();
           const bTime = b.latestMatterUpdatedAt
-            ? Math.max(new Date(b.updatedAt).getTime(), new Date(b.latestMatterUpdatedAt).getTime())
+            ? Math.max(
+                new Date(b.updatedAt).getTime(),
+                new Date(b.latestMatterUpdatedAt).getTime()
+              )
             : new Date(b.updatedAt).getTime();
           cmp = aTime - bTime;
           break;
@@ -513,8 +594,7 @@ export const AllMandantenPage = () => {
 
     openConfirmModal({
       title: `Mandanten löschen?`,
-      description:
-        `Du löschst ${targets.length} Mandant(en). Mandanten müssen zuvor archiviert sein und dürfen nicht mit Akten verknüpft sein.`,
+      description: `Du löschst ${targets.length} Mandant(en). Mandanten müssen zuvor archiviert sein und dürfen nicht mit Akten verknüpft sein.`,
       cancelText: t['com.affine.auth.sign-out.confirm-modal.cancel'](),
       confirmText: 'Löschen',
       confirmButtonOptions: {
@@ -524,9 +604,10 @@ export const AllMandantenPage = () => {
         if (isBulkDeletingClients) return;
         setIsBulkDeletingClients(true);
         try {
-          const result = await casePlatformOrchestrationService.deleteClientsBulk(
-            targets.map(c => c.id)
-          );
+          const result =
+            await casePlatformOrchestrationService.deleteClientsBulk(
+              targets.map(c => c.id)
+            );
 
           const blockedSuffix =
             result.blockedIds.length > 0
@@ -546,7 +627,15 @@ export const AllMandantenPage = () => {
         }
       },
     });
-  }, [bulkSelection, casePlatformOrchestrationService, isBulkDeletingClients, openConfirmModal, showActionStatus, sorted, t]);
+  }, [
+    bulkSelection,
+    casePlatformOrchestrationService,
+    isBulkDeletingClients,
+    openConfirmModal,
+    showActionStatus,
+    sorted,
+    t,
+  ]);
 
   useEffect(() => {
     const handler = (e: globalThis.KeyboardEvent) => {
@@ -579,26 +668,31 @@ export const AllMandantenPage = () => {
     return () => window.removeEventListener('keydown', handler);
   }, [bulkSelection, handleBulkDeleteClients]);
 
-  const handleOpenClientDetail = useCallback((clientId: string, focusTarget?: ComplianceFocusTarget) => {
-    setOpeningClientId(clientId);
-    const selectedClient = allClients.find(c => c.id === clientId);
-    if (selectedClient) {
-      showActionStatus(
-        t.t('com.affine.caseAssistant.allMandanten.openDetail.opening', {
-          name: selectedClient.displayName,
-        })
-      );
-    }
-    if (selectedClient?.id) {
-      const query = focusTarget ? `?focus=${focusTarget}` : '';
-      workbench.open(`/mandanten/${selectedClient.id}${query}`);
-    } else {
-      showActionStatus(t['com.affine.caseAssistant.allMandanten.openDetail.failed']());
-    }
-    window.setTimeout(() => {
-      setOpeningClientId(null);
-    }, 0);
-  }, [allClients, showActionStatus, t, workbench]);
+  const handleOpenClientDetail = useCallback(
+    (clientId: string, focusTarget?: ComplianceFocusTarget) => {
+      setOpeningClientId(clientId);
+      const selectedClient = allClients.find(c => c.id === clientId);
+      if (selectedClient) {
+        showActionStatus(
+          t.t('com.affine.caseAssistant.allMandanten.openDetail.opening', {
+            name: selectedClient.displayName,
+          })
+        );
+      }
+      if (selectedClient?.id) {
+        const query = focusTarget ? `?focus=${focusTarget}` : '';
+        workbench.open(`/mandanten/${selectedClient.id}${query}`);
+      } else {
+        showActionStatus(
+          t['com.affine.caseAssistant.allMandanten.openDetail.failed']()
+        );
+      }
+      window.setTimeout(() => {
+        setOpeningClientId(null);
+      }, 0);
+    },
+    [allClients, showActionStatus, t, workbench]
+  );
 
   const startEditClient = useCallback((client: MandantWithStats) => {
     setEditingClientId(client.id);
@@ -619,7 +713,9 @@ export const AllMandantenPage = () => {
     const displayName = editDraft.displayName.trim();
     if (!displayName) {
       showActionStatus(
-        t['com.affine.caseAssistant.allMandanten.edit.validation.displayNameRequired']()
+        t[
+          'com.affine.caseAssistant.allMandanten.edit.validation.displayNameRequired'
+        ]()
       );
       return;
     }
@@ -654,13 +750,22 @@ export const AllMandantenPage = () => {
         name: displayName,
       })
     );
-  }, [allClients, casePlatformOrchestrationService, editDraft, editingClientId, showActionStatus, t]);
+  }, [
+    allClients,
+    casePlatformOrchestrationService,
+    editDraft,
+    editingClientId,
+    showActionStatus,
+    t,
+  ]);
 
   const handleBulkArchive = useCallback(
     async (archived: boolean) => {
       const targets = sorted.filter(client => client.archived !== archived);
       if (!targets.length) {
-        showActionStatus(t['com.affine.caseAssistant.allMandanten.bulk.empty']());
+        showActionStatus(
+          t['com.affine.caseAssistant.allMandanten.bulk.empty']()
+        );
         return;
       }
       const now = new Date().toISOString();
@@ -681,14 +786,22 @@ export const AllMandantenPage = () => {
               successCount: succeeded,
               failedCount: failed,
               action: archived
-                ? t['com.affine.caseAssistant.allMandanten.bulk.action.archived']()
-                : t['com.affine.caseAssistant.allMandanten.bulk.action.reactivated'](),
+                ? t[
+                    'com.affine.caseAssistant.allMandanten.bulk.action.archived'
+                  ]()
+                : t[
+                    'com.affine.caseAssistant.allMandanten.bulk.action.reactivated'
+                  ](),
             })
           : t.t('com.affine.caseAssistant.allMandanten.bulk.success', {
               count: targets.length,
               action: archived
-                ? t['com.affine.caseAssistant.allMandanten.bulk.action.archived']()
-                : t['com.affine.caseAssistant.allMandanten.bulk.action.reactivated'](),
+                ? t[
+                    'com.affine.caseAssistant.allMandanten.bulk.action.archived'
+                  ]()
+                : t[
+                    'com.affine.caseAssistant.allMandanten.bulk.action.reactivated'
+                  ](),
             })
       );
     },
@@ -729,7 +842,9 @@ export const AllMandantenPage = () => {
         });
 
         if (!created) {
-          showActionStatus(`Mandant konnte nicht angelegt werden: ${displayName}.`);
+          showActionStatus(
+            `Mandant konnte nicht angelegt werden: ${displayName}.`
+          );
           return;
         }
 
@@ -754,7 +869,10 @@ export const AllMandantenPage = () => {
     caseFiles.length === 0;
 
   const savedViewOptions: Array<{ key: MandantenSavedView; label: string }> = [
-    { key: 'active', label: t['com.affine.caseAssistant.allMandanten.view.active']() },
+    {
+      key: 'active',
+      label: t['com.affine.caseAssistant.allMandanten.view.active'](),
+    },
     {
       key: 'companies',
       label: t['com.affine.caseAssistant.allMandanten.view.companies'](),
@@ -763,12 +881,18 @@ export const AllMandantenPage = () => {
       key: 'authorities',
       label: t['com.affine.caseAssistant.allMandanten.view.authorities'](),
     },
-    { key: 'archived', label: t['com.affine.caseAssistant.allMandanten.view.archived']() },
+    {
+      key: 'archived',
+      label: t['com.affine.caseAssistant.allMandanten.view.archived'](),
+    },
     { key: 'custom', label: 'Individuell' },
   ];
 
   const kindFilterOptions: Array<{ key: ClientKind | 'all'; label: string }> = [
-    { key: 'all', label: t['com.affine.caseAssistant.allMandanten.kindFilter.all']() },
+    {
+      key: 'all',
+      label: t['com.affine.caseAssistant.allMandanten.kindFilter.all'](),
+    },
     {
       key: 'person',
       label: t['com.affine.caseAssistant.allMandanten.kindFilter.person'](),
@@ -800,12 +924,16 @@ export const AllMandantenPage = () => {
       activeKey: T,
       onSelect: (key: T) => void
     ) => {
-      const currentIndex = options.findIndex(option => option.key === activeKey);
+      const currentIndex = options.findIndex(
+        option => option.key === activeKey
+      );
       if (currentIndex < 0) return;
 
       let nextIndex = currentIndex;
-      if (event.key === 'ArrowRight') nextIndex = (currentIndex + 1) % options.length;
-      else if (event.key === 'ArrowLeft') nextIndex = (currentIndex - 1 + options.length) % options.length;
+      if (event.key === 'ArrowRight')
+        nextIndex = (currentIndex + 1) % options.length;
+      else if (event.key === 'ArrowLeft')
+        nextIndex = (currentIndex - 1 + options.length) % options.length;
       else if (event.key === 'Home') nextIndex = 0;
       else if (event.key === 'End') nextIndex = options.length - 1;
       else return;
@@ -828,7 +956,11 @@ export const AllMandantenPage = () => {
       <ViewIcon icon="allDocs" />
       <ViewBody>
         <div className={styles.body}>
-          <div className={styles.srOnlyLive} aria-live="polite" aria-atomic="true">
+          <div
+            className={styles.srOnlyLive}
+            aria-live="polite"
+            aria-atomic="true"
+          >
             {actionStatus ?? ''}
           </div>
 
@@ -848,13 +980,18 @@ export const AllMandantenPage = () => {
                       setShowArchived(false);
                     }
                   }}
-                  aria-label={t['com.affine.caseAssistant.allMandanten.aria.viewFilter']()}
+                  aria-label={t[
+                    'com.affine.caseAssistant.allMandanten.aria.viewFilter'
+                  ]()}
                 >
                   {savedViewOptions.map(option => (
                     <option key={option.key} value={option.key}>
-                      {t.t('com.affine.caseAssistant.allMandanten.view.prefix', {
-                        label: option.label,
-                      })}
+                      {t.t(
+                        'com.affine.caseAssistant.allMandanten.view.prefix',
+                        {
+                          label: option.label,
+                        }
+                      )}
                     </option>
                   ))}
                 </select>
@@ -874,13 +1011,17 @@ export const AllMandantenPage = () => {
                       className={`${styles.filterChip} ${styles.filterChipLowPriority}`}
                       onClick={() => void handleBulkArchive(true)}
                     >
-                      {t['com.affine.caseAssistant.allMandanten.bulk.archiveFiltered']()}
+                      {t[
+                        'com.affine.caseAssistant.allMandanten.bulk.archiveFiltered'
+                      ]()}
                     </button>
                     <button
                       className={`${styles.filterChip} ${styles.filterChipLowPriority}`}
                       onClick={() => void handleBulkArchive(false)}
                     >
-                      {t['com.affine.caseAssistant.allMandanten.bulk.reactivateFiltered']()}
+                      {t[
+                        'com.affine.caseAssistant.allMandanten.bulk.reactivateFiltered'
+                      ]()}
                     </button>
                   </>
                 ) : null}
@@ -889,15 +1030,21 @@ export const AllMandantenPage = () => {
 
             <div className={styles.filterRow}>
               <label className={styles.toolbarControl}>
-                <span className={styles.toolbarLabel}>{t['com.affine.caseAssistant.allMandanten.toolbar.sort']()}</span>
+                <span className={styles.toolbarLabel}>
+                  {t['com.affine.caseAssistant.allMandanten.toolbar.sort']()}
+                </span>
                 <select
                   className={styles.toolbarSelect}
                   value={sortKey}
                   onChange={event => setSortKey(event.target.value as SortKey)}
-                  aria-label={t['com.affine.caseAssistant.allMandanten.aria.sortField']()}
+                  aria-label={t[
+                    'com.affine.caseAssistant.allMandanten.aria.sortField'
+                  ]()}
                 >
                   <option value="updatedAt">{sortKeyLabel.updatedAt}</option>
-                  <option value="displayName">{sortKeyLabel.displayName}</option>
+                  <option value="displayName">
+                    {sortKeyLabel.displayName}
+                  </option>
                   <option value="kind">{sortKeyLabel.kind}</option>
                   <option value="aktenCount">{sortKeyLabel.aktenCount}</option>
                 </select>
@@ -906,19 +1053,31 @@ export const AllMandantenPage = () => {
               <button
                 type="button"
                 className={styles.toolbarSortDirectionButton}
-                onClick={() => setSortDir(current => (current === 'desc' ? 'asc' : 'desc'))}
+                onClick={() =>
+                  setSortDir(current => (current === 'desc' ? 'asc' : 'desc'))
+                }
                 data-dir={sortDir}
                 aria-label={
                   sortDir === 'desc'
-                    ? t['com.affine.caseAssistant.allMandanten.aria.sortDirection.descToAsc']()
-                    : t['com.affine.caseAssistant.allMandanten.aria.sortDirection.ascToDesc']()
+                    ? t[
+                        'com.affine.caseAssistant.allMandanten.aria.sortDirection.descToAsc'
+                      ]()
+                    : t[
+                        'com.affine.caseAssistant.allMandanten.aria.sortDirection.ascToDesc'
+                      ]()
                 }
               >
                 {sortDir === 'desc' ? '↓' : '↑'}
               </button>
 
               <div className={styles.filterGroup}>
-                <div className={styles.filterSegment} role="group" aria-label={t['com.affine.caseAssistant.allMandanten.aria.kindFilter']()}>
+                <div
+                  className={styles.filterSegment}
+                  role="group"
+                  aria-label={t[
+                    'com.affine.caseAssistant.allMandanten.aria.kindFilter'
+                  ]()}
+                >
                   {visibleKindFilterOptions.map(option => (
                     <button
                       key={option.key}
@@ -929,10 +1088,15 @@ export const AllMandantenPage = () => {
                         setKindFilter(option.key);
                       }}
                       onKeyDown={event =>
-                        handleSegmentKeyDown(event, visibleKindFilterOptions, kindFilter, key => {
-                          setSavedView('custom');
-                          setKindFilter(key);
-                        })
+                        handleSegmentKeyDown(
+                          event,
+                          visibleKindFilterOptions,
+                          kindFilter,
+                          key => {
+                            setSavedView('custom');
+                            setKindFilter(key);
+                          }
+                        )
                       }
                       aria-pressed={kindFilter === option.key}
                     >
@@ -949,9 +1113,12 @@ export const AllMandantenPage = () => {
                       }}
                       aria-pressed={showArchived}
                     >
-                      {t.t('com.affine.caseAssistant.allMandanten.filter.archived', {
-                        count: archivedCount,
-                      })}
+                      {t.t(
+                        'com.affine.caseAssistant.allMandanten.filter.archived',
+                        {
+                          count: archivedCount,
+                        }
+                      )}
                     </button>
                   ) : null}
                 </div>
@@ -966,7 +1133,9 @@ export const AllMandantenPage = () => {
                     placeholder={searchPlaceholder}
                     value={searchQuery}
                     onChange={e => setSearchQuery(e.target.value)}
-                    aria-label={t['com.affine.caseAssistant.allMandanten.aria.search']()}
+                    aria-label={t[
+                      'com.affine.caseAssistant.allMandanten.aria.search'
+                    ]()}
                   />
                   {searchQuery ? (
                     <button
@@ -976,7 +1145,9 @@ export const AllMandantenPage = () => {
                         setSearchQuery('');
                         searchInputRef.current?.focus();
                       }}
-                      aria-label={t['com.affine.caseAssistant.allMandanten.aria.clearSearch']()}
+                      aria-label={t[
+                        'com.affine.caseAssistant.allMandanten.aria.clearSearch'
+                      ]()}
                     >
                       ×
                     </button>
@@ -986,7 +1157,9 @@ export const AllMandantenPage = () => {
             </div>
           </div>
 
-          {actionStatus ? <div className={styles.actionStatus}>{actionStatus}</div> : null}
+          {actionStatus ? (
+            <div className={styles.actionStatus}>{actionStatus}</div>
+          ) : null}
 
           {/* Table */}
           <div className={styles.scrollArea}>
@@ -994,7 +1167,9 @@ export const AllMandantenPage = () => {
               className={styles.listContainer}
               role="grid"
               onKeyDown={event => handleListKeyDown(event, sorted)}
-              aria-label={t['com.affine.caseAssistant.allMandanten.aria.grid']()}
+              aria-label={t[
+                'com.affine.caseAssistant.allMandanten.aria.grid'
+              ]()}
             >
               {/* Header Row */}
               <div className={styles.headerRow} role="row">
@@ -1005,17 +1180,26 @@ export const AllMandantenPage = () => {
                     checked={bulkSelection.headerState.checked}
                     ref={el => {
                       if (el) {
-                        el.indeterminate = bulkSelection.headerState.indeterminate;
+                        el.indeterminate =
+                          bulkSelection.headerState.indeterminate;
                       }
                     }}
-                    onChange={e => bulkSelection.selectAllVisible(e.target.checked)}
+                    onChange={e =>
+                      bulkSelection.selectAllVisible(e.target.checked)
+                    }
                     aria-label="Alle sichtbaren Mandanten auswählen"
                   />
                 </span>
-                <span className={styles.sortButton} role="columnheader">{t['com.affine.caseAssistant.allMandanten.header.client']()}</span>
-                <span className={styles.sortButton} role="columnheader">{t['com.affine.caseAssistant.allMandanten.header.matters']()}</span>
+                <span className={styles.sortButton} role="columnheader">
+                  {t['com.affine.caseAssistant.allMandanten.header.client']()}
+                </span>
+                <span className={styles.sortButton} role="columnheader">
+                  {t['com.affine.caseAssistant.allMandanten.header.matters']()}
+                </span>
                 <span className={styles.mandantMetaHideSm}>
-                  {t['com.affine.caseAssistant.allMandanten.header.nextDeadline']()}
+                  {t[
+                    'com.affine.caseAssistant.allMandanten.header.nextDeadline'
+                  ]()}
                 </span>
                 <span className={styles.mandantMeta}>
                   {t['com.affine.caseAssistant.allMandanten.header.kind']()}
@@ -1035,13 +1219,21 @@ export const AllMandantenPage = () => {
                 <div className={styles.emptyState}>
                   <div className={styles.emptyTitle}>
                     {searchQuery || kindFilter !== 'all'
-                      ? t['com.affine.caseAssistant.allMandanten.empty.filtered.title']()
-                      : t['com.affine.caseAssistant.allMandanten.empty.initial.title']()}
+                      ? t[
+                          'com.affine.caseAssistant.allMandanten.empty.filtered.title'
+                        ]()
+                      : t[
+                          'com.affine.caseAssistant.allMandanten.empty.initial.title'
+                        ]()}
                   </div>
                   <div className={styles.emptyDescription}>
                     {searchQuery || kindFilter !== 'all'
-                      ? t['com.affine.caseAssistant.allMandanten.empty.filtered.description']()
-                      : t['com.affine.caseAssistant.allMandanten.empty.initial.description']()}
+                      ? t[
+                          'com.affine.caseAssistant.allMandanten.empty.filtered.description'
+                        ]()
+                      : t[
+                          'com.affine.caseAssistant.allMandanten.empty.initial.description'
+                        ]()}
                   </div>
                   <button
                     type="button"
@@ -1063,8 +1255,15 @@ export const AllMandantenPage = () => {
 
                   if (isEditing && editDraft) {
                     return (
-                      <div key={client.id} className={styles.mandantEditRow} role="row">
-                        <div className={styles.selectionCell} aria-hidden="true" />
+                      <div
+                        key={client.id}
+                        className={styles.mandantEditRow}
+                        role="row"
+                      >
+                        <div
+                          className={styles.selectionCell}
+                          aria-hidden="true"
+                        />
                         <div className={styles.editPanel}>
                           <div className={styles.editInputRow}>
                             <input
@@ -1072,11 +1271,17 @@ export const AllMandantenPage = () => {
                               value={editDraft.displayName}
                               onChange={e =>
                                 setEditDraft(prev =>
-                                  prev ? { ...prev, displayName: e.target.value } : prev
+                                  prev
+                                    ? { ...prev, displayName: e.target.value }
+                                    : prev
                                 )
                               }
-                              placeholder={t['com.affine.caseAssistant.allMandanten.edit.placeholder.displayName']()}
-                              aria-label={t['com.affine.caseAssistant.allMandanten.edit.aria.displayName']()}
+                              placeholder={t[
+                                'com.affine.caseAssistant.allMandanten.edit.placeholder.displayName'
+                              ]()}
+                              aria-label={t[
+                                'com.affine.caseAssistant.allMandanten.edit.aria.displayName'
+                              ]()}
                             />
                             <select
                               className={styles.editSelect}
@@ -1091,12 +1296,30 @@ export const AllMandantenPage = () => {
                                     : prev
                                 )
                               }
-                              aria-label={t['com.affine.caseAssistant.allMandanten.edit.aria.kind']()}
+                              aria-label={t[
+                                'com.affine.caseAssistant.allMandanten.edit.aria.kind'
+                              ]()}
                             >
-                              <option value="person">{t['com.affine.caseAssistant.allMandanten.kind.person']()}</option>
-                              <option value="company">{t['com.affine.caseAssistant.allMandanten.kind.company']()}</option>
-                              <option value="authority">{t['com.affine.caseAssistant.allMandanten.kind.authority']()}</option>
-                              <option value="other">{t['com.affine.caseAssistant.allMandanten.kind.other']()}</option>
+                              <option value="person">
+                                {t[
+                                  'com.affine.caseAssistant.allMandanten.kind.person'
+                                ]()}
+                              </option>
+                              <option value="company">
+                                {t[
+                                  'com.affine.caseAssistant.allMandanten.kind.company'
+                                ]()}
+                              </option>
+                              <option value="authority">
+                                {t[
+                                  'com.affine.caseAssistant.allMandanten.kind.authority'
+                                ]()}
+                              </option>
+                              <option value="other">
+                                {t[
+                                  'com.affine.caseAssistant.allMandanten.kind.other'
+                                ]()}
+                              </option>
                             </select>
                           </div>
                           <div className={styles.editInputRow}>
@@ -1105,22 +1328,34 @@ export const AllMandantenPage = () => {
                               value={editDraft.primaryEmail}
                               onChange={e =>
                                 setEditDraft(prev =>
-                                  prev ? { ...prev, primaryEmail: e.target.value } : prev
+                                  prev
+                                    ? { ...prev, primaryEmail: e.target.value }
+                                    : prev
                                 )
                               }
-                              placeholder={t['com.affine.caseAssistant.allMandanten.edit.placeholder.email']()}
-                              aria-label={t['com.affine.caseAssistant.allMandanten.edit.aria.email']()}
+                              placeholder={t[
+                                'com.affine.caseAssistant.allMandanten.edit.placeholder.email'
+                              ]()}
+                              aria-label={t[
+                                'com.affine.caseAssistant.allMandanten.edit.aria.email'
+                              ]()}
                             />
                             <input
                               className={styles.editInput}
                               value={editDraft.primaryPhone}
                               onChange={e =>
                                 setEditDraft(prev =>
-                                  prev ? { ...prev, primaryPhone: e.target.value } : prev
+                                  prev
+                                    ? { ...prev, primaryPhone: e.target.value }
+                                    : prev
                                 )
                               }
-                              placeholder={t['com.affine.caseAssistant.allMandanten.edit.placeholder.phone']()}
-                              aria-label={t['com.affine.caseAssistant.allMandanten.edit.aria.phone']()}
+                              placeholder={t[
+                                'com.affine.caseAssistant.allMandanten.edit.placeholder.phone'
+                              ]()}
+                              aria-label={t[
+                                'com.affine.caseAssistant.allMandanten.edit.aria.phone'
+                              ]()}
                             />
                           </div>
                           <label className={styles.editCheckboxLabel}>
@@ -1129,38 +1364,52 @@ export const AllMandantenPage = () => {
                               checked={editDraft.archived}
                               onChange={e =>
                                 setEditDraft(prev =>
-                                  prev ? { ...prev, archived: e.target.checked } : prev
+                                  prev
+                                    ? { ...prev, archived: e.target.checked }
+                                    : prev
                                 )
                               }
                             />
-                            {t['com.affine.caseAssistant.allMandanten.edit.archived']()}
+                            {t[
+                              'com.affine.caseAssistant.allMandanten.edit.archived'
+                            ]()}
                           </label>
                         </div>
                         <span>
                           <span className={styles.aktenCount}>
                             {client.aktenCount}
                             {client.openAktenCount > 0
-                              ? t.t('com.affine.caseAssistant.allMandanten.meta.openMatters', {
-                                  count: client.openAktenCount,
-                                })
+                              ? t.t(
+                                  'com.affine.caseAssistant.allMandanten.meta.openMatters',
+                                  {
+                                    count: client.openAktenCount,
+                                  }
+                                )
                               : ''}
                           </span>
                           <span className={styles.docCountText}>
-                            {t.t('com.affine.caseAssistant.allMandanten.meta.documents', {
-                              count: client.docCount,
-                            })}
+                            {t.t(
+                              'com.affine.caseAssistant.allMandanten.meta.documents',
+                              {
+                                count: client.docCount,
+                              }
+                            )}
                           </span>
                         </span>
                         <span className={styles.mandantMetaHideSm}>
                           {client.nextDeadlineLabel ? (
                             <span
                               className={styles.nextDeadlineText}
-                              data-urgent={client.nextDeadlineUrgent ? 'true' : 'false'}
+                              data-urgent={
+                                client.nextDeadlineUrgent ? 'true' : 'false'
+                              }
                             >
                               {client.nextDeadlineLabel}
                             </span>
                           ) : (
-                            t['com.affine.caseAssistant.allMandanten.fallback.none']()
+                            t[
+                              'com.affine.caseAssistant.allMandanten.fallback.none'
+                            ]()
                           )}
                         </span>
                         <span className={styles.editActions}>
@@ -1171,8 +1420,12 @@ export const AllMandantenPage = () => {
                             disabled={savingClientId === client.id}
                           >
                             {savingClientId === client.id
-                              ? t['com.affine.caseAssistant.allMandanten.edit.saving']()
-                              : t['com.affine.caseAssistant.allMandanten.edit.save']()}
+                              ? t[
+                                  'com.affine.caseAssistant.allMandanten.edit.saving'
+                                ]()
+                              : t[
+                                  'com.affine.caseAssistant.allMandanten.edit.save'
+                                ]()}
                           </button>
                           <button
                             type="button"
@@ -1180,7 +1433,9 @@ export const AllMandantenPage = () => {
                             onClick={cancelEditClient}
                             disabled={savingClientId === client.id}
                           >
-                            {t['com.affine.auth.sign-out.confirm-modal.cancel']()}
+                            {t[
+                              'com.affine.auth.sign-out.confirm-modal.cancel'
+                            ]()}
                           </button>
                         </span>
                       </div>
@@ -1199,12 +1454,16 @@ export const AllMandantenPage = () => {
                           : client.nextDeadlineUrgent
                             ? styles.mandantRowUrgent
                             : '',
-                        openingClientId === client.id ? styles.mandantRowOpening : '',
+                        openingClientId === client.id
+                          ? styles.mandantRowOpening
+                          : '',
                       ]
                         .filter(Boolean)
                         .join(' ')}
                       onClick={event => {
-                        const target = (event.target as HTMLElement).closest<HTMLElement>('[data-compliance-target]');
+                        const target = (
+                          event.target as HTMLElement
+                        ).closest<HTMLElement>('[data-compliance-target]');
                         if (target?.dataset.complianceTarget) {
                           event.preventDefault();
                           event.stopPropagation();
@@ -1214,13 +1473,16 @@ export const AllMandantenPage = () => {
                           }
                           handleOpenClientDetail(
                             client.id,
-                            target.dataset.complianceTarget as ComplianceFocusTarget
+                            target.dataset
+                              .complianceTarget as ComplianceFocusTarget
                           );
                           return;
                         }
 
                         if (bulkSelection.isSelectionMode) {
-                          bulkSelection.toggleWithRange(client.id, { shiftKey: (event as any).shiftKey });
+                          bulkSelection.toggleWithRange(client.id, {
+                            shiftKey: (event as any).shiftKey,
+                          });
                           return;
                         }
                         if (rowClickTimerRef.current) {
@@ -1245,7 +1507,10 @@ export const AllMandantenPage = () => {
                           e.preventDefault();
                           startEditClient(client);
                         }
-                        if ((e.key === 'Enter' || e.key === ' ') && bulkSelection.isSelectionMode) {
+                        if (
+                          (e.key === 'Enter' || e.key === ' ') &&
+                          bulkSelection.isSelectionMode
+                        ) {
                           e.preventDefault();
                           bulkSelection.toggle(client.id);
                         }
@@ -1253,12 +1518,20 @@ export const AllMandantenPage = () => {
                       onFocus={() => setFocusedIndex(index)}
                       data-focused={focusedIndex === index ? 'true' : undefined}
                       aria-busy={openingClientId === client.id}
-                      aria-label={t.t('com.affine.caseAssistant.allMandanten.aria.row', {
-                        name: client.displayName,
-                      })}
-                      title={t['com.affine.caseAssistant.allMandanten.row.title']()}
+                      aria-label={t.t(
+                        'com.affine.caseAssistant.allMandanten.aria.row',
+                        {
+                          name: client.displayName,
+                        }
+                      )}
+                      title={t[
+                        'com.affine.caseAssistant.allMandanten.row.title'
+                      ]()}
                     >
-                      <div className={styles.selectionCell} onClick={e => e.stopPropagation()}>
+                      <div
+                        className={styles.selectionCell}
+                        onClick={e => e.stopPropagation()}
+                      >
                         <input
                           type="checkbox"
                           className={styles.selectionCheckbox}
@@ -1311,7 +1584,9 @@ export const AllMandantenPage = () => {
                           <div className={styles.mandantName}>
                             {client.displayName}
                             {client.archived
-                              ? t['com.affine.caseAssistant.allMandanten.meta.archivedSuffix']()
+                              ? t[
+                                  'com.affine.caseAssistant.allMandanten.meta.archivedSuffix'
+                                ]()
                               : ''}
                           </div>
                         </div>
@@ -1319,9 +1594,12 @@ export const AllMandantenPage = () => {
                           {[client.primaryEmail, client.primaryPhone]
                             .filter(Boolean)
                             .join(' · ') ||
-                            t['com.affine.caseAssistant.allMandanten.fallback.none']()}
+                            t[
+                              'com.affine.caseAssistant.allMandanten.fallback.none'
+                            ]()}
                         </div>
-                        {compliance.vollmacht !== 'na' || compliance.ausweis !== 'na' ? (
+                        {compliance.vollmacht !== 'na' ||
+                        compliance.ausweis !== 'na' ? (
                           <div className={styles.mandantComplianceRow}>
                             {compliance.vollmacht !== 'na' ? (
                               <span
@@ -1333,7 +1611,10 @@ export const AllMandantenPage = () => {
                                 data-compliance-target="vollmacht"
                                 title="Zum Vollmacht-Bereich öffnen"
                               >
-                                Vollmacht {compliance.vollmacht === 'ok' ? 'vorhanden' : 'fehlt'}
+                                Vollmacht{' '}
+                                {compliance.vollmacht === 'ok'
+                                  ? 'vorhanden'
+                                  : 'fehlt'}
                               </span>
                             ) : null}
                             {compliance.ausweis !== 'na' ? (
@@ -1346,27 +1627,32 @@ export const AllMandantenPage = () => {
                                 data-compliance-target="ausweis"
                                 title="Zum Ausweis-Bereich öffnen"
                               >
-                                Ausweis {compliance.ausweis === 'ok' ? 'vorhanden' : 'fehlt'}
+                                Ausweis{' '}
+                                {compliance.ausweis === 'ok'
+                                  ? 'vorhanden'
+                                  : 'fehlt'}
                               </span>
                             ) : null}
                           </div>
                         ) : null}
                         {client.linkedMattersPreview.length > 0 ? (
                           <div className={styles.linkedMatterRow}>
-                            {client.linkedMattersPreview.map((item, labelIdx) => (
-                              <span
-                                key={`${client.id}-matter-${labelIdx}`}
-                                className={`${styles.linkedMatterBadge} ${
-                                  item.status === 'open'
-                                    ? styles.linkedMatterBadgeOpen
-                                    : item.status === 'closed'
-                                      ? styles.linkedMatterBadgeClosed
-                                      : styles.linkedMatterBadgeArchived
-                                }`}
-                              >
-                                {item.label}
-                              </span>
-                            ))}
+                            {client.linkedMattersPreview.map(
+                              (item, labelIdx) => (
+                                <span
+                                  key={`${client.id}-matter-${labelIdx}`}
+                                  className={`${styles.linkedMatterBadge} ${
+                                    item.status === 'open'
+                                      ? styles.linkedMatterBadgeOpen
+                                      : item.status === 'closed'
+                                        ? styles.linkedMatterBadgeClosed
+                                        : styles.linkedMatterBadgeArchived
+                                  }`}
+                                >
+                                  {item.label}
+                                </span>
+                              )
+                            )}
                           </div>
                         ) : null}
                       </div>
@@ -1374,27 +1660,37 @@ export const AllMandantenPage = () => {
                         <span className={styles.aktenCount}>
                           {client.aktenCount}
                           {client.openAktenCount > 0
-                            ? t.t('com.affine.caseAssistant.allMandanten.meta.openMatters', {
-                                count: client.openAktenCount,
-                              })
+                            ? t.t(
+                                'com.affine.caseAssistant.allMandanten.meta.openMatters',
+                                {
+                                  count: client.openAktenCount,
+                                }
+                              )
                             : ''}
                         </span>
                         <span className={styles.docCountText}>
-                          {t.t('com.affine.caseAssistant.allMandanten.meta.documents', {
-                            count: client.docCount,
-                          })}
+                          {t.t(
+                            'com.affine.caseAssistant.allMandanten.meta.documents',
+                            {
+                              count: client.docCount,
+                            }
+                          )}
                         </span>
                       </span>
                       <span className={styles.mandantMetaHideSm}>
                         {client.nextDeadlineLabel ? (
                           <span
                             className={styles.nextDeadlineText}
-                            data-urgent={client.nextDeadlineUrgent ? 'true' : 'false'}
+                            data-urgent={
+                              client.nextDeadlineUrgent ? 'true' : 'false'
+                            }
                           >
                             {client.nextDeadlineLabel}
                           </span>
                         ) : (
-                          t['com.affine.caseAssistant.allMandanten.fallback.none']()
+                          t[
+                            'com.affine.caseAssistant.allMandanten.fallback.none'
+                          ]()
                         )}
                       </span>
                       <span className={styles.mandantMeta}>
@@ -1403,7 +1699,9 @@ export const AllMandantenPage = () => {
                             className={[
                               styles.clientStateBadge,
                               clientState.className,
-                              client.criticalAlertsCount > 0 ? styles.clientStateCriticalStrong : '',
+                              client.criticalAlertsCount > 0
+                                ? styles.clientStateCriticalStrong
+                                : '',
                             ]
                               .filter(Boolean)
                               .join(' ')}
@@ -1435,10 +1733,15 @@ export const AllMandantenPage = () => {
                                 startEditClient(client);
                               }
                             }}
-                            aria-label={t.t('com.affine.caseAssistant.allMandanten.edit.aria.trigger', {
-                              name: client.displayName,
-                            })}
-                            title={t['com.affine.caseAssistant.allMandanten.edit.triggerTitle']()}
+                            aria-label={t.t(
+                              'com.affine.caseAssistant.allMandanten.edit.aria.trigger',
+                              {
+                                name: client.displayName,
+                              }
+                            )}
+                            title={t[
+                              'com.affine.caseAssistant.allMandanten.edit.triggerTitle'
+                            ]()}
                           >
                             <svg
                               className={styles.rowEditTriggerIcon}

@@ -59,7 +59,8 @@ export const toolbarLabelStyle = {
   fontSize: 11,
   fontWeight: 600,
   lineHeight: '16px',
-  color: 'color-mix(in srgb, var(--affine-text-primary-color) 68%, var(--affine-text-secondary-color))',
+  color:
+    'color-mix(in srgb, var(--affine-text-primary-color) 68%, var(--affine-text-secondary-color))',
 } as const;
 
 export const toolbarSelectStyle = {
@@ -67,9 +68,9 @@ export const toolbarSelectStyle = {
   border: 0,
   background: 'transparent',
   color: cssVarV2('text/primary'),
-  fontSize: 12,
+  fontSize: 11,
   fontWeight: 600,
-  lineHeight: '18px',
+  lineHeight: '16px',
   minHeight: 24,
   outline: 'none',
   cursor: 'pointer',
@@ -83,23 +84,26 @@ export const toolbarSortDirectionButtonStyle = {
     'color-mix(in srgb, var(--affine-background-primary-color) 72%, transparent)',
   backdropFilter: 'blur(10px) saturate(130%)',
   color: cssVarV2('text/primary'),
-  fontSize: 12,
+  fontSize: 11,
   fontWeight: 600,
-  lineHeight: '18px',
+  lineHeight: '16px',
   width: 32,
   minWidth: 32,
   height: 32,
   padding: 0,
   cursor: 'pointer',
-  transition: 'background 0.2s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.2s ease, transform 0.2s ease',
+  transition:
+    'background 0.2s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.2s ease, transform 0.2s ease',
   selectors: {
     '&[data-dir="desc"]': {
-      borderColor: 'color-mix(in srgb, var(--affine-border-color) 80%, transparent)',
+      borderColor:
+        'color-mix(in srgb, var(--affine-border-color) 80%, transparent)',
       background: 'var(--affine-hover-color-filled)',
     },
     '&:hover': {
       background: 'var(--affine-hover-color-filled)',
-      borderColor: 'color-mix(in srgb, var(--affine-border-color) 80%, transparent)',
+      borderColor:
+        'color-mix(in srgb, var(--affine-border-color) 80%, transparent)',
       transform: 'translateY(-0.5px)',
     },
     '&:active': {
@@ -127,20 +131,21 @@ export const filterGroupStyle = {
   minWidth: 0,
 } as const;
 
-export const filterGroupRightStyle = (containerName: string) => ({
-  display: 'flex',
-  alignItems: 'center',
-  gap: 8,
-  flexWrap: 'wrap',
-  minWidth: 0,
-  marginLeft: 'auto',
-  '@container': {
-    [`${containerName} (width <= 900px)`]: {
-      marginLeft: 0,
-      width: '100%',
+export const filterGroupRightStyle = (containerName: string) =>
+  ({
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    flexWrap: 'wrap',
+    minWidth: 0,
+    marginLeft: 'auto',
+    '@container': {
+      [`${containerName} (width <= 900px)`]: {
+        marginLeft: 0,
+        width: '100%',
+      },
     },
-  },
-} as const);
+  }) as const;
 
 export const filterChipStyle = {
   display: 'inline-flex',
@@ -149,8 +154,8 @@ export const filterChipStyle = {
   minHeight: 32,
   padding: '5px 12px',
   borderRadius: 16,
-  fontSize: 13,
-  lineHeight: '20px',
+  fontSize: 11,
+  lineHeight: '16px',
   fontWeight: 600,
   cursor: 'pointer',
   border: `0.5px solid ${glassStroke}`,
@@ -200,23 +205,24 @@ export const filterSegmentStyle = {
   },
 } as const;
 
-export const stickyFilterBarStyle = (containerName: string) => ({
-  display: 'flex',
-  flexDirection: 'column',
-  gap: 8,
-  padding: `12px ${layoutGutter}px 10px`,
-  position: 'sticky',
-  top: 0,
-  zIndex: 2,
-  background: 'var(--affine-background-primary-color)',
-  backdropFilter: 'blur(8px) saturate(120%)',
-  borderBottom: '1px solid var(--affine-border-color)',
-  '@container': {
-    [`${containerName} (width <= 500px)`]: {
-      padding: `8px ${layoutGutterMd}px 10px`,
+export const stickyFilterBarStyle = (containerName: string) =>
+  ({
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 8,
+    padding: `12px ${layoutGutter}px 10px`,
+    position: 'sticky',
+    top: 0,
+    zIndex: 2,
+    background: 'var(--affine-background-primary-color)',
+    backdropFilter: 'blur(8px) saturate(120%)',
+    borderBottom: '1px solid var(--affine-border-color)',
+    '@container': {
+      [`${containerName} (width <= 500px)`]: {
+        padding: `8px ${layoutGutterMd}px 10px`,
+      },
     },
-  },
-} as const);
+  }) as const;
 
 export const searchInputStyle = {
   flex: '1 1 240px',
@@ -233,10 +239,12 @@ export const searchInputStyle = {
   color: cssVarV2('text/primary'),
   outline: 'none',
   backdropFilter: 'blur(10px) saturate(135%)',
-  transition: 'border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease',
+  transition:
+    'border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease',
   selectors: {
     '&::placeholder': {
-      color: 'color-mix(in srgb, var(--affine-text-primary-color) 56%, var(--affine-text-secondary-color))',
+      color:
+        'color-mix(in srgb, var(--affine-text-primary-color) 56%, var(--affine-text-secondary-color))',
     },
     '&:focus': {
       borderColor: cssVarV2('button/primary'),
@@ -279,13 +287,14 @@ export const srOnlyLiveStyle = {
   border: 0,
 } as const;
 
-export const filterChipLowPriorityStyle = (containerName: string) => ({
-  '@container': {
-    [`${containerName} (width <= 900px)`]: {
-      display: 'none',
+export const filterChipLowPriorityStyle = (containerName: string) =>
+  ({
+    '@container': {
+      [`${containerName} (width <= 900px)`]: {
+        display: 'none',
+      },
     },
-  },
-} as const);
+  }) as const;
 
 export const statusBadgeBaseStyle = {
   display: 'inline-flex',
@@ -357,12 +366,14 @@ export const statusToneIdleStyle = {
   background: 'rgba(142, 142, 147, 0.10)',
   selectors: {
     '[data-theme="dark"] &': {
-      color: 'color-mix(in srgb, var(--affine-text-primary-color) 74%, var(--affine-text-secondary-color))',
+      color:
+        'color-mix(in srgb, var(--affine-text-primary-color) 74%, var(--affine-text-secondary-color))',
     },
   },
 } as const;
 
-export const rowDividerColor = 'color-mix(in srgb, var(--affine-border-color) 60%, transparent)';
+export const rowDividerColor =
+  'color-mix(in srgb, var(--affine-border-color) 60%, transparent)';
 export const rowDividerBorder = `0.5px solid ${rowDividerColor}`;
 
 export const statusBadgeCompactStyle = {
@@ -398,7 +409,8 @@ export const listRowBaseStyle = {
   selectors: {
     '&:hover': {
       background: 'var(--affine-hover-color)',
-      borderColor: 'color-mix(in srgb, var(--affine-border-color) 70%, transparent)',
+      borderColor:
+        'color-mix(in srgb, var(--affine-border-color) 70%, transparent)',
     },
     '&:focus-visible': {
       outline: `1.5px solid ${cssVarV2('button/primary')}`,

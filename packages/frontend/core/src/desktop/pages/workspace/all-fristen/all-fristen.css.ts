@@ -69,9 +69,10 @@ export const scrollArea = style({
   height: 0,
   flex: 1,
   paddingTop: '4px',
-  paddingBottom: '8px',
+  paddingBottom: 'max(72px, env(safe-area-inset-bottom, 0px))',
   paddingLeft: `${layoutGutter}px`,
   paddingRight: `${layoutGutter}px`,
+  scrollPaddingBottom: 'max(80px, env(safe-area-inset-bottom, 0px))',
   overflowY: 'auto',
   '@container': {
     'fristen-body (width <= 500px)': {
@@ -138,163 +139,6 @@ export const fristRowCritical = style({
   },
 });
 
-export const termineCalendarPanel = style({
-  margin: `8px ${layoutGutter}px 0`,
-  borderRadius: 12,
-  border: '1px solid color-mix(in srgb, var(--affine-border-color) 76%, transparent)',
-  background:
-    'linear-gradient(180deg, color-mix(in srgb, var(--affine-background-primary-color) 88%, transparent) 0%, color-mix(in srgb, var(--affine-background-secondary-color) 92%, transparent) 100%)',
-  padding: 10,
-  display: 'flex',
-  flexDirection: 'column',
-  gap: 8,
-  '@container': {
-    'fristen-body (width <= 500px)': {
-      margin: `6px ${layoutGutterMd}px 0`,
-      padding: 8,
-    },
-    'fristen-body (width <= 393px)': {
-      margin: `6px ${layoutGutterSm}px 0`,
-      padding: 7,
-    },
-  },
-});
-
-export const termineCalendarHeader = style({
-  display: 'flex',
-  alignItems: 'flex-start',
-  justifyContent: 'space-between',
-  gap: 8,
-  flexWrap: 'wrap',
-});
-
-export const termineCalendarTitleWrap = style({
-  display: 'flex',
-  flexDirection: 'column',
-  gap: 2,
-});
-
-export const termineCalendarTitle = style({
-  margin: 0,
-  fontSize: 12,
-  lineHeight: '16px',
-  fontWeight: 700,
-  color: cssVarV2('text/primary'),
-});
-
-export const termineCalendarMeta = style({
-  fontSize: 10,
-  lineHeight: '14px',
-  color: cssVarV2('text/secondary'),
-});
-
-export const termineCalendarHeaderActions = style({
-  display: 'inline-flex',
-  flexWrap: 'wrap',
-  gap: 6,
-  alignItems: 'center',
-});
-
-export const termineCalendarPickerWrap = style({
-  selectors: {
-    '& [data-testid="date-picker"]': {
-      width: '100%',
-    },
-  },
-});
-
-export const termineCalendarHint = style({
-  margin: 0,
-  fontSize: 10,
-  lineHeight: '14px',
-  color: cssVarV2('text/secondary'),
-});
-
-export const termineDateCell = style({
-  position: 'relative',
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  width: '100%',
-  height: '100%',
-  borderRadius: 9,
-  border: '1px solid transparent',
-  background: 'transparent',
-  color: cssVarV2('text/primary'),
-  fontSize: 11,
-  lineHeight: '15px',
-  cursor: 'pointer',
-  selectors: {
-    '&[data-not-current-month="true"]': {
-      color: cssVarV2('text/tertiary'),
-    },
-    '&[data-has-items="true"]': {
-      background:
-        'color-mix(in srgb, var(--affine-theme-primary-color, var(--affine-primary-color)) 14%, transparent)',
-      borderColor:
-        'color-mix(in srgb, var(--affine-theme-primary-color, var(--affine-primary-color)) 30%, transparent)',
-      fontWeight: 600,
-    },
-    '&[data-critical="true"]': {
-      background: 'color-mix(in srgb, var(--affine-v2-status-error, #ef4444) 17%, transparent)',
-      borderColor: 'color-mix(in srgb, var(--affine-v2-status-error, #ef4444) 44%, transparent)',
-    },
-    '&[data-selected="true"]': {
-      background:
-        'linear-gradient(180deg, color-mix(in srgb, var(--affine-theme-primary-color, var(--affine-primary-color)) 28%, transparent) 0%, color-mix(in srgb, var(--affine-theme-primary-color, var(--affine-primary-color)) 18%, transparent) 100%)',
-      borderColor:
-        'color-mix(in srgb, var(--affine-theme-primary-color, var(--affine-primary-color)) 54%, transparent)',
-      fontWeight: 700,
-    },
-    '&[data-selected="true"][data-critical="true"]': {
-      background:
-        'linear-gradient(180deg, color-mix(in srgb, var(--affine-v2-status-error, #ef4444) 24%, transparent) 0%, color-mix(in srgb, var(--affine-v2-status-error, #ef4444) 16%, transparent) 100%)',
-      borderColor: 'color-mix(in srgb, var(--affine-v2-status-error, #ef4444) 56%, transparent)',
-    },
-    '&[data-today="true"]': {
-      boxShadow:
-        'inset 0 0 0 1px color-mix(in srgb, var(--affine-theme-primary-color, var(--affine-primary-color)) 40%, transparent)',
-    },
-    '&:hover': {
-      background: 'color-mix(in srgb, var(--affine-hover-color) 78%, transparent)',
-    },
-    '&:focus-visible': {
-      outline: `2px solid ${cssVarV2('button/primary')}`,
-      outlineOffset: 1,
-      boxShadow: `0 0 0 1px color-mix(in srgb, ${cssVarV2('button/primary')} 28%, transparent)`,
-    },
-  },
-});
-
-export const termineDateCount = style({
-  position: 'absolute',
-  right: 2,
-  top: 2,
-  fontSize: 9,
-  lineHeight: '11px',
-  minWidth: 12,
-  height: 11,
-  borderRadius: 99,
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  padding: '0 2px',
-  background: 'color-mix(in srgb, var(--affine-theme-primary-color, var(--affine-primary-color)) 74%, transparent)',
-  color: '#fff',
-  fontWeight: 700,
-});
-
-export const termineDateAlarmDot = style({
-  position: 'absolute',
-  left: 3,
-  bottom: 3,
-  width: 5,
-  height: 5,
-  borderRadius: '50%',
-  background: 'var(--affine-v2-status-error, #ef4444)',
-  boxShadow: '0 0 0 2px color-mix(in srgb, var(--affine-v2-status-error, #ef4444) 22%, transparent)',
-});
-
 export const deadlineInsightRow = style({
   display: 'flex',
   flexWrap: 'wrap',
@@ -313,21 +157,24 @@ export const deadlineConfidenceBadge = style({
   color: cssVarV2('text/secondary'),
   selectors: {
     '&[data-tone="high"]': {
-      color: 'color-mix(in srgb, var(--affine-v2-status-success, #10b981) 68%, var(--affine-text-primary-color))',
+      color:
+        'color-mix(in srgb, var(--affine-v2-status-success, #10b981) 68%, var(--affine-text-primary-color))',
       borderColor:
         'color-mix(in srgb, var(--affine-v2-status-success, #10b981) 36%, transparent)',
       background:
         'color-mix(in srgb, var(--affine-v2-status-success, #10b981) 12%, transparent)',
     },
     '&[data-tone="medium"]': {
-      color: 'color-mix(in srgb, var(--affine-v2-status-warning, #f59e0b) 72%, var(--affine-text-primary-color))',
+      color:
+        'color-mix(in srgb, var(--affine-v2-status-warning, #f59e0b) 72%, var(--affine-text-primary-color))',
       borderColor:
         'color-mix(in srgb, var(--affine-v2-status-warning, #f59e0b) 38%, transparent)',
       background:
         'color-mix(in srgb, var(--affine-v2-status-warning, #f59e0b) 12%, transparent)',
     },
     '&[data-tone="low"]': {
-      color: 'color-mix(in srgb, var(--affine-v2-status-error, #ef4444) 70%, var(--affine-text-primary-color))',
+      color:
+        'color-mix(in srgb, var(--affine-v2-status-error, #ef4444) 70%, var(--affine-text-primary-color))',
       borderColor:
         'color-mix(in srgb, var(--affine-v2-status-error, #ef4444) 38%, transparent)',
       background:
@@ -383,8 +230,10 @@ export const deadlineSourceTag = style({
   borderRadius: 999,
   padding: '1px 7px',
   color: cssVarV2('text/secondary'),
-  border: '1px solid color-mix(in srgb, var(--affine-border-color) 72%, transparent)',
-  background: 'color-mix(in srgb, var(--affine-background-secondary-color) 78%, transparent)',
+  border:
+    '1px solid color-mix(in srgb, var(--affine-border-color) 72%, transparent)',
+  background:
+    'color-mix(in srgb, var(--affine-background-secondary-color) 78%, transparent)',
 });
 
 export const deadlineEvidencePreview = style({
@@ -398,7 +247,8 @@ export const deadlineEvidencePreview = style({
   maxWidth: 'min(640px, 72vw)',
   selectors: {
     '[data-theme="dark"] &': {
-      color: 'color-mix(in srgb, var(--affine-text-primary-color) 72%, var(--affine-text-secondary-color))',
+      color:
+        'color-mix(in srgb, var(--affine-text-primary-color) 72%, var(--affine-text-secondary-color))',
     },
   },
 });
@@ -413,7 +263,8 @@ export const deadlineReviewedMeta = style({
   textOverflow: 'ellipsis',
   selectors: {
     '[data-theme="dark"] &': {
-      color: 'color-mix(in srgb, var(--affine-text-primary-color) 70%, var(--affine-text-secondary-color))',
+      color:
+        'color-mix(in srgb, var(--affine-text-primary-color) 70%, var(--affine-text-secondary-color))',
     },
   },
 });
@@ -428,14 +279,14 @@ export const toolbarControl = style({
 
 export const toolbarLabel = style({
   ...toolbarLabelStyle,
-  fontSize: 9,
-  lineHeight: '13px',
+  fontSize: 11,
+  lineHeight: '16px',
 });
 
 export const toolbarSelect = style({
   ...toolbarSelectStyle,
-  fontSize: 10,
-  lineHeight: '14px',
+  fontSize: 11,
+  lineHeight: '16px',
   minHeight: 20,
 });
 
@@ -445,10 +296,12 @@ export const toolbarSortDirectionButton = style({
   minWidth: 28,
   height: 28,
   borderRadius: 11,
-  fontSize: 10,
+  fontSize: 11,
 });
 
-export const filterChipLowPriority = style(filterChipLowPriorityStyle('fristen-body'));
+export const filterChipLowPriority = style(
+  filterChipLowPriorityStyle('fristen-body')
+);
 
 export const srOnlyLive = style(srOnlyLiveStyle);
 
@@ -456,8 +309,8 @@ export const actionStatus = style({
   margin: `8px ${layoutGutter}px 0`,
   padding: '7px 11px',
   borderRadius: 10,
-  fontSize: 10,
-  lineHeight: '14px',
+  fontSize: 11,
+  lineHeight: '16px',
   color: cssVarV2('text/primary'),
   background: cssVarV2('layer/background/secondary'),
   border: '1px solid var(--affine-border-color)',
@@ -470,12 +323,17 @@ export const actionStatus = style({
 
 export const filterBar = style({
   ...stickyFilterBarStyle('fristen-body'),
-  paddingTop: 8,
+  marginTop: 6,
+  paddingTop: 10,
   paddingBottom: 8,
   gap: 6,
   '@container': {
     'fristen-body (width <= 500px)': {
-      padding: `6px ${layoutGutterMd}px 8px`,
+      marginTop: 4,
+      padding: `7px ${layoutGutterMd}px 8px`,
+    },
+    'fristen-body (width <= 393px)': {
+      marginTop: 3,
     },
   },
 });
@@ -534,7 +392,7 @@ export const searchClear = style({
   padding: '0 2px',
   margin: 0,
   font: 'inherit',
-  fontSize: 14,
+  fontSize: 11,
   lineHeight: 1,
   color: cssVarV2('text/secondary'),
   cursor: 'pointer',
@@ -644,7 +502,8 @@ export const fristRow = style({
     },
     '&:hover': {
       background: 'var(--affine-hover-color)',
-      borderColor: 'color-mix(in srgb, var(--affine-border-color) 70%, transparent)',
+      borderColor:
+        'color-mix(in srgb, var(--affine-border-color) 70%, transparent)',
     },
     '&:focus-visible': {
       outline: `2px solid ${cssVarV2('button/primary')}`,
@@ -765,7 +624,8 @@ export const dueDateToday = style({
 });
 
 export const dueDateSoon = style({
-  color: 'color-mix(in srgb, var(--affine-theme-accent, var(--affine-primary-color)) 66%, var(--affine-text-primary-color))',
+  color:
+    'color-mix(in srgb, var(--affine-theme-accent, var(--affine-primary-color)) 66%, var(--affine-text-primary-color))',
   fontWeight: 700,
 });
 
@@ -778,7 +638,8 @@ export const fristSubtitle = style({
   whiteSpace: 'nowrap',
   selectors: {
     '[data-theme="dark"] &': {
-      color: 'color-mix(in srgb, var(--affine-text-primary-color) 80%, var(--affine-text-secondary-color))',
+      color:
+        'color-mix(in srgb, var(--affine-text-primary-color) 80%, var(--affine-text-secondary-color))',
     },
   },
 });
@@ -792,7 +653,8 @@ export const fristMeta = style({
   whiteSpace: 'nowrap',
   selectors: {
     '[data-theme="dark"] &': {
-      color: 'color-mix(in srgb, var(--affine-text-primary-color) 76%, var(--affine-text-secondary-color))',
+      color:
+        'color-mix(in srgb, var(--affine-text-primary-color) 76%, var(--affine-text-secondary-color))',
     },
   },
   '@container': {
@@ -811,7 +673,8 @@ export const fristMetaHideSm = style({
   whiteSpace: 'nowrap',
   selectors: {
     '[data-theme="dark"] &': {
-      color: 'color-mix(in srgb, var(--affine-text-primary-color) 76%, var(--affine-text-secondary-color))',
+      color:
+        'color-mix(in srgb, var(--affine-text-primary-color) 76%, var(--affine-text-secondary-color))',
     },
   },
   '@container': {
@@ -826,7 +689,8 @@ export const urgencyBadge = style({
   background: cssVarV2('layer/background/primary'),
   borderWidth: 1,
   borderStyle: 'solid',
-  borderColor: 'color-mix(in srgb, var(--affine-border-color) 74%, transparent)',
+  borderColor:
+    'color-mix(in srgb, var(--affine-border-color) 74%, transparent)',
   fontWeight: 700,
 });
 
@@ -872,10 +736,12 @@ export const urgencySoon = style({
 
 export const urgencyNormal = style({
   color: cssVarV2('text/primary'),
-  borderColor: 'color-mix(in srgb, var(--affine-v2-status-success, #10b981) 34%, transparent)',
+  borderColor:
+    'color-mix(in srgb, var(--affine-v2-status-success, #10b981) 34%, transparent)',
   selectors: {
     '[data-theme="dark"] &': {
-      color: 'color-mix(in srgb, var(--affine-text-primary-color) 82%, var(--affine-text-secondary-color))',
+      color:
+        'color-mix(in srgb, var(--affine-text-primary-color) 82%, var(--affine-text-secondary-color))',
     },
   },
 });
@@ -912,7 +778,8 @@ export const emptyDescription = style({
   lineHeight: '22px',
   selectors: {
     '[data-theme="dark"] &': {
-      color: 'color-mix(in srgb, var(--affine-text-primary-color) 74%, var(--affine-text-secondary-color))',
+      color:
+        'color-mix(in srgb, var(--affine-text-primary-color) 74%, var(--affine-text-secondary-color))',
     },
   },
 });
