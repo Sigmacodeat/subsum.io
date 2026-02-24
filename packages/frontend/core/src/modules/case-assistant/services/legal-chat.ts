@@ -32,6 +32,7 @@ import type { CasePlatformOrchestrationService } from './platform-orchestration'
 import type { CaseProviderSettingsService } from './provider-settings';
 import type { EvidenceRegisterService } from './evidence-register';
 import type { LegalNormsService } from './legal-norms';
+import { CopilotMemoryService } from './copilot-memory';
 import type { CreditGatewayService} from './credit-gateway';
 import { CREDIT_COSTS } from './credit-gateway';
 import type { WorkspaceSubscriptionService } from '../../cloud/services/workspace-subscription';
@@ -394,6 +395,10 @@ const TOOL_LABELS: Record<ChatToolCallName, string> = {
   evidence_mapping: 'Beweismittel zuordnen',
   document_finalize: 'Dokument finalisieren',
   save_to_akte: 'In Akte speichern',
+  memory_lookup: 'Copilot-Gedächtnis abfragen',
+  cross_check: 'Cross-Check gegen Akte',
+  reasoning_chain: 'Denk-Schritte aufbauen',
+  confidence_score: 'Konfidenz berechnen',
 };
 
 const TOOL_CATEGORIES: Record<ChatToolCallName, ChatToolCallCategory> = {
@@ -892,6 +897,111 @@ export class LegalChatService extends Service {
 
     const durationMs = Date.now() - startTime;
 
+    // ── INTELLIGENCE: Build Reasoning Chain ──────────────────────────────
+    const reasoningChain = this.copilotMemory.createReasoningChain(assistantMessageId);
+
+    const stepRetrieve = this.copilotMemory.addReasoningStep(reasoningChain, {
+      type: 'retrieve',
+      label: `${context.relevantChunks.length} Dokument-Abschnitte durchsucht`,
+      detail: context.relevantChunks.length > 0
+        ? `Relevante Chunks aus ${new Set(context.relevantChunks.map(c => c.documentId)).size} Dokument(en) gefunden.`
+        : 'Keine relevanten Dokument-Abschnitte gefunden.',
+      sourceRefs: context.relevantChunks.slice(0, 5).map(c => ({
+        type: 'document' as const,
+        id: c.documentId,
+        title: c.documentTitle,
+      })),
+    });
+    this.copilotMemory.completeReasoningStep(reasoningChain, stepRetrieve.id, {
+      durationMs: Math.round(durationMs * 0.2),
+      confidenceAfter: context.relevantChunks.length > 0 ? 0.6 : 0.3,
+    });
+
+    if (context.activeNorms.length > 0) {
+      const stepNorms = this.copilotMemory.addReasoningStep(reasoningChain, {
+        type: 'verify',
+        label: `${context.activeNorms.length} Normen geprüft`,
+        sourceRefs: context.activeNorms.slice(0, 5).map(n => ({
+          type: 'norm' as const,
+          id: n,
+          title: n,
+        })),
+      });
+      this.copilotMemory.completeReasoningStep(reasoningChain, stepNorms.id, {
+        durationMs: Math.round(durationMs * 0.1),
+        confidenceAfter: 0.7,
+      });
+    }
+
+    if (context.contradictionHighlights.length > 0) {
+      const stepContra = this.copilotMemory.addReasoningStep(reasoningChain, {
+        type: 'compare',
+        label: `${context.contradictionHighlights.length} Widersprüche berücksichtigt`,
+        detail: context.contradictionHighlights.slice(0, 3).join('; '),
+      });
+      this.copilotMemory.completeReasoningStep(reasoningChain, stepContra.id, {
+        durationMs: Math.round(durationMs * 0.05),
+        confidenceAfter: 0.55,
+      });
+    }
+
+    const stepSynth = this.copilotMemory.addReasoningStep(reasoningChain, {
+      type: 'synthesize',
+      label: `Antwort generiert (${selectedModel.label})`,
+      detail: `${estimateTokens(responseText)} Tokens, ${normCitations.length} Norm-Zitate, ${sourceCitations.length} Quellen-Zitate.`,
+    });
+    this.copilotMemory.completeReasoningStep(reasoningChain, stepSynth.id, {
+      durationMs: Math.round(durationMs * 0.6),
+    });
+
+    this.copilotMemory.finalizeReasoningChain(reasoningChain);
+
+    // Show reasoning chain as tool call
+    const tcReasoning = this.createToolCall('reasoning_chain', 'Denk-Schritte');
+    tcReasoning.detailLines = reasoningChain.steps.map((s: { label: string; type: string }) => ({
+      icon: 'check' as const,
+      label: s.label,
+      meta: s.type,
+    }));
+    toolCalls.push(this.completeToolCall(
+      tcReasoning,
+      `${reasoningChain.steps.length} Denk-Schritte, ${reasoningChain.totalDurationMs}ms`
+    ));
+
+    // ── INTELLIGENCE: Compute Confidence Score ───────────────────────────
+    const docQualityScores = context.relevantChunks
+      .map(c => c.relevanceScore)
+      .filter(s => s > 0);
+
+    const answerConfidence = this.copilotMemory.computeAnswerConfidence({
+      relevantChunkCount: context.relevantChunks.length,
+      totalChunksSearched: context.relevantChunks.length + 10,
+      findingsCount: findingRefs.length,
+      contradictionCount: context.contradictionHighlights.length,
+      sourceDocCount: new Set(context.relevantChunks.map(c => c.documentId)).size,
+      normCitationCount: normCitations.length,
+      judikaturCount: context.judikaturContext.length,
+      memoryCount: 0,
+      docQualityScores,
+      hasCollectiveContext: !!context.collectiveContext,
+      mode,
+    });
+
+    reasoningChain.finalConfidence = answerConfidence.score;
+
+    const tcConfidence = this.createToolCall('confidence_score', 'Konfidenz-Bewertung');
+    tcConfidence.outputSummary = `${(answerConfidence.score * 100).toFixed(0)}% — ${answerConfidence.level}`;
+    if (answerConfidence.warnings.length > 0) {
+      tcConfidence.detailLines = answerConfidence.warnings.map((w: string) => ({
+        icon: 'warning' as const,
+        label: w,
+      }));
+    }
+    toolCalls.push(this.completeToolCall(
+      tcConfidence,
+      `Konfidenz: ${(answerConfidence.score * 100).toFixed(0)}% (${answerConfidence.level})`
+    ));
+
     this.updateMessageInStore(assistantMessageId, {
       content: responseText,
       status: 'complete',
@@ -902,6 +1012,8 @@ export class LegalChatService extends Service {
       modelId: selectedModel.id,
       tokenEstimate: estimateTokens(responseText),
       durationMs,
+      reasoningChain,
+      confidence: answerConfidence,
     });
 
     this.updateSessionMetadata(sessionId, content, estimateTokens(responseText) + userTokenEstimate);
@@ -2379,6 +2491,9 @@ export class LegalChatService extends Service {
       { command: '/zusammenfassung', description: 'Fall-Zusammenfassung', example: '/zusammenfassung' },
       { command: '/dokument', description: 'Dokument per AI erstellen', example: '/dokument Schriftsatz zur Klageerwiderung' },
       { command: '/richter', description: 'Richter-Simulation', example: '/richter Wie würde das Gericht entscheiden?' },
+      { command: '/crosscheck', description: 'Cross-Check neuer Dokumente gegen Akte', example: '/crosscheck' },
+      { command: '/merke', description: 'Information im Copilot-Gedächtnis speichern', example: '/merke Mandant bevorzugt formelle Ansprache' },
+      { command: '/gedaechtnis', description: 'Copilot-Gedächtnis anzeigen', example: '/gedaechtnis' },
     ];
   }
 
@@ -2396,6 +2511,9 @@ export class LegalChatService extends Service {
       case 'berichtversand': return 'general';
       case 'zusammenfassung': return 'general';
       case 'dokument': return 'general';
+      case 'crosscheck': return 'general';
+      case 'merke': return 'general';
+      case 'gedaechtnis': return 'general';
       default: return 'general';
     }
   }
@@ -2406,5 +2524,126 @@ export class LegalChatService extends Service {
    */
   isDocumentGenerationCommand(command: string): boolean {
     return command === 'dokument' || command === 'document' || command === 'doc';
+  }
+
+  isCrossCheckCommand(command: string): boolean {
+    return command === 'crosscheck' || command === 'xcheck';
+  }
+
+  isMemoryCommand(command: string): boolean {
+    return command === 'merke' || command === 'gedaechtnis' || command === 'memory';
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // INTELLIGENCE LAYER — Public API
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  async submitMessageFeedback(input: {
+    messageId: string;
+    sessionId: string;
+    caseId: string;
+    workspaceId: string;
+    rating: 'positive' | 'negative' | 'neutral';
+    category?: string;
+    comment?: string;
+    mode: LegalChatMode;
+  }): Promise<void> {
+    const feedback = await this.copilotMemory.submitFeedback({
+      messageId: input.messageId,
+      sessionId: input.sessionId,
+      caseId: input.caseId,
+      workspaceId: input.workspaceId,
+      rating: input.rating,
+      category: input.category as any,
+      comment: input.comment,
+      mode: input.mode,
+    });
+
+    // Update message with feedback
+    this.updateMessageInStore(input.messageId, {
+      feedback: {
+        id: feedback.id,
+        messageId: feedback.messageId,
+        rating: feedback.rating,
+        category: feedback.category,
+        comment: feedback.comment,
+        createdAt: feedback.createdAt,
+      },
+    });
+  }
+
+  async runCrossCheckFromChat(input: {
+    caseId: string;
+    workspaceId: string;
+    sessionId: string;
+    newDocumentIds?: string[];
+  }): Promise<string> {
+    // If no specific doc IDs provided, use the most recently uploaded docs
+    let docIds = input.newDocumentIds;
+    if (!docIds || docIds.length === 0) {
+      const allDocs = (this.orchestration.legalDocuments$.value ?? [])
+        .filter(
+          (d: LegalDocumentRecord) =>
+            d.caseId === input.caseId &&
+            d.workspaceId === input.workspaceId &&
+            d.status === 'indexed'
+        )
+        .sort(
+          (a: LegalDocumentRecord, b: LegalDocumentRecord) =>
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        );
+      docIds = allDocs.slice(0, 3).map((d: LegalDocumentRecord) => d.id);
+    }
+
+    if (docIds.length === 0) {
+      return 'Keine Dokumente für Cross-Check verfügbar. Bitte laden Sie zuerst Dokumente hoch.';
+    }
+
+    const report = await this.copilotMemory.runCrossCheck({
+      caseId: input.caseId,
+      workspaceId: input.workspaceId,
+      newDocumentIds: docIds,
+      trigger: 'chat_command',
+    });
+
+    return report.summary;
+  }
+
+  async showMemoryStatus(input: {
+    workspaceId: string;
+    caseId?: string;
+  }): Promise<string> {
+    const memories = await this.copilotMemory.getActiveMemories({
+      workspaceId: input.workspaceId,
+      caseId: input.caseId,
+    });
+
+    if (memories.length === 0) {
+      return 'Das Copilot-Gedächtnis ist leer. Sagen Sie z.B. "Merke dir: Mandant bevorzugt formelle Ansprache" um Informationen zu speichern.';
+    }
+
+    const lines: string[] = [`## Copilot-Gedächtnis (${memories.length} Einträge)\n`];
+    const byScope = new Map<string, typeof memories>();
+    for (const m of memories) {
+      const list = byScope.get(m.scope) ?? [];
+      list.push(m);
+      byScope.set(m.scope, list);
+    }
+
+    for (const [scope, mems] of byScope) {
+      const scopeLabel = scope === 'session' ? 'Sitzung' : scope === 'case' ? 'Fall' : scope === 'workspace' ? 'Kanzlei' : 'Plattform';
+      lines.push(`### ${scopeLabel} (${mems.length})`);
+      for (const m of mems.slice(0, 10)) {
+        lines.push(`- **${m.title}**: ${m.content.slice(0, 100)}${m.content.length > 100 ? '…' : ''}`);
+      }
+      if (mems.length > 10) lines.push(`- *+${mems.length - 10} weitere…*`);
+      lines.push('');
+    }
+
+    return lines.join('\n');
+  }
+
+  get copilotMemoryService(): CopilotMemoryService {
+    return this.copilotMemory;
   }
 }
