@@ -29,6 +29,14 @@ export const DOCS: readonly DocEntry[] = [
     filePath: 'src/docs/content/getting-started/upload-and-ingest.mdx',
   },
   {
+    slug: ['reference', 'ffg-aws-businessplan'],
+    section: 'reference',
+    title: 'FFG/AWS business plan',
+    description:
+      'Funding-ready business plan for Subsumio (FFG + aws), including R&D scope, go-to-market, and financial plan.',
+    filePath: 'src/docs/content/reference/ffg-aws-businessplan.mdx',
+  },
+  {
     slug: ['reference', 'supported-file-types'],
     section: 'reference',
     title: 'Supported file types',

@@ -16,6 +16,8 @@ import {
   groupDocsBySection,
   slugToPath,
 } from '@/docs/registry';
+import PdfDownloadButton from '@/docs/ui/pdf-download-button';
+import PrintOnLoad from '@/docs/ui/print-on-load';
 import { extractTocFromMdx } from '@/docs/toc';
 import type { Locale } from '@/i18n/config';
 import { Link } from '@/i18n/routing';
@@ -51,11 +53,20 @@ async function readDocSource(filePath: string): Promise<string> {
 
 export default async function DocsArticlePage({
   params,
+  searchParams,
 }: {
   params: Promise<{ locale: string; slug: string[] }>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { locale, slug } = await params;
   setRequestLocale(locale);
+
+  const sp = (await searchParams) ?? {};
+  const printParamRaw = sp.print;
+  const printParam = Array.isArray(printParamRaw)
+    ? printParamRaw[0]
+    : printParamRaw;
+  const isPrintMode = printParam === '1' || printParam === 'true';
 
   const entry = findDocEntry(slug);
   if (!entry) notFound();
@@ -99,7 +110,9 @@ export default async function DocsArticlePage({
         {JSON.stringify(buildBreadcrumbJsonLd(breadcrumbs))}
       </Script>
 
-      <section className="pt-28 lg:pt-36 pb-6 bg-gradient-to-br from-slate-50 via-white to-primary-50/30">
+      <PrintOnLoad enabled={isPrintMode} />
+
+      <section className="pt-28 lg:pt-36 pb-6 bg-gradient-to-br from-slate-50 via-white to-primary-50/30 print:pt-8 print:pb-3">
         <div className="container-wide">
           <div className="text-sm text-slate-600">
             <Link
@@ -111,20 +124,41 @@ export default async function DocsArticlePage({
             <span className="mx-2 text-slate-400">/</span>
             <span className="text-slate-900 font-medium">{entry.title}</span>
           </div>
-          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight text-slate-900 mt-4">
-            {entry.title}
-          </h1>
-          <p className="text-lg text-slate-600 mt-3 max-w-3xl">
-            {entry.description}
-          </p>
+          <div className="mt-4 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div className="min-w-0">
+              <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight text-slate-900">
+                {entry.title}
+              </h1>
+              <p className="text-lg text-slate-600 mt-3 max-w-3xl">
+                {entry.description}
+              </p>
+            </div>
+            {!isPrintMode ? (
+              <div className="flex items-center gap-2 print:hidden">
+                <PdfDownloadButton title={entry.title} className="btn-secondary !px-4 !py-2.5 !text-sm inline-flex items-center gap-2" />
+              </div>
+            ) : null}
+          </div>
         </div>
       </section>
 
-      <section className="section-padding !pt-10 bg-white">
+      <section
+        className={
+          isPrintMode
+            ? 'section-padding !pt-6 bg-white'
+            : 'section-padding !pt-10 bg-white'
+        }
+      >
         <div className="container-wide">
-          <div className="grid lg:grid-cols-[260px,minmax(0,1fr),268px] xl:grid-cols-[272px,minmax(0,1fr),284px] gap-8 xl:gap-10">
+          <div
+            className={
+              isPrintMode
+                ? 'grid grid-cols-1'
+                : 'grid lg:grid-cols-[260px,minmax(0,1fr),268px] xl:grid-cols-[272px,minmax(0,1fr),284px] gap-8 xl:gap-10'
+            }
+          >
             {/* Sidebar */}
-            <aside className="hidden lg:block">
+            <aside className="hidden lg:block docs-sidebar">
               <div className="sticky top-24 xl:top-20 space-y-6">
                 {(
                   [
@@ -221,7 +255,7 @@ export default async function DocsArticlePage({
             </article>
 
             {/* TOC */}
-            <aside className="hidden lg:block">
+            <aside className="hidden lg:block docs-toc">
               <div className="sticky top-20 xl:top-20 rounded-2xl border border-slate-200/70 bg-white/80 backdrop-blur-sm px-3.5 py-3.5 xl:px-4 xl:py-4 shadow-sm">
                 <div className="text-[10px] xl:text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500 mb-2 xl:mb-2.5">
                   {t('onThisPage')}
@@ -265,6 +299,17 @@ export default async function DocsArticlePage({
           </div>
         </div>
       </section>
+
+      {isPrintMode ? (
+        <div className="docs-print-footer" aria-hidden="true">
+          <div className="docs-print-footer-inner">
+            <div className="docs-print-footer-title">{entry.title}</div>
+            <div className="docs-print-footer-meta">
+              Stand: Februar 2026 · Subsumio (Wien) · Vertraulich
+            </div>
+          </div>
+        </div>
+      ) : null}
     </>
   );
 }

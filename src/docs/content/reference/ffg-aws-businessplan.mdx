@@ -1,0 +1,363 @@
+# Businessplan (FFG/AWS) — Subsumio
+
+Dieser Businessplan beschreibt Subsumio als forschungs- und innovationsgetriebenes Legal-Tech SaaS aus Wien mit klarer Verwertungsstrategie (FFG) und skalierbarem Wachstumsplan (aws).
+
+> Stand: Februar 2026 · Sprache: Deutsch (AT) · Ziel: Einreichunterlage für FFG/AWS sowie Versand an Partner.
+
+---
+
+## Deckblatt
+
+| Feld | Inhalt |
+|---|---|
+| Dokument | Businessplan (FFG/AWS) — Subsumio |
+| Stand/Version | Februar 2026 · v1.0 |
+| Unternehmen | Subsumio GmbH (in Gründung) |
+| Standort | Wien, Österreich |
+| Ansprechpartner | Martin Eckerstorfer, MBA (CEO) · Ing. Ismet Mesic (CTO) · Dr. Mag. Fromhold (CLO) |
+| Zweck | Einreichung FFG/AWS · Partner-/Pilotkommunikation |
+| Vertraulichkeit | Vertraulich — nur für Förderstellen, Partner und Pilotkunden. Weitergabe nur nach Freigabe. |
+
+---
+
+## 1) Executive Summary
+
+Subsumio ist eine KI-gestützte Kanzleisoftware, die juristische Dokumente in eine strukturierte, nachvollziehbare Wissensbasis überführt und dadurch zentrale Fehlerquellen im Kanzleialltag reduziert: Fristenrisiko, unvollständige Aktenlage, fehlende Nachvollziehbarkeit von Schlussfolgerungen und hoher manueller Rechercheaufwand.
+
+Das Vorhaben kombiniert (a) Forschung & Entwicklung an domänenspezifischer Dokumentanalyse, Retrieval und Evidenzketten mit (b) einem skalierbaren SaaS-Geschäftsmodell für den DACH-Markt. Subsumio adressiert Solo-Anwälte bis Großkanzleien und bietet zusätzlich Airgap-/Self-hosted Optionen für besonders sensible Mandate.
+
+**Kernaussage für Förderstellen:**
+
+- FFG: klar abgrenzbare F&E-Arbeitspakete mit Verwertungspotenzial (KI-Pipeline, semantische Suche, Qualitätsmetriken, Evidenzketten)
+- aws: skalierbares, exportfähiges SaaS mit frühem Pilotzugang und planbaren Unit Economics
+
+---
+
+## 2) Unternehmensbeschreibung
+
+### 2.1 Unternehmen
+
+- Firmenname: Subsumio
+- Standort: Wien, Österreich
+- Rechtsform: GmbH (in Gründung)
+- Gründung: 01.05.2026
+- Team: 6 Personen
+
+### 2.2 Gründerteam
+
+- CEO/Geschäftsführer: Martin Eckerstorfer, MBA
+- CTO/Technische Leitung: Ing. Ismet Mesic
+- CLO/Juristische Leitung: Dr. Mag. Fromhold
+
+### 2.3 Hintergrund & Motivation (Problemursprung)
+
+Der CEO arbeitet seit rund 10 Jahren intensiv mit Rechtsanwälten an komplexen Fällen. Dabei zeigen sich wiederkehrende Schwachstellen in Kanzleiabläufen:
+
+- Dokumentenflut und Medienbrüche
+- manuelle Fehler (Fristen, Versionen, Quellen)
+- unvollständige Aktenlage und fehlende Nachvollziehbarkeit von Herleitungen
+
+Parallel wird mit RCIID (Rocket Chain Investigation ID) eine Blockchain-Forensik-Plattform entwickelt, um große Daten-/Beweismittelmengen strukturiert und auditierbar aufzubereiten. Die dort etablierten Prinzipien (Chain-of-Custody, Audit-Trail, reproduzierbare Analysen) werden als Qualitätsstandard in Subsumio übertragen.
+
+### 2.4 Referenzprojekt: RCIID als Technologieträger
+
+RCIID dient als Referenzprojekt für die Fähigkeit, große Mengen an Daten und Beweismitteln strukturiert, nachvollziehbar und gerichtstauglich aufzubereiten. Für Subsumio ist das relevant, weil Kanzleien nicht nur „Antworten“, sondern **prüfbare Herleitungen** benötigen.
+
+**Übertragbare Prinzipien:**
+
+- Traceability-by-design (jede Schlussfolgerung ist auf Dokumentstellen rückführbar)
+- Auditierbarkeit (Bearbeitungsschritte, Versionen, Zeitstempel)
+- Fehlerprävention (Fristen-/Widerspruchs-/Evidenzlücken-Warnungen)
+
+**Optionale Produkt-Erweiterung (strategisch): Blockchain-Forensik-Connector**
+
+Ziel ist eine Pipeline, die automatisch anspringt, sobald in Akteninhalten Bitcoin-Adressen oder TXIDs auftauchen.
+
+- Trigger: Erkennung von BTC-Adressen/TXIDs in OCR/Text/Notizen + Confidence Score
+- Erstanalysen: Adressprofil, Aktivität, Alerts (z.B. große Abflüsse, Mixing-Indikatoren, Exchange-Treffer)
+- Artefakte: Bericht + Quellen (TXIDs/Blockhöhe) + Versionierung
+- Governance: Human-in-the-loop Pflicht + revisionssicherer Audit-Trail
+- Deployment: Cloud / lokal / Airgap (Remote-Calls optional deaktivierbar)
+
+---
+
+## 3) Marktanalyse
+
+### 3.1 Zielmarkt
+
+- Primär: Rechtsanwaltskanzleien (Solo bis 50+ Anwälte) in DACH
+- Sekundär: In-house Legal, Behörden, Legal Operations
+
+### 3.2 Marktgröße (orientierend)
+
+- TAM Europa Legal-Tech: ~€2,8 Mrd (2025), CAGR ~12,3% bis 2030
+- SAM DACH (orientierend): ~€420 Mio
+- SOM (3 Jahre, konservativ): ~€15 Mio (0,5% Penetration)
+
+### 3.3 Wettbewerb (Auswahl)
+
+- DACH: RA-MICRO, DATEV Anwalt Classic, Advoware/STP, j-lawyer.org
+- International: Clio, PracticePanther, MyCase, Smokeball
+
+Subsumio differenziert durch eine durchgängige Dokumenten-zu-Workflow-Pipeline (OCR/Parsing → semantische Ingestion → Analysen) mit Fokus auf DACH-Anwendungsfälle sowie Multi-Jurisdiktions-Support.
+
+---
+
+## 4) Produkt & Technologie
+
+### 4.1 Kernfunktionen
+
+- KI-gestützte Fallbearbeitung: Dokumentanalyse, OCR, semantische Suche
+- Mandanten-/Aktenführung: strukturierte Workflows, Audit-Trail, Rollen
+- Fristenmanagement: Ableitung, Warnungen, Priorisierung
+- Multi-Jurisdiktion: DE/AT/CH/EU/EGMR
+- Abrechnung: Rechnung/Export (DATEV/BMD), Zeiterfassung, Treuhand-Workflows
+
+### 4.2 Tech-Stack (Zielarchitektur)
+
+- Frontend: React/TypeScript, PWA, Desktop (Electron)
+- Backend: Node.js (NestJS), PostgreSQL, Redis, GraphQL
+- KI: Multi-Provider LLM (OpenAI/Anthropic/Mistral/Gemini), domänenspezifische Retrieval-Pipeline
+- Dokumente: OCR + Parser, Chunking, Qualitätsbewertung, Quellenverknüpfung
+- Deployment: EU-Cloud sowie Airgap/Self-hosted
+
+### 4.3 Qualitäts- und Governance-Mechanik (entscheidend für Förderstellen)
+
+- **Human-in-the-loop:** KI generiert Vorschläge/Warnungen, keine automatische Rechtsentscheidung.
+- **Quellenpflicht:** Ergebnisse werden mit Dokumentstellen/Zitaten verknüpft.
+- **Audit-Trail:** sicherheits- und workflowrelevante Events werden protokolliert.
+- **Data Residency:** Cloud/Local/Self-hosted; Remote-OCR/Connectoren optional abschaltbar.
+
+---
+
+## 5) Business Modell
+
+### 5.1 Pricing (aus Produktstrategie)
+
+| Plan | Preis | Zielgruppe |
+|---|---:|---|
+| Solo | €49/User/Monat (jährlich €39) | Einzelanwälte |
+| Kanzlei | €99/User/Monat (jährlich €79) | 2–20 Anwälte |
+| Enterprise | ab €199/User/Monat | 20+ Anwälte, hohe Governance |
+
+Airgap/Self-hosted wird als Enterprise Add-on (Aufpreis oder Setup+Maintenance) angeboten.
+
+### 5.2 Unit Economics
+
+- Ziel-Bruttomarge: 75–85%
+- COGS: Infrastruktur/Storage, OCR, LLM-Calls
+- Kostensteuerung: Credits/Quotas je Plan, Qualitätsgates, Deduplizierung, Anonymisierung vor Remote-Calls
+- Governance: Human-in-the-loop für Freigaben, Audit-Trail für Nachvollziehbarkeit
+
+---
+
+## 6) Marketing & Vertrieb
+
+- Direct Sales zu Kanzleien (Pilot → Rollout)
+- Partner: IT-Dienstleister, Rechtsträger, Legal Ops
+- Content: Webinare, Fachartikel, Legal-Tech Blog
+- Events: DACH LegalTech Konferenzen, Anwaltstage
+
+Traktion: vorhandene Anwaltskontakte als Early Adopters für bezahlte Piloten; 3-monatige Pilotprojekte mit KPI (Zeitersparnis, Fristenerkennungsrate, NPS).
+
+---
+
+## 7) Team & Organisation
+
+- 2026: 6 Personen
+- 2027: +4 FTE (2 Engineering, 1 Sales, 1 CS) → 10
+- 2028: +5 FTE (3 Engineering, 1 Product, 1 Compliance) → 15
+
+---
+
+## 8) Finanzplanung
+
+### 8.1 Umsatzprognose (konservativ)
+
+- Jahr 1: €85.000 (End-MRR ~€12.000)
+- Jahr 2: €480.000 (End-MRR ~€55.000)
+- Jahr 3: €1.440.000 (End-MRR ~€150.000)
+
+### 8.2 Kostenstruktur
+
+- Jahr 1: €516.000
+- Jahr 2: €680.000
+- Jahr 3: €920.000
+
+### 8.3 Förder- und Finanzierungsbedarf
+
+- FFG Basisprogramm (beantragt): €250.000
+- aws (beantragt): €150.000 (Zuschuss/Darlehen je nach Modul)
+- Eigenkapital: €200.000
+- Gesamt (24 Monate): €600.000
+
+### 8.4 Aufwand in Stunden (Realitätscheck für „produktionsreif“)
+
+Annahme: 1 FTE-Monat = 160h.
+
+| Workstream | Stunden (konservativ) | Stunden (enterprise-ready) |
+|---|---:|---:|
+| Core SaaS (Frontend/Backend/DB, Mandanten/Akten, Workflows) | 3.200 | 4.800 |
+| Dokumentenpipeline (Upload, OCR, Parsing, Chunking, Qualität, RAG-Basis) | 2.400 | 3.600 |
+| Legal Intelligence (Fristen, Normen, Widersprüche, Evidenz-/Warnlogik) | 1.600 | 2.800 |
+| Security & Compliance (RBAC, Audit, DSGVO, Pen-Test-Fixes) | 1.200 | 2.000 |
+| Billing/Exports/Integrationen (DATEV/BMD, Connector Framework, Mail/Portal) | 1.200 | 2.200 |
+| Airgap/Self-hosted (Packaging, Update-Strategie, Offline-Policy, Ops) | 800 | 1.600 |
+| QA/Release Engineering (E2E, Regression, Monitoring, Runbooks) | 1.200 | 2.200 |
+| Go-to-market Enablement (Onboarding, Templates, Docs, Pilot-Support) | 600 | 1.200 |
+| **Summe** | **12.200** | **20.400** |
+
+Interpretation:
+
+- 12.200h ≈ 76 FTE-Monate (produktionsreif, konservativ)
+- 20.400h ≈ 128 FTE-Monate (enterprise-ready, inkl. härterer Governance/Integrationen)
+
+---
+
+## 9) Innovationskonzept (FFG-relevant)
+
+### 9.1 Forschungsfragen (aus F&E-Sicht)
+
+1. KI-gestützte Rechtserkennung (DACH-Rechtssprache)
+2. Semantische Suche (TF-IDF + Embeddings) für Normen/Judikatur
+3. Predictive Legal Analytics auf anonymisierten Daten
+4. DSGVO-konforme Verarbeitung (Data Residency, Anonymisierung)
+5. Widerspruchserkennung zwischen Dokumenten
+6. Evidenzketten/Traceability: Quellenverknüpfung, Versionsstände, Auditierbare Herleitung
+
+### 9.2 Abgrenzbare F&E-Arbeitspakete (FFG-konform)
+
+**WP1: Domänenspezifische Extraktions- & Qualitätsmetriken**
+
+- Ziel: robuste Extraktion (inkl. Scan/OCR) + objektive Qualitätsbewertung (z.B. „low-quality“ Warnungen)
+- Risiko/Ungewissheit: heterogene Formate, gescannte Dokumente, mehrsprachige Inhalte
+- Output: messbare Qualitätsmetriken + automatische Klassifikation + Audit-Events
+
+**WP2: Semantische Suche & Retrieval (TF-IDF + Embeddings)**
+
+- Ziel: semantische Trefferqualität, nachvollziehbare Quellen
+- Output: Retrieval-Engine + Evidence Snippets + Konfidenz-/Penalty-Logik
+
+**WP3: Widerspruchserkennung & Evidenzlücken**
+
+- Ziel: automatisches Aufspüren widersprüchlicher Aussagen und fehlender Beweisbausteine
+- Output: Warnings, verlinkt auf Quellenstellen + Vorschläge für nächste Aktionen
+
+**WP4: Data Residency & Anonymisierung vor KI-Calls**
+
+- Ziel: DSGVO-konforme Verarbeitung, optionale Abschaltung externer Services
+- Output: Policy-Gates (Cloud/Local/Airgap), Anonymisierungspipeline, Auditierbarkeit
+
+**WP5: Evidenzketten / Chain-of-Custody für Wissen**
+
+- Ziel: jede Empfehlung ist auf Dokumentstellen, Versionsstände und Bearbeitungsschritte rückführbar
+- Output: Traceability-Layer (IDs, Versions, Timestamps) + Exportfähige Nachweisdokumentation
+
+### 9.2 Verwertung
+
+- Produktisierung als SaaS für DACH
+- Enterprise Paket inkl. Governance/Airgap
+- Exportpotenzial (CH/EU)
+
+---
+
+## 10) Risikoanalyse
+
+- Technisch: Parser/OCR-Qualität, Skalierung, Modellkosten → mitigiert durch Qualitätsgates, Quotas, Monitoring
+- Rechtlich/Compliance: DSGVO, Mandatsgeheimnis → Data Residency, Anonymisierung, RBAC, Audit-Trail
+- Produkt: Adoption/Change Management → Pilotdesign, Onboarding, Value Metrics
+
+---
+
+## 11) Fördermittel-Argumentation
+
+### 11.1 Warum FFG?
+
+- Forschung & experimentelle Entwicklung mit klarer technologischer Unsicherheit (Extraction/Chunking/Qualitätsbewertung, semantisches Retrieval, Evidenzketten)
+- Verwertbares Produkt (SaaS) mit Skalierung
+
+### 11.2 Warum aws?
+
+- Skalierbarer Business Case, Arbeitsplatzaufbau, Exportpotenzial
+- Finanzierung von Markteintritt/Go-to-Market, Enterprise-Härtung und Self-hosted/Airgap Produktisierung
+
+### 11.3 Passende Programme (Kurzmatrix)
+
+| Programm | Zweck | Typische Eckpunkte (orientierend) | Passung |
+|---|---|---|---|
+| FFG Basisprogramm 2026 | Experimentelle Entwicklung mit Verwertungspotenzial | laufende Einreichung; i.d.R. Mix Zuschuss/Darlehen; Startups teils höhere Quote | Haupt-F&E-Vorhaben |
+| FFG Basisprogramm Kleinprojekt 2026 | kleiner, klar abgrenzbarer F&E-Sprint | Kosten bis €150k; Zuschuss; je nach Größe bis max. 60% (mit Kooperation) | WP2/WP3 als Sprint |
+| FFG Projekt.Start 2026 | Projektvorbereitungskosten | Kosten bis €10k; 60% Förderung; max. €6k | Antragsreife/Planung |
+| aws Seedfinancing Deep Tech | Wachstum auf Basis technologischen Sprungs | max. €889k (bis €1M mit Bonus); Förderintensität bis 80/90%; Eigenmittel 10/5% cash | Skalierung/Produktisierung |
+
+---
+
+## Anhang A: Einreichunterlagen-Checkliste
+
+- Unternehmensregisterauszug (bzw. Gründungsstatus)
+- Finanzplan (Excel) konsistent mit Businessplan
+- Lebensläufe des Gründerteams
+- Technologische Beschreibung inkl. Arbeitspakete, Risiken, Messkriterien
+- Pilot-/Referenzhinweise (anonymisiert möglich)
+- Datenschutz-/Security-Statement (Data Residency, Audit-Trail, Human-in-the-loop)
+
+---
+
+## Anhang B: Online-Version & PDF (Antrags-Ready)
+
+### Ziel
+
+- Online ansehen: sauber gerendertes, versionierbares Dokument (Link für Förderstellen/Partner)
+- PDF-Download: identischer Inhalt als PDF für Einreichung/Anhang
+
+### Empfohlener Workflow
+
+1. Single Source of Truth: diese Seite (Docs/MDX) bzw. Markdown im Repo
+2. PDF Export: Button „… als PDF“ nutzen (öffnet Print-Ansicht, speichert als PDF)
+3. Versionierung: für Einreichung immer einen fixen Link (Commit-Stand) dokumentieren
+
+### Akzeptanzkriterium
+
+- PDF enthält Inhaltsverzeichnis (via On-Page Struktur), konsistente Tabellenformatierung und keine abgeschnittenen Zeilen
+
+---
+
+## Anhang C: Erfolgsfaktoren (FFG/AWS)
+
+### FFG-Erfolgsfaktoren
+
+- Hoher Innovationsgrad und klarer technologischer Beitrag
+- Forschungsfragen und Arbeitspakete mit messbaren Outputs (KPI)
+- Technologischer Mehrwert und Verwertungspotenzial (Produkt/Markt)
+- Schutzrechte/Know-how-Strategie (wo sinnvoll)
+- Einbindung wissenschaftlicher Partner (optional, aber oft hilfreich)
+
+### aws-Erfolgsfaktoren
+
+- Wirtschaftliche Nachhaltigkeit (Unit Economics, Go-to-Market, Retention)
+- Arbeitsplatzschaffung quantifiziert (FTE-Plan, Zeitachse)
+- Exportpotenzial (DACH/CH/EU) und Skalierungsfähigkeit
+- Finanzplan konservativ und nachvollziehbar
+- Eigenkapital/Co-Funding klar belegt
+
+---
+
+## Anhang D: Ressourcen
+
+### FFG Links
+
+- https://www.ffg.at
+- https://www.ffg.at/basisprogramm
+- https://www.ffg.at/ausschreibung/basisprogramm-kleinprojekt-2026
+- https://www.ffg.at/ausschreibung/projektstart-2026
+
+### aws Links
+
+- https://www.aws.at
+- https://www.aws.at/en/aws-preseed-seedfinancing/
+- https://www.aws.at/en/aws-seedfinancing-faq/
+
+### Beratungsstellen
+
+- Wirtschaftskammer Österreich (WKÖ)
+- Austrian Business Agency (ABA)

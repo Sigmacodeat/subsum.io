@@ -147,10 +147,10 @@ function resolveCopy(locale: string): Copy {
         'curl -s -H "Authorization: Bearer <ACCESS_TOKEN>" "https://api.subsum.io/api/public/v1/workspaces/<WORKSPACE_ID>/blobs/<BLOB_KEY>"',
       curlCreateDocLabel: 'Dokument aus Markdown anlegen',
       curlCreateDocCommand:
-        'curl -s -X POST -H "Authorization: Bearer <ACCESS_TOKEN>" -H "Content-Type: application/json" -d "{\"title\":\"Neue Akte\",\"content\":\"# Neue Akte\\nErster Entwurf\"}" "https://api.subsum.io/api/public/v1/workspaces/<WORKSPACE_ID>/documents"',
+        'curl -s -X POST -H "Authorization: Bearer <ACCESS_TOKEN>" -H "Content-Type: application/json" -d "{"title":"Neue Akte","content":"# Neue Akte\\nErster Entwurf"}" "https://api.subsum.io/api/public/v1/workspaces/<WORKSPACE_ID>/documents"',
       curlUpdateDocLabel: 'Dokumenttitel/Content aktualisieren',
       curlUpdateDocCommand:
-        'curl -s -X PATCH -H "Authorization: Bearer <ACCESS_TOKEN>" -H "Content-Type: application/json" -d "{\"title\":\"Neue Akte v2\",\"content\":\"# Neue Akte v2\\nAktualisiert\"}" "https://api.subsum.io/api/public/v1/workspaces/<WORKSPACE_ID>/documents/<DOC_ID>"',
+        'curl -s -X PATCH -H "Authorization: Bearer <ACCESS_TOKEN>" -H "Content-Type: application/json" -d "{"title":"Neue Akte v2","content":"# Neue Akte v2\\nAktualisiert"}" "https://api.subsum.io/api/public/v1/workspaces/<WORKSPACE_ID>/documents/<DOC_ID>"',
       curlDeleteDocLabel: 'Dokument löschen',
       curlDeleteDocCommand:
         'curl -s -X DELETE -H "Authorization: Bearer <ACCESS_TOKEN>" "https://api.subsum.io/api/public/v1/workspaces/<WORKSPACE_ID>/documents/<DOC_ID>"',
@@ -159,7 +159,7 @@ function resolveCopy(locale: string): Copy {
         'curl -s -H "Authorization: Bearer <ACCESS_TOKEN>" "https://api.subsum.io/api/public/v1/workspaces/<WORKSPACE_ID>/webhooks"',
       curlCreateWebhookLabel: 'Webhook-Subscription erstellen (idempotent)',
       curlCreateWebhookCommand:
-        'curl -s -X POST -H "Authorization: Bearer <ACCESS_TOKEN>" -H "Idempotency-Key: webhook-create-001" -H "Content-Type: application/json" -d "{\"url\":\"https://example.com/subsumio/webhook\",\"events\":[\"document.created\",\"document.updated\"]}" "https://api.subsum.io/api/public/v1/workspaces/<WORKSPACE_ID>/webhooks"',
+        'curl -s -X POST -H "Authorization: Bearer <ACCESS_TOKEN>" -H "Idempotency-Key: webhook-create-001" -H "Content-Type: application/json" -d "{"url":"https://example.com/subsumio/webhook","events":["document.created","document.updated"]}" "https://api.subsum.io/api/public/v1/workspaces/<WORKSPACE_ID>/webhooks"',
       curlListDeliveriesLabel: 'Webhook-Delivery-Logs auflisten',
       curlListDeliveriesCommand:
         'curl -s -H "Authorization: Bearer <ACCESS_TOKEN>" "https://api.subsum.io/api/public/v1/workspaces/<WORKSPACE_ID>/webhook-deliveries?status=failed&page=1&pageSize=25"',
@@ -248,10 +248,10 @@ function resolveCopy(locale: string): Copy {
       'curl -s -H "Authorization: Bearer <ACCESS_TOKEN>" "https://api.subsum.io/api/public/v1/workspaces/<WORKSPACE_ID>/blobs/<BLOB_KEY>"',
     curlCreateDocLabel: 'Create document from markdown',
     curlCreateDocCommand:
-      'curl -s -X POST -H "Authorization: Bearer <ACCESS_TOKEN>" -H "Content-Type: application/json" -d "{\"title\":\"New file\",\"content\":\"# New file\\nDraft text\"}" "https://api.subsum.io/api/public/v1/workspaces/<WORKSPACE_ID>/documents"',
+      'curl -s -X POST -H "Authorization: Bearer <ACCESS_TOKEN>" -H "Content-Type: application/json" -d "{"title":"New file","content":"# New file\\nDraft text"}" "https://api.subsum.io/api/public/v1/workspaces/<WORKSPACE_ID>/documents"',
     curlUpdateDocLabel: 'Update document title/content',
     curlUpdateDocCommand:
-      'curl -s -X PATCH -H "Authorization: Bearer <ACCESS_TOKEN>" -H "Content-Type: application/json" -d "{\"title\":\"New file v2\",\"content\":\"# New file v2\\nUpdated text\"}" "https://api.subsum.io/api/public/v1/workspaces/<WORKSPACE_ID>/documents/<DOC_ID>"',
+      'curl -s -X PATCH -H "Authorization: Bearer <ACCESS_TOKEN>" -H "Content-Type: application/json" -d "{"title":"New file v2","content":"# New file v2\\nUpdated text"}" "https://api.subsum.io/api/public/v1/workspaces/<WORKSPACE_ID>/documents/<DOC_ID>"',
     curlDeleteDocLabel: 'Delete document',
     curlDeleteDocCommand:
       'curl -s -X DELETE -H "Authorization: Bearer <ACCESS_TOKEN>" "https://api.subsum.io/api/public/v1/workspaces/<WORKSPACE_ID>/documents/<DOC_ID>"',
@@ -260,7 +260,7 @@ function resolveCopy(locale: string): Copy {
       'curl -s -H "Authorization: Bearer <ACCESS_TOKEN>" "https://api.subsum.io/api/public/v1/workspaces/<WORKSPACE_ID>/webhooks"',
     curlCreateWebhookLabel: 'Create webhook subscription (idempotent)',
     curlCreateWebhookCommand:
-      'curl -s -X POST -H "Authorization: Bearer <ACCESS_TOKEN>" -H "Idempotency-Key: webhook-create-001" -H "Content-Type: application/json" -d "{\"url\":\"https://example.com/subsumio/webhook\",\"events\":[\"document.created\",\"document.updated\"]}" "https://api.subsum.io/api/public/v1/workspaces/<WORKSPACE_ID>/webhooks"',
+      'curl -s -X POST -H "Authorization: Bearer <ACCESS_TOKEN>" -H "Idempotency-Key: webhook-create-001" -H "Content-Type: application/json" -d "{"url":"https://example.com/subsumio/webhook","events":["document.created","document.updated"]}" "https://api.subsum.io/api/public/v1/workspaces/<WORKSPACE_ID>/webhooks"',
     curlListDeliveriesLabel: 'List webhook delivery logs',
     curlListDeliveriesCommand:
       'curl -s -H "Authorization: Bearer <ACCESS_TOKEN>" "https://api.subsum.io/api/public/v1/workspaces/<WORKSPACE_ID>/webhook-deliveries?status=failed&page=1&pageSize=25"',

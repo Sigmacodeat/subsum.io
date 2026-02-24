@@ -33,7 +33,7 @@ function parseLocaleOverridePaths(source, locale) {
   const escapedLocale = locale.replace(/[-]/g, '\\-');
   // Match both quoted ('de-DE') and unquoted (en, fr) locale keys
   const localeBlockRegex = new RegExp(
-    `(?:'${escapedLocale}'|(?<!['\w])${escapedLocale}(?!['\w]))\\s*:\\s*\\{([\\s\\S]*?)\\n  \\},?`,
+    `(?:'${escapedLocale}'|(?<!['w])${escapedLocale}(?!['w]))\\s*:\\s*\\{([\\s\\S]*?)\\n  \\},?`,
     'm'
   );
   const block = source.match(localeBlockRegex)?.[1];
