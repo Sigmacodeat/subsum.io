@@ -8,3 +8,28 @@ coverage
 .env.*
 !.env.example
 .DS_Store
+
+# secrets
+private.key
+*.pem
+*.p12
+
+# build / cache artifacts
+tsconfig.tsbuildinfo
+*.tsbuildinfo
+test-results
+target
+dist
+**/dist
+
+*.node
+packages/**/static
+packages/**/lib
+
+packages/**/e2e-dist-*
+
+.docker/dev/compose.yml
+.yarn/install-state.gz
+
+*.db
+packages/frontend/native/**

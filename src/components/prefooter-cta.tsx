@@ -38,7 +38,7 @@ function renderAction(action: PrefooterActionVariant) {
   const className =
     action.variant === 'primary'
       ? 'btn-primary inline-flex items-center gap-2 text-base sm:text-lg !px-8 sm:!px-10 !py-4 sm:!py-5 !min-w-[220px] justify-center'
-      : 'inline-flex items-center justify-center gap-2 text-base sm:text-lg font-semibold !px-8 sm:!px-10 !py-4 sm:!py-5 !min-w-[220px] rounded-xl border-2 border-white/30 bg-white/10 text-white hover:bg-white/20 hover:border-white/45 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-white/80 focus:ring-offset-2 focus:ring-offset-slate-900';
+      : 'btn-secondary-on-dark inline-flex items-center justify-center gap-2 text-base sm:text-lg !px-8 sm:!px-10 !py-4 sm:!py-5 !min-w-[220px]';
 
   const isInternal = action.href.startsWith('/');
   const content = (
