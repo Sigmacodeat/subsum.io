@@ -9,7 +9,6 @@ export const seoIndexablePaths = [
   '/pricing',
   '/security',
   '/contact',
-  '/tax',
   '/legal/imprint',
   '/legal/privacy',
   '/legal/terms',

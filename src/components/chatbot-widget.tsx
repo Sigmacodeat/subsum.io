@@ -87,7 +87,6 @@ function inferPageContext(pathname: string): { key: string; intent: Intent } {
     return { key: 'api', intent: 'api' };
   if (pathname.includes('/pricing'))
     return { key: 'pricing', intent: 'subscribe' };
-  if (pathname.includes('/tax')) return { key: 'tax', intent: 'demo' };
   if (pathname.includes('/systems'))
     return { key: 'systems', intent: 'register' };
   if (pathname.includes('/security'))
@@ -113,7 +112,6 @@ function getPagePrioritizedActions(pageKey: string): Intent[] {
     home: ['context-help', 'demo', 'register'],
     pricing: ['subscribe', 'credits', 'demo'],
     features: ['register', 'demo', 'pricing'],
-    tax: ['demo', 'register', 'pricing'],
     security: ['demo', 'register', 'support'],
     contact: ['support', 'demo', 'register'],
     systems: ['register', 'api', 'demo'],
@@ -1049,7 +1047,7 @@ export default function ChatbotWidget({
         </div>
         <button
           onClick={handleToggle}
-          className="flex h-8 w-8 items-center justify-center rounded-full bg-white/20 transition-colors hover:bg-white/30"
+          className="flex h-8 w-8 items-center justify-center rounded-full bg-white/20 transition-colors sm:hover:bg-white/30"
           aria-label={t.close}
         >
           <X className="h-4 w-4" />
@@ -1107,20 +1105,20 @@ export default function ChatbotWidget({
                         onClick={() => handleAction(action)}
                         className={`flex w-full items-center gap-2 rounded-xl p-2.5 text-left text-sm transition-all ${
                           action.primary
-                            ? 'bg-gradient-to-r from-primary-600 to-cyan-600 font-medium text-white shadow-md hover:shadow-lg'
-                            : 'border border-slate-200 bg-white text-slate-700 hover:border-primary-300 hover:bg-primary-50'
+                            ? 'bg-gradient-to-r from-primary-600 to-cyan-600 font-medium text-white shadow-md sm:hover:shadow-lg'
+                            : 'border border-slate-200 bg-white text-slate-700 sm:hover:border-primary-300 sm:hover:bg-primary-50'
                         }`}
                       >
                         <span className="flex-1">{action.label}</span>
                         {action.type === 'external' && (
-                          <ExternalLink className="h-3 w-3 flex-shrink-0 opacity-50" />
+                          <ExternalLink className="h-4 w-4 flex-shrink-0 opacity-80" />
                         )}
                       </button>
                     ))}
                   {message.actions.length > MAX_VISIBLE_ACTIONS && (
                     <button
                       onClick={() => toggleActionsExpand(message.id)}
-                      className="flex w-full items-center justify-center gap-1 rounded-lg py-1.5 text-xs text-slate-500 transition-colors hover:text-primary-600"
+                      className="flex w-full items-center justify-center gap-1 rounded-lg py-1.5 text-xs text-slate-500 transition-colors sm:hover:text-primary-600"
                     >
                       {expandedActions[message.id] ? (
                         <>
@@ -1198,7 +1196,7 @@ export default function ChatbotWidget({
           <button
             onClick={handleSendMessage}
             disabled={!inputValue.trim()}
-            className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-r from-primary-600 to-cyan-600 text-white transition-all hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-40"
+            className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-r from-primary-600 to-cyan-600 text-white transition-all sm:hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-40"
             aria-label={t.send}
           >
             <Send className="h-4 w-4" />

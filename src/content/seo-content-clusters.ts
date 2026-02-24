@@ -65,12 +65,6 @@ export const seoContentClusters: Partial<Record<Locale, LocaleClusters>> = {
         'ai case risk pre check',
       ],
     },
-    '/tax': {
-      cluster: 'tax-core',
-      intent: 'commercial',
-      primaryKeywords: ['tax ai software', 'tax assessment ai'],
-      secondaryKeywords: ['deadline management tax', 'tax objection software'],
-    },
     '/about': {
       cluster: 'about-brand',
       intent: 'navigational',
@@ -101,15 +95,6 @@ export const seoContentClusters: Partial<Record<Locale, LocaleClusters>> = {
       secondaryKeywords: [
         'ki steuerberatung kosten',
         'rechtsanwalt software kosten',
-      ],
-    },
-    '/tax': {
-      cluster: 'taxos-de',
-      intent: 'transactional',
-      primaryKeywords: ['tax os deutschland', 'bescheid prüfer software'],
-      secondaryKeywords: [
-        'einspruch steuerbescheid software',
-        'fristen cockpit steuerberater',
       ],
     },
     '/contact': {
@@ -173,15 +158,6 @@ export const seoContentClusters: Partial<Record<Locale, LocaleClusters>> = {
         'abgb ki analyse',
       ],
     },
-    '/tax': {
-      cluster: 'taxos-at',
-      intent: 'transactional',
-      primaryKeywords: [
-        'steuerberater software österreich',
-        'finanzamt bescheid prüfung',
-      ],
-      secondaryKeywords: ['fristen österreich steuer', 'zpo fristberechnung'],
-    },
     '/security': {
       cluster: 'trust-at',
       intent: 'informational',
@@ -216,14 +192,6 @@ export const seoContentClusters: Partial<Record<Locale, LocaleClusters>> = {
       secondaryKeywords: [
         'steuerberatung software schweiz',
         'or zgb ki analyse',
-      ],
-    },
-    '/tax': {
-      cluster: 'taxos-ch-de',
-      intent: 'transactional',
-      primaryKeywords: [
-        'steuerberater software schweiz',
-        'steuererklärung software schweiz',
       ],
     },
     '/security': {
@@ -309,14 +277,6 @@ export const seoContentClusters: Partial<Record<Locale, LocaleClusters>> = {
         'iso 27001 logiciel juridique',
       ],
     },
-    '/tax': {
-      cluster: 'taxos-fr-fr',
-      intent: 'commercial',
-      primaryKeywords: [
-        'logiciel fiscalité ia france',
-        'gestion délais fiscaux france',
-      ],
-    },
   },
 
   'fr-CH': {
@@ -377,11 +337,6 @@ export const seoContentClusters: Partial<Record<Locale, LocaleClusters>> = {
         'deteccion contradicciones contratos',
       ],
     },
-    '/tax': {
-      cluster: 'taxos-es',
-      intent: 'commercial',
-      primaryKeywords: ['software fiscal ia', 'gestion plazos fiscales'],
-    },
   },
 
   it: {
@@ -423,11 +378,6 @@ export const seoContentClusters: Partial<Record<Locale, LocaleClusters>> = {
         'rilevamento contraddizioni contratti',
       ],
     },
-    '/tax': {
-      cluster: 'taxos-it',
-      intent: 'commercial',
-      primaryKeywords: ['software fiscale ia', 'gestione scadenze fiscali'],
-    },
   },
 
   'it-IT': {
@@ -441,14 +391,6 @@ export const seoContentClusters: Partial<Record<Locale, LocaleClusters>> = {
       secondaryKeywords: [
         'software commercialista ia',
         'gdpr software legale italia',
-      ],
-    },
-    '/tax': {
-      cluster: 'taxos-it-it',
-      intent: 'commercial',
-      primaryKeywords: [
-        'software fiscale ia italia',
-        'gestione scadenze agenzia entrate',
       ],
     },
   },
@@ -509,14 +451,6 @@ export const seoContentClusters: Partial<Record<Locale, LocaleClusters>> = {
         'wykrywanie sprzecznosci umowy',
       ],
     },
-    '/tax': {
-      cluster: 'taxos-pl',
-      intent: 'commercial',
-      primaryKeywords: [
-        'oprogramowanie podatkowe ai',
-        'zarzadzanie terminami podatkowymi',
-      ],
-    },
   },
 
   'pt-BR': {
@@ -564,14 +498,6 @@ export const seoContentClusters: Partial<Record<Locale, LocaleClusters>> = {
         'deteccao contradicoes contratos',
       ],
     },
-    '/tax': {
-      cluster: 'taxos-pt-br',
-      intent: 'commercial',
-      primaryKeywords: [
-        'software fiscal ia brasil',
-        'gestao prazos receita federal',
-      ],
-    },
   },
 
   'pt-PT': {
@@ -593,14 +519,6 @@ export const seoContentClusters: Partial<Record<Locale, LocaleClusters>> = {
       primaryKeywords: [
         'rgpd software advogados portugal',
         'seguranca dados juridicos portugal',
-      ],
-    },
-    '/tax': {
-      cluster: 'taxos-pt-pt',
-      intent: 'commercial',
-      primaryKeywords: [
-        'software fiscal ia portugal',
-        'gestao prazos at portugal',
       ],
     },
   },
@@ -713,11 +631,6 @@ export const seoContentClusters: Partial<Record<Locale, LocaleClusters>> = {
         'تحليل مستندات ذكاء اصطناعي',
         'كشف التناقضات في العقود',
       ],
-    },
-    '/tax': {
-      cluster: 'taxos-ar',
-      intent: 'commercial',
-      primaryKeywords: ['برنامج ضريبي ذكاء اصطناعي', 'إدارة مواعيد ضريبية'],
     },
   },
 };
