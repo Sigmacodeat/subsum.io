@@ -1845,7 +1845,11 @@ export type ChatToolCallName =
   | 'norm_classification'
   | 'evidence_mapping'
   | 'document_finalize'
-  | 'save_to_akte';
+  | 'save_to_akte'
+  | 'memory_lookup'
+  | 'cross_check'
+  | 'reasoning_chain'
+  | 'confidence_score';
 
 export type ChatToolCallCategory =
   | 'preparation'   // credit check, context building
@@ -1987,6 +1991,51 @@ export interface LegalChatMessage {
   tokenEstimate: number;
   /** Processing duration in ms */
   durationMs?: number;
+  // ── Copilot Intelligence Layer fields ──────────────────────────────────
+  /** Reasoning chain for this message (visible thinking steps) */
+  reasoningChain?: {
+    id: string;
+    messageId: string;
+    steps: Array<{
+      id: string;
+      type: string;
+      label: string;
+      detail?: string;
+      sourceRefs?: Array<{ type: string; id: string; title: string }>;
+      durationMs?: number;
+      confidenceAfter?: number;
+      status: string;
+    }>;
+    totalDurationMs: number;
+    finalConfidence: number;
+    isStreaming: boolean;
+    createdAt: string;
+  };
+  /** Confidence assessment of the answer */
+  confidence?: {
+    score: number;
+    level: string;
+    factors: Array<{ name: string; weight: number; score: number; description: string }>;
+    supportingSources: number;
+    contradictingSources: number;
+    hasUnverifiedClaims: boolean;
+    warnings: string[];
+  };
+  /** Cross-check report ID if triggered by this message */
+  crossCheckReportId?: string;
+  /** User feedback on this message */
+  feedback?: {
+    id: string;
+    messageId: string;
+    rating: string;
+    category?: string;
+    comment?: string;
+    createdAt: string;
+  };
+  /** Memory IDs that were used in context for this message */
+  usedMemoryIds?: string[];
+  /** Memory IDs that were created from this message */
+  createdMemoryIds?: string[];
   trashedAt?: string;
   purgeAt?: string;
   createdAt: string;

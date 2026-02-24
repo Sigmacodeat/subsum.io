@@ -423,6 +423,10 @@ const TOOL_CATEGORIES: Record<ChatToolCallName, ChatToolCallCategory> = {
   deadline_derivation: 'ingestion',
   norm_classification: 'ingestion',
   save_to_akte: 'persistence',
+  memory_lookup: 'preparation',
+  cross_check: 'analysis',
+  reasoning_chain: 'analysis',
+  confidence_score: 'analysis',
 };
 
 type PendingToolApprovalRun = {
@@ -456,7 +460,8 @@ export class LegalChatService extends Service {
     private readonly collectiveIntelligence: CollectiveIntelligenceService,
     private readonly gegnerIntelligence: GegnerIntelligenceService,
     private readonly creditGateway: CreditGatewayService,
-    private readonly workspaceSubscriptionService: WorkspaceSubscriptionService
+    private readonly workspaceSubscriptionService: WorkspaceSubscriptionService,
+    private readonly copilotMemory: CopilotMemoryService
   ) {
     super();
 
@@ -1853,6 +1858,32 @@ export class LegalChatService extends Service {
       m => m.id !== assistantMessage.id
     );
 
+    // ── INTELLIGENCE: Handle "merke dir..." memory instructions ──────────
+    const memoryResult = await this.copilotMemory.handleMemoryInstruction({
+      workspaceId,
+      caseId,
+      sessionId,
+      message: content,
+    });
+    if (memoryResult.handled) {
+      this.updateMessageInStore(assistantMessage.id, {
+        status: 'complete',
+        content: memoryResult.response ?? 'Gespeichert.',
+        createdMemoryIds: memoryResult.memoryId ? [memoryResult.memoryId] : [],
+        toolCalls: [
+          this.completeToolCall(
+            this.createToolCall('memory_lookup', 'Copilot-Gedächtnis'),
+            memoryResult.response ?? 'Verarbeitet'
+          ),
+        ],
+      });
+      this.updateSessionMetadata(sessionId, content, userMessage.tokenEstimate + 20);
+      return (
+        this.store.getChatMessages().find(m => m.id === assistantMessage.id) ??
+        assistantMessage
+      );
+    }
+
     if (this.shouldClarifyRequest(content)) {
       const tcClarify = this.createToolCall('clarify_request', 'Anfrage auf Vollständigkeit prüfen');
       toolCalls.push(this.completeToolCall(tcClarify, 'Rückfrage erforderlich'));
@@ -2002,6 +2033,41 @@ export class LegalChatService extends Service {
       );
       this.updateMessageInStore(assistantMessage.id, { toolCalls: [...toolCalls] });
     }
+
+    // ── TOOL: Memory Lookup (Copilot-Gedächtnis) ─────────────────────────
+    let usedMemoryIds: string[] = [];
+    const tcMemory = this.createToolCall('memory_lookup', 'Copilot-Gedächtnis abfragen');
+    toolCalls.push(tcMemory);
+    this.updateMessageInStore(assistantMessage.id, { toolCalls: [...toolCalls] });
+
+    try {
+      const memoryContext = await this.copilotMemory.buildMemoryContextBlock({
+        workspaceId,
+        caseId,
+        sessionId,
+        query: content,
+      });
+      usedMemoryIds = memoryContext.usedMemoryIds;
+      if (memoryContext.block) {
+        // Inject memory context into the system prompt
+        context.systemPrompt += memoryContext.block;
+      }
+      toolCalls[toolCalls.length - 1] = this.completeToolCall(
+        tcMemory,
+        usedMemoryIds.length > 0
+          ? `${usedMemoryIds.length} Erinnerung(en) aktiviert`
+          : 'Keine relevanten Erinnerungen'
+      );
+    } catch {
+      toolCalls[toolCalls.length - 1] = this.completeToolCall(
+        tcMemory,
+        'Keine Erinnerungen verfügbar'
+      );
+    }
+    this.updateMessageInStore(assistantMessage.id, {
+      toolCalls: [...toolCalls],
+      usedMemoryIds,
+    });
 
     if (this.shouldRequireApproval(content)) {
       const tcApproval = this.createToolCall('approval_gate', 'Ausführungsparameter vor Run prüfen');
