@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 const useQueryMock = vi.fn();
 const mutateQueryResourceMock = vi.fn();
 
-vi.mock('@affine/admin/use-query', () => ({
+vi.mock('../../use-query', () => ({
   useQuery: (...args: unknown[]) => useQueryMock(...args),
 }));
 
@@ -107,8 +107,9 @@ describe('DashboardPage', () => {
       .map(node => node.getAttribute('class') ?? '')
       .join(' ');
 
-    expect(classes).toContain('lg:grid-cols-12');
+    expect(classes).toContain('xl:grid-cols-5');
     expect(classes).toContain('lg:grid-cols-3');
+    expect(classes).toContain('lg:grid-cols-2');
     expect(classes).not.toContain('min-[1024px]');
   });
 

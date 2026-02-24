@@ -1,13 +1,13 @@
-import { Button } from '@affine/admin/components/ui/button';
-import { Checkbox } from '@affine/admin/components/ui/checkbox';
+import { Button } from '../../../components/ui/button';
+import { Checkbox } from '../../../components/ui/checkbox';
 import {
   Dialog,
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@affine/admin/components/ui/dialog';
-import { Label } from '@affine/admin/components/ui/label';
+} from '../../../components/ui/dialog';
+import { Label } from '../../../components/ui/label';
 import { useAsyncCallback } from '@affine/core/components/hooks/affine-async-hooks';
 import { CopyIcon } from '@blocksuite/icons/rc';
 import { useCallback, useState } from 'react';

@@ -4,18 +4,21 @@ import { style } from '@vanilla-extract/css';
 export const root = style({
   display: 'inline-flex',
   alignItems: 'center',
-  borderRadius: '4px',
+  borderRadius: '8px',
   fontSize: cssVar('fontSm'),
   width: '100%',
-  height: '30px',
+  height: '34px',
   userSelect: 'none',
   cursor: 'pointer',
-  padding: '0 12px 0 8px',
+  padding: '0 12px 0 10px',
   position: 'relative',
   whiteSpace: 'nowrap',
   overflow: 'hidden',
+  border: `1px solid ${cssVarV2('layer/insideBorder/border')}`,
+  transition: 'border-color 0.15s ease, background 0.15s ease',
   ':hover': {
     background: cssVarV2('layer/background/hoverOverlay'),
+    borderColor: cssVarV2('layer/insideBorder/blackBorder'),
   },
 });
 export const icon = style({

@@ -17,26 +17,26 @@ export const OthersGroup = () => {
             <div className={hotTag}>Hot</div>
           </div>
         }
-        href="https://discord.com/invite/whd5mjYqVw"
+        href={BUILD_CONFIG.discordUrl}
       />
       <RowLayout
         label={t['com.affine.mobile.setting.others.github']()}
-        href="https://github.com/toeverything/AFFiNE"
+        href={BUILD_CONFIG.githubUrl}
       />
 
       <RowLayout
         label={t['com.affine.mobile.setting.others.website']()}
-        href="https://affine.pro/"
+        href="https://subsumio.ai/"
       />
 
       <RowLayout
         label={t['com.affine.mobile.setting.others.privacy']()}
-        href="https://affine.pro/privacy"
+        href="https://subsumio.ai/privacy"
       />
 
       <RowLayout
         label={t['com.affine.mobile.setting.others.terms']()}
-        href="https://affine.pro/terms"
+        href="https://subsumio.ai/terms"
       />
       <DeleteAccount />
     </SettingGroup>

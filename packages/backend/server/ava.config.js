@@ -12,6 +12,10 @@ export default {
   extensions: {
     ts: 'module',
   },
+  nodeArguments: [
+    '--loader=ts-node/esm',
+    '--experimental-specifier-resolution=node',
+  ],
   watchMode: {
     ignoreChanges: ['**/*.gen.*'],
   },
@@ -20,6 +24,9 @@ export default {
     : ['**/*.spec.ts', '**/*.e2e.ts', '!' + newE2ETests],
   require: preludes,
   environmentVariables: {
+    TS_NODE_PROJECT: './tsconfig.json',
+    TS_NODE_TRANSPILE_ONLY: '1',
+    TS_NODE_CACHE: 'false',
     NODE_ENV: 'test',
     DEPLOYMENT_TYPE: 'affine',
     MAILER_HOST: '0.0.0.0',

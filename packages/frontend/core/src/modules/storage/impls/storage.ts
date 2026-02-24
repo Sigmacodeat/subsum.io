@@ -10,6 +10,13 @@ import type {
   GlobalState,
 } from '../providers/global';
 
+const isQuotaExceededError = (error: unknown): boolean => {
+  return (
+    error instanceof DOMException &&
+    (error.name === 'QuotaExceededError' || error.code === 22)
+  );
+};
+
 export class StorageMemento implements Memento {
   // eventEmitter is used for same tab event
   private readonly eventEmitter = new EventEmitter2();
@@ -59,7 +66,32 @@ export class StorageMemento implements Memento {
     });
   }
   set<T>(key: string, value: T): void {
-    this.storage.setItem(this.prefix + key, JSON.stringify(value));
+    const storageKey = this.prefix + key;
+    const serializedValue = JSON.stringify(value);
+
+    try {
+      this.storage.setItem(storageKey, serializedValue);
+    } catch (error) {
+      if (!isQuotaExceededError(error)) {
+        throw error;
+      }
+
+      // Best-effort recovery: drop stale value for this key and retry once.
+      this.storage.removeItem(storageKey);
+
+      try {
+        this.storage.setItem(storageKey, serializedValue);
+      } catch (retryError) {
+        if (!isQuotaExceededError(retryError)) {
+          throw retryError;
+        }
+
+        console.warn(
+          `[storage] Skip persisting "${storageKey}" due to localStorage quota limits.`
+        );
+      }
+    }
+
     this.eventEmitter.emit(key, value);
     this.channel.postMessage({ key, value });
   }

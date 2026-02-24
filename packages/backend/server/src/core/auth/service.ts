@@ -1,12 +1,14 @@
 import { randomUUID } from 'node:crypto';
 
-import { Injectable, OnApplicationBootstrap } from '@nestjs/common';
+import { Injectable, Logger, OnApplicationBootstrap } from '@nestjs/common';
 import type { CookieOptions, Request, Response } from 'express';
 import { assign, pick } from 'lodash-es';
 
 import {
   Config,
   getClientVersionFromRequest,
+  metrics,
+  OnEvent,
   SignUpForbidden,
 } from '../../base';
 import { Models, type User, type UserSession } from '../../models';
@@ -37,6 +39,7 @@ function extractTokenFromHeader(authorization: string) {
 
 @Injectable()
 export class AuthService implements OnApplicationBootstrap {
+  private readonly logger = new Logger(AuthService.name);
   readonly cookieOptions: CookieOptions;
   static readonly sessionCookieName = 'affine_session';
   static readonly userCookieName = 'affine_user_id';
@@ -201,6 +204,13 @@ export class AuthService implements OnApplicationBootstrap {
     return await this.models.session.deleteUserSessions(userId);
   }
 
+  @OnEvent('user.disabled')
+  async onUserDisabled(user: User) {
+    const revoked = await this.revokeUserSessions(user.id);
+    metrics.auth.counter('user_disabled_session_revoked').add(revoked);
+    this.logger.log(`Revoked ${revoked} sessions for disabled user: ${user.id}`);
+  }
+
   getSessionOptionsFromRequest(req: Request) {
     let sessionId: string | undefined =
       req.cookies[AuthService.sessionCookieName];
@@ -223,16 +233,25 @@ export class AuthService implements OnApplicationBootstrap {
     req: Request,
     res: Response,
     userId: string,
-    clientVersion?: string
+    clientVersion?: string,
+    ttl?: number
   ) {
-    const { sessionId } = this.getSessionOptionsFromRequest(req);
-
     const signInClientVersion =
       clientVersion ?? getClientVersionFromRequest(req);
+    let reusableSessionId = req.cookies?.[AuthService.sessionCookieName] as
+      | string
+      | undefined;
+    if (reusableSessionId) {
+      const existingUserSessions = await this.getUserSessions(reusableSessionId);
+      if (!existingUserSessions.length) {
+        reusableSessionId = undefined;
+      }
+    }
+
     const userSession = await this.createUserSession(
       userId,
-      sessionId,
-      undefined,
+      reusableSessionId,
+      ttl,
       signInClientVersion
     );
 
@@ -248,6 +267,8 @@ export class AuthService implements OnApplicationBootstrap {
     });
 
     this.setUserCookie(res, userId);
+
+    return userSession;
   }
 
   async refreshCookies(res: Response, sessionId?: string) {
@@ -276,7 +297,7 @@ export class AuthService implements OnApplicationBootstrap {
       // user cookie is client readable & writable for fast user switch if there are multiple users in one session
       // it safe to be non-secure & non-httpOnly because server will validate it by `cookie[AuthService.sessionCookieName]`
       httpOnly: false,
-      secure: false,
+      secure: this.cookieOptions.secure,
     });
   }
 

@@ -56,7 +56,9 @@ export class WorkspacePermission extends Entity {
         }
       }).pipe(
         backoffRetry({
-          count: Infinity,
+          count: 8,
+          delay: 300,
+          maxDelay: 5000,
         }),
         tap(({ isOwner, isAdmin, isTeam }) => {
           this.store.setWorkspacePermissionCache({

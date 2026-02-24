@@ -48,7 +48,7 @@ export function useAFFiNEI18N(): {
       */
     ["404.signOut"](): string;
     /**
-      * `AFFiNE Cloud`
+      * `Subsumio Cloud`
       */
     ["AFFiNE Cloud"](): string;
     /**
@@ -184,15 +184,15 @@ export function useAFFiNEI18N(): {
       */
     Enable(): string;
     /**
-      * `Enable AFFiNE Cloud`
+      * `Enable Subsumio Cloud`
       */
     ["Enable AFFiNE Cloud"](): string;
     /**
-      * `If enabled, the data in this workspace will be backed up and synchronised via AFFiNE Cloud.`
+      * `If enabled, data in this workspace will be backed up and synchronized via Subsumio Cloud.`
       */
     ["Enable AFFiNE Cloud Description"](): string;
     /**
-      * `The following functions rely on AFFiNE Cloud. All data is stored on the current device. You can enable AFFiNE Cloud for this workspace to keep data in sync with the cloud.`
+      * `The following features rely on Subsumio Cloud. All data is currently stored on this device. Enable Subsumio Cloud for this workspace to keep data synced and cloud-backed.`
       */
     ["Enable cloud hint"](): string;
     /**
@@ -482,7 +482,7 @@ export function useAFFiNEI18N(): {
       */
     Sync(): string;
     /**
-      * `Synced with AFFiNE Cloud`
+      * `Synced with Subsumio Cloud`
       */
     ["Synced with AFFiNE Cloud"](): string;
     /**
@@ -856,7 +856,7 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.ai.login-required.dialog-confirm"](): string;
     /**
-      * `To use AFFiNE AI, please sign in to your AFFiNE Cloud account.`
+      * `To use AFFiNE AI, please sign in to your Subsumio Cloud account.`
       */
     ["com.affine.ai.login-required.dialog-content"](): string;
     /**
@@ -1071,6 +1071,46 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.appearanceSettings.menubar.windowBehavior.startMinimized.description"](): string;
     /**
+      * `Design variant`
+      */
+    ["com.affine.appearanceSettings.themeVariant.title"](): string;
+    /**
+      * `Choose a modern color direction. Applied instantly and persisted across sessions.`
+      */
+    ["com.affine.appearanceSettings.themeVariant.description"](): string;
+    /**
+      * `Classic Neutral`
+      */
+    ["com.affine.appearanceSettings.themeVariant.default.label"](): string;
+    /**
+      * `Balanced neutral palette with low visual noise.`
+      */
+    ["com.affine.appearanceSettings.themeVariant.default.description"](): string;
+    /**
+      * `Ocean Blue`
+      */
+    ["com.affine.appearanceSettings.themeVariant.ocean.label"](): string;
+    /**
+      * `Modern blue-forward accents and calmer surfaces.`
+      */
+    ["com.affine.appearanceSettings.themeVariant.ocean.description"](): string;
+    /**
+      * `Forest Green`
+      */
+    ["com.affine.appearanceSettings.themeVariant.forest.label"](): string;
+    /**
+      * `Natural green accents for long-form focus sessions.`
+      */
+    ["com.affine.appearanceSettings.themeVariant.forest.description"](): string;
+    /**
+      * `Graphite Contrast`
+      */
+    ["com.affine.appearanceSettings.themeVariant.graphite.label"](): string;
+    /**
+      * `Sharper contrast and cooler grayscale hierarchy.`
+      */
+    ["com.affine.appearanceSettings.themeVariant.graphite.description"](): string;
+    /**
       * `Theme`
       */
     ["com.affine.appearanceSettings.theme.title"](): string;
@@ -1095,6 +1135,18 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.appearanceSettings.showLinkedDocInSidebar.description"](): string;
     /**
+      * `Appearance mode`
+      */
+    ["com.affine.caseAssistant.settings.theme.mode.label"](): string;
+    /**
+      * `Design variant`
+      */
+    ["com.affine.caseAssistant.settings.theme.variant.label"](): string;
+    /**
+      * `Quick access in the dashboard. Changes apply instantly and remain saved.`
+      */
+    ["com.affine.caseAssistant.settings.theme.description"](): string;
+    /**
       * `Your current email is {{email}}. We'll send a temporary verification link to this email.`
       */
     ["com.affine.auth.change.email.message"](options: {
@@ -1105,7 +1157,7 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.auth.change.email.page.subtitle"](): string;
     /**
-      * `Congratulations! You have successfully updated the email address associated with your AFFiNE Cloud account.`
+      * `Congratulations! You have successfully updated the email address associated with your Subsumio Cloud account.`
       */
     ["com.affine.auth.change.email.page.success.subtitle"](): string;
     /**
@@ -1168,7 +1220,7 @@ export function useAFFiNEI18N(): {
         max: string;
     }>): string;
     /**
-      * `Welcome to AFFiNE Cloud, you are almost there!`
+      * `Welcome to Subsumio Cloud, you are almost there!`
       */
     ["com.affine.auth.page.sent.email.title"](): string;
     /**
@@ -1196,7 +1248,7 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.auth.reset.password.page.success"](): string;
     /**
-      * `Reset your AFFiNE Cloud password`
+      * `Reset your Subsumio Cloud password`
       */
     ["com.affine.auth.reset.password.page.title"](): string;
     /**
@@ -1250,7 +1302,7 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.auth.sent.change.password.hint"](): string;
     /**
-      * `Your password has been updated! You can sign in AFFiNE Cloud with new password!`
+      * `Your password has been updated! You can sign in to Subsumio Cloud with your new password!`
       */
     ["com.affine.auth.sent.reset.password.success.message"](): string;
     /**
@@ -1258,7 +1310,7 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.auth.sent.set.password.hint"](): string;
     /**
-      * `Your password has saved! You can sign in AFFiNE Cloud with email and password!`
+      * `Your password has been saved! You can sign in to Subsumio Cloud with email and password!`
       */
     ["com.affine.auth.sent.set.password.success.message"](): string;
     /**
@@ -1297,7 +1349,7 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.auth.set.password.page.success"](): string;
     /**
-      * `Set your AFFiNE Cloud password`
+      * `Set your Subsumio Cloud password`
       */
     ["com.affine.auth.set.password.page.title"](): string;
     /**
@@ -1415,7 +1467,7 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.auth.toast.message.failed"](): string;
     /**
-      * `You have been signed in, start to sync your data with AFFiNE Cloud!`
+      * `You have signed in. Start syncing your data with Subsumio Cloud!`
       */
     ["com.affine.auth.toast.message.signed-in"](): string;
     /**
@@ -1441,7 +1493,7 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.banner.local-warning"](): string;
     /**
-      * `AFFiNE Cloud`
+      * `Subsumio Cloud`
       */
     ["com.affine.brand.affineCloud"](): string;
     /**
@@ -1461,7 +1513,7 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.cloud-scroll-tip.caption"](): string;
     /**
-      * `AFFiNE Cloud`
+      * `Subsumio Cloud`
       */
     ["com.affine.cloud-scroll-tip.title"](): string;
     /**
@@ -2341,15 +2393,15 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.history-vision.tips-modal.cancel"](): string;
     /**
-      * `Enable AFFiNE Cloud`
+      * `Enable Subsumio Cloud`
       */
     ["com.affine.history-vision.tips-modal.confirm"](): string;
     /**
-      * `The current workspace is a local workspace, and we do not support version history for it at the moment. You can enable AFFiNE Cloud. This will sync the workspace with the Cloud, allowing you to use this feature.`
+      * `The current workspace is local, and version history is not available yet for local-only workspaces. Enable Subsumio Cloud to sync this workspace and use version history.`
       */
     ["com.affine.history-vision.tips-modal.description"](): string;
     /**
-      * `History vision needs AFFiNE Cloud`
+      * `Version history requires Subsumio Cloud`
       */
     ["com.affine.history-vision.tips-modal.title"](): string;
     /**
@@ -2887,7 +2939,7 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.mobile.sign-in.skip.hint"](): string;
     /**
-      * `Start AFFiNE without an account`
+      * `Start Subsumio without an account`
       */
     ["com.affine.mobile.sign-in.skip.link"](): string;
     /**
@@ -2933,11 +2985,11 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.multi-tab.new-tab"](): string;
     /**
-      * `Enabling AFFiNE Cloud allows you to synchronise and backup data, as well as support multi-user collaboration and content publishing.`
+      * `Enabling Subsumio Cloud lets you sync and back up data, collaborate with multiple users, and publish content.`
       */
     ["com.affine.nameWorkspace.affine-cloud.description"](): string;
     /**
-      * `Sync across devices with AFFiNE Cloud`
+      * `Sync across devices with Subsumio Cloud`
       */
     ["com.affine.nameWorkspace.affine-cloud.title"](): string;
     /**
@@ -3636,7 +3688,7 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.payment.billing-setting.believer.price-caption"](): string;
     /**
-      * `AFFiNE Cloud`
+      * `Subsumio Cloud`
       */
     ["com.affine.payment.billing-setting.believer.title"](): string;
     /**
@@ -3652,7 +3704,7 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.payment.billing-setting.change-plan"](): string;
     /**
-      * `AFFiNE Cloud`
+      * `Subsumio Cloud`
       */
     ["com.affine.payment.billing-setting.current-plan"](): string;
     /**
@@ -4387,11 +4439,11 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.payment.modal.downgrade.cancel"](): string;
     /**
-      * `You can still use AFFiNE Cloud Pro until the end of this billing period :)`
+      * `You can still use Subsumio Cloud Pro until the end of this billing period :)`
       */
     ["com.affine.payment.modal.downgrade.caption"](): string;
     /**
-      * `Keep AFFiNE Cloud Pro`
+      * `Keep Subsumio Cloud Pro`
       */
     ["com.affine.payment.modal.downgrade.confirm"](): string;
     /**
@@ -4423,6 +4475,18 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.payment.modal.resume.title"](): string;
     /**
+      * `Failed to cancel subscription`
+      */
+    ["com.affine.payment.cancel.error.title"](): string;
+    /**
+      * `Failed to change billing cycle`
+      */
+    ["com.affine.payment.change-recurring.error.title"](): string;
+    /**
+      * `Checkout failed`
+      */
+    ["com.affine.payment.checkout.error.title"](): string;
+    /**
       * `Refresh`
       */
     ["com.affine.payment.plans-error-retry"](): string;
@@ -4430,6 +4494,10 @@ export function useAFFiNEI18N(): {
       * `Unable to load pricing plans, please check your network. `
       */
     ["com.affine.payment.plans-error-tip"](): string;
+    /**
+      * `Failed to resume subscription`
+      */
+    ["com.affine.payment.resume.error.title"](): string;
     /**
       * `monthly`
       */
@@ -4489,7 +4557,7 @@ export function useAFFiNEI18N(): {
         readonly plan: string;
     }): string;
     /**
-      * `This is the pricing plans of AFFiNE Cloud. You can sign up or sign in to your account first.`
+      * `These are the pricing plans for Subsumio Cloud. You can sign up or sign in to your account first.`
       */
     ["com.affine.payment.subtitle-not-signed-in"](): string;
     /**
@@ -5067,7 +5135,7 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.setting.account.message"](): string;
     /**
-      * `Sync with AFFiNE Cloud`
+      * `Sync with Subsumio Cloud`
       */
     ["com.affine.setting.sign.message"](): string;
     /**
@@ -5635,7 +5703,7 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.settings.email.action.verify"](): string;
     /**
-      * `Enable AFFiNE Cloud to collaborate with others`
+      * `Enable Subsumio Cloud to collaborate with others`
       */
     ["com.affine.settings.member-tooltip"](): string;
     /**
@@ -5691,7 +5759,7 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.settings.remove-workspace-description"](): string;
     /**
-      * `Sign in / Sign up`
+      * `Sign in / Create account`
       */
     ["com.affine.settings.sign"](): string;
     /**
@@ -6366,7 +6434,7 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.settings.workspace.state.local"](): string;
     /**
-      * `Sync with AFFiNE Cloud`
+      * `Sync with Subsumio Cloud`
       */
     ["com.affine.settings.workspace.state.sync-affine-cloud"](): string;
     /**
@@ -6442,7 +6510,7 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.settings.workspace.storage.subtitle"](): string;
     /**
-      * `Enable AFFiNE Cloud to publish this workspace`
+      * `Enable Subsumio Cloud to publish this workspace`
       */
     ["com.affine.settings.workspace.publish-tooltip"](): string;
     /**
@@ -6613,7 +6681,7 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.settings.workspace.indexer-embedding.embedding.additional-attachments.remove-attachment.tooltip"](): string;
     /**
-      * `Sharing doc requires AFFiNE Cloud.`
+      * `Sharing docs requires Subsumio Cloud.`
       */
     ["com.affine.share-menu.EnableCloudDescription"](): string;
     /**
@@ -6882,7 +6950,7 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.share-page.footer.create-with"](): string;
     /**
-      * `Empower your sharing with AFFiNE Cloud: One-click doc sharing`
+      * `Empower your sharing with Subsumio Cloud: one-click doc sharing`
       */
     ["com.affine.share-page.footer.description"](): string;
     /**
@@ -6966,7 +7034,7 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.storage.plan"](): string;
     /**
-      * `AFFiNE Cloud storage`
+      * `Subsumio Cloud storage`
       */
     ["com.affine.storage.title"](): string;
     /**
@@ -7294,7 +7362,7 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.workspace.cloud.auth"](): string;
     /**
-      * `Sync with AFFiNE Cloud`
+      * `Sync with Subsumio Cloud`
       */
     ["com.affine.workspace.cloud.description"](): string;
     /**

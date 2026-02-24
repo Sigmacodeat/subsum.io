@@ -1,6 +1,7 @@
 import { ResizePanel } from '@affine/component/resize-panel';
 import { AffineErrorComponent } from '@affine/core/components/affine/affine-error-boundary/affine-error-fallback';
 import { workbenchRoutes } from '@affine/core/desktop/workbench-router';
+import { AiOutlineIcon } from '@blocksuite/icons/rc';
 import {
   appSettingAtom,
   FrameworkScope,
@@ -71,6 +72,7 @@ export const WorkbenchRoot = memo(() => {
         onMove={onMove}
       />
       <WorkbenchSidebar />
+      <DashboardChatWidget />
     </ViewIslandRegistryProvider>
   );
 });
@@ -111,6 +113,30 @@ const WorkbenchView = ({ view }: { view: View }) => {
 const MIN_SIDEBAR_WIDTH = 320;
 const MAX_SIDEBAR_WIDTH = 1400;
 
+const DashboardChatWidget = () => {
+  const workbench = useService(WorkbenchService).workbench;
+  const pathname = useLiveData(
+    workbench.location$.selector(location => location.pathname)
+  );
+
+  if (pathname === '/chat') {
+    return null;
+  }
+
+  return (
+    <button
+      type="button"
+      className={styles.chatWidgetButton}
+      onClick={() => workbench.open('/chat')}
+      aria-label="Hauptchat öffnen"
+      title="Akte-Chat öffnen"
+    >
+      <AiOutlineIcon />
+      <span className={styles.chatWidgetLabel}>Akte-Chat</span>
+    </button>
+  );
+};
+
 const WorkbenchSidebar = () => {
   const { clientBorder } = useAtomValue(appSettingAtom);
 
@@ -144,6 +170,18 @@ const WorkbenchSidebar = () => {
     [workbench]
   );
 
+  const handleCloseFromMask = useCallback(() => {
+    workbench.closeSidebar();
+    requestAnimationFrame(() => {
+      const activeViewId = activeView?.id;
+      if (!activeViewId) return;
+      const toggleEl = document.getElementById(
+        `workbench-right-sidebar-toggle-${activeViewId}`
+      ) as HTMLButtonElement | null;
+      toggleEl?.focus();
+    });
+  }, [activeView, workbench]);
+
   useEffect(() => {
     const onResize = () => setFloating(!!(window.innerWidth < 768));
     onResize();
@@ -159,30 +197,41 @@ const WorkbenchSidebar = () => {
   }, [resizing, sidebarWidth]);
 
   return (
-    <ResizePanel
-      floating={floating}
-      resizeHandlePos="left"
-      resizeHandleOffset={clientBorder && sidebarOpen ? 3 : 0}
-      width={width}
-      resizing={resizing}
-      onResizing={setResizing}
-      className={styles.workbenchSidebar}
-      data-client-border={clientBorder && sidebarOpen}
-      open={sidebarOpen ?? false}
-      onOpen={handleOpenChange}
-      onWidthChange={setWidth}
-      onWidthChanged={onWidthChanged}
-      minWidth={MIN_SIDEBAR_WIDTH}
-      maxWidth={MAX_SIDEBAR_WIDTH}
-      unmountOnExit={false}
-    >
-      {views.map(view => (
-        <FrameworkScope key={view.id} scope={view.scope}>
-          <SidebarContainer
-            style={{ display: activeView !== view ? 'none' : undefined }}
-          />
-        </FrameworkScope>
-      ))}
-    </ResizePanel>
+    <>
+      <ResizePanel
+        floating={floating}
+        resizeHandlePos="left"
+        resizeHandleOffset={clientBorder && sidebarOpen ? 3 : 0}
+        width={width}
+        resizing={resizing}
+        onResizing={setResizing}
+        className={styles.workbenchSidebar}
+        data-client-border={clientBorder && sidebarOpen}
+        data-testid="workbench-right-sidebar-wrapper"
+        open={sidebarOpen ?? false}
+        onOpen={handleOpenChange}
+        onWidthChange={setWidth}
+        onWidthChanged={onWidthChanged}
+        minWidth={MIN_SIDEBAR_WIDTH}
+        maxWidth={MAX_SIDEBAR_WIDTH}
+        unmountOnExit={false}
+      >
+        {views.map(view => (
+          <FrameworkScope key={view.id} scope={view.scope}>
+            <SidebarContainer
+              data-is-floating={floating}
+              style={{ display: activeView !== view ? 'none' : undefined }}
+            />
+          </FrameworkScope>
+        ))}
+      </ResizePanel>
+      <div
+        data-testid="right-sidebar-float-mask"
+        data-open={sidebarOpen}
+        data-is-floating={floating}
+        className={styles.rightSidebarFloatMask}
+        onClick={handleCloseFromMask}
+      />
+    </>
   );
 };

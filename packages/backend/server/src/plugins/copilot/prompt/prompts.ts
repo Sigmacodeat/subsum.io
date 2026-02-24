@@ -21,7 +21,7 @@ type Prompt = Omit<
 
 export const Scenario = {
   audio_transcribing: ['Transcript audio'],
-  chat: ['Chat With AFFiNE AI'],
+  chat: ['Chat With Subsumio AI', 'Chat With AFFiNE AI'],
   // no prompt needed, just a placeholder
   embedding: [],
   image: [
@@ -2079,6 +2079,10 @@ Below is the user's query. Please respond in the user's preferred language witho
 };
 
 const chat: Prompt[] = [
+  {
+    name: 'Chat With Subsumio AI',
+    ...CHAT_PROMPT,
+  },
   {
     name: 'Chat With AFFiNE AI',
     ...CHAT_PROMPT,

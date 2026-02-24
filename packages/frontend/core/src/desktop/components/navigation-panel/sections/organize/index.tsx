@@ -80,16 +80,27 @@ export const NavigationPanelOrganize = () => {
     (data: DropTargetDropEvent<AffineDNDData>) => {
       const newFolderId = handleCreateFolder();
       setNewFolderId(null);
-      const newFolder$ = folderTree.folderNode$(newFolderId);
 
       const entity = data.source.data.entity;
       if (!entity) return;
       const { type, id } = entity;
       if (type !== 'doc' && type !== 'tag' && type !== 'collection') return;
 
-      const folder = newFolder$.value;
-      if (!folder) return;
-      folder.createLink(type, id, folder.indexAt('after'));
+      // The YDoc write is synchronous but the LiveData selector may not have
+      // emitted the new node yet. Retry for up to ~300 ms via rAF before giving up.
+      const newFolder$ = folderTree.folderNode$(newFolderId);
+      let attempts = 0;
+      const tryLink = () => {
+        const folder = newFolder$.value;
+        if (folder) {
+          folder.createLink(type, id, folder.indexAt('after'));
+          return;
+        }
+        if (++attempts < 20) {
+          requestAnimationFrame(tryLink);
+        }
+      };
+      tryLink();
     },
     [folderTree, handleCreateFolder]
   );

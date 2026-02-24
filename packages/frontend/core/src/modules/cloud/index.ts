@@ -34,6 +34,15 @@ export {
 export { WorkspaceInvoicesService } from './services/workspace-invoices';
 export { WorkspaceServerService } from './services/workspace-server';
 export { WorkspaceSubscriptionService } from './services/workspace-subscription';
+export {
+  AI_PLAN_DEFINITION,
+  CLOUD_TRIAL_DAYS,
+  MONEY_BACK_GUARANTEE_I18N_KEY,
+  buildPlanBenefits,
+  getCloudPlanDefinition,
+  getCloudPlanDefinitions,
+  getPlanMarketingName,
+} from './plan-taxonomy';
 export type { ServerConfig } from './types';
 
 // eslint-disable-next-line simple-import-sort/imports

@@ -1,5 +1,5 @@
-import { Button } from '@affine/admin/components/ui/button';
-import { Separator } from '@affine/admin/components/ui/separator';
+import { Button } from '../../components/ui/button';
+import { Separator } from '../../components/ui/separator';
 import type { CopilotPromptMessageRole } from '@affine/graphql';
 import { useCallback, useState } from 'react';
 

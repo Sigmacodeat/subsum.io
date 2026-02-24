@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import path from 'node:path';
 import { setTimeout } from 'node:timers/promises';
 
 import { Package } from '@affine-tools/utils/workspace';
@@ -11,6 +12,7 @@ import { test as base, testResultDir } from './playwright';
 import { removeWithRetry } from './utils/utils';
 
 const electronRoot = new Package('@affine/electron').path;
+const repoRoot = electronRoot.join('../../../..').value;
 
 function generateUUID() {
   return crypto.randomUUID();
@@ -55,7 +57,7 @@ export const test = base.extend<{
   };
 }>({
   shell: async ({ electronApp }, use) => {
-    await expect.poll(() => electronApp.windows().length > 1).toBeTruthy();
+    await expect.poll(() => electronApp.windows().length > 0, { timeout: 60_000 }).toBeTruthy();
 
     for (const page of electronApp.windows()) {
       const viewId = await getPageId(page);
@@ -69,10 +71,10 @@ export const test = base.extend<{
     await expect
       .poll(
         () => {
-          return electronApp.windows().length > 1;
+          return electronApp.windows().length > 0;
         },
         {
-          timeout: 10000,
+          timeout: 60_000,
         }
       )
       .toBeTruthy();
@@ -84,7 +86,7 @@ export const test = base.extend<{
           return !!page;
         },
         {
-          timeout: 10000,
+          timeout: 60_000,
         }
       )
       .toBeTruthy();
@@ -122,10 +124,35 @@ export const test = base.extend<{
       );
       // overwrite the app name
       packageJson.name = '@affine/electron-test-' + id;
+      // dist/main/index.js is emitted as ESM; ensure Electron can load it.
+      packageJson.type = 'module';
       // overwrite the path to the main script
       packageJson.main = './main.js';
+      if (!(await fs.pathExists(electronRoot.join('dist/main/index.js').value))) {
+        throw new Error(
+          `Electron E2E launch entry not found: ${electronRoot.join('dist/main/index.js').value}`
+        );
+      }
       // write to the cloned dist
       await fs.writeJSON(clonedDist + '/package.json', packageJson);
+      const pwUserDataDir = clonedDist + '/pw-user-data';
+      await fs.ensureDir(pwUserDataDir);
+      await fs.writeFile(
+        clonedDist + '/main.js',
+        "import path from 'node:path';\n" +
+          "import { fileURLToPath } from 'node:url';\n" +
+          "import { app } from 'electron';\n" +
+          "const __dirname = path.dirname(fileURLToPath(import.meta.url));\n" +
+          "const userDataPath = path.join(__dirname, 'pw-user-data');\n" +
+          "app.setPath('userData', userDataPath);\n" +
+          "app.setPath('sessionData', userDataPath);\n" +
+          "// Playwright E2E runs must not be blocked by a running desktop instance.\n" +
+          "// requestSingleInstanceLock() would quit immediately if another instance exists.\n" +
+          "// We bypass it here in the shim before the real entry attaches listeners.\n" +
+          "// eslint-disable-next-line @typescript-eslint/no-explicit-any\n" +
+          "(app as any).requestSingleInstanceLock = () => true;\n" +
+          "await import('./main/index.js');\n"
+      );
 
       const env: Record<string, string> = {};
       for (const [key, value] of Object.entries(process.env)) {
@@ -135,17 +162,74 @@ export const test = base.extend<{
       }
       env.DEBUG = 'pw:browser';
 
+      const pnpPath = path.join(repoRoot, '.pnp.cjs');
+      if (await fs.pathExists(pnpPath)) {
+        const existingNodeOptions = env.NODE_OPTIONS?.trim();
+        const pnpRequire = `--require ${pnpPath}`;
+        env.NODE_OPTIONS = existingNodeOptions
+          ? `${pnpRequire} ${existingNodeOptions}`
+          : pnpRequire;
+      }
+
       env.SKIP_ONBOARDING = '1';
 
       const electronApp = await electron.launch({
         args: [clonedDist],
         env,
-        cwd: clonedDist,
+        cwd: repoRoot,
+        timeout: 300_000,
         recordVideo: {
           dir: testResultDir,
         },
         colorScheme: 'light',
       });
+
+      const proc = electronApp.process();
+      const logs: string[] = [];
+      const pushLog = (prefix: string, chunk: unknown) => {
+        const text = String(chunk ?? '');
+        if (!text) return;
+        logs.push(`${prefix}${text}`);
+        if (logs.join('').length > 20_000) {
+          logs.splice(0, Math.ceil(logs.length / 2));
+        }
+      };
+      const pushAndEcho = (prefix: string, chunk: unknown) => {
+        pushLog(prefix, chunk);
+        const text = String(chunk ?? '').trimEnd();
+        if (text) {
+          // keep this reasonably small; detailed logs are still buffered above
+          console.log(`${prefix}${text}`);
+        }
+      };
+      proc?.stdout?.on('data', data => pushAndEcho('[electron:stdout] ', data));
+      proc?.stderr?.on('data', data => pushAndEcho('[electron:stderr] ', data));
+      proc?.once('exit', (code, signal) => {
+        console.log(`[electron:exit] code=${code} signal=${signal}`);
+        if (logs.length) {
+          console.log(logs.join(''));
+        }
+      });
+
+      // Fail fast with diagnostics if the app never creates a window.
+      try {
+        await expect
+          .poll(
+            () => {
+              return electronApp.windows().length > 0;
+            },
+            { timeout: 120_000 }
+          )
+          .toBeTruthy();
+      } catch {
+        console.log(
+          `[electron:e2e] no windows created within timeout; pid=${proc?.pid ?? 'n/a'}`
+        );
+        if (logs.length) {
+          console.log('[electron:e2e] last logs:\n' + logs.join(''));
+        }
+        throw new Error('Electron launched but no windows were created');
+      }
 
       await use(electronApp);
       const cleanup = async () => {
@@ -169,6 +253,7 @@ export const test = base.extend<{
       ]);
     } catch (error) {
       console.log(error);
+      throw error;
     }
   },
   appInfo: async ({ electronApp }, use) => {

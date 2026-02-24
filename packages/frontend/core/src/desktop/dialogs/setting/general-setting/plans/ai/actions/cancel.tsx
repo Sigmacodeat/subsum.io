@@ -1,7 +1,8 @@
-import { Button, type ButtonProps, useConfirmModal } from '@affine/component';
+import { Button, type ButtonProps, notify, useConfirmModal } from '@affine/component';
 import { useDowngradeNotify } from '@affine/core/components/affine/subscription-landing/notify';
 import { getDowngradeQuestionnaireLink } from '@affine/core/components/hooks/affine/use-subscription-notify';
 import { useAsyncCallback } from '@affine/core/components/hooks/affine-async-hooks';
+import { UserFriendlyError } from '@affine/error';
 import { AuthService, SubscriptionService } from '@affine/core/modules/cloud';
 import { SubscriptionPlan } from '@affine/graphql';
 import { useI18n } from '@affine/i18n';
@@ -68,6 +69,12 @@ export const AICancel = (btnProps: ButtonProps) => {
               })
             );
           }
+        } catch (err) {
+          const e = UserFriendlyError.fromAny(err);
+          notify.error({
+            title: t['com.affine.payment.cancel.error.title'](),
+            message: e.message,
+          });
         } finally {
           setMutating(false);
         }

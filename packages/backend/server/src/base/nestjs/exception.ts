@@ -9,7 +9,7 @@ import { BaseExceptionFilter } from '@nestjs/core';
 import { GqlContextType } from '@nestjs/graphql';
 import { ThrottlerException } from '@nestjs/throttler';
 import { BaseWsExceptionFilter } from '@nestjs/websockets';
-import { Response } from 'express';
+import { Request, Response } from 'express';
 import { GraphQLError } from 'graphql';
 import { HttpError } from 'http-errors';
 import { of } from 'rxjs';
@@ -79,6 +79,12 @@ export function mapAnyError(error: any): UserFriendlyError {
 @Catch()
 export class GlobalExceptionFilter extends BaseExceptionFilter {
   logger = new Logger('GlobalExceptionFilter');
+
+  private isPublicApiV1Request(req: Request) {
+    const requestPath = req.originalUrl ?? req.url ?? '';
+    return requestPath.includes('/api/public/v1');
+  }
+
   override catch(exception: Error, host: ArgumentsHost) {
     const error = mapAnyError(exception);
     // with useGlobalFilters, the context is always HTTP
@@ -93,10 +99,21 @@ export class GlobalExceptionFilter extends BaseExceptionFilter {
       metrics.controllers
         .counter('error')
         .add(1, { status: error.status, type: error.type, error: error.name });
+      const req = host.switchToHttp().getRequest<Request>();
       const res = host.switchToHttp().getResponse<Response>();
       const respondText = res.getHeader('content-type') === 'text/plain';
 
-      if (respondText) {
+      if (this.isPublicApiV1Request(req)) {
+        res.status(error.status).send({
+          ok: false,
+          error: {
+            code: error.name.toUpperCase(),
+            message: error.message,
+            details: error.data,
+            requestId: error.requestId,
+          },
+        });
+      } else if (respondText) {
         res
           .setHeader('content-type', 'text/plain')
           .status(error.status)

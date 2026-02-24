@@ -1,5 +1,3 @@
-import './security-restrictions';
-
 import path from 'node:path';
 
 import * as Sentry from '@sentry/electron/main';
@@ -19,6 +17,8 @@ import { setupTrayState } from './tray';
 import { registerUpdater } from './updater';
 import { launch } from './windows-manager/launcher';
 import { launchStage } from './windows-manager/stage';
+
+import './security-restrictions';
 
 app.enableSandbox();
 

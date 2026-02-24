@@ -27,10 +27,10 @@ export const Footer = () => {
           {['Github', 'Twitter', 'Discord', 'Youtube', 'Reddit'].map(
             platform => (
               <td key={platform} style={{ padding: '0 10px' }}>
-                <Link href={`https://affine.pro/${platform.toLowerCase()}`}>
+                <Link href={`https://subsum.io/${platform.toLowerCase()}`}>
                   <Img
-                    src={`https://cdn.affine.pro/mail/2023-8-9/${platform}.png`}
-                    alt={`affine ${platform.toLowerCase()} link`}
+                    src={`https://cdn.subsum.io/mail/social/${platform.toLowerCase()}.png`}
+                    alt={`subsumio ${platform.toLowerCase()} link`}
                     height="16px"
                   />
                 </Link>
@@ -49,13 +49,13 @@ export const Footer = () => {
           <td>Copyright</td>
           <td>
             <Img
-              src="https://cdn.affine.pro/mail/2023-8-9/copyright.png"
+              src="https://cdn.subsum.io/mail/social/copyright.png"
               alt="copyright"
               height="14px"
               style={{ verticalAlign: 'middle', margin: '0 4px' }}
             />
           </td>
-          <td>2023-{new Date().getUTCFullYear()} ToEverything</td>
+          <td>2023-{new Date().getUTCFullYear()} Subsumio</td>
         </Row>
       </Section>
     </Container>

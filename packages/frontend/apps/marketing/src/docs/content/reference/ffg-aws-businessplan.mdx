@@ -1,5 +1,3 @@
-# Businessplan (FFG/AWS) — Subsumio
-
 Dieser Businessplan beschreibt Subsumio als forschungs- und innovationsgetriebenes Legal-Tech SaaS aus Wien mit klarer Verwertungsstrategie (FFG) und skalierbarem Wachstumsplan (aws).
 
 > Stand: Februar 2026 · Sprache: Deutsch (AT) · Ziel: Einreichunterlage für FFG/AWS sowie Versand an Partner.
@@ -88,11 +86,50 @@ Ziel ist eine Pipeline, die automatisch anspringt, sobald in Akteninhalten Bitco
 - Primär: Rechtsanwaltskanzleien (Solo bis 50+ Anwälte) in DACH
 - Sekundär: In-house Legal, Behörden, Legal Operations
 
-### 3.2 Marktgröße (orientierend)
+### 3.2 Marktgröße & Adressierbarer Markt
 
-- TAM Europa Legal-Tech: ~€2,8 Mrd (2025), CAGR ~12,3% bis 2030
-- SAM DACH (orientierend): ~€420 Mio
-- SOM (3 Jahre, konservativ): ~€15 Mio (0,5% Penetration)
+**DACH-Anwaltschaft (Stand 2025, offizielle Quellen):**
+
+| Land | Rechtsanwälte | Quelle |
+|---|---:|---|
+| Deutschland | 166.504 | BRAK (01.01.2025) |
+| Österreich | 7.265 | ÖRAK (31.12.2025) |
+| Schweiz | ~10.500 | SAV (geschätzt) |
+| **DACH Gesamt** | **~184.000** | |
+
+**Zusätzlich:**
+- Rechtsanwaltsanwärter (AT): 2.370
+- Syndikusanwälte (DE): 7.585 (stark wachsend: +11,45% YoY)
+- Berufsausübungsgesellschaften (DE): 5.126 (+8,44% YoY)
+
+**Adressierbarer Markt (konservativ):**
+
+Subsumio adressiert primär **niedergelassene Rechtsanwälte in Einzelzulassung und Kanzleien** (Solo bis 50+ Anwälte):
+
+- **Deutschland:** 138.715 Einzelzulassungen + ~20.000 in Kanzleien (2–50 Anwälte) = **~158.000 potenzielle User**
+- **Österreich:** ~5.500 niedergelassene Anwälte (ohne Anwärter) = **~5.500 potenzielle User**
+- **Schweiz:** ~8.000 niedergelassene Anwälte = **~8.000 potenzielle User**
+
+**DACH Gesamt: ~171.500 potenzielle User**
+
+**Marktvolumen (orientierend):**
+
+- **TAM Europa Legal-Tech:** ~€2,8 Mrd (2025), CAGR ~12,3% bis 2030
+- **SAM DACH (Kanzleisoftware):** ~€420 Mio
+- **SOM (3 Jahre, konservativ):** ~€15 Mio (0,5% Penetration)
+
+**Penetrationsziele (konservativ):**
+
+| Jahr | Ziel-User | % von DACH | MRR-Ziel | ARR-Ziel |
+|---|---:|---:|---:|---:|
+| Jahr 1 (2026) | 150–200 | 0,09–0,12% | €12.000 | €85.000 |
+| Jahr 2 (2027) | 600–800 | 0,35–0,47% | €55.000 | €480.000 |
+| Jahr 3 (2028) | 1.800–2.200 | 1,05–1,28% | €150.000 | €1.440.000 |
+
+**Interpretation:**
+- Selbst bei **1% Penetration** (Jahr 3) adressieren wir nur ~1.700 von 171.500 potenziellen Usern
+- **Realistisches Wachstumspotenzial:** 5–10% Penetration (8.500–17.000 User) innerhalb 5–7 Jahre
+- **Exportpotenzial:** CH/EU (weitere ~50.000 Anwälte)
 
 ### 3.3 Wettbewerb (Auswahl)
 
@@ -103,9 +140,85 @@ Subsumio differenziert durch eine durchgängige Dokumenten-zu-Workflow-Pipeline 
 
 ---
 
-## 4) Produkt & Technologie
+## 4) Value Proposition & ROI (für Kanzleien)
 
-### 4.1 Kernfunktionen
+### 4.1 Messbarer Nutzen für Kanzleien
+
+**Evidenzbasierter Ausgangspunkt (Produktivitätsverluste durch Dokumentenmanagement):**
+
+- In einer IDC-Studie (Information Worker Survey, Juni 2012; zusammengefasst im Adobe/IDC Whitepaper „Bridging the Information Worker Productivity Gap“) wird berichtet, dass „Information Workers“ **11,2 Stunden/Woche** mit Herausforderungen rund um Dokumenterstellung und -management verbringen; davon seien **mindestens 6 Stunden/Woche** „wasted time“. Für „lawyers and paralegals“ werden u.a. **2,3 Stunden/Woche** „searching, but not finding“ sowie **2 Stunden/Woche** „recreating documents that can’t [be] found“ angegeben. Zusätzlich werden **$9.071 Kosten pro Lawyer/Jahr** bzw. **9,8% Produktivitätsverlust** (firm-wide) genannt.
+
+**Was Subsumio daraus ableitet (Zielbild):**
+
+- Reduktion von Such-/Rekonstruktionsaufwand durch Volltextsuche, semantisches Retrieval und strukturierte Aktenlogik.
+- Reproduzierbarkeit & Nachvollziehbarkeit (Audit-Trail, Quellenverknüpfung) reduziert Doppelarbeit bei Übergaben, Vertretungen und Review.
+
+**ROI als konservatives Szenario (transparent als Annahme):**
+
+Die folgende ROI-Rechnung ist **kein Claim**, sondern ein **Szenario** zur Einordnung. Die tatsächlichen Werte werden in Piloten gemessen (siehe 4.3).
+
+- **Annahme A (Zeitgewinn):** 2–4 Stunden/Woche pro Anwalt (unterhalb der IDC-Größenordnung „wasted time“).
+- **Annahme B (Wert pro Stunde):** €150–€250/h (gemischt aus verrechenbarer Zeit und Opportunitätskosten).
+- **Nutzen pro Jahr:** 2–4 h/Woche × 46 Wochen × €150–€250/h = **€13.800–€46.000/Jahr**
+- **Kosten (Solo-Plan):** €49/Monat = **€588/Jahr**
+- **Szenario-ROI:** ca. **23× bis 78×**
+
+### 4.2 Fehlerreduktion & Risikominimierung
+
+**Evidenzbasierter Ausgangspunkt (Fristen/Scheduling als Haftungsrisiko):**
+
+- Eine ABA-Auswertung zu Legal-Malpractice-Claims (1996–1999), zitiert von Texas Lawyers’ Insurance Exchange (TLIE), weist Scheduling-bezogene Ursachen als wesentlichen Treiber aus: Administrative Scheduling-Fehler (z.B. „failure to calendar“, „failure to react“, „procrastination“) werden zusammen mit „failure to know or ascertain deadlines“ in Summe mit **28,49%** der Claims in Verbindung gebracht.
+
+**Was Subsumio daraus ableitet (Zielbild):**
+
+- Fristen und „hard deadlines“ werden nicht als Kalendereintrag verstanden, sondern als **auditierbarer, dokumentbasierter Workflow** (Dokumentstelle → Fristableitung → Warnlogik → Freigabe/Bestätigung).
+- **Human-in-the-loop**: Subsumio schlägt vor/warnt; die juristische Entscheidung bleibt beim Anwalt.
+
+**Hinweis zur Darstellung:**
+
+- Konkrete Fehlerquoten und Schadenssummen sind stark rechtsgebiets- und fallabhängig. Subsumio verwendet diese daher **nicht als fixe Annahmen**, sondern misst den Effekt in Piloten (siehe 4.3).
+
+### 4.3 Pilot-KPIs (Messplan für FFG/AWS)
+
+Um ROI und Risikoreduktion **förderstellenkonform** zu belegen, werden Pilotprojekte mit messbaren KPIs durchgeführt:
+
+- **Zeit/Kosten:** Zeit bis „Document found“ (Median), Recherchezeit pro Aufgabe, Anteil wiederverwendeter Artefakte (Templates/Notes), Reduktion von Doppelablagen.
+- **Qualität/Risiko:** Anzahl Fristen-Warnungen, bestätigte Fristen pro Fall, „near-miss“ Ereignisse (rechtzeitig erkannt), Widerspruchs-/Evidenzlücken-Warnungen pro Akte.
+- **Adoption:** aktive Nutzer/Monat, Retention, NPS, Anteil der Fälle mit vollständigen Quellenlinks.
+- **Governance:** Audit-Log Vollständigkeit, Exportfähigkeit (PDF/Report), Nachvollziehbarkeit bei Übergabe/Vertretung.
+
+**Deliverable:** Pilot-Report pro Kanzlei (anonymisiert möglich) mit Vorher/Nachher-Messung und Lessons Learned.
+
+### 4.4 Wettbewerbsvorteil & Mandantenakquise
+
+**Qualitätsvorsprung:**
+- Schnellere Reaktionszeiten (Anfragen, Schriftsätze)
+- Höhere Dokumentationsqualität (Audit-Trail, Nachvollziehbarkeit)
+- Professionelleres Auftreten (strukturierte Akten, lückenlose Beweisführung)
+
+**Mandantenakquise (qualitativ):**
+- Schnellere Reaktionszeiten und bessere Nachvollziehbarkeit wirken sich positiv auf Mandantenzufriedenheit und Wiederbeauftragungen aus.
+- Quantifizierung erfolgt über Pilot-KPIs (NPS, Wiederbeauftragungsquote, Time-to-first-response).
+
+### 4.5 Skalierbarkeit für Kanzleien
+
+**Wachstum ohne proportionalen Personalaufbau (als Messhypothese):**
+
+Subsumio adressiert die Hypothese, dass durch geringere Such-/Koordinations-/Doppelarbeit mehr Fälle pro Anwalt bearbeitet werden können. Der Effekt wird in Piloten gemessen über:
+
+- Durchlaufzeiten (Case Cycle Time)
+- Anteil nicht verrechenbarer Tätigkeiten
+- Anzahl bearbeiteter Fälle pro FTE und Monat
+
+**Interpretation für Förderstellen:**
+- Der Nutzen wird als Kombination aus **Produktivitätssteigerung** (messbar), **Qualitätssteigerung** (Nachvollziehbarkeit/Audit) und **Risikoreduktion** (Fristen/Scheduling) operationalisiert.
+- Der Arbeitsplatzeffekt entsteht bei Subsumio (Entwicklung, Betrieb, Support) sowie indirekt durch höhere Wettbewerbsfähigkeit von Kanzleien.
+
+---
+
+## 5) Produkt & Technologie
+
+### 5.1 Kernfunktionen
 
 - KI-gestützte Fallbearbeitung: Dokumentanalyse, OCR, semantische Suche
 - Mandanten-/Aktenführung: strukturierte Workflows, Audit-Trail, Rollen
@@ -113,7 +226,7 @@ Subsumio differenziert durch eine durchgängige Dokumenten-zu-Workflow-Pipeline 
 - Multi-Jurisdiktion: DE/AT/CH/EU/EGMR
 - Abrechnung: Rechnung/Export (DATEV/BMD), Zeiterfassung, Treuhand-Workflows
 
-### 4.2 Tech-Stack (Zielarchitektur)
+### 5.2 Tech-Stack (Zielarchitektur)
 
 - Frontend: React/TypeScript, PWA, Desktop (Electron)
 - Backend: Node.js (NestJS), PostgreSQL, Redis, GraphQL
@@ -121,7 +234,7 @@ Subsumio differenziert durch eine durchgängige Dokumenten-zu-Workflow-Pipeline 
 - Dokumente: OCR + Parser, Chunking, Qualitätsbewertung, Quellenverknüpfung
 - Deployment: EU-Cloud sowie Airgap/Self-hosted
 
-### 4.3 Qualitäts- und Governance-Mechanik (entscheidend für Förderstellen)
+### 5.3 Qualitäts- und Governance-Mechanik (entscheidend für Förderstellen)
 
 - **Human-in-the-loop:** KI generiert Vorschläge/Warnungen, keine automatische Rechtsentscheidung.
 - **Quellenpflicht:** Ergebnisse werden mit Dokumentstellen/Zitaten verknüpft.
@@ -130,9 +243,9 @@ Subsumio differenziert durch eine durchgängige Dokumenten-zu-Workflow-Pipeline 
 
 ---
 
-## 5) Business Modell
+## 6) Business Modell
 
-### 5.1 Pricing (aus Produktstrategie)
+### 6.1 Pricing (aus Produktstrategie)
 
 | Plan | Preis | Zielgruppe |
 |---|---:|---|
@@ -142,7 +255,7 @@ Subsumio differenziert durch eine durchgängige Dokumenten-zu-Workflow-Pipeline 
 
 Airgap/Self-hosted wird als Enterprise Add-on (Aufpreis oder Setup+Maintenance) angeboten.
 
-### 5.2 Unit Economics
+### 6.2 Unit Economics
 
 - Ziel-Bruttomarge: 75–85%
 - COGS: Infrastruktur/Storage, OCR, LLM-Calls
@@ -151,7 +264,7 @@ Airgap/Self-hosted wird als Enterprise Add-on (Aufpreis oder Setup+Maintenance) 
 
 ---
 
-## 6) Marketing & Vertrieb
+## 7) Marketing & Vertrieb
 
 - Direct Sales zu Kanzleien (Pilot → Rollout)
 - Partner: IT-Dienstleister, Rechtsträger, Legal Ops
@@ -162,7 +275,7 @@ Traktion: vorhandene Anwaltskontakte als Early Adopters für bezahlte Piloten; 3
 
 ---
 
-## 7) Team & Organisation
+## 8) Team & Organisation
 
 - 2026: 6 Personen
 - 2027: +4 FTE (2 Engineering, 1 Sales, 1 CS) → 10
@@ -170,28 +283,30 @@ Traktion: vorhandene Anwaltskontakte als Early Adopters für bezahlte Piloten; 3
 
 ---
 
-## 8) Finanzplanung
+## 9) Finanzplanung
 
-### 8.1 Umsatzprognose (konservativ)
+### 9.1 Umsatzprognose (konservativ)
 
 - Jahr 1: €85.000 (End-MRR ~€12.000)
 - Jahr 2: €480.000 (End-MRR ~€55.000)
 - Jahr 3: €1.440.000 (End-MRR ~€150.000)
 
-### 8.2 Kostenstruktur
+### 9.2 Kostenstruktur
 
 - Jahr 1: €516.000
 - Jahr 2: €680.000
 - Jahr 3: €920.000
 
-### 8.3 Förder- und Finanzierungsbedarf
+### 9.3 Förder- und Finanzierungsbedarf
 
 - FFG Basisprogramm (beantragt): €250.000
 - aws (beantragt): €150.000 (Zuschuss/Darlehen je nach Modul)
 - Eigenkapital: €200.000
 - Gesamt (24 Monate): €600.000
 
-### 8.4 Aufwand in Stunden (Realitätscheck für „produktionsreif“)
+### 9.4 Aufwand in Stunden (Erste Schätzung)
+
+**Hinweis:** Dies ist eine erste, grobe Schätzung zur Orientierung. Die detaillierte, FFG/AWS-konforme Projektplanung mit Arbeitspaketen, Meilensteinen und Stundenaufteilung nach Rollen findet sich in **Sektion 10 (Projektplan)**.
 
 Annahme: 1 FTE-Monat = 160h.
 
@@ -214,9 +329,295 @@ Interpretation:
 
 ---
 
-## 9) Innovationskonzept (FFG-relevant)
+## 10) Projektplan (FFG/AWS-konform)
 
-### 9.1 Forschungsfragen (aus F&E-Sicht)
+### 10.1 Projektstruktur & Zeitplan
+
+**Projektlaufzeit:** 24 Monate (Mai 2026 – April 2028)
+
+**Projektphasen:**
+
+| Phase | Zeitraum | Schwerpunkt |
+|---|---|---|
+| Phase 1: Foundation | M1–M6 | Core Platform, Dokumentenpipeline Basis, erste Piloten |
+| Phase 2: Intelligence | M7–M12 | Legal Intelligence, Semantische Suche, Widerspruchserkennung |
+| Phase 3: Enterprise | M13–M18 | Security/Compliance Härtung, Airgap/Self-hosted, Integrationen |
+| Phase 4: Scale | M19–M24 | Go-to-Market, Skalierung, Produktionsreife |
+
+### 10.2 Work Packages (Arbeitspakete)
+
+#### WP1: Core SaaS Platform (M1–M8)
+
+**Ziel:** Produktionsreife Basis-Plattform mit Mandanten-/Aktenverwaltung, Workflows, RBAC
+
+**Deliverables:**
+- Mandanten-/Aktenmanagement (CRUD, Rollen, Permissions)
+- Workflow-Engine (Status, Transitions, Notifications)
+- User Management & RBAC
+- API (GraphQL/REST) + Frontend (React/TypeScript)
+- Datenbank-Schema (PostgreSQL) + Migrations
+
+**Meilenstein M1 (M8):** Core Platform produktionsreif, erste Pilotkunden onboarded
+
+**Forschungsaspekt:** Skalierbare Multi-Tenant-Architektur mit mandantenspezifischen Datenisolationsstrategien
+
+---
+
+#### WP2: Dokumentenpipeline & Qualitätsmetriken (M3–M10)
+
+**Ziel:** Robuste Extraktion (OCR, Parsing) mit objektiver Qualitätsbewertung und Audit-Trail
+
+**Deliverables:**
+- Upload-/Import-Pipeline (PDF, DOCX, Scans, E-Mail)
+- OCR-Integration (Tesseract/Cloud) mit Qualitätserkennung
+- Parser (strukturierte Extraktion: Datum, Aktenzeichen, Parteien, Fristen)
+- Chunking-Strategie (semantisch sinnvolle Segmente)
+- Qualitätsmetriken (Confidence Scores, Low-Quality Warnings)
+- Audit-Events (Dokument-Upload, Verarbeitung, Fehler)
+
+**Meilenstein M2 (M10):** Dokumentenpipeline verarbeitet 95%+ der Testdokumente mit messbarer Qualität
+
+**Forschungsaspekt:** Automatische Qualitätsbewertung heterogener Dokumente (Scan-Qualität, OCR-Konfidenz, Strukturerkennung)
+
+---
+
+#### WP3: Semantische Suche & Retrieval (M7–M14)
+
+**Ziel:** Semantische Trefferqualität mit nachvollziehbaren Quellen und Konfidenz-Scores
+
+**Deliverables:**
+- Embedding-basierte Suche (Vector DB: pgvector/Qdrant)
+- Hybrid Search (TF-IDF + Embeddings)
+- Evidence Snippets (Quellenverknüpfung mit Dokumentstellen-Links)
+- Konfidenz-/Penalty-Logik (z.B. veraltete Dokumente, niedrige OCR-Qualität)
+- Retrieval-Evaluation (Precision/Recall auf Testset)
+
+**Meilenstein M3 (M14):** Semantische Suche liefert Top-3-Treffer mit >80% Relevanz (gemessen an Pilot-Feedback)
+
+**Forschungsaspekt:** Domänenspezifisches Retrieval für DACH-Rechtssprache mit Multi-Jurisdiktions-Support
+
+---
+
+#### WP4: Legal Intelligence (Fristen, Normen, Widersprüche) (M9–M16)
+
+**Ziel:** Automatisches Aufspüren von Fristen, Normen, Widersprüchen und Evidenzlücken
+
+**Deliverables:**
+- Fristenerkennung (Extraktion + Berechnung + Warnungen)
+- Normenerkennung (§-Referenzen, Judikatur-Links)
+- Widerspruchserkennung (inkonsistente Aussagen zwischen Dokumenten)
+- Evidenzlücken-Analyse (fehlende Beweisbausteine, Vorschläge für nächste Schritte)
+- Dashboard (Fristen-Übersicht, Risiko-Scores, Warnings)
+
+**Meilenstein M4 (M16):** Legal Intelligence erkennt 90%+ der Fristen und warnt bei Widersprüchen
+
+**Forschungsaspekt:** KI-gestützte Widerspruchserkennung und Evidenzlücken-Analyse in juristischen Texten
+
+---
+
+#### WP5: Data Residency & Anonymisierung (M11–M18)
+
+**Ziel:** DSGVO-konforme Verarbeitung mit optionaler Abschaltung externer Services
+
+**Deliverables:**
+- Policy-Gates (Cloud/Local/Airgap Modes)
+- Anonymisierungspipeline (PII-Erkennung, Pseudonymisierung vor KI-Calls)
+- Lokale OCR/LLM-Fallbacks (optional)
+- Auditierbarkeit (welche Daten wurden extern verarbeitet, wann, von wem freigegeben)
+- Compliance-Dashboard (Data Residency Status, Audit-Log)
+
+**Meilenstein M5 (M18):** Airgap-Mode funktionsfähig, keine externen Calls ohne explizite Freigabe
+
+**Forschungsaspekt:** Automatische PII-Erkennung und Anonymisierung in juristischen Dokumenten
+
+---
+
+#### WP6: Evidenzketten / Chain-of-Custody (M13–M20)
+
+**Ziel:** Jede Empfehlung ist auf Dokumentstellen, Versionsstände und Bearbeitungsschritte rückführbar
+
+**Deliverables:**
+- Traceability-Layer (IDs, Versions, Timestamps für alle Artefakte)
+- Quellenverknüpfung (jede KI-Antwort mit Dokumentstellen-Links)
+- Versionierung (Dokumente, Analysen, Workflows)
+- Exportfähige Nachweisdokumentation (PDF-Report mit Audit-Trail)
+- Human-in-the-loop Governance (Freigabe-Workflows für kritische Aktionen)
+
+**Meilenstein M6 (M20):** Vollständige Traceability aller Analysen und Empfehlungen
+
+**Forschungsaspekt:** Gerichtstaugliche Evidenzketten für KI-gestützte Rechtsanalysen
+
+---
+
+#### WP7: Security & Compliance Härtung (M15–M22)
+
+**Ziel:** Produktionsreife Security (Pen-Test bestanden) und Compliance-Zertifizierung
+
+**Deliverables:**
+- Security Audit (extern) + Pen-Test
+- Fixes (OWASP Top 10, DSGVO-Anforderungen)
+- Verschlüsselung (at-rest, in-transit)
+- Backup/Recovery-Strategie
+- Compliance-Dokumentation (DSGVO, ISO 27001 Vorbereitung)
+
+**Meilenstein M7 (M22):** Pen-Test bestanden, Security-Audit abgeschlossen
+
+**Forschungsaspekt:** Security-by-Design für mandantensensitive Daten
+
+---
+
+#### WP8: Billing, Exports & Integrationen (M17–M23)
+
+**Ziel:** Produktionsreife Abrechnung und Integrationen (DATEV, BMD, E-Mail, Portale)
+
+**Deliverables:**
+- Rechnungsstellung (Templates, Export)
+- DATEV/BMD-Connector (Buchungsexport)
+- Zeiterfassung & Treuhand-Workflows
+- E-Mail-Integration (IMAP/SMTP, Akte-Zuordnung)
+- API-Connector-Framework (für Dritt-Integrationen)
+
+**Meilenstein M8 (M23):** Billing & DATEV-Export produktionsreif
+
+**Forschungsaspekt:** Automatische Zuordnung von E-Mails/Dokumenten zu Akten via NLP
+
+---
+
+#### WP9: Airgap/Self-hosted Produktisierung (M19–M24)
+
+**Ziel:** Enterprise-ready Self-hosted/Airgap Deployment
+
+**Deliverables:**
+- Packaging (Docker/Kubernetes, Installer)
+- Update-Strategie (Offline-Updates, Migrations)
+- Offline-Policy (keine externen Calls, lokale LLM/OCR)
+- Operations-Runbooks (Installation, Backup, Monitoring)
+- Enterprise-Support-Prozess
+
+**Meilenstein M9 (M24):** Airgap-Deployment bei Pilotkunde produktiv
+
+**Forschungsaspekt:** Offline-fähige KI-Pipeline für hochsensible Mandate
+
+---
+
+#### WP10: QA, Release Engineering & Go-to-Market (M1–M24, durchgängig)
+
+**Ziel:** Kontinuierliche Qualitätssicherung und Marktvorbereitung
+
+**Deliverables:**
+- E2E-Tests (Playwright/Cypress)
+- Regression-Test-Suite
+- Monitoring & Alerting (Sentry, Prometheus)
+- Onboarding-Templates & Dokumentation
+- Pilot-Support & Feedback-Loop
+- Marketing-Material (Website, Demos, Case Studies)
+
+**Meilenstein M10 (M24):** Produktionsreife erreicht, 10+ Pilotkunden aktiv
+
+**Forschungsaspekt:** Messung von Zeitersparnis und Fehlerreduktion in Kanzleien (KPI-Framework)
+
+---
+
+### 10.3 Meilensteine (Übersicht)
+
+| Meilenstein | Monat | Beschreibung | Deliverable |
+|---|---:|---|---|
+| M1 | M8 | Core Platform produktionsreif | Mandanten-/Aktenverwaltung, RBAC, API |
+| M2 | M10 | Dokumentenpipeline produktionsreif | OCR, Parsing, Qualitätsmetriken |
+| M3 | M14 | Semantische Suche produktionsreif | Hybrid Search, Evidence Snippets |
+| M4 | M16 | Legal Intelligence produktionsreif | Fristen, Normen, Widersprüche |
+| M5 | M18 | Data Residency & Anonymisierung | Airgap-Mode, PII-Anonymisierung |
+| M6 | M20 | Evidenzketten produktionsreif | Traceability, Audit-Trail, Export |
+| M7 | M22 | Security Audit bestanden | Pen-Test, DSGVO-Compliance |
+| M8 | M23 | Billing & Integrationen produktionsreif | DATEV, BMD, E-Mail |
+| M9 | M24 | Airgap-Deployment produktiv | Self-hosted bei Pilotkunde |
+| M10 | M24 | Produktionsreife & Skalierung | 10+ Pilotkunden, Go-to-Market |
+
+---
+
+### 10.4 Personalplanung & Stundenaufteilung (FFG/AWS-konform)
+
+**Rollen:**
+
+- **R&D Lead (Forschung/Entwicklung):** Architektur, Forschungsfragen, Prototyping
+- **Senior Engineer (Backend):** Core Platform, API, Datenbank
+- **Senior Engineer (Frontend):** UI/UX, React, PWA
+- **ML/AI Engineer:** Dokumentenpipeline, Embeddings, Retrieval, NLP
+- **QA Engineer:** Testing, Automation, Release Engineering
+- **Security/Compliance Specialist:** Security Audit, DSGVO, Pen-Test
+- **Product Manager:** Requirements, Piloten, Feedback-Loop
+- **DevOps Engineer:** Deployment, Monitoring, Airgap-Packaging
+
+**Annahme:** 1 FTE-Monat = 160 Stunden
+
+#### Stundenaufteilung nach Work Package und Rolle
+
+| Work Package | R&D Lead | Senior BE | Senior FE | ML/AI | QA | Sec/Compl | PM | DevOps | **Summe** |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| WP1: Core SaaS Platform | 320h | 960h | 960h | 160h | 480h | 160h | 320h | 160h | **3.520h** |
+| WP2: Dokumentenpipeline | 480h | 320h | 240h | 1.280h | 400h | 80h | 160h | 80h | **3.040h** |
+| WP3: Semantische Suche | 400h | 480h | 320h | 960h | 320h | 80h | 160h | 80h | **2.800h** |
+| WP4: Legal Intelligence | 560h | 640h | 480h | 800h | 400h | 80h | 240h | 80h | **3.280h** |
+| WP5: Data Residency | 320h | 480h | 160h | 480h | 240h | 480h | 160h | 160h | **2.480h** |
+| WP6: Evidenzketten | 400h | 480h | 320h | 320h | 320h | 240h | 160h | 80h | **2.320h** |
+| WP7: Security Härtung | 240h | 320h | 160h | 80h | 320h | 800h | 160h | 160h | **2.240h** |
+| WP8: Billing/Integrationen | 160h | 640h | 320h | 160h | 320h | 80h | 160h | 80h | **1.920h** |
+| WP9: Airgap/Self-hosted | 240h | 320h | 160h | 160h | 240h | 240h | 160h | 640h | **2.160h** |
+| WP10: QA/GTM (durchgängig) | 240h | 160h | 240h | 80h | 960h | 80h | 640h | 160h | **2.560h** |
+| **Summe** | **3.360h** | **4.800h** | **3.360h** | **4.480h** | **4.000h** | **2.320h** | **2.320h** | **1.680h** | **26.320h** |
+
+**Interpretation:**
+
+- **Gesamt:** 26.320 Stunden ≈ **164,5 FTE-Monate** (24 Monate Projektlaufzeit)
+- **Durchschnitt:** ~6,9 FTE über 24 Monate (realistisch für Startup mit Wachstum von 6 → 10 → 15 Personen)
+
+**Zuordnung zu Förderprogrammen:**
+
+- **FFG-förderfähig (F&E-Anteil):** WP2, WP3, WP4, WP5, WP6 + Forschungsanteile aus WP1, WP7, WP9 ≈ **60–70% der Stunden**
+- **aws-förderfähig (Produktisierung/Skalierung):** WP1, WP7, WP8, WP9, WP10 + Nicht-F&E-Anteile ≈ **30–40% der Stunden**
+
+---
+
+### 10.5 Kostenplanung (orientierend, FFG/AWS-konform)
+
+**Personalkosten (24 Monate):**
+
+| Rolle | Stundensatz (Ø) | Stunden | Kosten |
+|---|---:|---:|---:|
+| R&D Lead | €85/h | 3.360h | €285.600 |
+| Senior Engineer (BE) | €75/h | 4.800h | €360.000 |
+| Senior Engineer (FE) | €75/h | 3.360h | €252.000 |
+| ML/AI Engineer | €80/h | 4.480h | €358.400 |
+| QA Engineer | €65/h | 4.000h | €260.000 |
+| Security/Compliance | €80/h | 2.320h | €185.600 |
+| Product Manager | €70/h | 2.320h | €162.400 |
+| DevOps Engineer | €70/h | 1.680h | €117.600 |
+| **Summe Personal** | | **26.320h** | **€1.981.600** |
+
+**Sachkosten (24 Monate):**
+
+- Cloud-Infrastruktur (AWS/Azure): €60.000
+- LLM/OCR-API-Kosten: €40.000
+- Software-Lizenzen (Dev-Tools, Monitoring): €20.000
+- Security Audit & Pen-Test: €25.000
+- Reisekosten (Piloten, Events): €15.000
+- Sonstiges (Büro, Hardware): €20.000
+- **Summe Sachkosten:** €180.000
+
+**Gesamtkosten (24 Monate):** €2.161.600
+
+**Finanzierung:**
+
+- FFG Basisprogramm (F&E-Anteil ~€1.200.000, Förderung 70%): €840.000
+- aws Seedfinancing (Produktisierung ~€600.000, Förderung 80%): €480.000
+- Eigenkapital/Umsatz: €841.600
+- **Summe:** €2.161.600
+
+---
+
+## 11) Innovationskonzept (FFG-relevant)
+
+### 11.1 Forschungsfragen (aus F&E-Sicht)
 
 1. KI-gestützte Rechtserkennung (DACH-Rechtssprache)
 2. Semantische Suche (TF-IDF + Embeddings) für Normen/Judikatur
@@ -225,7 +626,9 @@ Interpretation:
 5. Widerspruchserkennung zwischen Dokumenten
 6. Evidenzketten/Traceability: Quellenverknüpfung, Versionsstände, Auditierbare Herleitung
 
-### 9.2 Abgrenzbare F&E-Arbeitspakete (FFG-konform)
+### 11.2 Abgrenzbare F&E-Arbeitspakete (FFG-konform)
+
+**Hinweis:** Die folgenden 5 F&E-Arbeitspakete beschreiben die **Forschungskerne** aus den 10 Arbeitspaketen in Sektion 10 (Projektplan). Sie fokussieren auf die technologische Unsicherheit und den Innovationsgehalt für die FFG-Einreichung.
 
 **WP1: Domänenspezifische Extraktions- & Qualitätsmetriken**
 
@@ -253,7 +656,7 @@ Interpretation:
 - Ziel: jede Empfehlung ist auf Dokumentstellen, Versionsstände und Bearbeitungsschritte rückführbar
 - Output: Traceability-Layer (IDs, Versions, Timestamps) + Exportfähige Nachweisdokumentation
 
-### 9.2 Verwertung
+### 11.3 Verwertung
 
 - Produktisierung als SaaS für DACH
 - Enterprise Paket inkl. Governance/Airgap
@@ -261,7 +664,7 @@ Interpretation:
 
 ---
 
-## 10) Risikoanalyse
+## 12) Risikoanalyse
 
 - Technisch: Parser/OCR-Qualität, Skalierung, Modellkosten → mitigiert durch Qualitätsgates, Quotas, Monitoring
 - Rechtlich/Compliance: DSGVO, Mandatsgeheimnis → Data Residency, Anonymisierung, RBAC, Audit-Trail
@@ -269,19 +672,22 @@ Interpretation:
 
 ---
 
-## 11) Fördermittel-Argumentation
+## 13) Fördermittel-Argumentation
 
-### 11.1 Warum FFG?
+### 13.1 Warum FFG?
 
 - Forschung & experimentelle Entwicklung mit klarer technologischer Unsicherheit (Extraction/Chunking/Qualitätsbewertung, semantisches Retrieval, Evidenzketten)
 - Verwertbares Produkt (SaaS) mit Skalierung
 
-### 11.2 Warum aws?
+### 13.2 Warum aws?
 
-- Skalierbarer Business Case, Arbeitsplatzaufbau, Exportpotenzial
-- Finanzierung von Markteintritt/Go-to-Market, Enterprise-Härtung und Self-hosted/Airgap Produktisierung
+- Wirtschaftliche Nachhaltigkeit (Unit Economics, Go-to-Market, Retention)
+- Arbeitsplatzschaffung quantifiziert (FTE-Plan, Zeitachse)
+- Exportpotenzial (DACH/CH/EU) und Skalierungsfähigkeit
+- Finanzplan konservativ und nachvollziehbar
+- Eigenkapital/Co-Funding klar belegt
 
-### 11.3 Passende Programme (Kurzmatrix)
+### 13.3 Passende Programme (Kurzmatrix)
 
 | Programm | Zweck | Typische Eckpunkte (orientierend) | Passung |
 |---|---|---|---|
@@ -361,3 +767,8 @@ Interpretation:
 
 - Wirtschaftskammer Österreich (WKÖ)
 - Austrian Business Agency (ABA)
+
+### ROI/Produktivität/Haftungsrisiko — Quellen
+
+- https://wwwimages.adobe.com/content/dam/Adobe/en/products/acrobat/axi/pdfs/bridging-the-information-worker-productivity-gap-euro-ie.pdf
+- https://www.tlie.org/resource/scheduling-errors-and-legal-malpractice

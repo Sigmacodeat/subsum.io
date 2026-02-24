@@ -53,14 +53,14 @@ const mocked = vi.hoisted(() => {
   };
 });
 
-vi.mock('@affine/admin/use-query', () => ({
+vi.mock('../../use-query', () => ({
   useQuery: () => ({
     data: mocked.getQueryState(),
     mutate: mocked.mutateMock,
   }),
 }));
 
-vi.mock('@affine/admin/use-mutation', () => ({
+vi.mock('../../use-mutation', () => ({
   useMutation: () => ({
     trigger: mocked.saveUpdatesMock,
   }),

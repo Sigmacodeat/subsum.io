@@ -20,6 +20,7 @@ import {
   ResponseTooLargeError,
   safeFetch,
   SsrfBlockedError,
+  Throttle,
   type SSRFBlockReason,
   URLHelper,
   UseNamedGuard,
@@ -63,6 +64,7 @@ function toBadRequestReason(reason: SSRFBlockReason) {
 
 @Public()
 @UseNamedGuard('selfhost')
+@Throttle('default')
 @Controller('/api/worker')
 export class WorkerController {
   private readonly logger = new Logger(WorkerController.name);

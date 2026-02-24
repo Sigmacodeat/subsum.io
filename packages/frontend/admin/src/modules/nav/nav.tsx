@@ -1,10 +1,12 @@
-import { cn } from '@affine/admin/utils';
+import { cn } from '../../utils';
 import { ROUTES } from '@affine/routes';
 import { AccountIcon, SelfhostIcon } from '@blocksuite/icons/rc';
 import {
+  HandCoinsIcon,
   BarChart3Icon,
   LayoutDashboardIcon,
   ListChecksIcon,
+  BugIcon,
 } from 'lucide-react';
 
 import { NavItem } from './nav-item';
@@ -52,10 +54,24 @@ export function Nav({ isCollapsed = false }: NavProps) {
             isCollapsed={isCollapsed}
           />
         )}
+        {environment.isSelfHosted ? null : (
+          <NavItem
+            to={ROUTES.admin.affiliates}
+            icon={<HandCoinsIcon size={18} />}
+            label="Affiliates"
+            isCollapsed={isCollapsed}
+          />
+        )}
         <NavItem
           to={ROUTES.admin.queue}
           icon={<ListChecksIcon size={18} />}
           label="Queue"
+          isCollapsed={isCollapsed}
+        />
+        <NavItem
+          to={ROUTES.admin.reports}
+          icon={<BugIcon size={18} />}
+          label="Reports"
           isCollapsed={isCollapsed}
         />
         {/* <NavItem

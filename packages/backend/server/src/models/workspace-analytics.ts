@@ -113,6 +113,21 @@ export type AdminDashboardDto = {
   storageWindow: TimeWindowDto;
   topSharedLinks: AdminSharedLinkNode[];
   topSharedLinksWindow: TimeWindowDto;
+  totalUsers: number;
+  registeredUsers: number;
+  periodSignups: number;
+  signupHistory: Array<{
+    date: Date;
+    value: number;
+  }>;
+  signupWindow: TimeWindowDto;
+  revenuePaidCents: number;
+  periodPaidInvoices: number;
+  revenueHistory: Array<{
+    date: Date;
+    value: number;
+  }>;
+  revenueWindow: TimeWindowDto;
   generatedAt: Date;
 };
 
@@ -343,6 +358,12 @@ export class WorkspaceAnalyticsModel extends BaseModel {
       storageHistory,
       copilotCount,
       topSharedLinks,
+      userTotals,
+      periodSignups,
+      signupHistory,
+      revenueTotals,
+      periodPaidInvoices,
+      revenueHistory,
     ] = await Promise.all([
       this.db.$queryRaw<{ activeUsers: number }[]>`
           SELECT COALESCE(
@@ -413,6 +434,78 @@ export class WorkspaceAnalyticsModel extends BaseModel {
           AND created_at <= ${now}
         `,
       topSharedLinksPromise,
+      this.db.$queryRaw<
+        {
+          totalUsers: bigint | number;
+          registeredUsers: bigint | number;
+        }[]
+      >`
+          SELECT
+            COUNT(*)::bigint AS "totalUsers",
+            COUNT(*) FILTER (WHERE registered = TRUE)::bigint AS "registeredUsers"
+          FROM users
+        `,
+      this.db.$queryRaw<{ signups: bigint | number }[]>`
+          SELECT COUNT(*)::bigint AS signups
+          FROM users
+          WHERE registered = TRUE
+          AND created_at >= ${sharedFrom}
+          AND created_at <= ${now}
+        `,
+      this.db.$queryRaw<{ date: Date; value: bigint | number }[]>`
+          WITH days AS (
+            SELECT generate_series(${sharedFrom}::date, ${currentDay}::date, interval '1 day')::date AS day
+          ),
+          grouped AS (
+            SELECT
+              DATE(created_at) AS date,
+              COUNT(*)::bigint AS value
+            FROM users
+            WHERE registered = TRUE
+            AND created_at >= ${sharedFrom}
+            AND created_at <= ${now}
+            GROUP BY DATE(created_at)
+          )
+          SELECT
+            days.day AS date,
+            COALESCE(grouped.value, 0)::bigint AS value
+          FROM days
+          LEFT JOIN grouped ON grouped.date = days.day
+          ORDER BY date ASC
+        `,
+      this.db.$queryRaw<{ paidCents: bigint | number }[]>`
+          SELECT COALESCE(SUM(amount), 0)::bigint AS "paidCents"
+          FROM invoices
+          WHERE status = 'paid'
+        `,
+      this.db.$queryRaw<{ invoices: bigint | number }[]>`
+          SELECT COUNT(*)::bigint AS invoices
+          FROM invoices
+          WHERE status = 'paid'
+          AND created_at >= ${sharedFrom}
+          AND created_at <= ${now}
+        `,
+      this.db.$queryRaw<{ date: Date; value: bigint | number }[]>`
+          WITH days AS (
+            SELECT generate_series(${sharedFrom}::date, ${currentDay}::date, interval '1 day')::date AS day
+          ),
+          grouped AS (
+            SELECT
+              DATE(created_at) AS date,
+              COALESCE(SUM(amount), 0)::bigint AS value
+            FROM invoices
+            WHERE status = 'paid'
+            AND created_at >= ${sharedFrom}
+            AND created_at <= ${now}
+            GROUP BY DATE(created_at)
+          )
+          SELECT
+            days.day AS date,
+            COALESCE(grouped.value, 0)::bigint AS value
+          FROM days
+          LEFT JOIN grouped ON grouped.date = days.day
+          ORDER BY date ASC
+        `,
     ]);
 
     const storageHistorySeries = storageHistory.map(row => ({
@@ -464,6 +557,37 @@ export class WorkspaceAnalyticsModel extends BaseModel {
         guestViews: Number(row.guestViews ?? 0),
       })),
       topSharedLinksWindow: {
+        from: sharedFrom,
+        to: currentDay,
+        timezone,
+        bucket: 'Day',
+        requestedSize:
+          options.sharedLinkWindowDays ?? DEFAULT_SHARED_LINK_WINDOW_DAYS,
+        effectiveSize: sharedLinkWindowDays,
+      },
+      totalUsers: Number(userTotals[0]?.totalUsers ?? 0),
+      registeredUsers: Number(userTotals[0]?.registeredUsers ?? 0),
+      periodSignups: Number(periodSignups[0]?.signups ?? 0),
+      signupHistory: signupHistory.map(row => ({
+        date: row.date,
+        value: Number(row.value ?? 0),
+      })),
+      signupWindow: {
+        from: sharedFrom,
+        to: currentDay,
+        timezone,
+        bucket: 'Day',
+        requestedSize:
+          options.sharedLinkWindowDays ?? DEFAULT_SHARED_LINK_WINDOW_DAYS,
+        effectiveSize: sharedLinkWindowDays,
+      },
+      revenuePaidCents: Number(revenueTotals[0]?.paidCents ?? 0),
+      periodPaidInvoices: Number(periodPaidInvoices[0]?.invoices ?? 0),
+      revenueHistory: revenueHistory.map(row => ({
+        date: row.date,
+        value: Number(row.value ?? 0),
+      })),
+      revenueWindow: {
         from: sharedFrom,
         to: currentDay,
         timezone,

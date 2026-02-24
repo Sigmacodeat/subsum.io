@@ -9,6 +9,7 @@ import { AppSidebarService } from '../../app-sidebar';
 import { SidebarSwitch } from '../../app-sidebar/views/sidebar-header';
 import { ViewService } from '../services/view';
 import { WorkbenchService } from '../services/workbench';
+import { getSidebarText } from './sidebar/sidebar-i18n';
 import * as styles from './route-container.css';
 import { useViewPosition } from './use-view-position';
 import { ViewBodyTarget, ViewHeaderTarget } from './view-islands';
@@ -23,18 +24,32 @@ const ToggleButton = ({
   onToggle,
   className,
   show,
+  sidebarOpen,
+  controlsId,
 }: {
   onToggle?: () => void;
   className: string;
   show: boolean;
+  sidebarOpen: boolean;
+  controlsId: string;
 }) => {
   return (
     <IconButton
+      id={controlsId.replace('workbench-right-sidebar-', 'workbench-right-sidebar-toggle-')}
       size="24"
       onClick={onToggle}
       className={className}
       data-show={show}
       data-testid="right-sidebar-toggle"
+      aria-label={
+        sidebarOpen
+          ? getSidebarText('closeRightSidebar')
+          : getSidebarText('openRightSidebar')
+      }
+      aria-expanded={sidebarOpen}
+      aria-controls={controlsId}
+      tabIndex={show ? 0 : -1}
+      aria-hidden={!show}
     >
       <RightSidebarIcon />
     </IconButton>
@@ -75,6 +90,8 @@ export const RouteContainer = () => {
             show={!sidebarOpen}
             className={styles.rightSidebarButton}
             onToggle={handleToggleSidebar}
+            sidebarOpen={!!sidebarOpen}
+            controlsId={`workbench-right-sidebar-${view.id}`}
           />
         )}
       </div>

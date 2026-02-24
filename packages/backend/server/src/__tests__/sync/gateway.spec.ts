@@ -4,6 +4,7 @@ import { io, type Socket as SocketIOClient } from 'socket.io-client';
 import { Doc, encodeStateAsUpdate } from 'yjs';
 
 import { CANARY_CLIENT_VERSION_MAX_AGE_DAYS } from '../../base';
+import { DocRole, WorkspaceMemberStatus, WorkspaceRole } from '../../models';
 import { createTestingApp, TestingApp } from '../utils';
 
 type WebsocketResponse<T> =
@@ -496,6 +497,93 @@ test('space:join-awareness should reject clientVersion<0.25.0', async t => {
     t.false(res.success);
 
     await waitForDisconnect(socket);
+  } finally {
+    socket.disconnect();
+  }
+});
+
+test('workspace member without Doc.Update permission should be rejected on push-doc-update', async t => {
+  const db = app.get(PrismaClient);
+  const owner = await app.createUser('owner@affine.pro');
+  const collaborator = await app.createUser('collab@affine.pro');
+
+  const workspace = await db.workspace.create({
+    data: {
+      id: 'ws-denied-doc-update',
+      name: 'ws-denied-doc-update',
+      public: false,
+    },
+  });
+
+  await db.workspaceUserRole.createMany({
+    data: [
+      {
+        workspaceId: workspace.id,
+        userId: owner.id,
+        type: WorkspaceRole.Owner,
+        status: WorkspaceMemberStatus.Accepted,
+      },
+      {
+        workspaceId: workspace.id,
+        userId: collaborator.id,
+        type: WorkspaceRole.Collaborator,
+        status: WorkspaceMemberStatus.Accepted,
+      },
+    ],
+  });
+
+  await db.workspaceDocUserRole.create({
+    data: {
+      workspaceId: workspace.id,
+      docId: 'doc-denied',
+      userId: collaborator.id,
+      type: DocRole.Reader,
+    },
+  });
+
+  const signInRes = await app
+    .POST('/api/auth/sign-in')
+    .send({ email: collaborator.email, password: collaborator.password })
+    .expect(200);
+  const cookies = signInRes.get('Set-Cookie') ?? [];
+  const cookieHeader = cookies.map(c => c.split(';')[0]).join('; ');
+
+  const socket = createClient(url, cookieHeader);
+  const update = createYjsUpdateBase64();
+
+  try {
+    await waitForConnect(socket);
+
+    const joinRes = unwrapResponse(
+      t,
+      await emitWithAck<{ clientId: string; success: boolean }>(
+        socket,
+        'space:join',
+        {
+          spaceType: 'workspace',
+          spaceId: workspace.id,
+          clientVersion: '0.26.0',
+        }
+      )
+    );
+    t.true(joinRes.success);
+
+    const pushRes = await emitWithAck<{ accepted: true; timestamp?: number }>(
+      socket,
+      'space:push-doc-update',
+      {
+        spaceType: 'workspace',
+        spaceId: workspace.id,
+        docId: 'doc-denied',
+        update,
+      }
+    );
+
+    if ('error' in pushRes) {
+      t.is(pushRes.error.name, 'DOC_ACTION_DENIED');
+    } else {
+      t.fail('Expected push-doc-update to be rejected');
+    }
   } finally {
     socket.disconnect();
   }

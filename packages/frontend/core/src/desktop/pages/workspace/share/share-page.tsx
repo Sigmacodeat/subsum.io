@@ -304,7 +304,7 @@ const SharePageFooter = () => {
   }
   return (
     <a
-      href="https://affine.pro"
+      href="https://subsumio.ai"
       target="_blank"
       className={styles.link}
       rel="noreferrer"

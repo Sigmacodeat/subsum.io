@@ -1,4 +1,4 @@
-import { Separator } from '@affine/admin/components/ui/separator';
+import { Separator } from '../../../components/ui/separator';
 import { adminWorkspaceQuery } from '@affine/graphql';
 import { useMemo } from 'react';
 

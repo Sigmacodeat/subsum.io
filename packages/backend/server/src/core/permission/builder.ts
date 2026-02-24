@@ -3,7 +3,7 @@ import { Injectable } from '@nestjs/common';
 import { DocID } from '../utils/doc';
 import { getAccessController } from './controller';
 import { Resource } from './resource';
-import { DocAction, WorkspaceAction } from './types';
+import { DocAction, OrgAction, WorkspaceAction } from './types';
 import { WorkspaceAccessController } from './workspace';
 
 @Injectable()
@@ -15,6 +15,13 @@ export class AccessControllerBuilder {
 
 export class UserAccessControllerBuilder {
   constructor(private readonly userId: string) {}
+
+  organization(organizationId: string) {
+    return new OrgAccessControllerBuilder({
+      userId: this.userId,
+      organizationId,
+    });
+  }
 
   workspace(workspaceId: string) {
     return new WorkspaceAccessControllerBuilder({
@@ -126,6 +133,25 @@ class DocAccessControllerBuilder {
 
   async permissions() {
     const checker = getAccessController('doc');
+    return await checker.role(this.data);
+  }
+}
+
+class OrgAccessControllerBuilder {
+  constructor(public readonly data: Resource<'org'>) {}
+
+  async assert(action: OrgAction) {
+    const checker = getAccessController('org');
+    await checker.assert(this.data, action);
+  }
+
+  async can(action: OrgAction) {
+    const checker = getAccessController('org');
+    return await checker.can(this.data, action);
+  }
+
+  async permissions() {
+    const checker = getAccessController('org');
     return await checker.role(this.data);
   }
 }

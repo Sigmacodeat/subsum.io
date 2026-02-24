@@ -249,7 +249,7 @@ const PlanPrompt = () => {
     } else {
       return (
         <Trans i18nKey="com.affine.history.confirm-restore-modal.pro-plan-prompt.description">
-          With the workspace creator&apos;s Pro account, every member enjoys the
+          With the workspace creator&apos;s Solo account, every member enjoys the
           privilege of accessing up to <b>30 days</b> of version history.
         </Trans>
       );

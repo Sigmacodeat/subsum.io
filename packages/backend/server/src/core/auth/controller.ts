@@ -3,6 +3,7 @@ import { resolveMx, resolveTxt, setServers } from 'node:dns/promises';
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Header,
   HttpStatus,
@@ -24,11 +25,13 @@ import {
   InvalidEmailToken,
   SignUpForbidden,
   Throttle,
+  SessionCache,
   URLHelper,
   UseNamedGuard,
   WrongSignInCredentials,
 } from '../../base';
 import { Models, TokenType } from '../../models';
+import { FeatureService } from '../features';
 import { validators } from '../utils/validators';
 import { Public } from './guard';
 import { AuthService } from './service';
@@ -44,6 +47,7 @@ interface SignInCredential {
   password?: string;
   callbackUrl?: string;
   client_nonce?: string;
+  admin_step_up?: boolean;
 }
 
 interface MagicLinkCredential {
@@ -56,6 +60,29 @@ interface OpenAppSignInCredential {
   code: string;
 }
 
+interface AdminMfaVerifyCredential {
+  ticket: string;
+  otp: string;
+}
+
+interface AdminMfaResendCredential {
+  ticket: string;
+}
+
+interface AdminMfaChallengeRecord {
+  userId: string;
+  email: string;
+  otpHash: string;
+  attempts: number;
+  riskLevel: 'low' | 'elevated';
+  fingerprintHash: string;
+}
+
+const ADMIN_MFA_CHALLENGE_PREFIX = 'ADMIN_MFA_CHALLENGE';
+const ADMIN_STEP_UP_PREFIX = 'ADMIN_STEP_UP_SESSION';
+const ADMIN_TRUSTED_DEVICE_PREFIX = 'ADMIN_TRUSTED_DEVICE';
+const MAX_ADMIN_MFA_ATTEMPTS = 5;
+
 @Throttle('strict')
 @Controller('/api/auth')
 export class AuthController {
@@ -66,7 +93,9 @@ export class AuthController {
     private readonly auth: AuthService,
     private readonly models: Models,
     private readonly config: Config,
-    private readonly crypto: CryptoHelper
+    private readonly crypto: CryptoHelper,
+    private readonly feature: FeatureService,
+    private readonly sessionCache: SessionCache
   ) {
     if (env.dev) {
       // set DNS servers in dev mode
@@ -124,7 +153,8 @@ export class AuthController {
         req,
         res,
         credential.email,
-        credential.password
+        credential.password,
+        credential.admin_step_up === true
       );
     } else {
       await this.sendMagicLink(
@@ -140,12 +170,199 @@ export class AuthController {
     req: Request,
     res: Response,
     email: string,
-    password: string
+    password: string,
+    adminStepUp: boolean = false
   ) {
     const user = await this.auth.signIn(email, password);
 
+    if (adminStepUp && (await this.feature.isAdmin(user.id))) {
+      const challenge = await this.createAdminMfaChallenge(req, user.id, email);
+      res.status(HttpStatus.ACCEPTED).send({
+        mfaRequired: true,
+        ticket: challenge.ticket,
+        email,
+        riskLevel: challenge.riskLevel,
+      });
+      return;
+    }
+
     await this.auth.setCookies(req, res, user.id);
     res.status(HttpStatus.OK).send(user);
+  }
+
+  @Public()
+  @UseNamedGuard('version')
+  @Post('/admin/verify-mfa')
+  async verifyAdminMfa(
+    @Req() req: Request,
+    @Res() res: Response,
+    @Body() credential: AdminMfaVerifyCredential
+  ) {
+    const { ticket, otp } = credential;
+    if (!ticket || !otp) {
+      throw new InvalidAuthState();
+    }
+
+    const challengeKey = `${ADMIN_MFA_CHALLENGE_PREFIX}:${ticket}`;
+    const challenge =
+      await this.sessionCache.get<AdminMfaChallengeRecord>(challengeKey);
+    if (!challenge) {
+      throw new InvalidAuthState();
+    }
+
+    const fingerprintHash = this.getRequestFingerprintHash(req);
+    if (challenge.fingerprintHash !== fingerprintHash) {
+      throw new InvalidAuthState();
+    }
+
+    const otpHash = this.crypto.sha256(otp).toString('hex');
+    if (!this.crypto.compare(challenge.otpHash, otpHash)) {
+      const nextAttempts = challenge.attempts + 1;
+      if (nextAttempts >= MAX_ADMIN_MFA_ATTEMPTS) {
+        await this.sessionCache.delete(challengeKey);
+      } else {
+        await this.sessionCache.set(
+          challengeKey,
+          {
+            ...challenge,
+            attempts: nextAttempts,
+          },
+          {
+            ttl: this.config.auth.adminSession.mfaChallengeTtl * 1000,
+          }
+        );
+      }
+      throw new InvalidAuthState();
+    }
+
+    const user = await this.models.user.get(challenge.userId, {
+      withDisabled: true,
+    });
+    if (!user || user.disabled || !(await this.feature.isAdmin(user.id))) {
+      await this.sessionCache.delete(challengeKey);
+      throw new ActionForbidden();
+    }
+
+    const userSession = await this.auth.setCookies(
+      req,
+      res,
+      user.id,
+      undefined,
+      this.config.auth.adminSession.ttl
+    );
+
+    await Promise.all([
+      this.sessionCache.delete(challengeKey),
+      this.sessionCache.set(
+        `${ADMIN_STEP_UP_PREFIX}:${userSession.sessionId}`,
+        true,
+        {
+          ttl: this.config.auth.adminSession.stepUpTtl * 1000,
+        }
+      ),
+      this.sessionCache.mapSet(
+        `${ADMIN_TRUSTED_DEVICE_PREFIX}:${user.id}`,
+        fingerprintHash,
+        {
+          seenAt: Date.now(),
+        }
+      ),
+      this.sessionCache.expire(
+        `${ADMIN_TRUSTED_DEVICE_PREFIX}:${user.id}`,
+        this.config.auth.adminSession.trustedDeviceTtl * 1000
+      ),
+    ]);
+
+    res.send({
+      id: user.id,
+      email: user.email,
+      mfaVerified: true,
+    });
+  }
+
+  @Public()
+  @UseNamedGuard('version')
+  @Post('/admin/resend-mfa')
+  async resendAdminMfa(
+    @Req() req: Request,
+    @Body() credential: AdminMfaResendCredential,
+    @Res() res: Response
+  ) {
+    const { ticket } = credential;
+    if (!ticket) {
+      throw new InvalidAuthState();
+    }
+
+    const challengeKey = `${ADMIN_MFA_CHALLENGE_PREFIX}:${ticket}`;
+    const challenge =
+      await this.sessionCache.get<AdminMfaChallengeRecord>(challengeKey);
+    if (!challenge) {
+      throw new InvalidAuthState();
+    }
+
+    const fingerprintHash = this.getRequestFingerprintHash(req);
+    if (challenge.fingerprintHash !== fingerprintHash) {
+      throw new InvalidAuthState();
+    }
+
+    await this.reissueAdminMfaChallenge(ticket, challenge);
+
+    res.status(HttpStatus.CREATED).send({
+      ticket,
+      resent: true,
+      riskLevel: challenge.riskLevel,
+    });
+  }
+
+  @UseNamedGuard('version')
+  @Get('/admin/trusted-devices')
+  async listAdminTrustedDevices(@CurrentUser() user: CurrentUser) {
+    await this.assertAdminUser(user.id);
+
+    const mapKey = `${ADMIN_TRUSTED_DEVICE_PREFIX}:${user.id}`;
+    const keys = await this.sessionCache.mapKeys(mapKey);
+
+    const devices = await Promise.all(
+      keys.map(async fingerprint => {
+        const record = await this.sessionCache.mapGet<{ seenAt: number }>(
+          mapKey,
+          fingerprint
+        );
+        return {
+          fingerprint,
+          seenAt: record?.seenAt ?? 0,
+        };
+      })
+    );
+
+    return {
+      devices: devices
+        .filter(device => device.seenAt > 0)
+        .sort((a, b) => b.seenAt - a.seenAt),
+    };
+  }
+
+  @UseNamedGuard('version')
+  @Delete('/admin/trusted-devices')
+  async revokeAdminTrustedDevices(
+    @CurrentUser() user: CurrentUser,
+    @Query('fingerprint') fingerprint?: string
+  ) {
+    await this.assertAdminUser(user.id);
+
+    const mapKey = `${ADMIN_TRUSTED_DEVICE_PREFIX}:${user.id}`;
+
+    if (fingerprint) {
+      const removed = await this.sessionCache.mapDelete(mapKey, fingerprint);
+      return {
+        removed: removed ? 1 : 0,
+      };
+    }
+
+    const cleared = await this.sessionCache.delete(mapKey);
+    return {
+      removed: cleared ? -1 : 0,
+    };
   }
 
   async sendMagicLink(
@@ -269,10 +486,18 @@ export class AuthController {
       | string
       | undefined;
     const csrfHeader = req.get('x-affine-csrf-token');
-    if (
-      csrfHeader && // optional for backward compatibility, drop after 0.25.0 outdated
-      (!csrfCookie || csrfCookie !== csrfHeader)
-    ) {
+    const strictSignOutCsrf = this.config.auth.csrf.strictSignOut;
+    const csrfMismatched = !csrfCookie || !csrfHeader || csrfCookie !== csrfHeader;
+    if (strictSignOutCsrf && csrfMismatched) {
+      this.logger.warn(
+        `Reject sign-out due to CSRF mismatch (strict mode). hasCookie=${Boolean(csrfCookie)} hasHeader=${Boolean(csrfHeader)}`
+      );
+      throw new ActionForbidden();
+    }
+    if (!strictSignOutCsrf && csrfHeader && csrfCookie !== csrfHeader) {
+      this.logger.warn(
+        `Reject sign-out due to CSRF mismatch (compat mode). hasCookie=${Boolean(csrfCookie)} hasHeader=${Boolean(csrfHeader)}`
+      );
       throw new ActionForbidden();
     }
 
@@ -396,5 +621,93 @@ export class AuthController {
     return {
       users: await this.auth.getUserList(token),
     };
+  }
+
+  private getRequestIp(req: Request): string {
+    const forwardedFor = req.headers['x-forwarded-for'];
+    if (typeof forwardedFor === 'string' && forwardedFor.trim()) {
+      return forwardedFor.split(',')[0]?.trim() ?? '';
+    }
+    if (Array.isArray(forwardedFor) && forwardedFor.length > 0) {
+      return forwardedFor[0] ?? '';
+    }
+    return req.ip ?? '';
+  }
+
+  private getRequestFingerprintHash(req: Request): string {
+    const ip = this.getRequestIp(req);
+    const userAgent = req.get('user-agent') ?? '';
+    return this.crypto.sha256(`${ip}|${userAgent}`).toString('hex');
+  }
+
+  private async createAdminMfaChallenge(
+    req: Request,
+    userId: string,
+    email: string
+  ): Promise<{ ticket: string; riskLevel: 'low' | 'elevated' }> {
+    const ticket = this.crypto.randomBytes(24).toString('base64url');
+    const otp = this.crypto.otp();
+    const otpHash = this.crypto.sha256(otp).toString('hex');
+    const fingerprintHash = this.getRequestFingerprintHash(req);
+    const trustedDevice = await this.sessionCache.mapGet<{ seenAt: number }>(
+      `${ADMIN_TRUSTED_DEVICE_PREFIX}:${userId}`,
+      fingerprintHash
+    );
+    const riskLevel: 'low' | 'elevated' = trustedDevice ? 'low' : 'elevated';
+
+    await this.sessionCache.set<AdminMfaChallengeRecord>(
+      `${ADMIN_MFA_CHALLENGE_PREFIX}:${ticket}`,
+      {
+        userId,
+        email,
+        otpHash,
+        attempts: 0,
+        riskLevel,
+        fingerprintHash,
+      },
+      {
+        ttl: this.config.auth.adminSession.mfaChallengeTtl * 1000,
+      }
+    );
+
+    await this.sendAdminMfaEmail(email, ticket, otp);
+
+    return {
+      ticket,
+      riskLevel,
+    };
+  }
+
+  private async reissueAdminMfaChallenge(
+    ticket: string,
+    challenge: AdminMfaChallengeRecord
+  ) {
+    const otp = this.crypto.otp();
+    const otpHash = this.crypto.sha256(otp).toString('hex');
+
+    await this.sessionCache.set<AdminMfaChallengeRecord>(
+      `${ADMIN_MFA_CHALLENGE_PREFIX}:${ticket}`,
+      {
+        ...challenge,
+        otpHash,
+        attempts: 0,
+      },
+      {
+        ttl: this.config.auth.adminSession.mfaChallengeTtl * 1000,
+      }
+    );
+
+    await this.sendAdminMfaEmail(challenge.email, ticket, otp);
+  }
+
+  private async sendAdminMfaEmail(email: string, ticket: string, otp: string) {
+    const callbackUrl = this.url.link('/admin/auth', { mfa_ticket: ticket });
+    await this.auth.sendSignInEmail(email, callbackUrl, otp, false);
+  }
+
+  private async assertAdminUser(userId: string) {
+    if (!(await this.feature.isAdmin(userId))) {
+      throw new ActionForbidden();
+    }
   }
 }

@@ -1,8 +1,8 @@
-import { Logger } from './logger';
-import { Package, readPackageJson } from './package';
-import { ProjectRoot } from './path';
-import type { CommonPackageJsonContent } from './types';
-import { PackageList, type PackageName, yarnList } from './yarn';
+import { Logger } from './logger.js';
+import { Package, readPackageJson } from './package.js';
+import { ProjectRoot } from './path.js';
+import type { CommonPackageJsonContent } from './types.js';
+import { PackageList, type PackageName, yarnList } from './yarn.js';
 
 class CircularDependenciesError extends Error {
   constructor(public currentName: string) {

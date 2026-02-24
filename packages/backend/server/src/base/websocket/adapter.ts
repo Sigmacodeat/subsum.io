@@ -5,6 +5,7 @@ import { Server, Socket } from 'socket.io';
 
 import { Config } from '../config';
 import { AuthenticationRequired } from '../error';
+import { URLHelper } from '../helpers';
 import { SocketIoRedis } from '../redis';
 import { WEBSOCKET_OPTIONS } from './options';
 
@@ -17,13 +18,21 @@ export class SocketIoAdapter extends IoAdapter {
     const config = this.app.get(WEBSOCKET_OPTIONS) as Config['websocket'] & {
       canActivate: (socket: Socket) => Promise<boolean>;
     };
+    const url = this.app.get(URLHelper);
     const server: Server = super.createIOServer(port, {
       ...config,
       ...options,
       // Enable CORS for Socket.IO
       cors: {
-        origin: true, // Allow all origins
-        credentials: true, // Allow credentials (cookies, auth headers)
+        origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+          if (!origin) {
+            callback(null, true);
+            return;
+          }
+
+          callback(null, url.allowedOrigins.includes(origin));
+        },
+        credentials: true,
         methods: ['GET', 'POST'],
       },
     });

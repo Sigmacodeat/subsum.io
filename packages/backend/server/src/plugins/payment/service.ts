@@ -125,7 +125,8 @@ export class SubscriptionService {
 
   async checkout(
     params: z.infer<typeof CheckoutParams>,
-    args: z.infer<typeof CheckoutExtraArgs>
+    args: z.infer<typeof CheckoutExtraArgs>,
+    idempotencyKey?: string
   ) {
     const { plan, recurring, variant } = params;
 
@@ -152,7 +153,8 @@ export class SubscriptionService {
         variant: variant ?? null,
       },
       params,
-      args
+      args,
+      idempotencyKey
     );
   }
 

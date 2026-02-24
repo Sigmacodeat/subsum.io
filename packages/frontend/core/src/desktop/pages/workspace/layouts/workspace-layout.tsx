@@ -1,6 +1,8 @@
 import { uniReactRoot } from '@affine/component';
 import { AiLoginRequiredModal } from '@affine/core/components/affine/auth/ai-login-required';
 import { useResponsiveSidebar } from '@affine/core/components/hooks/use-responsive-siedebar';
+import { useQuickCheckHandoff } from '@affine/core/components/hooks/use-quick-check-handoff';
+import { QuickCheckBanner } from '@affine/core/components/quick-check-handoff/quick-check-banner';
 import { SWRConfigProvider } from '@affine/core/components/providers/swr-config-provider';
 import { WorkspaceSideEffects } from '@affine/core/components/providers/workspace-side-effects';
 import { AIIsland } from '@affine/core/desktop/components/ai-island';
@@ -13,11 +15,18 @@ import { WorkbenchService } from '@affine/core/modules/workbench';
 import { WorkspaceService } from '@affine/core/modules/workspace';
 import { LiveData, useLiveData, useService } from '@toeverything/infra';
 import type { PropsWithChildren } from 'react';
+import { useCallback } from 'react';
 
 export const WorkspaceLayout = function WorkspaceLayout({
   children,
 }: PropsWithChildren) {
   const currentWorkspace = useService(WorkspaceService).workspace;
+  const { status: handoffStatus, payload: handoffPayload, dismiss: dismissHandoff } = useQuickCheckHandoff();
+
+  const handleStartAnalysis = useCallback(() => {
+    dismissHandoff();
+  }, [dismissHandoff]);
+
   return (
     <SWRConfigProvider>
       <WorkspaceDialogs />
@@ -30,6 +39,15 @@ export const WorkspaceLayout = function WorkspaceLayout({
       <WorkspaceSideEffects />
       <PeekViewManagerModal />
       <DocumentTitle />
+
+      {handoffStatus === 'valid' && handoffPayload ? (
+        <QuickCheckBanner
+          payload={handoffPayload}
+          onDismiss={dismissHandoff}
+          onStartAnalysis={handleStartAnalysis}
+          locale={handoffPayload.locale}
+        />
+      ) : null}
 
       <WorkspaceLayoutInner>{children}</WorkspaceLayoutInner>
       {/* should show after workspace loaded */}

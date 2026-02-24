@@ -15,6 +15,7 @@ import {
   CalendarProviderRequestError,
   MissingOauthQueryParameter,
   OauthStateExpired,
+  Throttle,
   UnknownOauthProvider,
   URLHelper,
 } from '../../base';
@@ -59,6 +60,7 @@ export class CalendarController {
   }
 
   @Public()
+  @Throttle('strict')
   @Get('/oauth/callback')
   @HttpCode(HttpStatus.OK)
   async callbackGet(
@@ -70,6 +72,7 @@ export class CalendarController {
   }
 
   @Public()
+  @Throttle('strict')
   @Post('/oauth/callback')
   @HttpCode(HttpStatus.OK)
   async callback(
@@ -81,6 +84,7 @@ export class CalendarController {
   }
 
   @Public()
+  @Throttle('strict')
   @Post('/webhook/google')
   @HttpCode(HttpStatus.OK)
   async googleWebhook(@Req() req: Request, @Res() res: Response) {

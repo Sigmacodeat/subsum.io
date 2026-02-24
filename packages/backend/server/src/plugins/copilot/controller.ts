@@ -1,9 +1,12 @@
 import {
+  BadRequestException,
+  Body,
   BeforeApplicationShutdown,
   Controller,
   Get,
   Logger,
   Param,
+  Post,
   Query,
   Req,
   Res,
@@ -43,6 +46,7 @@ import {
   mapSseError,
   metrics,
   NoCopilotProviderAvailable,
+  Throttle,
   UnsplashIsNotConfigured,
 } from '../../base';
 import { ServerFeature, ServerService } from '../../core';
@@ -67,6 +71,38 @@ export interface ChatEvent {
   id?: string;
   data: string | object;
 }
+
+type TenantLlmRole = 'system' | 'user' | 'assistant';
+
+type TenantLlmMessage = {
+  role: TenantLlmRole;
+  content: string;
+};
+
+type TenantLlmModelCostTier = 'low' | 'medium' | 'high' | 'premium';
+
+type TenantLlmThinkingLevel = 'low' | 'medium' | 'high';
+
+type TenantLlmModel = {
+  id: string;
+  providerId: string;
+  label: string;
+  description: string;
+  contextWindow: number;
+  supportsStreaming: boolean;
+  costTier: TenantLlmModelCostTier;
+  icon: string;
+  creditMultiplier: number;
+  thinkingLevel: TenantLlmThinkingLevel;
+};
+
+type TenantLlmChatRequest = {
+  model?: string;
+  systemPrompt?: string;
+  messages?: TenantLlmMessage[];
+  temperature?: number;
+  maxTokens?: number;
+};
 
 const PING_INTERVAL = 5000;
 
@@ -93,6 +129,159 @@ export class CopilotController implements BeforeApplicationShutdown {
       )
     );
     this.ongoingStreamCount$.complete();
+  }
+
+  private inferDefaultModelId(provider: CopilotProvider): string | null {
+    const defaultModel = provider.models.find(model =>
+      model.capabilities.some(
+        capability =>
+          capability.output.includes(ModelOutputType.Text) &&
+          capability.defaultForOutputType
+      )
+    );
+    if (defaultModel) {
+      return defaultModel.id;
+    }
+
+    const fallbackModel = provider.models.find(model =>
+      model.capabilities.some(capability => capability.output.includes(ModelOutputType.Text))
+    );
+    return fallbackModel?.id ?? null;
+  }
+
+  private inferCostTier(modelId: string): TenantLlmModelCostTier {
+    const id = modelId.toLowerCase();
+    if (
+      id.includes('nano') ||
+      id.includes('mini') ||
+      id.includes('haiku') ||
+      id.includes('flash')
+    ) {
+      return 'low';
+    }
+    if (
+      id.includes('opus') ||
+      id.includes('ultra') ||
+      id.includes('o1') ||
+      id.includes('gpt-5') ||
+      id.includes('grok-4') ||
+      id.includes('reasoning-high')
+    ) {
+      return 'premium';
+    }
+    if (
+      id.includes('sonnet') ||
+      id.includes('large') ||
+      id.includes('pro') ||
+      id.includes('gpt-4o') ||
+      id.includes('o3') ||
+      id.includes('grok') ||
+      id.includes('r1')
+    ) {
+      return 'high';
+    }
+    return 'medium';
+  }
+
+  private inferCreditMultiplier(costTier: TenantLlmModelCostTier): number {
+    switch (costTier) {
+      case 'low':
+        return 0.5;
+      case 'medium':
+        return 1;
+      case 'high':
+        return 1.5;
+      case 'premium':
+        return 2.5;
+      default:
+        return 1;
+    }
+  }
+
+  private inferProviderIdFromModelId(modelId: string, fallbackProviderId: string): string {
+    const normalized = modelId.toLowerCase();
+    if (normalized.includes('/')) {
+      const [prefix] = normalized.split('/');
+      if (prefix) {
+        return prefix;
+      }
+    }
+    return fallbackProviderId;
+  }
+
+  private inferLabelFromModelId(modelId: string): string {
+    const parts = modelId.split('/');
+    return parts[parts.length - 1] || modelId;
+  }
+
+  private inferThinkingLevel(modelId: string): TenantLlmThinkingLevel {
+    const id = modelId.toLowerCase();
+    if (id.includes('o1') || id.includes('reasoning-high') || id.includes('thinking-high')) {
+      return 'high';
+    }
+    if (id.includes('o3') || id.includes('reasoning') || id.includes('thinking')) {
+      return 'medium';
+    }
+    return 'low';
+  }
+
+  private inferContextWindow(modelId: string): number {
+    const id = modelId.toLowerCase();
+    if (id.includes('gemini')) {
+      return 1_000_000;
+    }
+    if (id.includes('claude')) {
+      return 200_000;
+    }
+    if (id.includes('gpt-4') || id.includes('gpt-5') || id.includes('o1') || id.includes('o3')) {
+      return 128_000;
+    }
+    return 64_000;
+  }
+
+  private inferProviderIcon(providerId: string): string {
+    switch (providerId) {
+      case 'openai':
+        return '🟢';
+      case 'anthropic':
+      case 'anthropicVertex':
+        return '🟣';
+      case 'gemini':
+      case 'geminiVertex':
+        return '🔴';
+      case 'perplexity':
+        return '🟠';
+      case 'morph':
+        return '⚙️';
+      case 'fal':
+        return '🟡';
+      case 'x-ai':
+      case 'xai':
+        return '⚫';
+      default:
+        return '🔵';
+    }
+  }
+
+  private toTenantModel(
+    modelId: string,
+    providerId: string,
+    label?: string
+  ): TenantLlmModel {
+    const resolvedProviderId = this.inferProviderIdFromModelId(modelId, providerId);
+    const costTier = this.inferCostTier(modelId);
+    return {
+      id: modelId,
+      providerId: resolvedProviderId,
+      label: label ?? this.inferLabelFromModelId(modelId),
+      description: `${label ?? this.inferLabelFromModelId(modelId)} via Tenant Shared API`,
+      contextWindow: this.inferContextWindow(modelId),
+      supportsStreaming: true,
+      costTier,
+      icon: this.inferProviderIcon(resolvedProviderId),
+      creditMultiplier: this.inferCreditMultiplier(costTier),
+      thinkingLevel: this.inferThinkingLevel(modelId),
+    };
   }
 
   private async chooseProvider(
@@ -240,6 +429,114 @@ export class CopilotController implements BeforeApplicationShutdown {
       session,
       finalMessage,
     };
+  }
+
+  @Get('/tenant-llm/models')
+  @CallMetric('ai', 'tenant_llm_models')
+  async tenantModels(@CurrentUser() user: CurrentUser): Promise<TenantLlmModel[]> {
+    await this.chatSession.checkQuota(user.id);
+
+    const configuredProviders = this.provider.listConfiguredProviders();
+    const models = new Map<string, TenantLlmModel>();
+
+    await Promise.all(
+      configuredProviders.map(async ({ provider }) => {
+        try {
+          await provider.refreshOnlineModels();
+        } catch {
+          // best-effort only
+        }
+      })
+    );
+
+    for (const { type, provider } of configuredProviders) {
+      for (const model of provider.models) {
+        const supportsText = model.capabilities.some(capability =>
+          capability.output.includes(ModelOutputType.Text)
+        );
+        if (!supportsText) {
+          continue;
+        }
+        if (!models.has(model.id)) {
+          models.set(model.id, this.toTenantModel(model.id, type, model.name));
+        }
+      }
+
+      for (const modelId of provider.getOnlineModelIds()) {
+        if (!modelId || models.has(modelId)) {
+          continue;
+        }
+        models.set(modelId, this.toTenantModel(modelId, type));
+      }
+    }
+
+    return Array.from(models.values()).sort((a, b) => a.label.localeCompare(b.label));
+  }
+
+  @Post('/tenant-llm/chat')
+  @CallMetric('ai', 'tenant_llm_chat')
+  async tenantChat(
+    @CurrentUser() user: CurrentUser,
+    @Body() body: TenantLlmChatRequest
+  ): Promise<{ answer: string; model: string }> {
+    await this.chatSession.checkQuota(user.id);
+
+    const messages = (Array.isArray(body.messages) ? body.messages : []).filter(
+      message =>
+        message &&
+        typeof message.role === 'string' &&
+        typeof message.content === 'string' &&
+        message.content.trim().length > 0
+    );
+
+    const systemPrompt = typeof body.systemPrompt === 'string' ? body.systemPrompt.trim() : '';
+    if (!systemPrompt && messages.length === 0) {
+      throw new BadRequestException('At least one message or system prompt is required');
+    }
+
+    const requestedModel =
+      typeof body.model === 'string' && body.model.trim().length > 0
+        ? body.model.trim()
+        : undefined;
+
+    const provider = await this.provider.getProvider({
+      outputType: ModelOutputType.Text,
+      modelId: requestedModel,
+    });
+    if (!provider) {
+      throw new NoCopilotProviderAvailable({ modelId: requestedModel ?? 'auto' });
+    }
+
+    const resolvedModel = requestedModel ?? this.inferDefaultModelId(provider);
+    if (!resolvedModel) {
+      throw new NoCopilotProviderAvailable({ modelId: requestedModel ?? 'auto' });
+    }
+
+    const promptMessages = [
+      ...(systemPrompt ? ([{ role: 'system', content: systemPrompt }] as const) : []),
+      ...messages.map(message => ({
+        role: message.role,
+        content: message.content,
+      })),
+    ];
+
+    const answer = await provider.text(
+      { modelId: resolvedModel },
+      promptMessages,
+      {
+        temperature:
+          typeof body.temperature === 'number'
+            ? Math.min(1, Math.max(0, body.temperature))
+            : 0.3,
+        maxTokens:
+          typeof body.maxTokens === 'number'
+            ? Math.min(8_192, Math.max(256, Math.round(body.maxTokens)))
+            : 4_000,
+        user: user.id,
+      }
+    );
+
+    return { answer, model: resolvedModel };
   }
 
   @Get('/chat/:sessionId')
@@ -762,6 +1059,7 @@ export class CopilotController implements BeforeApplicationShutdown {
   }
 
   @Public()
+  @Throttle('default')
   @Get('/blob/:userId/:workspaceId/:key')
   async getBlob(
     @Res() res: Response,

@@ -1,7 +1,7 @@
 import { Body, Controller, Headers, Logger, Post } from '@nestjs/common';
 import { z } from 'zod';
 
-import { Config, EventBus, JobQueue } from '../../../base';
+import { Config, EventBus, JobQueue, Throttle } from '../../../base';
 import { Public } from '../../../core/auth';
 import { FeatureService } from '../../../core/features';
 import { Models } from '../../../models';
@@ -48,6 +48,7 @@ const RcWebhookPayloadSchema = z.object({ event: RcEventSchema }).passthrough();
 export type RcEvent = z.infer<typeof RcEventSchema>;
 type RcPayload = z.infer<typeof RcWebhookPayloadSchema>;
 
+@Throttle('strict')
 @Controller('/api/revenuecat')
 export class RevenueCatWebhookController {
   private readonly logger = new Logger(RevenueCatWebhookController.name);

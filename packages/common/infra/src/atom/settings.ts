@@ -13,6 +13,7 @@ export type AppSetting = {
   windowFrameStyle: 'frameless' | 'NativeTitleBar';
   enableBlurBackground: boolean;
   enableNoisyBackground: boolean;
+  themeVariant: 'default' | 'ocean' | 'forest' | 'graphite';
   autoCheckUpdate: boolean;
   autoDownloadUpdate: boolean;
   enableTelemetry: boolean;
@@ -32,6 +33,7 @@ const appSettingBaseAtom = atomWithStorage<AppSetting>(
     windowFrameStyle: 'frameless',
     enableBlurBackground: BUILD_CONFIG.isElectron && environment.isMacOs,
     enableNoisyBackground: true,
+    themeVariant: 'default',
     autoCheckUpdate: true,
     autoDownloadUpdate: true,
     enableTelemetry: true,

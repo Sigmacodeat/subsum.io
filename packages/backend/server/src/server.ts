@@ -13,6 +13,7 @@ import {
 } from './base';
 import { SocketIoAdapter } from './base/websocket';
 import { AuthGuard } from './core/auth';
+import { securityHeaders } from './middleware/security-headers';
 import { serverTimingAndCache } from './middleware/timing';
 
 const OneMB = 1024 * 1024;
@@ -21,7 +22,7 @@ export async function run() {
   const { AppModule } = await import('./app.module');
 
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
-    cors: true,
+    cors: false,
     rawBody: true,
     bodyParser: true,
     bufferLogs: true,
@@ -32,11 +33,26 @@ export async function run() {
   const logger = app.get(AFFiNELogger);
   app.useLogger(logger);
   const config = app.get(Config);
+  const url = app.get(URLHelper);
+
+  app.enableCors({
+    credentials: true,
+    origin: (origin, callback) => {
+      // non-browser requests may not have an Origin header
+      if (!origin) {
+        callback(null, true);
+        return;
+      }
+
+      callback(null, url.allowedOrigins.includes(origin));
+    },
+  });
 
   if (config.server.path) {
     app.setGlobalPrefix(config.server.path);
   }
 
+  app.use(securityHeaders);
   app.use(serverTimingAndCache);
 
   app.use(
@@ -63,8 +79,8 @@ export async function run() {
     const { SwaggerModule, DocumentBuilder } = await import('@nestjs/swagger');
     // Swagger API Docs
     const docConfig = new DocumentBuilder()
-      .setTitle('AFFiNE API')
-      .setDescription(`AFFiNE Server ${env.version} API documentation`)
+      .setTitle('Subsumio API')
+      .setDescription(`Subsumio Server ${env.version} API documentation`)
       .setVersion(`${env.version}`)
       .build();
     const documentFactory = () => SwaggerModule.createDocument(app, docConfig);
@@ -74,15 +90,13 @@ export async function run() {
     });
   }
 
-  const url = app.get(URLHelper);
-
   await app.listen(config.server.port, config.server.listenAddr);
 
   const formattedAddr = config.server.listenAddr.includes(':')
     ? `[${config.server.listenAddr}]`
     : config.server.listenAddr;
 
-  logger.log(`AFFiNE Server is running in [${env.DEPLOYMENT_TYPE}] mode`);
+  logger.log(`Subsumio Server is running in [${env.DEPLOYMENT_TYPE}] mode`);
   logger.log(`Listening on http://${formattedAddr}:${config.server.port}`);
   logger.log(`And the public server should be recognized as ${url.baseUrl}`);
 }

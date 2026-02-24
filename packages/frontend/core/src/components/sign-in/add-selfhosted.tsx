@@ -123,7 +123,7 @@ export const AddSelfhostedStep = ({
             components={{
               1: (
                 <a
-                  href="https://docs.affine.pro/docs/self-host-affine"
+                  href="https://subsumio.ai/docs/self-host-affine"
                   target="_blank"
                   rel="noreferrer"
                 />

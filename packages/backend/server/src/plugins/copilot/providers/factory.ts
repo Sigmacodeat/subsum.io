@@ -68,6 +68,13 @@ export class CopilotProviderFactory {
     this.server.enableFeature(ServerFeature.Copilot);
   }
 
+  listConfiguredProviders(): Array<{ type: CopilotProviderType; provider: CopilotProvider }> {
+    return Array.from(this.#providers.entries()).map(([type, provider]) => ({
+      type,
+      provider,
+    }));
+  }
+
   unregister(provider: CopilotProvider) {
     this.#providers.delete(provider.type);
     this.logger.log(`Copilot provider [${provider.type}] unregistered.`);

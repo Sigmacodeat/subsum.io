@@ -1,5 +1,4 @@
 import { IconButton } from '@affine/component';
-import { ExplorerNavigation } from '@affine/core/components/explorer/header/navigation';
 import { Header } from '@affine/core/components/pure/header';
 import { PlusIcon } from '@blocksuite/icons/rc';
 import clsx from 'clsx';
@@ -26,7 +25,6 @@ export const AllCollectionHeader = ({
           )}
         />
       }
-      left={<ExplorerNavigation active={'collections'} />}
     />
   );
 };

@@ -9,12 +9,14 @@ export type SettingTab =
   | 'about'
   | 'plans'
   | 'billing'
+  | 'affiliate'
   | 'backup' // electron only
   | 'experimental-features'
   | 'editor'
   | 'account'
   | 'meetings'
-  | `workspace:${'preference' | 'properties' | 'members' | 'storage' | 'billing' | 'license' | 'integrations' | 'embedding' | 'search'}`;
+  | `workspace:${'preference' | 'properties' | 'members' | 'storage' | 'billing' | 'license' | 'integrations' | 'embedding' | 'search'}`
+  | `organization:${'general' | 'members' | 'workspaces'}`;
 
 export type GLOBAL_DIALOG_SCHEMA = {
   'create-workspace': (props: { serverId?: string }) => {
@@ -43,6 +45,7 @@ export type GLOBAL_DIALOG_SCHEMA = {
 export type WORKSPACE_DIALOG_SCHEMA = {
   setting: (props: { activeTab?: SettingTab; scrollAnchor?: string }) => void;
   'doc-info': (props: { docId: string }) => void;
+  'issue-report': (props: { presetTitle?: string; presetDescription?: string }) => void;
   'doc-selector': (props: {
     init: string[];
     onBeforeConfirm?: (ids: string[], cb: () => void) => void;

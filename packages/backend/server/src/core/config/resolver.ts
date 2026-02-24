@@ -12,7 +12,7 @@ import {
 } from '@nestjs/graphql';
 import { GraphQLJSON, GraphQLJSONObject } from 'graphql-scalars';
 
-import { Config, URLHelper } from '../../base';
+import { Config, Throttle, URLHelper } from '../../base';
 import { Namespace } from '../../env';
 import { Feature, type WorkspaceFeatureName } from '../../models';
 import { CurrentUser, Public } from '../auth';
@@ -67,6 +67,7 @@ export class ServerConfigResolver {
   ) {}
 
   @Public()
+  @Throttle('default')
   @Query(() => ServerConfigType, {
     description: 'server config',
   })
@@ -75,12 +76,12 @@ export class ServerConfigResolver {
       name:
         this.config.server.name ??
         (env.selfhosted
-          ? 'AFFiNE SelfHosted Cloud'
+          ? 'Subsumio Self-Hosted Cloud'
           : env.namespaces.canary
-            ? 'AFFiNE Canary Cloud'
+            ? 'Subsumio Canary Cloud'
             : env.namespaces.beta
-              ? 'AFFiNE Beta Cloud'
-              : 'AFFiNE Cloud'),
+              ? 'Subsumio Beta Cloud'
+              : 'Subsumio Cloud'),
       version: env.version,
       baseUrl: this.url.requestBaseUrl,
       type: env.DEPLOYMENT_TYPE,

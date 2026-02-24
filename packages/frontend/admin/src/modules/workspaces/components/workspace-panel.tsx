@@ -2,11 +2,11 @@ import {
   Avatar,
   AvatarFallback,
   AvatarImage,
-} from '@affine/admin/components/ui/avatar';
-import { Input } from '@affine/admin/components/ui/input';
-import { Label } from '@affine/admin/components/ui/label';
-import { Separator } from '@affine/admin/components/ui/separator';
-import { Switch } from '@affine/admin/components/ui/switch';
+} from '../../../components/ui/avatar';
+import { Input } from '../../../components/ui/input';
+import { Label } from '../../../components/ui/label';
+import { Separator } from '../../../components/ui/separator';
+import { Switch } from '../../../components/ui/switch';
 import type { FeatureType } from '@affine/graphql';
 import {
   adminUpdateWorkspaceMutation,

@@ -1,13 +1,13 @@
-import { Input } from '@affine/admin/components/ui/input';
+import { Input } from '../../components/ui/input';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@affine/admin/components/ui/select';
-import { Switch } from '@affine/admin/components/ui/switch';
-import { cn } from '@affine/admin/utils';
+} from '../../components/ui/select';
+import { Switch } from '../../components/ui/switch';
+import { cn } from '../../utils';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { Textarea } from '../../components/ui/textarea';

@@ -1,7 +1,7 @@
 import {
   useMutateQueryResource,
   useMutation,
-} from '@affine/admin/use-mutation';
+} from '../../../use-mutation';
 import { useAsyncCallback } from '@affine/core/components/hooks/affine-async-hooks';
 import {
   createChangePasswordUrlMutation,

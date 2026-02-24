@@ -1,0 +1,3 @@
+mutation removeOrgMember($organizationId: String!, $userId: String!) {
+  removeOrgMember(organizationId: $organizationId, userId: $userId)
+}

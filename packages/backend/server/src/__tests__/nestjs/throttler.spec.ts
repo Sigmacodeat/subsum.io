@@ -1,4 +1,4 @@
-import { Controller, Get, HttpStatus, UseGuards } from '@nestjs/common';
+import { Controller, Get, HttpStatus, Post, UseGuards } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import ava, { TestFn } from 'ava';
 import Sinon from 'sinon';
@@ -75,6 +75,12 @@ class NonThrottledController {
   @Get('/default')
   default() {
     return 'default';
+  }
+
+  @Public()
+  @Post('/default-post')
+  defaultPost() {
+    return 'default-post';
   }
 
   @Public()
@@ -241,6 +247,18 @@ test('should skip throttler for unauthenticated user when specified', async t =>
   t.is(headers.limit, undefined!);
   t.is(headers.remaining, undefined!);
   t.is(headers.reset, undefined!);
+});
+
+test('should protect unspecified mutating routes for authenticated user', async t => {
+  const { app } = t.context;
+
+  await app.signupV1('u1@affine.pro');
+  const res = await app.POST('/nonthrottled/default-post').expect(201);
+
+  const headers = rateLimitHeaders(res);
+
+  t.is(headers.limit, '120');
+  t.is(headers.remaining, '119');
 });
 
 test('should use specified throttler for unauthenticated user', async t => {

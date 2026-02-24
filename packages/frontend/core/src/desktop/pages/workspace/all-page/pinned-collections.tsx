@@ -147,7 +147,7 @@ export const PinnedCollections = ({
           onAddFilter={onAddFilter}
         />
       )}
-      <div style={{ flex: 1 }}></div>
+      <div className={styles.spacer} />
       {activeCollectionId && (
         <Tooltip content={t['com.affine.all-docs.pinned-collection.edit']()}>
           <IconButton

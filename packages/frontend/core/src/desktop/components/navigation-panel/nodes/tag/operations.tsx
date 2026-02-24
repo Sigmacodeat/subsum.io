@@ -15,7 +15,7 @@ import {
   SplitViewIcon,
 } from '@blocksuite/icons/rc';
 import { useLiveData, useServices } from '@toeverything/infra';
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 
 import type { NodeOperation } from '../../tree/types';
 
@@ -41,25 +41,46 @@ export const useNavigationPanelTagNodeOperations = (
     favoriteService.favoriteList.favorite$('tag', tagId)
   );
   const tagRecord = useLiveData(tagService.tagList.tagByTagId$(tagId));
+  const [isCreatingDoc, setIsCreatingDoc] = useState(false);
+  const [isDeletingTag, setIsDeletingTag] = useState(false);
 
   const { createPage } = usePageHelper(
     workspaceService.workspace.docCollection
   );
 
   const handleNewDoc = useCallback(() => {
-    if (tagRecord) {
-      const newDoc = createPage();
-      tagRecord?.tag(newDoc.id);
-      track.$.navigationPanel.tags.createDoc();
-      openNodeCollapsed();
+    if (isCreatingDoc || isDeletingTag) {
+      return;
     }
-  }, [createPage, openNodeCollapsed, tagRecord]);
+    if (tagRecord) {
+      setIsCreatingDoc(true);
+      try {
+        const newDoc = createPage();
+        tagRecord?.tag(newDoc.id);
+        track.$.navigationPanel.tags.createDoc();
+        openNodeCollapsed();
+      } finally {
+        setIsCreatingDoc(false);
+      }
+    }
+  }, [createPage, isCreatingDoc, isDeletingTag, openNodeCollapsed, tagRecord]);
 
   const handleMoveToTrash = useCallback(() => {
-    tagService.tagList.deleteTag(tagId);
-    track.$.navigationPanel.organize.deleteOrganizeItem({ type: 'tag' });
-    toast(t['com.affine.tags.delete-tags.toast']());
-  }, [t, tagId, tagService.tagList]);
+    if (isDeletingTag || isCreatingDoc) {
+      return;
+    }
+    setIsDeletingTag(true);
+    try {
+      if (favorite) {
+        favoriteService.favoriteList.toggle('tag', tagId);
+      }
+      tagService.tagList.deleteTag(tagId);
+      track.$.navigationPanel.organize.deleteOrganizeItem({ type: 'tag' });
+      toast(t['com.affine.tags.delete-tags.toast']());
+    } finally {
+      setIsDeletingTag(false);
+    }
+  }, [favorite, favoriteService, isCreatingDoc, isDeletingTag, t, tagId, tagService.tagList]);
 
   const handleOpenInSplitView = useCallback(() => {
     workbenchService.workbench.openTag(tagId, {
@@ -91,6 +112,7 @@ export const useNavigationPanelTagNodeOperations = (
           <IconButton
             size="16"
             onClick={handleNewDoc}
+            disabled={isCreatingDoc || isDeletingTag}
             data-testid="tag-add-doc-button"
             tooltip={t['com.affine.rootAppSidebar.explorer.tag-add-tooltip']()}
           >
@@ -145,6 +167,7 @@ export const useNavigationPanelTagNodeOperations = (
             type={'danger'}
             prefixIcon={<DeleteIcon />}
             onClick={handleMoveToTrash}
+            disabled={isDeletingTag || isCreatingDoc}
             data-testid="tag-delete-button"
           >
             {t['Delete']()}
@@ -159,6 +182,8 @@ export const useNavigationPanelTagNodeOperations = (
       handleOpenInNewTab,
       handleOpenInSplitView,
       handleToggleFavoriteTag,
+      isCreatingDoc,
+      isDeletingTag,
       t,
     ]
   );

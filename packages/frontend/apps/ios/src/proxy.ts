@@ -20,8 +20,21 @@ globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
 
 const rawXMLHttpRequest = globalThis.XMLHttpRequest;
 globalThis.XMLHttpRequest = class extends rawXMLHttpRequest {
+  private requestOrigin: string | null = null;
+
+  override open(
+    method: string,
+    url: string | URL,
+    async?: boolean,
+    username?: string | null,
+    password?: string | null
+  ): void {
+    this.requestOrigin = new URL(url.toString(), globalThis.location.origin).origin;
+    super.open(method, url.toString(), async ?? true, username ?? undefined, password ?? undefined);
+  }
+
   override send(body?: Document | XMLHttpRequestBodyInit | null): void {
-    const origin = new URL(this.responseURL, globalThis.location.origin).origin;
+    const origin = this.requestOrigin ?? globalThis.location.origin;
 
     readEndpointToken(origin).then(
       token => {
@@ -30,8 +43,9 @@ globalThis.XMLHttpRequest = class extends rawXMLHttpRequest {
         }
         return super.send(body);
       },
-      () => {
-        throw new Error('Failed to read token');
+      error => {
+        console.error('Failed to read token', error);
+        return super.send(body);
       }
     );
   }

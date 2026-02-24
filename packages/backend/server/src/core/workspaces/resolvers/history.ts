@@ -11,6 +11,7 @@ import {
 } from '@nestjs/graphql';
 import type { SnapshotHistory } from '@prisma/client';
 
+import { Throttle } from '../../../base';
 import { CurrentUser } from '../../auth';
 import { PgWorkspaceDocStorageAdapter } from '../../doc';
 import { AccessController } from '../../permission';
@@ -67,6 +68,7 @@ export class DocHistoryResolver {
     });
   }
 
+  @Throttle('strict')
   @Mutation(() => Date)
   async recoverDoc(
     @CurrentUser() user: CurrentUser,

@@ -3,6 +3,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaClient, Provider } from '@prisma/client';
 
 import { EventBus, JobQueue, OneHour, OnJob } from '../../base';
+import { AffiliateService } from './affiliate';
 import { RevenueCatWebhookHandler } from './revenuecat';
 import { SubscriptionService } from './service';
 import { StripeFactory } from './stripe';
@@ -20,6 +21,7 @@ declare global {
     'nightly.reconcileRevenueCatSubscriptions': {};
     'nightly.reconcileStripeRefunds': {};
     'nightly.revenuecat.syncUser': { userId: string };
+    'nightly.affiliate.runPayouts': {};
   }
 }
 
@@ -31,7 +33,8 @@ export class SubscriptionCronJobs {
     private readonly queue: JobQueue,
     private readonly rcHandler: RevenueCatWebhookHandler,
     private readonly stripeFactory: StripeFactory,
-    private readonly subscription: SubscriptionService
+    private readonly subscription: SubscriptionService,
+    private readonly affiliate: AffiliateService
   ) {}
 
   private getDateRange(after: number, base: number | Date = Date.now()) {
@@ -65,6 +68,12 @@ export class SubscriptionCronJobs {
       'nightly.reconcileStripeRefunds',
       {},
       { jobId: 'nightly-payment-reconcile-stripe-refunds' }
+    );
+
+    await this.queue.add(
+      'nightly.affiliate.runPayouts',
+      {},
+      { jobId: 'nightly-affiliate-run-payouts' }
     );
 
     // FIXME(@forehalo): the strategy is totally wrong, for monthly plan. redesign required
@@ -258,5 +267,10 @@ export class SubscriptionCronJobs {
 
       await this.subscription.handleRefundedInvoice(invoiceId, reason);
     }
+  }
+
+  @OnJob('nightly.affiliate.runPayouts')
+  async runAffiliatePayouts() {
+    await this.affiliate.runPayouts();
   }
 }

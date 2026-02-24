@@ -25,8 +25,11 @@ async function deleteWorkspaceV1(workspaceId: string) {
   try {
     await ensureSQLiteDisconnected('workspace', workspaceId);
     const basePath = await getWorkspaceBasePathV1('workspace', workspaceId);
-    await fs.rmdir(basePath, { recursive: true });
+    await fs.rm(basePath, { recursive: true, force: true });
   } catch (error) {
+    if ((error as any)?.code === 'ENOENT') {
+      return;
+    }
     logger.error('deleteWorkspaceV1', error);
   }
 }
@@ -41,8 +44,11 @@ export async function deleteWorkspace(universalId: string) {
   const dbPath = await getSpaceDBPath(peer, type, id);
   try {
     await getDocStoragePool().disconnect(universalId);
-    await fs.rmdir(path.dirname(dbPath), { recursive: true });
+    await fs.rm(path.dirname(dbPath), { recursive: true, force: true });
   } catch (e) {
+    if ((e as any)?.code === 'ENOENT') {
+      return;
+    }
     logger.error('deleteWorkspace', e);
   }
 }
@@ -72,8 +78,11 @@ export async function trashWorkspace(universalId: string) {
     await fs.copy(path.dirname(dbPath), movedPath, {
       overwrite: true,
     });
-    await fs.rmdir(path.dirname(dbPath), { recursive: true });
+    await fs.rm(path.dirname(dbPath), { recursive: true, force: true });
   } catch (error) {
+    if ((error as any)?.code === 'ENOENT') {
+      return;
+    }
     logger.error('trashWorkspace', error);
   }
 }

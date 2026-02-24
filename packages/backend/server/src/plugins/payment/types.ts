@@ -92,10 +92,24 @@ declare global {
     'stripe.charge.dispute.created': Stripe.ChargeDisputeCreatedEvent;
     'stripe.charge.dispute.closed': Stripe.ChargeDisputeClosedEvent;
 
+    'stripe.checkout.session.completed': Stripe.CheckoutSessionCompletedEvent;
+
+    // Stripe Connect
+    'stripe.account.updated': Stripe.AccountUpdatedEvent;
+
     // RevenueCat integration
     'revenuecat.webhook': {
       appUserId?: string;
       event: RcEvent;
+    };
+
+    // eSign integration
+    'esign.webhook': {
+      id: string;
+      provider: 'docusign' | 'signaturit' | 'dropbox_sign';
+      envelopeId: string;
+      event: string;
+      payload: Record<string, string>;
     };
   }
 

@@ -1,6 +1,7 @@
 import { UserFriendlyError } from '@affine/error';
 import {
   backoffRetry,
+  catchErrorInto,
   effect,
   Entity,
   exhaustMapWithTrailing,
@@ -67,6 +68,7 @@ export class AuthSession extends Entity {
     ) as Promise<AuthSessionAuthenticated>;
 
   isRevalidating$ = new LiveData(false);
+  error$ = new LiveData<any | null>(null);
 
   constructor(private readonly store: AuthStore) {
     super();
@@ -76,13 +78,17 @@ export class AuthSession extends Entity {
     exhaustMapWithTrailing(() =>
       fromPromise(() => this.getSession()).pipe(
         backoffRetry({
-          count: Infinity,
+          count: 8,
+          delay: 300,
+          maxDelay: 5000,
         }),
         tap(sessionInfo => {
           if (!isEqual(this.store.getCachedAuthSession(), sessionInfo)) {
             this.store.setCachedAuthSession(sessionInfo);
           }
+          this.error$.next(null);
         }),
+        catchErrorInto(this.error$),
         onStart(() => {
           this.isRevalidating$.next(true);
         }),

@@ -4,12 +4,14 @@ import {
   useDropTarget,
 } from '@affine/component';
 import { usePageHelper } from '@affine/core/blocksuite/block-suite-page-list/utils';
+import { CollectionService } from '@affine/core/modules/collection';
 import type { FavoriteSupportTypeUnion } from '@affine/core/modules/favorite';
 import {
   FavoriteService,
   isFavoriteSupportType,
 } from '@affine/core/modules/favorite';
 import { NavigationPanelService } from '@affine/core/modules/navigation-panel';
+import { TagService } from '@affine/core/modules/tag';
 import { WorkspaceService } from '@affine/core/modules/workspace';
 import type { AffineDNDData } from '@affine/core/types/dnd';
 import { inferOpenMode } from '@affine/core/utils';
@@ -17,7 +19,7 @@ import { useI18n } from '@affine/i18n';
 import { track } from '@affine/track';
 import { PlusIcon } from '@blocksuite/icons/rc';
 import { useLiveData, useServices } from '@toeverything/infra';
-import { type MouseEventHandler, useCallback, useMemo } from 'react';
+import { type MouseEventHandler, useCallback, useEffect, useMemo } from 'react';
 
 import { CollapsibleSection } from '../../layouts/collapsible-section';
 import { NavigationPanelCollectionNode } from '../../nodes/collection';
@@ -34,16 +36,55 @@ import {
 import { RootEmpty } from './empty';
 
 export const NavigationPanelFavorites = () => {
-  const { favoriteService, workspaceService, navigationPanelService } =
+  const {
+    favoriteService,
+    workspaceService,
+    navigationPanelService,
+    collectionService,
+    tagService,
+  } =
     useServices({
       FavoriteService,
       WorkspaceService,
       NavigationPanelService,
+      CollectionService,
+      TagService,
     });
 
   const path = useMemo(() => ['favorites'], []);
 
   const favorites = useLiveData(favoriteService.favoriteList.sortedList$);
+  const collectionMetas = useLiveData(collectionService.collectionMetas$);
+  const tags = useLiveData(tagService.tagList.tags$);
+
+  useEffect(() => {
+    if (favorites.length === 0) {
+      return;
+    }
+
+    const collectionIdSet = new Set(collectionMetas.map(item => item.id));
+    const tagIdSet = new Set(tags.map(tag => tag.id));
+    const staleFavorites = favorites.filter(favorite => {
+      if (favorite.type === 'doc') {
+        return !workspaceService.workspace.docCollection.meta.getDocMeta(favorite.id);
+      }
+      if (favorite.type === 'collection') {
+        return !collectionIdSet.has(favorite.id);
+      }
+      if (favorite.type === 'tag') {
+        return !tagIdSet.has(favorite.id);
+      }
+      return false;
+    });
+
+    if (staleFavorites.length === 0) {
+      return;
+    }
+
+    for (const stale of staleFavorites) {
+      favoriteService.favoriteList.remove(stale.type, stale.id);
+    }
+  }, [collectionMetas, favoriteService.favoriteList, favorites, tags, workspaceService]);
 
   const isLoading = useLiveData(favoriteService.favoriteList.isLoading$);
 

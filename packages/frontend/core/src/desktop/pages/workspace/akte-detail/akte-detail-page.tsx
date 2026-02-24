@@ -1,0 +1,2404 @@
+import { useLiveData, useService } from '@toeverything/infra';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useParams } from 'react-router-dom';
+
+import { useConfirmModal } from '@affine/component';
+import { useI18n } from '@affine/i18n';
+
+import { LegalChatService } from '../../../../modules/case-assistant/services/legal-chat';
+import { LegalCopilotWorkflowService } from '../../../../modules/case-assistant/services/legal-copilot-workflow';
+import { CasePlatformOrchestrationService } from '../../../../modules/case-assistant/services/platform-orchestration';
+import { CaseAssistantStore } from '../../../../modules/case-assistant/stores/case-assistant';
+import type {
+  AnwaltProfile,
+  CaseDeadline,
+  CaseFile,
+  CasePriority,
+  ClientRecord,
+  LegalChatMessage,
+  LegalChatMode,
+  LegalChatSession,
+  LegalDocumentRecord,
+  LegalDocumentStatus,
+  LegalFinding,
+  MatterRecord,
+  MatterStatus,
+  SemanticChunk,
+  WorkflowEvent,
+} from '../../../../modules/case-assistant/types';
+import { DocsService } from '../../../../modules/doc';
+import {
+  ViewBody,
+  ViewIcon,
+  ViewTitle,
+} from '../../../../modules/workbench';
+import { WorkbenchService } from '../../../../modules/workbench';
+import { ViewSidebarTab } from '../../../../modules/workbench/view/view-islands';
+import { WorkspaceService } from '../../../../modules/workspace';
+import { FileUploadZone, type UploadedFile } from '../detail-page/tabs/case-assistant/sections/file-upload-zone';
+import { BulkActionBar } from '../layouts/bulk-action-bar';
+import { useBulkSelection } from '../layouts/use-bulk-selection';
+import * as styles from './akte-detail-page.css';
+
+type ActiveTab = 'documents' | 'pages' | 'semantic';
+type SidePanelTab = 'copilot' | 'info' | 'deadlines';
+type AlertTierFilter = 'all' | 'P1' | 'P2' | 'P3';
+type AlertKindFilter = 'all' | 'deadline' | 'finding';
+
+
+const STATUS_STYLE: Record<MatterStatus, string> = {
+  open: styles.statusOpen,
+  closed: styles.statusClosed,
+  archived: styles.statusArchived,
+};
+
+function relativeTime(dateStr: string, language: string): string {
+  const then = new Date(dateStr).getTime();
+  if (!Number.isFinite(then)) {
+    return '—';
+  }
+  const now = Date.now();
+  const diffMs = now - then;
+  const rtf = new Intl.RelativeTimeFormat(language, { numeric: 'auto' });
+  const diffMin = Math.round(diffMs / 60000);
+  if (Math.abs(diffMin) < 1) {
+    return rtf.format(0, 'minute');
+  }
+  if (Math.abs(diffMin) < 60) {
+    return rtf.format(-diffMin, 'minute');
+  }
+
+  const diffH = Math.round(diffMin / 60);
+  if (Math.abs(diffH) < 24) {
+    return rtf.format(-diffH, 'hour');
+  }
+
+  const diffD = Math.round(diffH / 24);
+  if (Math.abs(diffD) < 7) {
+    return rtf.format(-diffD, 'day');
+  }
+
+  const diffW = Math.round(diffD / 7);
+  if (Math.abs(diffW) < 5) {
+    return rtf.format(-diffW, 'week');
+  }
+
+  const diffM = Math.round(diffD / 30);
+  if (Math.abs(diffM) < 12) {
+    return rtf.format(-diffM, 'month');
+  }
+
+  return new Intl.DateTimeFormat(language, {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date(dateStr));
+}
+
+function getPriorityRank(priority: CasePriority): number {
+  switch (priority) {
+    case 'critical':
+      return 4;
+    case 'high':
+      return 3;
+    case 'medium':
+      return 2;
+    default:
+      return 1;
+  }
+}
+
+function daysUntil(dateStr: string): number {
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+  const target = new Date(dateStr);
+  target.setHours(0, 0, 0, 0);
+  return Math.ceil((target.getTime() - now.getTime()) / 86400000);
+}
+
+function getDocStatusInfo(
+  status: LegalDocumentStatus,
+  t: ReturnType<typeof useI18n>
+): { label: string; className: string } {
+  switch (status) {
+    case 'indexed':
+      return {
+        label: t['com.affine.caseAssistant.akteDetail.docStatus.ready'](),
+        className: styles.docStatusReady,
+      };
+    case 'uploaded':
+    case 'ocr_pending':
+    case 'ocr_running':
+    case 'ocr_completed':
+      return {
+        label: t['com.affine.caseAssistant.akteDetail.docStatus.processing'](),
+        className: styles.docStatusPending,
+      };
+    case 'failed':
+      return {
+        label: t['com.affine.caseAssistant.akteDetail.docStatus.failed'](),
+        className: styles.docStatusFailed,
+      };
+    default:
+      return { label: String(status), className: styles.docStatusPending };
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// MAIN COMPONENT
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export const AkteDetailPage = () => {
+  const UPLOAD_CHUNK_SIZE = 25;
+  const params = useParams<{ matterId: string }>();
+  const matterId = params.matterId ?? '';
+
+  const t = useI18n();
+  const language = t.language || 'en';
+
+  const store = useService(CaseAssistantStore);
+  const casePlatformOrchestrationService = useService(CasePlatformOrchestrationService);
+  const workbench = useService(WorkbenchService).workbench;
+  const workspace = useService(WorkspaceService).workspace;
+  const workspaceId = workspace?.id ?? '';
+  const legalCopilotWorkflowService = useService(LegalCopilotWorkflowService);
+  const legalChatService = useService(LegalChatService);
+  const docsService = useService(DocsService);
+
+  const { openConfirmModal } = useConfirmModal();
+
+  const graph = useLiveData(store.watchGraph()) ?? {
+    clients: {},
+    matters: {},
+    cases: {},
+    actors: {},
+    issues: {},
+    deadlines: {},
+    memoryEvents: {},
+    updatedAt: new Date(0).toISOString(),
+  };
+
+  const legalDocs = useLiveData(legalCopilotWorkflowService.legalDocuments$) ?? [];
+  const legalFindings = useLiveData(legalCopilotWorkflowService.findings$) ?? [];
+  const semanticChunks = useLiveData(store.watchSemanticChunks()) ?? [];
+  const chatSessions: LegalChatSession[] = useLiveData(legalChatService.chatSessions$) ?? [];
+  const chatMessages: LegalChatMessage[] = useLiveData(legalChatService.chatMessages$) ?? [];
+  const workflowEvents: WorkflowEvent[] = useLiveData(store.watchWorkflowEvents()) ?? [];
+
+  // ═══ Derived Data ═══
+  const matter = useMemo(() => graph.matters?.[matterId] as MatterRecord | undefined, [graph.matters, matterId]);
+  const client = useMemo(
+    () => (matter?.clientId ? (graph.clients?.[matter.clientId] as ClientRecord | undefined) : undefined),
+    [graph.clients, matter?.clientId]
+  );
+  const anwaelte = useMemo(() => (graph as any).anwaelte ?? {}, [graph]) as Record<string, AnwaltProfile>;
+  const assignedAnwalt = useMemo(
+    () => (matter?.assignedAnwaltId ? (anwaelte[matter.assignedAnwaltId] as AnwaltProfile | undefined) : undefined),
+    [anwaelte, matter?.assignedAnwaltId]
+  );
+
+  const caseFiles = useMemo(
+    () => Object.values(graph.cases ?? {}).filter((c: CaseFile) => c.matterId === matterId),
+    [graph.cases, matterId]
+  );
+  const caseIds = useMemo(() => new Set(caseFiles.map(c => c.id)), [caseFiles]);
+
+  const docKindLabel = useMemo(
+    () => ({
+      note: t['com.affine.caseAssistant.akteDetail.docKind.note'](),
+      pdf: t['com.affine.caseAssistant.akteDetail.docKind.pdf'](),
+      'scan-pdf': t['com.affine.caseAssistant.akteDetail.docKind.scanPdf'](),
+      email: t['com.affine.caseAssistant.akteDetail.docKind.email'](),
+      docx: t['com.affine.caseAssistant.akteDetail.docKind.docx'](),
+      xlsx: 'XLSX',
+      pptx: 'PPTX',
+      other: t['com.affine.caseAssistant.akteDetail.docKind.other'](),
+    }),
+    [t]
+  );
+
+  const statusLabel = useMemo(
+    () => ({
+      open: t['com.affine.caseAssistant.akteDetail.matterStatus.open'](),
+      closed: t['com.affine.caseAssistant.akteDetail.matterStatus.closed'](),
+      archived: t['com.affine.caseAssistant.akteDetail.matterStatus.archived'](),
+    }),
+    [t]
+  );
+
+  const deadlineStatusLabel = useMemo(
+    () => ({
+      open: 'Ausstehend',
+      alerted: 'Angemahnt',
+      acknowledged: 'Bestätigt',
+      completed: 'Erledigt',
+      expired: 'Abgelaufen',
+    }),
+    []
+  );
+
+  const matterDocs = useMemo(
+    () => legalDocs.filter(d => caseIds.has(d.caseId) && d.workspaceId === workspaceId),
+    [legalDocs, caseIds, workspaceId]
+  );
+
+  const matterChunks = useMemo(
+    () => semanticChunks.filter((c: SemanticChunk) => caseIds.has(c.caseId) && c.workspaceId === workspaceId),
+    [semanticChunks, caseIds, workspaceId]
+  );
+
+  const matterFindings = useMemo(
+    () =>
+      legalFindings
+        .filter(
+          (finding: LegalFinding) =>
+            caseIds.has(finding.caseId) && finding.workspaceId === workspaceId
+        )
+        .sort((a, b) => {
+          const rankDiff = getPriorityRank(b.severity) - getPriorityRank(a.severity);
+          if (rankDiff !== 0) return rankDiff;
+          return b.confidence - a.confidence;
+        }),
+    [legalFindings, caseIds, workspaceId]
+  );
+
+  const deadlines = useMemo(() => {
+    const allDeadlineIds = caseFiles.flatMap(c => c.deadlineIds);
+    return allDeadlineIds
+      .map(id => graph.deadlines?.[id])
+      .filter((d): d is CaseDeadline => Boolean(d))
+      .sort((a, b) => new Date(a.dueAt).getTime() - new Date(b.dueAt).getTime());
+  }, [caseFiles, graph.deadlines]);
+
+  const openDeadlines = useMemo(
+    () => deadlines.filter(d => d.status !== 'completed' && d.status !== 'expired'),
+    [deadlines]
+  );
+
+  const deadlineAlertBuckets = useMemo(() => {
+    const critical = openDeadlines.filter(d => daysUntil(d.dueAt) <= 0);
+    const next7 = openDeadlines.filter(d => {
+      const days = daysUntil(d.dueAt);
+      return days > 0 && days <= 7;
+    });
+    return {
+      critical,
+      next7,
+    };
+  }, [openDeadlines]);
+
+  const findingRiskAlerts = useMemo(() => {
+    const riskyTypes = new Set<LegalFinding['type']>([
+      'deadline_risk',
+      'evidence_gap',
+      'contradiction',
+      'norm_error',
+      'norm_warning',
+    ]);
+    return matterFindings
+      .filter(finding => riskyTypes.has(finding.type))
+      .slice(0, 6)
+      .map(finding => {
+        const sourceDocTitles = finding.sourceDocumentIds
+          .map(id => matterDocs.find(doc => doc.id === id)?.title)
+          .filter(Boolean)
+          .slice(0, 2) as string[];
+        const citation = finding.citations[0]?.quote?.trim();
+        return {
+          id: finding.id,
+          title: finding.title,
+          description: finding.description,
+          severity: finding.severity,
+          confidence: finding.confidence,
+          type: finding.type,
+          sourceDocTitles,
+          citation,
+        };
+      });
+  }, [matterFindings, matterDocs]);
+
+  const findingDecisionById = useMemo(() => {
+    const relevantEvents = workflowEvents
+      .filter(
+        event =>
+          caseIds.has(event.caseId ?? '') &&
+          (event.type === 'finding.acknowledged' || event.type === 'finding.dismissed')
+      )
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+    const state = new Map<string, 'acknowledged' | 'dismissed'>();
+    for (const event of relevantEvents) {
+      const findingId = event.payload.findingId;
+      if (typeof findingId !== 'string' || state.has(findingId)) {
+        continue;
+      }
+      state.set(findingId, event.type === 'finding.dismissed' ? 'dismissed' : 'acknowledged');
+    }
+    return state;
+  }, [caseIds, workflowEvents]);
+
+  const linkedPageIds = useMemo(() => matter?.linkedPageIds ?? [], [matter?.linkedPageIds]);
+
+  // ═══ Local State ═══
+  const [activeTab, setActiveTab] = useState<ActiveTab>('documents');
+  const [sidePanelTab, setSidePanelTab] = useState<SidePanelTab>('copilot');
+  const [docSearch, setDocSearch] = useState('');
+  const [actionStatus, setActionStatus] = useState<string | null>(null);
+  const [isIntakeRunning, setIsIntakeRunning] = useState(false);
+  const [intakeProgress, setIntakeProgress] = useState(0);
+  const [newPageTitle, setNewPageTitle] = useState('');
+  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set(['/', '']));
+  const [isBulkDeletingDocs, setIsBulkDeletingDocs] = useState(false);
+  const [selectedPageId, setSelectedPageId] = useState<string | null>(null);
+  const [alertTierFilter, setAlertTierFilter] = useState<AlertTierFilter>('all');
+  const [alertKindFilter, setAlertKindFilter] = useState<AlertKindFilter>('all');
+  const uploadZoneRootRef = useRef<HTMLDivElement | null>(null);
+
+  const pipelineProgress = useMemo(() => {
+    const indexedCount = matterDocs.filter(doc => doc.status === 'indexed').length;
+    const ocrPendingCount = matterDocs.filter(doc => doc.status === 'ocr_pending').length;
+    const ocrRunningCount = matterDocs.filter(doc => doc.status === 'ocr_running').length;
+    const failedCount = matterDocs.filter(doc => doc.status === 'failed').length;
+    const uploadedCount = matterDocs.filter(doc => doc.status === 'uploaded').length;
+    const ocrCompletedCount = matterDocs.filter(doc => doc.status === 'ocr_completed').length;
+
+    const total = matterDocs.length;
+    const activeCount = uploadedCount + ocrCompletedCount + ocrPendingCount + ocrRunningCount;
+    const completedCount = indexedCount + failedCount;
+
+    const progress = isIntakeRunning
+      ? intakeProgress
+      : total === 0
+        ? 0
+        : activeCount > 0
+          ? Math.max(55, Math.round((completedCount / total) * 100))
+          : 100;
+
+    const phaseLabel = isIntakeRunning
+      ? t['com.affine.caseAssistant.akteDetail.pipeline.phase.upload']()
+      : ocrRunningCount > 0
+        ? t['com.affine.caseAssistant.akteDetail.pipeline.phase.ocrRunning']()
+        : ocrPendingCount > 0
+          ? t['com.affine.caseAssistant.akteDetail.pipeline.phase.ocrPending']()
+          : indexedCount > 0
+            ? t['com.affine.caseAssistant.akteDetail.pipeline.phase.indexed']()
+            : failedCount > 0
+              ? t['com.affine.caseAssistant.akteDetail.pipeline.phase.failed']()
+              : t['com.affine.caseAssistant.akteDetail.pipeline.phase.idle']();
+
+    return {
+      phaseLabel,
+      progress,
+      active: isIntakeRunning || ocrRunningCount > 0 || ocrPendingCount > 0,
+      indexedCount,
+      ocrPendingCount,
+      ocrRunningCount,
+      failedCount,
+    };
+  }, [isIntakeRunning, intakeProgress, matterDocs, t]);
+
+  // ═══ Chat State ═══
+  const [activeChatSessionId, setActiveChatSessionId] = useState<string | null>(null);
+  const [activeChatMode, setActiveChatMode] = useState<LegalChatMode>('general');
+  const [isChatBusy, setIsChatBusy] = useState(false);
+
+  const caseChatSessions = useMemo(() => {
+    // Get ALL sessions from the store and filter by the matter's case IDs
+    const allSessions = chatSessions;
+    return allSessions
+      .filter(s => caseIds.has(s.caseId) && s.workspaceId === workspaceId)
+      .sort((a, b) => {
+        if (a.isPinned !== b.isPinned) return a.isPinned ? -1 : 1;
+        return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+      });
+  }, [caseIds, workspaceId, chatSessions]);
+
+  const activeChatMessages = useMemo(
+    () => (activeChatSessionId ? legalChatService.getSessionMessages(activeChatSessionId) : []),
+    [legalChatService, activeChatSessionId, chatMessages]
+  );
+
+  // Auto-select first chat session
+  useEffect(() => {
+    if (!activeChatSessionId && caseChatSessions.length > 0) {
+      setActiveChatSessionId(caseChatSessions[0].id);
+    }
+  }, [activeChatSessionId, caseChatSessions]);
+
+  // ═══ Filter & Group Documents ═══
+  const filteredDocs = useMemo(() => {
+    if (!docSearch.trim()) return matterDocs;
+    const q = docSearch.toLowerCase();
+    return matterDocs.filter(
+      d =>
+        d.title.toLowerCase().includes(q) ||
+        d.folderPath?.toLowerCase().includes(q) ||
+        d.tags.some(t => t.toLowerCase().includes(q))
+    );
+  }, [matterDocs, docSearch]);
+
+  const folderGroups = useMemo(() => {
+    const groups = new Map<string, LegalDocumentRecord[]>();
+    for (const doc of filteredDocs) {
+      const folder = doc.folderPath?.trim() || '/';
+      if (!groups.has(folder)) groups.set(folder, []);
+      groups.get(folder)!.push(doc);
+    }
+    // Sort folders alphabetically, root first
+    const sorted = Array.from(groups.entries()).sort(([a], [b]) => {
+      if (a === '/') return -1;
+      if (b === '/') return 1;
+      return a.localeCompare(b, 'de');
+    });
+    return sorted;
+  }, [filteredDocs]);
+
+  const visibleDocIds = useMemo(() => {
+    return folderGroups.flatMap(([, docs]) => docs.map(d => d.id));
+  }, [folderGroups]);
+
+  const bulkSelection = useBulkSelection({
+    itemIds: visibleDocIds,
+  });
+
+  // ═══ Status Toast Helper ═══
+  const showStatus = useCallback((msg: string) => {
+    setActionStatus(msg);
+    const timer = window.setTimeout(() => setActionStatus(null), 4000);
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  // ═══ Ensure CaseFile exists for this matter ═══
+  const ensureCaseFile = useCallback(async (): Promise<string | null> => {
+    if (caseFiles.length > 0) return caseFiles[0].id;
+    if (!matter) return null;
+
+    const now = new Date().toISOString();
+    const newCaseId = `case-${matterId}-${Date.now()}`;
+    const newCase: CaseFile = {
+      id: newCaseId,
+      workspaceId,
+      matterId,
+      title: `Hauptakte: ${matter.title}`,
+      summary: `Automatisch erstellte Case-Akte für ${matter.title}`,
+      actorIds: [],
+      issueIds: [],
+      deadlineIds: [],
+      memoryEventIds: [],
+      tags: [],
+      createdAt: now,
+      updatedAt: now,
+    };
+    await store.upsertCaseFile(newCase);
+    showStatus(t['com.affine.caseAssistant.akteDetail.toast.autoCaseCreated']());
+    return newCaseId;
+  }, [caseFiles, matter, matterId, workspaceId, store, showStatus, t]);
+
+  // ═══ Navigation ═══
+  const handleBackToAkten = useCallback(() => {
+    workbench.openAkten();
+  }, [workbench]);
+
+  const handleOpenMandantDetail = useCallback(() => {
+    if (!client?.id) {
+      showStatus(t['com.affine.caseAssistant.akteDetail.toast.noClientLinked']());
+      return;
+    }
+    workbench.open(`/mandanten/${client.id}`);
+  }, [client?.id, showStatus, t, workbench]);
+
+  const handleOpenFristenOverview = useCallback(() => {
+    const params = new URLSearchParams();
+    if (matterId) params.set('matterId', matterId);
+    if (matter?.clientId) params.set('clientId', matter.clientId);
+    workbench.open(`/fristen${params.size > 0 ? `?${params.toString()}` : ''}`);
+  }, [matter?.clientId, matterId, workbench]);
+
+  const openMainChatForMatter = useCallback(
+    (statusLabel: string) => {
+      const preferredCase = [...caseFiles].sort(
+        (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+      )[0];
+      const params = new URLSearchParams({
+        caMatterId: matterId,
+        caClientId: matter?.clientId ?? '',
+      });
+      if (preferredCase?.id) {
+        params.set('caCaseId', preferredCase.id);
+      }
+      workbench.open(`/chat?${params.toString()}`);
+      showStatus(statusLabel);
+    },
+    [caseFiles, matterId, matter?.clientId, showStatus, workbench]
+  );
+
+  const classifyDeadlineTier = useCallback((deadline: CaseDeadline): 'P1' | 'P2' | 'P3' => {
+    const days = daysUntil(deadline.dueAt);
+    if (days <= 0) return 'P1';
+    if (days <= 3) return 'P2';
+    return 'P3';
+  }, []);
+
+  const classifyFindingTier = useCallback((finding: { severity: CasePriority }): 'P1' | 'P2' | 'P3' => {
+    if (finding.severity === 'critical' || finding.severity === 'high') return 'P1';
+    if (finding.severity === 'medium') return 'P2';
+    return 'P3';
+  }, []);
+
+  const handleAcknowledgeDeadline = useCallback(
+    async (deadline: CaseDeadline) => {
+      if (deadline.status === 'acknowledged' || deadline.status === 'completed') {
+        return;
+      }
+      const result = await casePlatformOrchestrationService.markDeadlineAcknowledged(deadline.id);
+      if (!result) {
+        showStatus(t['com.affine.caseAssistant.akteDetail.toast.deadline.ack.failed']());
+        return;
+      }
+      showStatus(t.t('com.affine.caseAssistant.akteDetail.toast.deadline.ack.success', { title: deadline.title }));
+    },
+    [casePlatformOrchestrationService, showStatus, t]
+  );
+
+  const handleResolveDeadline = useCallback(
+    async (deadline: CaseDeadline) => {
+      if (deadline.status === 'completed') {
+        return;
+      }
+      const result = await casePlatformOrchestrationService.markDeadlineCompleted(deadline.id);
+      if (!result) {
+        showStatus(t['com.affine.caseAssistant.akteDetail.toast.deadline.complete.failed']());
+        return;
+      }
+      showStatus(t.t('com.affine.caseAssistant.akteDetail.toast.deadline.complete.success', { title: deadline.title }));
+    },
+    [casePlatformOrchestrationService, showStatus, t]
+  );
+
+  const handleAcknowledgeFinding = useCallback(
+    async (finding: { id: string; title: string }) => {
+      const currentDecision = findingDecisionById.get(finding.id);
+      if (currentDecision === 'acknowledged' || currentDecision === 'dismissed') {
+        return;
+      }
+      const result = await casePlatformOrchestrationService.acknowledgeFinding(finding.id);
+      if (!result) {
+        showStatus(t['com.affine.caseAssistant.akteDetail.toast.finding.ack.failed']());
+        return;
+      }
+      showStatus(t.t('com.affine.caseAssistant.akteDetail.toast.finding.ack.success', { title: finding.title }));
+    },
+    [casePlatformOrchestrationService, findingDecisionById, showStatus, t]
+  );
+
+  const handleDismissFinding = useCallback(
+    async (finding: { id: string; title: string }) => {
+      const currentDecision = findingDecisionById.get(finding.id);
+      if (currentDecision === 'dismissed') {
+        return;
+      }
+      const reason = window.prompt(
+        t.t('com.affine.caseAssistant.akteDetail.toast.finding.dismiss.prompt', { title: finding.title }),
+        t['com.affine.caseAssistant.akteDetail.toast.finding.dismiss.defaultReason']()
+      );
+      if (!reason || !reason.trim()) {
+        return;
+      }
+      const result = await casePlatformOrchestrationService.dismissFinding(finding.id, reason.trim());
+      if (!result) {
+        showStatus(t['com.affine.caseAssistant.akteDetail.toast.finding.dismiss.failed']());
+        return;
+      }
+      showStatus(t.t('com.affine.caseAssistant.akteDetail.toast.finding.dismiss.success', { title: finding.title }));
+    },
+    [casePlatformOrchestrationService, findingDecisionById, showStatus, t]
+  );
+
+  const filteredDeadlineAlerts = useMemo(() => {
+    if (alertKindFilter === 'finding') return [];
+    const source = [...deadlineAlertBuckets.critical, ...deadlineAlertBuckets.next7];
+    if (alertTierFilter === 'all') {
+      return source;
+    }
+    return source.filter(deadline => classifyDeadlineTier(deadline) === alertTierFilter);
+  }, [alertKindFilter, alertTierFilter, classifyDeadlineTier, deadlineAlertBuckets.critical, deadlineAlertBuckets.next7]);
+
+  const filteredFindingAlerts = useMemo(() => {
+    if (alertKindFilter === 'deadline') return [];
+    const actionableFindings = findingRiskAlerts.filter(
+      finding => findingDecisionById.get(finding.id) !== 'dismissed'
+    );
+    if (alertTierFilter === 'all') return actionableFindings;
+    return actionableFindings.filter(finding => classifyFindingTier(finding) === alertTierFilter);
+  }, [alertKindFilter, alertTierFilter, classifyFindingTier, findingDecisionById, findingRiskAlerts]);
+
+  const nextActions = useMemo(() => {
+    const actions: Array<{
+      id: string;
+      title: string;
+      detail: string;
+      tier: 'P1' | 'P2' | 'P3';
+      onRun: () => void;
+    }> = [];
+
+    if (deadlineAlertBuckets.critical.length > 0) {
+      actions.push({
+        id: 'deadline-critical',
+        title: t['com.affine.caseAssistant.akteDetail.nextAction.deadlineCritical.title'](),
+        detail: t.t('com.affine.caseAssistant.akteDetail.nextAction.deadlineCritical.detail', { count: deadlineAlertBuckets.critical.length }),
+        tier: 'P1',
+        onRun: () =>
+          openMainChatForMatter(t['com.affine.caseAssistant.akteDetail.nextAction.deadlineCritical.title']()),
+      });
+    }
+
+    const topFinding = findingRiskAlerts[0];
+    if (topFinding) {
+      actions.push({
+        id: `finding-${topFinding.id}`,
+        title: t.t('com.affine.caseAssistant.akteDetail.nextAction.riskCheck.title', { title: topFinding.title }),
+        detail: t.t('com.affine.caseAssistant.akteDetail.nextAction.riskCheck.detail', { severity: topFinding.severity.toUpperCase(), confidence: (topFinding.confidence * 100).toFixed(0) }),
+        tier: classifyFindingTier(topFinding),
+        onRun: () =>
+          openMainChatForMatter(t.t('com.affine.caseAssistant.akteDetail.nextAction.riskCheck.title', { title: topFinding.title })),
+      });
+    }
+
+    if (pipelineProgress.ocrPendingCount > 0 || pipelineProgress.ocrRunningCount > 0) {
+      actions.push({
+        id: 'ocr-pipeline',
+        title: t['com.affine.caseAssistant.akteDetail.nextAction.pipeline.title'](),
+        detail: t.t('com.affine.caseAssistant.akteDetail.nextAction.pipeline.detail', { pending: pipelineProgress.ocrPendingCount, running: pipelineProgress.ocrRunningCount }),
+        tier: 'P2',
+        onRun: () =>
+          openMainChatForMatter(t['com.affine.caseAssistant.akteDetail.nextAction.pipeline.title']()),
+      });
+    }
+
+    if (actions.length === 0) {
+      actions.push({
+        id: 'analysis-next',
+        title: t['com.affine.caseAssistant.akteDetail.nextAction.analysis.title'](),
+        detail: t['com.affine.caseAssistant.akteDetail.nextAction.analysis.detail'](),
+        tier: 'P3',
+        onRun: () =>
+          openMainChatForMatter(t['com.affine.caseAssistant.akteDetail.nextAction.analysis.title']()),
+      });
+    }
+
+    return actions.slice(0, 3);
+  }, [classifyFindingTier, deadlineAlertBuckets.critical.length, findingRiskAlerts, openMainChatForMatter, pipelineProgress.ocrPendingCount, pipelineProgress.ocrRunningCount, t]);
+
+  const timelineEvents = useMemo(() => {
+    const actorLabel = (actor: string) =>
+      actor === 'user'
+        ? t['com.affine.caseAssistant.akteDetail.timeline.actor.user']()
+        : t['com.affine.caseAssistant.akteDetail.timeline.actor.system']();
+    const daysLabel = (days: number) =>
+      days < 0
+        ? t.t('com.affine.caseAssistant.akteDetail.days.overdue', { count: Math.abs(days) })
+        : days === 0
+          ? t['com.affine.caseAssistant.akteDetail.days.today']()
+          : t.t('com.affine.caseAssistant.akteDetail.days.remaining', { count: days });
+
+    const deadlineEvents = openDeadlines.map(deadline => {
+      const days = daysUntil(deadline.dueAt);
+      return {
+        id: `deadline-${deadline.id}`,
+        at: new Date(deadline.updatedAt || deadline.dueAt).getTime(),
+        title: t.t('com.affine.caseAssistant.akteDetail.timeline.deadline', { title: deadline.title }),
+        detail: daysLabel(days),
+        tier: classifyDeadlineTier(deadline),
+        source: t['com.affine.caseAssistant.akteDetail.timeline.source.deadline'](),
+      };
+    });
+
+    const findingEvents = findingRiskAlerts.map(finding => ({
+      id: `finding-${finding.id}`,
+      at: matterFindings.some(item => item.id === finding.id)
+        ? new Date(matterFindings.find(item => item.id === finding.id)!.updatedAt).getTime()
+        : Date.now(),
+      title: t.t('com.affine.caseAssistant.akteDetail.timeline.risk', { title: finding.title }),
+      detail: `${finding.type} · ${t.t('com.affine.caseAssistant.akteDetail.alert.confidence', { value: (finding.confidence * 100).toFixed(0) })}`,
+      tier: classifyFindingTier(finding),
+      source: t['com.affine.caseAssistant.akteDetail.timeline.source.analysis'](),
+    }));
+
+    const documentEvents = [...matterDocs]
+      .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+      .slice(0, 6)
+      .map(doc => {
+        const docStatusInfo = getDocStatusInfo(doc.status, t);
+        const kindKey = (doc.kind ?? 'other') as keyof typeof docKindLabel;
+        const kindLabel = docKindLabel[kindKey] ?? docKindLabel.other;
+        return {
+          id: `doc-${doc.id}`,
+          at: new Date(doc.updatedAt).getTime(),
+          title: t.t('com.affine.caseAssistant.akteDetail.timeline.document', {
+            title: doc.title,
+          }),
+          detail: `${kindLabel} · ${docStatusInfo.label}`,
+          tier:
+            doc.status === 'failed'
+              ? ('P1' as const)
+              : doc.status === 'ocr_pending' || doc.status === 'ocr_running'
+                ? ('P2' as const)
+                : ('P3' as const),
+          source: t['com.affine.caseAssistant.akteDetail.timeline.source.ingestion'](),
+        };
+      });
+
+    const workflowAuditEvents = workflowEvents
+      .filter(
+        event =>
+          caseIds.has(event.caseId ?? '') &&
+          [
+            'deadline.acknowledged',
+            'deadline.completed',
+            'deadline.reopened',
+            'finding.acknowledged',
+            'finding.dismissed',
+          ].includes(event.type)
+      )
+      .slice(0, 20)
+      .map(event => {
+        const auditSource = t['com.affine.caseAssistant.akteDetail.timeline.source.audit']();
+        if (event.type === 'deadline.acknowledged') {
+          const dlTitle =
+            typeof event.payload.deadlineTitle === 'string'
+              ? event.payload.deadlineTitle
+              : t['com.affine.caseAssistant.akteDetail.timeline.unnamedDeadline']();
+          return {
+            id: `wf-${event.id}`,
+            at: new Date(event.createdAt).getTime(),
+            title: t.t('com.affine.caseAssistant.akteDetail.timeline.deadlineAck', { title: dlTitle }),
+            detail: t.t('com.affine.caseAssistant.akteDetail.timeline.deadlineAck.detail', { actor: actorLabel(event.actor) }),
+            tier: 'P2' as const,
+            source: auditSource,
+          };
+        }
+        if (event.type === 'deadline.completed') {
+          const dlTitle =
+            typeof event.payload.deadlineTitle === 'string'
+              ? event.payload.deadlineTitle
+              : t['com.affine.caseAssistant.akteDetail.timeline.unnamedDeadline']();
+          return {
+            id: `wf-${event.id}`,
+            at: new Date(event.createdAt).getTime(),
+            title: t.t('com.affine.caseAssistant.akteDetail.timeline.deadlineCompleted', { title: dlTitle }),
+            detail: t.t('com.affine.caseAssistant.akteDetail.timeline.deadlineCompleted.detail', { actor: actorLabel(event.actor) }),
+            tier: 'P3' as const,
+            source: auditSource,
+          };
+        }
+        if (event.type === 'deadline.reopened') {
+          const dlTitle =
+            typeof event.payload.deadlineTitle === 'string'
+              ? event.payload.deadlineTitle
+              : t['com.affine.caseAssistant.akteDetail.timeline.unnamedDeadline']();
+          return {
+            id: `wf-${event.id}`,
+            at: new Date(event.createdAt).getTime(),
+            title: t.t('com.affine.caseAssistant.akteDetail.timeline.deadlineReopened', { title: dlTitle }),
+            detail: t.t('com.affine.caseAssistant.akteDetail.timeline.deadlineReopened.detail', { actor: actorLabel(event.actor) }),
+            tier: 'P1' as const,
+            source: auditSource,
+          };
+        }
+        if (event.type === 'finding.dismissed') {
+          const fTitle =
+            typeof event.payload.findingTitle === 'string'
+              ? event.payload.findingTitle
+              : t['com.affine.caseAssistant.akteDetail.timeline.unnamedFinding']();
+          const reason =
+            typeof event.payload.reason === 'string' && event.payload.reason.trim().length > 0
+              ? event.payload.reason
+              : t['com.affine.caseAssistant.akteDetail.timeline.noReason']();
+          return {
+            id: `wf-${event.id}`,
+            at: new Date(event.createdAt).getTime(),
+            title: t.t('com.affine.caseAssistant.akteDetail.timeline.findingDismissed', { title: fTitle }),
+            detail: t.t('com.affine.caseAssistant.akteDetail.timeline.findingDismissed.detail', { actor: actorLabel(event.actor), reason }),
+            tier: 'P2' as const,
+            source: auditSource,
+          };
+        }
+
+        const fTitle =
+          typeof event.payload.findingTitle === 'string'
+            ? event.payload.findingTitle
+            : t['com.affine.caseAssistant.akteDetail.timeline.unnamedFinding']();
+        const confidence =
+          typeof event.payload.confidence === 'number'
+            ? t.t('com.affine.caseAssistant.akteDetail.timeline.confidenceValue', { value: (event.payload.confidence * 100).toFixed(0) })
+            : t['com.affine.caseAssistant.akteDetail.timeline.confidenceNA']();
+        return {
+          id: `wf-${event.id}`,
+          at: new Date(event.createdAt).getTime(),
+          title: t.t('com.affine.caseAssistant.akteDetail.timeline.findingAck', { title: fTitle }),
+          detail: t.t('com.affine.caseAssistant.akteDetail.timeline.findingAck.detail', { actor: actorLabel(event.actor), confidence }),
+          tier: 'P3' as const,
+          source: auditSource,
+        };
+      });
+
+    return [...workflowAuditEvents, ...deadlineEvents, ...findingEvents, ...documentEvents]
+      .sort((a, b) => b.at - a.at)
+      .slice(0, 12);
+  }, [
+    caseIds,
+    classifyDeadlineTier,
+    classifyFindingTier,
+    findingRiskAlerts,
+    matterDocs,
+    matterFindings,
+    openDeadlines,
+    t,
+    workflowEvents,
+  ]);
+
+  const handleOpenDocument = useCallback(
+    (doc: LegalDocumentRecord) => {
+      const relatedCase = caseFiles.find(c => c.id === doc.caseId);
+      if (relatedCase) {
+        const params = new URLSearchParams({
+          caMatterId: matterId,
+          caClientId: matter?.clientId ?? '',
+        });
+        workbench.open(`/${relatedCase.id}?${params.toString()}`);
+        workbench.openSidebar();
+        window.setTimeout(() => {
+          workbench.activeView$.value?.activeSidebarTab('case-assistant');
+        }, 0);
+      }
+    },
+    [caseFiles, matterId, matter?.clientId, workbench]
+  );
+
+  const handleBulkDeleteDocuments = useCallback(() => {
+    const ids = Array.from(bulkSelection.selectedIds);
+    if (ids.length === 0) {
+      return;
+    }
+
+    openConfirmModal({
+      title: t['com.affine.caseAssistant.akteDetail.documents.bulk.confirm.title'](),
+      description: `Die ausgewählten Dokumente (${ids.length}) werden in den Papierkorb verschoben und nach 30 Tagen automatisch endgültig gelöscht.`,
+      cancelText: t['com.affine.auth.sign-out.confirm-modal.cancel'](),
+      confirmText: 'In Papierkorb verschieben',
+      confirmButtonOptions: {
+        variant: 'error',
+      },
+      onConfirm: async () => {
+        if (isBulkDeletingDocs) {
+          return;
+        }
+        setIsBulkDeletingDocs(true);
+        try {
+          const result = await casePlatformOrchestrationService.deleteDocumentsCascade(ids);
+          bulkSelection.clear();
+          const failedSuffix =
+            result.failedIds.length > 0
+              ? t.t('com.affine.caseAssistant.akteDetail.documents.bulk.result.failedSuffix', {
+                  count: result.failedIds.length,
+                })
+              : '';
+          showStatus(
+            `${result.succeededIds.length}/${result.total} Dokument(e) in Papierkorb verschoben (Auto-Löschung nach 30 Tagen).${failedSuffix}`
+          );
+        } finally {
+          setIsBulkDeletingDocs(false);
+        }
+      },
+    });
+  }, [bulkSelection, casePlatformOrchestrationService, isBulkDeletingDocs, openConfirmModal, showStatus, t]);
+
+  useEffect(() => {
+    const handler = (e: globalThis.KeyboardEvent) => {
+      const tag = (document.activeElement as HTMLElement)?.tagName;
+      if (e.key === 'Escape' && bulkSelection.selectedCount > 0) {
+        bulkSelection.clear();
+      }
+
+      if (
+        (e.key === 'Backspace' || e.key === 'Delete') &&
+        bulkSelection.selectedCount > 0 &&
+        tag !== 'INPUT' &&
+        tag !== 'TEXTAREA'
+      ) {
+        e.preventDefault();
+        handleBulkDeleteDocuments();
+      }
+
+      if (
+        (e.key === 'a' || e.key === 'A') &&
+        (e.metaKey || e.ctrlKey) &&
+        tag !== 'INPUT' &&
+        tag !== 'TEXTAREA'
+      ) {
+        e.preventDefault();
+        bulkSelection.selectAllVisible(true);
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [bulkSelection, handleBulkDeleteDocuments]);
+
+  const handleOpenPage = useCallback(
+    (pageId: string) => {
+      setSelectedPageId(pageId);
+      workbench.openDoc(pageId);
+      window.setTimeout(() => {
+        workbench.activeView$.value?.activeSidebarTab('case-assistant');
+      }, 0);
+    },
+    [workbench, matterId, matter?.clientId]
+  );
+
+  const mainTabListId = `akte-detail-main-tabs-${matterId}`;
+  const getMainTabId = (tab: ActiveTab) => `${mainTabListId}-tab-${tab}`;
+  const getMainPanelId = (tab: ActiveTab) => `${mainTabListId}-panel-${tab}`;
+
+  const sideTabListId = `akte-detail-side-tabs-${matterId}`;
+  const getSideTabId = (tab: SidePanelTab) => `${sideTabListId}-tab-${tab}`;
+  const getSidePanelId = (tab: SidePanelTab) => `${sideTabListId}-panel-${tab}`;
+
+  const handleMainTabsKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLDivElement>) => {
+      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+      const order: ActiveTab[] = ['documents', 'pages', 'semantic'];
+      const currentIndex = order.indexOf(activeTab);
+      const nextIndex =
+        (currentIndex + (e.key === 'ArrowRight' ? 1 : -1) + order.length) %
+        order.length;
+      const nextTab = order[nextIndex];
+      e.preventDefault();
+      setActiveTab(nextTab);
+      requestAnimationFrame(() => {
+        const el = document.getElementById(
+          `akte-detail-main-tabs-${matterId}-tab-${nextTab}`
+        ) as HTMLButtonElement | null;
+        el?.focus();
+      });
+    },
+    [activeTab, matterId]
+  );
+
+  const handleSideTabsKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLDivElement>) => {
+      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+      const order: SidePanelTab[] = ['copilot', 'info', 'deadlines'];
+      const currentIndex = order.indexOf(sidePanelTab);
+      const nextIndex =
+        (currentIndex + (e.key === 'ArrowRight' ? 1 : -1) + order.length) %
+        order.length;
+      const nextTab = order[nextIndex];
+      e.preventDefault();
+      setSidePanelTab(nextTab);
+      requestAnimationFrame(() => {
+        const el = document.getElementById(
+          `akte-detail-side-tabs-${matterId}-tab-${nextTab}`
+        ) as HTMLButtonElement | null;
+        el?.focus();
+      });
+    },
+    [sidePanelTab, matterId]
+  );
+
+  // ═══ Create New Page in Akte ═══
+  const handleCreatePage = useCallback(async () => {
+    const title = newPageTitle.trim() || t.t('com.affine.caseAssistant.akteDetail.toast.page.defaultTitle', { date: new Date().toLocaleDateString(language) });
+    try {
+      const docRecord = docsService.createDoc({
+        primaryMode: 'page',
+        title,
+      });
+      const docId = docRecord.id;
+
+      // Add to matter's linkedPageIds
+      if (matter) {
+        const currentLinkedIds = matter.linkedPageIds ?? [];
+        const updated: MatterRecord = {
+          ...matter,
+          linkedPageIds: [...currentLinkedIds, docId],
+          updatedAt: new Date().toISOString(),
+        };
+        const result = await casePlatformOrchestrationService.upsertMatter(updated);
+        if (!result) {
+          showStatus(t['com.affine.caseAssistant.akteDetail.toast.page.updateFailed']());
+          return;
+        }
+      }
+
+      setNewPageTitle('');
+      showStatus(t.t('com.affine.caseAssistant.akteDetail.toast.page.created', { title }));
+
+      // Open the new page with Akte context
+      const params = new URLSearchParams({
+        caMatterId: matterId,
+        caClientId: matter?.clientId ?? '',
+      });
+      workbench.open(`/${docId}?${params.toString()}`);
+      workbench.openSidebar();
+      window.setTimeout(() => {
+        workbench.activeView$.value?.activeSidebarTab('case-assistant');
+      }, 0);
+    } catch (error) {
+      console.error('[akte-detail] failed to create page', error);
+      showStatus(t['com.affine.caseAssistant.akteDetail.toast.page.createFailed']());
+    }
+  }, [
+    newPageTitle,
+    docsService,
+    matter,
+    matterId,
+    casePlatformOrchestrationService,
+    showStatus,
+    workbench,
+    t,
+    language,
+  ]);
+
+  // ═══ Remove Page from Akte ═══
+  const handleRemovePageFromAkte = useCallback(
+    async (pageId: string) => {
+      if (!matter) return;
+      const updated: MatterRecord = {
+        ...matter,
+        linkedPageIds: (matter.linkedPageIds ?? []).filter(id => id !== pageId),
+        updatedAt: new Date().toISOString(),
+      };
+      const result = await casePlatformOrchestrationService.upsertMatter(updated);
+      showStatus(
+        result
+          ? t['com.affine.caseAssistant.akteDetail.toast.page.removed']()
+          : t['com.affine.caseAssistant.akteDetail.toast.page.removeFailed']()
+      );
+    },
+    [casePlatformOrchestrationService, matter, showStatus, t]
+  );
+
+  // ═══ Upload Documents ═══
+  const handlePreparedFiles = useCallback(
+    async (files: UploadedFile[]) => {
+      const targetCaseId = await ensureCaseFile();
+      if (!targetCaseId) {
+        showStatus(t['com.affine.caseAssistant.akteDetail.toast.chat.noCaseAvailable']());
+        return;
+      }
+      if (files.length === 0) {
+        showStatus(t['com.affine.caseAssistant.akteDetail.toast.noSupportedFiles']());
+        return;
+      }
+
+      const documents = [];
+      for (const file of files) {
+        documents.push({
+          title: file.name,
+          kind: file.kind,
+          content: file.content,
+          pageCount: file.pageCount,
+          sourceMimeType: file.mimeType || 'application/octet-stream',
+          sourceSizeBytes: file.size,
+          sourceLastModifiedAt: file.lastModifiedAt,
+          sourceRef: `akte-upload:${matterId}:${file.name}:${Date.now()}`,
+          tags: [] as string[],
+        });
+      }
+
+      try {
+        setIsIntakeRunning(true);
+        setIntakeProgress(5);
+        const chunks: Array<typeof documents> = [];
+        for (let i = 0; i < documents.length; i += UPLOAD_CHUNK_SIZE) {
+          chunks.push(documents.slice(i, i + UPLOAD_CHUNK_SIZE));
+        }
+
+        const ingested: Awaited<ReturnType<typeof legalCopilotWorkflowService.intakeDocuments>> = [];
+        for (let i = 0; i < chunks.length; i++) {
+          const chunk = chunks[i];
+          const result = await legalCopilotWorkflowService.intakeDocuments({
+            caseId: targetCaseId,
+            workspaceId,
+            documents: chunk,
+          });
+          ingested.push(...result);
+          const nextProgress = Math.min(95, Math.round(((i + 1) / chunks.length) * 90) + 5);
+          setIntakeProgress(nextProgress);
+        }
+        setIntakeProgress(100);
+        const duplicateOrDeniedCount = Math.max(0, files.length - ingested.length);
+        const scanCount = ingested.filter(d => d.status === 'ocr_pending').length;
+        const needsReviewCount = ingested.filter(
+          d => d.processingStatus === 'needs_review'
+        ).length;
+        const failedCount = ingested.filter(
+          d => d.processingStatus === 'failed'
+        ).length;
+        let completedOcrJobsCount = 0;
+        if (scanCount > 0) {
+          const completedOcrJobs = await legalCopilotWorkflowService.processPendingOcr(
+            targetCaseId,
+            workspaceId
+          );
+          completedOcrJobsCount = completedOcrJobs.length;
+        }
+
+        if (ingested.length === 0) {
+          showStatus(
+            duplicateOrDeniedCount > 0
+              ? t['com.affine.caseAssistant.akteDetail.toast.noFilesIngested.duplicates']()
+              : t['com.affine.caseAssistant.akteDetail.toast.noFilesIngested.generic']()
+          );
+          return;
+        }
+
+        showStatus(
+          t.t('com.affine.caseAssistant.akteDetail.toast.upload.summary', {
+            count: ingested.length,
+            ocrSuffix: scanCount > 0
+              ? completedOcrJobsCount > 0
+                ? ` ${completedOcrJobsCount}/${scanCount} OCR abgeschlossen.`
+                : t.t('com.affine.caseAssistant.akteDetail.toast.upload.ocrSuffix', { count: scanCount })
+              : '',
+            reviewSuffix: needsReviewCount > 0 ? t.t('com.affine.caseAssistant.akteDetail.toast.upload.reviewSuffix', { count: needsReviewCount }) : '',
+            failedSuffix: failedCount > 0 ? t.t('com.affine.caseAssistant.akteDetail.toast.upload.failedSuffix', { count: failedCount }) : '',
+            skippedSuffix: duplicateOrDeniedCount > 0 ? t.t('com.affine.caseAssistant.akteDetail.toast.upload.skippedSuffix', { count: duplicateOrDeniedCount }) : '',
+          })
+        );
+      } catch (error) {
+        console.error('[akte-detail] upload failed', error);
+        const message = error instanceof Error && error.message ? error.message : t['com.affine.caseAssistant.akteDetail.toast.upload.failedGeneric']();
+        showStatus(t.t('com.affine.caseAssistant.akteDetail.toast.upload.failed', { message }));
+      } finally {
+        setIsIntakeRunning(false);
+      }
+    },
+    [ensureCaseFile, matterId, workspaceId, legalCopilotWorkflowService, showStatus, t]
+  );
+
+  const focusUploadZone = useCallback(() => {
+    const root = uploadZoneRootRef.current;
+    if (!root) return;
+    const button = root.querySelector('[role="button"]') as HTMLElement | null;
+    button?.click();
+  }, []);
+
+  // ═══ Chat Actions ═══
+  const onCreateChatSession = useCallback(
+    async (mode?: LegalChatMode) => {
+      const caseId = await ensureCaseFile();
+      if (!caseId) {
+        showStatus(t['com.affine.caseAssistant.akteDetail.toast.chat.noCaseAvailable']());
+        return;
+      }
+      const session = legalChatService.createSession({
+        caseId,
+        workspaceId,
+        mode: mode ?? activeChatMode,
+      });
+      setActiveChatSessionId(session.id);
+      if (mode) setActiveChatMode(mode);
+    },
+    [legalChatService, ensureCaseFile, workspaceId, activeChatMode, showStatus, t]
+  );
+
+  const onSendChatMessage = useCallback(
+    async (content: string) => {
+      if (!activeChatSessionId || isChatBusy || !content.trim()) return;
+      setIsChatBusy(true);
+      try {
+        const caseId = caseChatSessions.find(s => s.id === activeChatSessionId)?.caseId ?? caseFiles[0]?.id;
+        if (!caseId) {
+          showStatus(t['com.affine.caseAssistant.akteDetail.toast.chat.noCaseForChat']());
+          return;
+        }
+        await legalChatService.sendMessage({
+          sessionId: activeChatSessionId,
+          caseId,
+          workspaceId,
+          content,
+          mode: activeChatMode,
+        });
+      } catch (error) {
+        console.error('[akte-detail] chat failed', error);
+        showStatus(t['com.affine.caseAssistant.akteDetail.toast.chat.failed']());
+      } finally {
+        setIsChatBusy(false);
+      }
+    },
+    [legalChatService, activeChatSessionId, isChatBusy, activeChatMode, workspaceId, caseChatSessions, caseFiles, showStatus, t]
+  );
+
+  // ═══ Folder Toggle ═══
+  const toggleFolder = useCallback((folder: string) => {
+    setExpandedFolders(prev => {
+      const next = new Set(prev);
+      if (next.has(folder)) next.delete(folder);
+      else next.add(folder);
+      return next;
+    });
+  }, []);
+
+  // ═══ Not Found ═══
+  if (!matter) {
+    return (
+      <>
+        <ViewTitle title={t['com.affine.caseAssistant.akteDetail.notFound.title']()} />
+        <ViewIcon icon="allDocs" />
+        <ViewBody>
+          <div className={styles.body}>
+            <div className={styles.emptyState}>
+              <div className={styles.emptyTitle}>{t['com.affine.caseAssistant.akteDetail.notFound.title']()}</div>
+              <div className={styles.emptyDescription}>
+                {t['com.affine.caseAssistant.akteDetail.notFound.description']()}
+              </div>
+              <button type="button" className={styles.headerButton} onClick={handleBackToAkten}>
+                {t['com.affine.caseAssistant.akteDetail.notFound.back']()}
+              </button>
+            </div>
+          </div>
+        </ViewBody>
+      </>
+    );
+  }
+
+  const anwaltName = assignedAnwalt
+    ? `${assignedAnwalt.title ? assignedAnwalt.title + ' ' : ''}${assignedAnwalt.firstName} ${assignedAnwalt.lastName}`
+    : null;
+
+  return (
+    <>
+      <ViewTitle title={matter.title} />
+      <ViewIcon icon="allDocs" />
+      <ViewBody>
+        <div className={styles.body}>
+          {/* ═══ Breadcrumb ═══ */}
+          <div className={styles.breadcrumb}>
+            <button
+              type="button"
+              className={styles.breadcrumbLink}
+              onClick={handleBackToAkten}
+            >
+              {t['com.affine.caseAssistant.akteDetail.breadcrumb.akten']()}
+            </button>
+            <span className={styles.breadcrumbSep}>›</span>
+            <span className={styles.breadcrumbCurrent}>
+              {matter.externalRef ? `${matter.externalRef} — ` : ''}
+              {matter.title}
+            </span>
+          </div>
+
+          {/* ═══ Akte Header Card ═══ */}
+          <div className={styles.akteHeader}>
+            <div className={styles.akteHeaderTop}>
+              <div className={styles.akteHeaderLeft}>
+                <div className={styles.akteTitle}>
+                  {matter.title}
+                </div>
+                <div className={styles.akteSubtitle}>
+                  {client?.displayName ? (
+                    <button
+                      type="button"
+                      className={styles.breadcrumbLink}
+                      onClick={handleOpenMandantDetail}
+                      title={t['com.affine.caseAssistant.akteDetail.header.openClient']()}
+                    >
+                      {client.displayName}
+                    </button>
+                  ) : (
+                    '—'
+                  )}
+                  {matter.gericht ? <span>· {matter.gericht}</span> : null}
+                  {matter.externalRef ? <span>· {t['com.affine.caseAssistant.akteDetail.header.refPrefix']()} {matter.externalRef}</span> : null}
+                  {anwaltName ? <span>· {anwaltName}</span> : null}
+                </div>
+                <div className={styles.akteMetaRow}>
+                  <span className={styles.akteMetaBadge}><span className={styles.akteMetaBadgeLabel}>{t['com.affine.caseAssistant.akteDetail.meta.caseFiles']()}</span>{caseFiles.length}</span>
+                  <span className={styles.akteMetaBadge}><span className={styles.akteMetaBadgeLabel}>{t['com.affine.caseAssistant.akteDetail.meta.documents']()}</span>{matterDocs.length}</span>
+                  <span className={styles.akteMetaBadge}><span className={styles.akteMetaBadgeLabel}>{t['com.affine.caseAssistant.akteDetail.meta.pages']()}</span>{linkedPageIds.length}</span>
+                  <span className={styles.akteMetaBadge}><span className={styles.akteMetaBadgeLabel}>{t['com.affine.caseAssistant.akteDetail.meta.chunks']()}</span>{matterChunks.length}</span>
+                  {openDeadlines.length > 0 && (
+                    <span className={`${styles.akteMetaBadge} ${styles.akteMetaBadgeUrgent}`}><span className={styles.akteMetaBadgeLabel}>{t['com.affine.caseAssistant.akteDetail.meta.deadlines']()}</span>{openDeadlines.length}</span>
+                  )}
+                </div>
+              </div>
+              <div className={styles.akteHeaderActions}>
+                <span className={`${styles.statusBadge} ${STATUS_STYLE[matter.status]}`}>
+                  {statusLabel[matter.status]}
+                </span>
+                <button
+                  type="button"
+                  className={styles.headerButton}
+                  onClick={focusUploadZone}
+                  title={t['com.affine.caseAssistant.akteDetail.documents.upload.tooltip']()}
+                >
+                  {t['com.affine.caseAssistant.akteDetail.button.upload']()}
+                </button>
+                <button
+                  type="button"
+                  className={styles.headerButton}
+                  onClick={handleOpenFristenOverview}
+                  title={t['com.affine.caseAssistant.akteDetail.button.deadlines.title']()}
+                >
+                  {t['com.affine.caseAssistant.akteDetail.button.deadlines']()}
+                </button>
+                <button
+                  type="button"
+                  className={`${styles.headerButton} ${styles.headerButtonPrimary}`}
+                  onClick={() => {
+                    setActiveTab('pages');
+                    setNewPageTitle('');
+                  }}
+                  title={t['com.affine.caseAssistant.akteDetail.button.newPage.title']()}
+                >
+                  {t['com.affine.caseAssistant.akteDetail.button.newPage']()}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className={styles.middleScrollArea}>
+            <section className={styles.alertCenter} aria-label={t['com.affine.caseAssistant.akteDetail.alert.title']()}>
+              <div className={styles.alertCenterHeader}>
+                <div>
+                  <h2 className={styles.alertCenterTitle}>{t['com.affine.caseAssistant.akteDetail.alert.title']()}</h2>
+                  <p className={styles.alertCenterSubtitle}>
+                    {t['com.affine.caseAssistant.akteDetail.alert.subtitle']()}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className={`${styles.headerButton} ${styles.headerButtonPrimary}`}
+                  onClick={() => openMainChatForMatter(t['com.affine.caseAssistant.akteDetail.alert.title']())}
+                >
+                  {t['com.affine.caseAssistant.akteDetail.alert.openChat']()}
+                </button>
+              </div>
+
+              <div className={styles.alertSummaryRow}>
+                <div className={styles.alertSummaryCard}>
+                  <span className={styles.alertSummaryLabel}>{t['com.affine.caseAssistant.akteDetail.alert.summary.critical']()}</span>
+                  <span className={styles.alertSummaryValue}>{deadlineAlertBuckets.critical.length}</span>
+                </div>
+                <div className={styles.alertSummaryCard}>
+                  <span className={styles.alertSummaryLabel}>{t['com.affine.caseAssistant.akteDetail.alert.summary.next7']()}</span>
+                  <span className={styles.alertSummaryValue}>{deadlineAlertBuckets.next7.length}</span>
+                </div>
+                <div className={styles.alertSummaryCard}>
+                  <span className={styles.alertSummaryLabel}>{t['com.affine.caseAssistant.akteDetail.alert.summary.riskFindings']()}</span>
+                  <span className={styles.alertSummaryValue}>{findingRiskAlerts.length}</span>
+                </div>
+              </div>
+
+              <div className={styles.alertFilterBar}>
+                <div className={styles.alertFilterGroup}>
+                  {(['all', 'P1', 'P2', 'P3'] as const).map(tier => (
+                    <button
+                      key={tier}
+                      type="button"
+                      className={styles.alertFilterChip}
+                      data-active={alertTierFilter === tier ? 'true' : undefined}
+                      onClick={() => setAlertTierFilter(tier)}
+                    >
+                      {tier === 'all' ? t['com.affine.caseAssistant.akteDetail.alert.filter.allPriorities']() : tier}
+                    </button>
+                  ))}
+                </div>
+                <div className={styles.alertFilterGroup}>
+                  {(['all', 'deadline', 'finding'] as const).map(kind => (
+                    <button
+                      key={kind}
+                      type="button"
+                      className={styles.alertFilterChip}
+                      data-active={alertKindFilter === kind ? 'true' : undefined}
+                      onClick={() => setAlertKindFilter(kind)}
+                    >
+                      {kind === 'all' ? t['com.affine.caseAssistant.akteDetail.alert.filter.allTypes']() : kind === 'deadline' ? t['com.affine.caseAssistant.akteDetail.alert.filter.deadlines']() : t['com.affine.caseAssistant.akteDetail.alert.filter.findings']()}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className={styles.alertGrid}>
+                <div className={styles.alertColumn}>
+                  <h3 className={styles.alertColumnTitle}>{t['com.affine.caseAssistant.akteDetail.alert.col.deadlineRisks']()}</h3>
+                  {filteredDeadlineAlerts.length === 0 ? (
+                    <div className={styles.alertEmpty}>{t['com.affine.caseAssistant.akteDetail.alert.empty.deadlines']()}</div>
+                  ) : (
+                    filteredDeadlineAlerts.slice(0, 5).map(deadline => {
+                        const days = daysUntil(deadline.dueAt);
+                        return (
+                          <article key={deadline.id} className={styles.alertCard}>
+                            <div className={styles.alertCardHeader}>
+                              <span className={styles.alertCardTitle}>{deadline.title}</span>
+                              <span
+                                className={styles.alertTierBadge}
+                                data-tier={classifyDeadlineTier(deadline)}
+                              >
+                                {classifyDeadlineTier(deadline)}
+                              </span>
+                            </div>
+                            <p className={styles.alertCardMeta}>
+                              {new Date(deadline.dueAt).toLocaleDateString(language)} ·{' '}
+                              {days < 0
+                                ? t.t('com.affine.caseAssistant.akteDetail.days.overdue', { count: Math.abs(days) })
+                                : days === 0
+                                  ? t['com.affine.caseAssistant.akteDetail.days.today']()
+                                  : t.t('com.affine.caseAssistant.akteDetail.days.remaining', { count: days })}
+                            </p>
+                            <p className={styles.alertCardMeta}>
+                              {t.t('com.affine.caseAssistant.akteDetail.alert.status', {
+                                status: deadlineStatusLabel[deadline.status],
+                              })}
+                            </p>
+                            <div className={styles.alertCardActions}>
+                              <button
+                                type="button"
+                                className={styles.alertInlineButton}
+                                onClick={() => {
+                                  handleAcknowledgeDeadline(deadline).catch(() => {
+                                    showStatus(t['com.affine.caseAssistant.akteDetail.alert.catch.deadlineAck']());
+                                  });
+                                }}
+                                disabled={deadline.status === 'acknowledged' || deadline.status === 'completed'}
+                              >
+                                {t['com.affine.caseAssistant.akteDetail.alert.btn.acknowledge']()}
+                              </button>
+                              <button
+                                type="button"
+                                className={styles.alertInlineButton}
+                                onClick={() => {
+                                  handleResolveDeadline(deadline).catch(() => {
+                                    showStatus(t['com.affine.caseAssistant.akteDetail.alert.catch.deadlineResolve']());
+                                  });
+                                }}
+                                disabled={deadline.status === 'completed'}
+                              >
+                                {t['com.affine.caseAssistant.akteDetail.alert.btn.resolve']()}
+                              </button>
+                            </div>
+                          </article>
+                        );
+                      })
+                  )}
+                </div>
+
+                <div className={styles.alertColumn}>
+                  <h3 className={styles.alertColumnTitle}>{t['com.affine.caseAssistant.akteDetail.alert.col.findingRisks']()}</h3>
+                  {filteredFindingAlerts.length === 0 ? (
+                    <div className={styles.alertEmpty}>{t['com.affine.caseAssistant.akteDetail.alert.empty.findings']()}</div>
+                  ) : (
+                    filteredFindingAlerts.slice(0, 5).map(finding => (
+                      <article key={finding.id} className={styles.alertCard}>
+                        <div className={styles.alertCardHeader}>
+                          <span className={styles.alertCardTitle}>{finding.title}</span>
+                          <span
+                            className={styles.alertTierBadge}
+                            data-tier={classifyFindingTier(finding)}
+                          >
+                            {classifyFindingTier(finding)}
+                          </span>
+                        </div>
+                        <p className={styles.alertCardMeta}>
+                          {finding.type} · {t.t('com.affine.caseAssistant.akteDetail.alert.confidence', { value: (finding.confidence * 100).toFixed(0) })}
+                        </p>
+                        <p className={styles.alertCardDescription}>{finding.description}</p>
+                        {finding.sourceDocTitles.length > 0 ? (
+                          <p className={styles.alertCardSource}>
+                            {t.t('com.affine.caseAssistant.akteDetail.alert.source', { sources: finding.sourceDocTitles.join(' · ') })}
+                          </p>
+                        ) : null}
+                        {finding.citation ? (
+                          <blockquote className={styles.alertCardQuote}>
+                            “{finding.citation.slice(0, 180)}{finding.citation.length > 180 ? '…' : ''}”
+                          </blockquote>
+                        ) : null}
+                        <div className={styles.alertCardActions}>
+                          <button
+                            type="button"
+                            className={styles.alertInlineButton}
+                            onClick={() => {
+                              handleAcknowledgeFinding(finding).catch(() => {
+                                showStatus(t['com.affine.caseAssistant.akteDetail.alert.catch.findingAck']());
+                              });
+                            }}
+                            disabled={findingDecisionById.get(finding.id) === 'acknowledged' || findingDecisionById.get(finding.id) === 'dismissed'}
+                          >
+                            {t['com.affine.caseAssistant.akteDetail.alert.btn.acknowledge']()}
+                          </button>
+                          <button
+                            type="button"
+                            className={styles.alertInlineButton}
+                            onClick={() => {
+                              handleDismissFinding(finding).catch(() => {
+                                showStatus(t['com.affine.caseAssistant.akteDetail.alert.catch.findingDismiss']());
+                              });
+                            }}
+                            disabled={findingDecisionById.get(finding.id) === 'dismissed'}
+                          >
+                            {t['com.affine.caseAssistant.akteDetail.alert.btn.dismiss']()}
+                          </button>
+                        </div>
+                      </article>
+                    ))
+                  )}
+                </div>
+
+                <div className={styles.alertColumn}>
+                  <h3 className={styles.alertColumnTitle}>{t['com.affine.caseAssistant.akteDetail.alert.col.nextSteps']()}</h3>
+                  <div className={styles.nextActionsList}>
+                    {nextActions.map(action => (
+                      <button
+                        key={action.id}
+                        type="button"
+                        className={styles.nextActionButton}
+                        onClick={action.onRun}
+                      >
+                        <div className={styles.alertCardHeader}>
+                          <span className={styles.alertCardTitle}>{action.title}</span>
+                          <span className={styles.alertTierBadge} data-tier={action.tier}>
+                            {action.tier}
+                          </span>
+                        </div>
+                        <span className={styles.alertCardMeta}>{action.detail}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className={styles.alertTimelineSection}>
+                <h3 className={styles.alertColumnTitle}>{t['com.affine.caseAssistant.akteDetail.alert.col.timeline']()}</h3>
+                {timelineEvents.length === 0 ? (
+                  <div className={styles.alertEmpty}>{t['com.affine.caseAssistant.akteDetail.alert.empty.timeline']()}</div>
+                ) : (
+                  <div className={styles.alertTimelineList}>
+                    {timelineEvents.map(event => (
+                      <article key={event.id} className={styles.alertTimelineItem}>
+                        <div className={styles.alertCardHeader}>
+                          <span className={styles.alertCardTitle}>{event.title}</span>
+                          <span className={styles.alertTierBadge} data-tier={event.tier}>
+                            {event.tier}
+                          </span>
+                        </div>
+                        <p className={styles.alertCardMeta}>
+                          {event.source} · {new Date(event.at).toLocaleString(language)}
+                        </p>
+                        <p className={styles.alertCardDescription}>{event.detail}</p>
+                      </article>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </section>
+
+            {/* ═══ Main Content Area ═══ */}
+            <div className={styles.contentLayout}>
+              {/* ═══ LEFT: Documents/Pages/Semantic ═══ */}
+              <div className={styles.mainPanel}>
+              {/* Tabs */}
+              <div
+                className={styles.tabBar}
+                role="tablist"
+                aria-label={t['com.affine.caseAssistant.akteDetail.tabs.documents']()}
+                id={mainTabListId}
+                onKeyDown={handleMainTabsKeyDown}
+              >
+                <button
+                  type="button"
+                  className={styles.tab}
+                  data-active={activeTab === 'documents'}
+                  role="tab"
+                  id={getMainTabId('documents')}
+                  aria-selected={activeTab === 'documents'}
+                  aria-controls={getMainPanelId('documents')}
+                  tabIndex={activeTab === 'documents' ? 0 : -1}
+                  onClick={() => setActiveTab('documents')}
+                >
+                  {t['com.affine.caseAssistant.akteDetail.tabs.documents']()}
+                  <span className={styles.tabCount}>{matterDocs.length}</span>
+                </button>
+                <button
+                  type="button"
+                  className={styles.tab}
+                  data-active={activeTab === 'pages'}
+                  role="tab"
+                  id={getMainTabId('pages')}
+                  aria-selected={activeTab === 'pages'}
+                  aria-controls={getMainPanelId('pages')}
+                  tabIndex={activeTab === 'pages' ? 0 : -1}
+                  onClick={() => setActiveTab('pages')}
+                >
+                  {t['com.affine.caseAssistant.akteDetail.tabs.pages']()}
+                  <span className={styles.tabCount}>{linkedPageIds.length}</span>
+                </button>
+                <button
+                  type="button"
+                  className={styles.tab}
+                  data-active={activeTab === 'semantic'}
+                  role="tab"
+                  id={getMainTabId('semantic')}
+                  aria-selected={activeTab === 'semantic'}
+                  aria-controls={getMainPanelId('semantic')}
+                  tabIndex={activeTab === 'semantic' ? 0 : -1}
+                  onClick={() => setActiveTab('semantic')}
+                >
+                  {t['com.affine.caseAssistant.akteDetail.tabs.semantic']()}
+                  <span className={styles.tabCount}>{matterChunks.length}</span>
+                </button>
+              </div>
+
+              {/* Search Toolbar */}
+              {activeTab === 'documents' && (
+                <div className={styles.docListToolbar}>
+                  <input
+                    className={styles.searchInput}
+                    type="text"
+                    placeholder={t['com.affine.caseAssistant.akteDetail.documents.search.placeholder']()}
+                    value={docSearch}
+                    onChange={e => setDocSearch(e.target.value)}
+                    aria-label={t['com.affine.caseAssistant.akteDetail.documents.search.aria']()}
+                  />
+                  <span className={styles.docListCount}>
+                    {filteredDocs.length} von {matterDocs.length}
+                  </span>
+                </div>
+              )}
+
+              {activeTab === 'documents' ? (
+                <BulkActionBar
+                  containerName="akte-detail-body"
+                  selectedCount={bulkSelection.selectedIds.size}
+                  selectionLabel={t.t(
+                    'com.affine.caseAssistant.akteDetail.documents.bulk.selectedCount',
+                    {
+                      count: bulkSelection.selectedIds.size,
+                    }
+                  )}
+                  isRunning={isBulkDeletingDocs}
+                  canDelete={bulkSelection.selectedIds.size > 0}
+                  deleteLabel={t['com.affine.caseAssistant.akteDetail.documents.bulk.deletePermanent']()}
+                  onDelete={handleBulkDeleteDocuments}
+                  onClear={bulkSelection.clear}
+                />
+              ) : null}
+
+              {/* Content */}
+              <div className={styles.scrollArea}>
+                <div
+                  role="tabpanel"
+                  id={getMainPanelId('documents')}
+                  aria-labelledby={getMainTabId('documents')}
+                  hidden={activeTab !== 'documents'}
+                >
+                  {activeTab === 'documents' && (
+                    <div className={styles.docListContainer}>
+                    <div ref={uploadZoneRootRef}>
+                      <FileUploadZone
+                        maxFiles={80}
+                        onFilesReady={handlePreparedFiles}
+                        pipelineProgress={pipelineProgress}
+                      />
+                    </div>
+
+                    {filteredDocs.length === 0 ? (
+                      <div className={styles.emptyState}>
+                        <div className={styles.emptyIcon}></div>
+                        <div className={styles.emptyTitle}>
+                          {docSearch
+                            ? t['com.affine.caseAssistant.akteDetail.documents.empty.filtered.title']()
+                            : t['com.affine.caseAssistant.akteDetail.documents.empty.initial.title']()}
+                        </div>
+                        <div className={styles.emptyDescription}>
+                          {docSearch
+                            ? t['com.affine.caseAssistant.akteDetail.documents.empty.filtered.description']()
+                            : t['com.affine.caseAssistant.akteDetail.documents.empty.initial.description']()}
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        {/* Document List Grouped by Folder */}
+                        {folderGroups.map(([folder, docs]) => (
+                          <div key={folder} className={styles.folderSection}>
+                            <div
+                              className={styles.folderHeader}
+                              onClick={() => toggleFolder(folder)}
+                              role="button"
+                              tabIndex={0}
+                              aria-expanded={expandedFolders.has(folder)}
+                              onKeyDown={e => {
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                  e.preventDefault();
+                                  toggleFolder(folder);
+                                }
+                              }}
+                            >
+                              <span
+                                className={styles.folderChevron}
+                                data-open={expandedFolders.has(folder)}
+                              >
+                                ›
+                              </span>
+                              <span className={styles.folderName}>
+                                {folder === '/'
+                                  ? t['com.affine.caseAssistant.akteDetail.documents.folder.root']()
+                                  : folder}
+                              </span>
+                              <span className={styles.folderCount}>{docs.length}</span>
+                            </div>
+
+                            {expandedFolders.has(folder) && (
+                              <div className={styles.folderContent}>
+                                {/* Header */}
+                                <div className={styles.docHeaderRow}>
+                                  <span className={styles.docSelectCell}>
+                                    <input
+                                      className={styles.docSelectCheckbox}
+                                      type="checkbox"
+                                      checked={docs.length > 0 && docs.every(d => bulkSelection.selectedIds.has(d.id))}
+                                      ref={el => {
+                                        if (!el) return;
+                                        const anySelected = docs.some(d => bulkSelection.selectedIds.has(d.id));
+                                        el.indeterminate = anySelected && !docs.every(d => bulkSelection.selectedIds.has(d.id));
+                                      }}
+                                      onChange={e => {
+                                        for (const doc of docs) {
+                                          bulkSelection.toggle(doc.id, e.currentTarget.checked);
+                                        }
+                                      }}
+                                      aria-label={
+                                        folder === '/'
+                                          ? t['com.affine.caseAssistant.akteDetail.documents.selectAll.root']()
+                                          : t.t('com.affine.caseAssistant.akteDetail.documents.selectAll.folder', {
+                                              folder,
+                                            })
+                                      }
+                                    />
+                                  </span>
+                                  <span>{t['com.affine.caseAssistant.akteDetail.documents.table.document']()}</span>
+                                  <span>{t['com.affine.caseAssistant.akteDetail.documents.table.type']()}</span>
+                                  <span className={styles.docMeta}>
+                                    {t['com.affine.caseAssistant.akteDetail.documents.table.date']()}
+                                  </span>
+                                  <span>{t['com.affine.caseAssistant.akteDetail.documents.table.status']()}</span>
+                                </div>
+                                {docs
+                                  .sort(
+                                    (a, b) =>
+                                      new Date(b.updatedAt).getTime() -
+                                      new Date(a.updatedAt).getTime()
+                                  )
+                                  .map(doc => {
+                                    const statusInfo = getDocStatusInfo(doc.status, t);
+                                    return (
+                                      <div
+                                        key={doc.id}
+                                        className={styles.docRow}
+                                        data-selected={bulkSelection.isSelected(doc.id)}
+                                        onClick={() => handleOpenDocument(doc)}
+                                        role="button"
+                                        tabIndex={0}
+                                        onKeyDown={e => {
+                                          if (e.key === 'Enter' || e.key === ' ') {
+                                            e.preventDefault();
+                                            handleOpenDocument(doc);
+                                          }
+                                        }}
+                                      >
+                                        <span className={styles.docSelectCell}>
+                                          <input
+                                            className={styles.docSelectCheckbox}
+                                            type="checkbox"
+                                            checked={bulkSelection.isSelected(doc.id)}
+                                            onClick={e => {
+                                              e.stopPropagation();
+                                            }}
+                                            onChange={e => {
+                                              bulkSelection.toggleWithRange(doc.id, {
+                                                shiftKey: (e.nativeEvent as any).shiftKey,
+                                              });
+                                            }}
+                                            aria-label={t.t('com.affine.caseAssistant.akteDetail.documents.selectOne.aria', {
+                                              title: doc.title,
+                                            })}
+                                          />
+                                        </span>
+                                        <div className={styles.docTitle}>
+                                          {doc.title}
+                                          {doc.chunkCount ? (
+                                            <span className={styles.docKindBadge}>
+                                              {doc.chunkCount} Chunks
+                                            </span>
+                                          ) : null}
+                                        </div>
+                                        <span>
+                                          <span className={styles.docKindBadge}>
+                                            {docKindLabel[(doc.kind ?? 'other') as keyof typeof docKindLabel] ??
+                                              docKindLabel.other}
+                                          </span>
+                                        </span>
+                                        <span className={styles.docMeta}>
+                                          {relativeTime(doc.updatedAt, language)}
+                                        </span>
+                                        <span>
+                                          <span
+                                            className={`${styles.docStatusBadge} ${statusInfo.className}`}
+                                          >
+                                            {statusInfo.label}
+                                          </span>
+                                        </span>
+                                      </div>
+                                    );
+                                  })}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </>
+                    )}
+                    </div>
+                  )}
+                </div>
+
+                <div
+                  role="tabpanel"
+                  id={getMainPanelId('pages')}
+                  aria-labelledby={getMainTabId('pages')}
+                  hidden={activeTab !== 'pages'}
+                >
+                  {activeTab === 'pages' && (
+                    <div className={styles.docListContainer}>
+                    {/* Inline Create */}
+                    <div className={styles.inlineCreate}>
+                      <input
+                        className={styles.inlineCreateInput}
+                        type="text"
+                        placeholder={t['com.affine.caseAssistant.akteDetail.pages.createPlaceholder']()}
+                        value={newPageTitle}
+                        onChange={e => setNewPageTitle(e.target.value)}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleCreatePage().catch(() => {
+                              // Fehlerstatus wird bereits innerhalb von handleCreatePage gesetzt.
+                            });
+                          }
+                        }}
+                      />
+                      <button
+                        type="button"
+                        className={styles.inlineCreateButton}
+                        onClick={() => {
+                          handleCreatePage().catch(() => {
+                            // Fehlerstatus wird bereits innerhalb von handleCreatePage gesetzt.
+                          });
+                        }}
+                      >
+                        {t['com.affine.caseAssistant.akteDetail.pages.createButton']()}
+                      </button>
+                    </div>
+
+                    {linkedPageIds.length === 0 ? (
+                      <div className={styles.emptyState}>
+                        <div className={styles.emptyIcon}></div>
+                        <div className={styles.emptyTitle}>{t['com.affine.caseAssistant.akteDetail.pages.empty.title']()}</div>
+                        <div className={styles.emptyDescription}>
+                          {t['com.affine.caseAssistant.akteDetail.pages.empty.description']()}
+                        </div>
+                      </div>
+                    ) : (
+                      linkedPageIds.map(pageId => {
+                        const docRecord = docsService.list.doc$(pageId).value;
+                        const title = docRecord?.meta$.value?.title || 'Untitled';
+                        return (
+                          <div
+                            key={pageId}
+                            className={styles.pageDocRow}
+                            data-selected={selectedPageId === pageId}
+                            onClick={() => handleOpenPage(pageId)}
+                            role="button"
+                            tabIndex={0}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault();
+                                handleOpenPage(pageId);
+                              }
+                            }}
+                          >
+                            <span className={styles.pageDocIcon}></span>
+                            <span className={styles.pageDocTitle}>{title}</span>
+                            <span className={styles.pageDocMeta}>
+                              {docRecord?.meta$.value?.updatedDate
+                                ? relativeTime(
+                                    new Date(docRecord.meta$.value.updatedDate).toISOString(),
+                                    language
+                                  )
+                                : ''}
+                            </span>
+                            <button
+                              type="button"
+                              className={styles.docActionButton}
+                              onClick={e => {
+                                e.stopPropagation();
+                                handleRemovePageFromAkte(pageId).catch(() => {
+                                  // Fehlerstatus wird bereits innerhalb von handleRemovePageFromAkte gesetzt.
+                                });
+                              }}
+                              title={t['com.affine.caseAssistant.akteDetail.pages.removeTooltip']()}
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        );
+                      })
+                    )}
+                    </div>
+                  )}
+                </div>
+
+                <div
+                  role="tabpanel"
+                  id={getMainPanelId('semantic')}
+                  aria-labelledby={getMainTabId('semantic')}
+                  hidden={activeTab !== 'semantic'}
+                >
+                  {activeTab === 'semantic' && (
+                    <div className={styles.docListContainer}>
+                    {matterChunks.length === 0 ? (
+                      <div className={styles.emptyState}>
+                        <div className={styles.emptyIcon}></div>
+                        <div className={styles.emptyTitle}>
+                          {t['com.affine.caseAssistant.akteDetail.semantic.empty.title']()}
+                        </div>
+                        <div className={styles.emptyDescription}>
+                          {t['com.affine.caseAssistant.akteDetail.semantic.empty.description']()}
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <div className={styles.docHeaderRow}>
+                          <span>Chunk / Kategorie</span>
+                          <span>Dokument</span>
+                          <span className={styles.docMeta}>Qualität</span>
+                          <span>Keywords</span>
+                        </div>
+                        {matterChunks.slice(0, 100).map(chunk => {
+                          const sourceDoc = matterDocs.find(d => d.id === chunk.documentId);
+                          return (
+                            <div key={chunk.id} className={styles.docRow} tabIndex={0}>
+                              <div className={styles.docTitle}>
+                                <span className={styles.docIcon}></span>
+                                <span className={styles.chunkCategory}>{chunk.category}</span>
+                                <span className={styles.docKindBadge}>#{chunk.index}</span>
+                              </div>
+                              <span className={styles.chunkDocTitle}>
+                                {sourceDoc?.title?.slice(0, 30) ?? '—'}
+                              </span>
+                              <span className={styles.docMeta}>
+                                {(chunk.qualityScore * 100).toFixed(0)}%
+                              </span>
+                              <span className={styles.chunkKeywords}>
+                                {chunk.keywords.slice(0, 3).join(', ')}
+                              </span>
+                            </div>
+                          );
+                        })}
+                        {matterChunks.length > 100 && (
+                          <div className={styles.chunkMore}>
+                            +{matterChunks.length - 100} weitere Chunks
+                          </div>
+                        )}
+                      </>
+                    )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+          </div>
+
+          {/* Action Status Toast */}
+          {actionStatus && <div className={styles.actionStatus}>{actionStatus}</div>}
+        </div>
+</ViewBody>
+
+      <ViewSidebarTab
+        tabId="akte-panel"
+        icon={<span aria-hidden="true" className={styles.sidebarTabIcon}>A</span>}
+        unmountOnInactive={false}
+      >
+        <div className={styles.sidePanel}>
+          <div
+            className={styles.sidePanelHeader}
+            role="tablist"
+            aria-label={t['com.affine.caseAssistant.akteDetail.sideTab.info']()}
+            id={sideTabListId}
+            onKeyDown={handleSideTabsKeyDown}
+          >
+            <button
+              type="button"
+              className={styles.sidePanelTab}
+              data-active={sidePanelTab === 'copilot'}
+              role="tab"
+              id={getSideTabId('copilot')}
+              aria-selected={sidePanelTab === 'copilot'}
+              aria-controls={getSidePanelId('copilot')}
+              tabIndex={sidePanelTab === 'copilot' ? 0 : -1}
+              onClick={() => setSidePanelTab('copilot')}
+            >
+              {t['com.affine.caseAssistant.akteDetail.sideTab.copilot']()}
+            </button>
+            <button
+              type="button"
+              className={styles.sidePanelTab}
+              data-active={sidePanelTab === 'info'}
+              role="tab"
+              id={getSideTabId('info')}
+              aria-selected={sidePanelTab === 'info'}
+              aria-controls={getSidePanelId('info')}
+              tabIndex={sidePanelTab === 'info' ? 0 : -1}
+              onClick={() => setSidePanelTab('info')}
+            >
+              {t['com.affine.caseAssistant.akteDetail.sideTab.info']()}
+            </button>
+            <button
+              type="button"
+              className={styles.sidePanelTab}
+              data-active={sidePanelTab === 'deadlines'}
+              role="tab"
+              id={getSideTabId('deadlines')}
+              aria-selected={sidePanelTab === 'deadlines'}
+              aria-controls={getSidePanelId('deadlines')}
+              tabIndex={sidePanelTab === 'deadlines' ? 0 : -1}
+              onClick={() => setSidePanelTab('deadlines')}
+            >
+              {t['com.affine.caseAssistant.akteDetail.sideTab.deadlinesLabel']()} {openDeadlines.length > 0 && <span className={styles.sidePanelTabBadge}>{openDeadlines.length}</span>}
+            </button>
+          </div>
+
+          <div className={styles.sidePanelBody}>
+            <div
+              role="tabpanel"
+              id={getSidePanelId('copilot')}
+              aria-labelledby={getSideTabId('copilot')}
+              hidden={sidePanelTab !== 'copilot'}
+            >
+              {sidePanelTab === 'copilot' && (
+                <AkteChatPanel
+                  sessions={caseChatSessions}
+                  activeSessionId={activeChatSessionId}
+                  activeMessages={activeChatMessages}
+                  activeMode={activeChatMode}
+                  isBusy={isChatBusy}
+                  matterTitle={matter.title}
+                  clientName={client?.displayName ?? null}
+                  onCreateSession={onCreateChatSession}
+                  onSelectSession={setActiveChatSessionId}
+                  onSwitchMode={setActiveChatMode}
+                  onSendMessage={content => {
+                    onSendChatMessage(content).catch(() => {
+                      // Fehlerstatus wird bereits innerhalb von onSendChatMessage gesetzt.
+                    });
+                  }}
+                />
+              )}
+            </div>
+
+            <div
+              role="tabpanel"
+              id={getSidePanelId('info')}
+              aria-labelledby={getSideTabId('info')}
+              hidden={sidePanelTab !== 'info'}
+            >
+              {sidePanelTab === 'info' && (
+                <div className={styles.contextInfoSection}>
+                  <InfoRow label={t['com.affine.caseAssistant.akteDetail.info.matter']()} value={matter.title} />
+                  <InfoRow label={t['com.affine.caseAssistant.akteDetail.info.client']()} value={client?.displayName ?? '—'} />
+                  <InfoRow label={t['com.affine.caseAssistant.akteDetail.info.ref']()} value={matter.externalRef ?? '—'} />
+                  <InfoRow label={t['com.affine.caseAssistant.akteDetail.info.court']()} value={matter.gericht ?? '—'} />
+                  <InfoRow label={t['com.affine.caseAssistant.akteDetail.info.lawyer']()} value={anwaltName ?? '—'} />
+                  <InfoRow label={t['com.affine.caseAssistant.akteDetail.info.status']()} value={statusLabel[matter.status]} />
+                  <InfoRow label={t['com.affine.caseAssistant.akteDetail.info.created']()} value={new Date(matter.createdAt).toLocaleDateString(language)} />
+                  <InfoRow label={t['com.affine.caseAssistant.akteDetail.info.updated']()} value={relativeTime(matter.updatedAt, language)} />
+                  <InfoRow label={t['com.affine.caseAssistant.akteDetail.info.caseFiles']()} value={String(caseFiles.length)} />
+                  <InfoRow label={t['com.affine.caseAssistant.akteDetail.info.documents']()} value={String(matterDocs.length)} />
+                  <InfoRow label={t['com.affine.caseAssistant.akteDetail.info.semanticChunks']()} value={String(matterChunks.length)} />
+                  <InfoRow label={t['com.affine.caseAssistant.akteDetail.info.pages']()} value={String(linkedPageIds.length)} />
+                  {matter.description && (
+                    <div className={styles.matterDescription}>
+                      {matter.description}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div
+              role="tabpanel"
+              id={getSidePanelId('deadlines')}
+              aria-labelledby={getSideTabId('deadlines')}
+              hidden={sidePanelTab !== 'deadlines'}
+            >
+              {sidePanelTab === 'deadlines' && (
+                <div className={styles.contextInfoSection}>
+                  {openDeadlines.length === 0 ? (
+                    <div className={styles.sidePanelEmptyState}>
+                      Keine offenen Fristen.
+                    </div>
+                  ) : (
+                    openDeadlines.map(d => {
+                      const days = daysUntil(d.dueAt);
+                      const isUrgent = days <= 3;
+                      return (
+                        <div key={d.id} className={`${styles.contextInfoRow} ${styles.deadlineRow}`}>
+                          <div>
+                            <div
+                              className={styles.deadlineTitle}
+                              data-urgent={isUrgent ? 'true' : undefined}
+                            >
+                              {d.title}
+                            </div>
+                            <div className={styles.deadlineMeta}>
+                              {new Date(d.dueAt).toLocaleDateString(language)}
+                              {' · '}
+                              {days < 0
+                                ? t.t('com.affine.caseAssistant.akteDetail.days.overdue', { count: Math.abs(days) })
+                                : days === 0
+                                  ? t['com.affine.caseAssistant.akteDetail.days.today']()
+                                  : t.t('com.affine.caseAssistant.akteDetail.days.remaining', { count: days })}
+                            </div>
+                          </div>
+                          <span
+                            className={`${styles.docStatusBadge} ${
+                              isUrgent ? styles.docStatusFailed : styles.docStatusPending
+                            }`}
+                          >
+                            {d.priority}
+                          </span>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </ViewSidebarTab>
+    </>
+  );
+};
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// INFO ROW
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const InfoRow = ({ label, value }: { label: string; value: string }) => (
+  <div className={styles.contextInfoRow}>
+    <span className={styles.contextInfoLabel}>{label}</span>
+    <span className={styles.contextInfoValue}>{value}</span>
+  </div>
+);
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// AKTE CHAT PANEL (Embedded Copilot)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const CHAT_MODE_IDS: LegalChatMode[] = [
+  'general', 'strategie', 'gegner', 'richter', 'beweislage', 'fristen', 'normen',
+];
+
+type AkteChatPanelProps = {
+  sessions: LegalChatSession[];
+  activeSessionId: string | null;
+  activeMessages: LegalChatMessage[];
+  activeMode: LegalChatMode;
+  isBusy: boolean;
+  matterTitle: string;
+  clientName: string | null;
+  onCreateSession: (mode?: LegalChatMode) => void | Promise<void>;
+  onSelectSession: (id: string) => void;
+  onSwitchMode: (mode: LegalChatMode) => void;
+  onSendMessage: (content: string) => void;
+};
+
+const AkteChatPanel = ({
+  sessions,
+  activeSessionId,
+  activeMessages,
+  activeMode,
+  isBusy,
+  matterTitle,
+  clientName,
+  onCreateSession,
+  onSelectSession,
+  onSwitchMode,
+  onSendMessage,
+}: AkteChatPanelProps) => {
+  const t = useI18n();
+  const [inputValue, setInputValue] = useState('');
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const chatModes = useMemo(() =>
+    CHAT_MODE_IDS.map(id => ({
+      id,
+      label: t[`com.affine.caseAssistant.akteDetail.chat.mode.${id}` as keyof typeof t](),
+    })),
+    [t]
+  );
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [activeMessages.length]);
+
+  const handleSend = useCallback(() => {
+    const trimmed = inputValue.trim();
+    if (!trimmed || isBusy) return;
+    onSendMessage(trimmed);
+    setInputValue('');
+  }, [inputValue, isBusy, onSendMessage]);
+
+  return (
+    <div className={styles.chatRoot}>
+      {/* Mode Selector */}
+      <div className={styles.chatModeBar}>
+        {chatModes.map(mode => (
+          <button
+            key={mode.id}
+            type="button"
+            onClick={() => onSwitchMode(mode.id)}
+            className={activeMode === mode.id ? styles.chatModeButtonActive : styles.chatModeButton}
+          >
+            {mode.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Session List */}
+      {sessions.length > 0 && (
+        <div className={styles.chatSessionBar}>
+          {sessions.map(s => (
+            <button
+              key={s.id}
+              type="button"
+              onClick={() => onSelectSession(s.id)}
+              className={styles.chatSessionChip}
+              data-active={s.id === activeSessionId ? 'true' : undefined}
+            >
+              {s.title.slice(0, 20)}
+            </button>
+          ))}
+          <button
+            type="button"
+            onClick={() => {
+              Promise.resolve(onCreateSession()).catch(() => {
+                // Fehlerstatus wird bereits innerhalb von onCreateSession gesetzt.
+              });
+            }}
+            className={styles.chatSessionAdd}
+          >
+            ＋
+          </button>
+        </div>
+      )}
+
+      {/* Messages */}
+      <div className={styles.chatMessagesArea}>
+        {!activeSessionId ? (
+          <div className={styles.chatEmptyState}>
+            <div className={styles.chatEmptyTitle}>{t['com.affine.caseAssistant.akteDetail.chat.emptyTitle']()}</div>
+            <div className={styles.chatEmptySubtitle}>
+              {clientName && matterTitle
+                ? `${clientName} — ${matterTitle}`
+                : t['com.affine.caseAssistant.akteDetail.chat.emptySubtitle']()}
+            </div>
+            <div className={styles.chatEmptyModes}>
+              {chatModes.slice(0, 4).map(mode => (
+                <button
+                  key={mode.id}
+                  type="button"
+                  onClick={() => {
+                    Promise.resolve(onCreateSession(mode.id)).catch(() => {
+                      // Fehlerstatus wird bereits innerhalb von onCreateSession gesetzt.
+                    });
+                  }}
+                  className={styles.chatModeButton}
+                >
+                  {mode.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : activeMessages.length === 0 ? (
+          <div className={styles.chatHint}>
+            {t['com.affine.caseAssistant.akteDetail.chat.hint']()}
+          </div>
+        ) : (
+          activeMessages.map(msg => (
+            <div
+              key={msg.id}
+              className={`${styles.chatMessage} ${msg.role === 'user' ? styles.chatMessageUser : ''}`}
+            >
+              <div className={styles.chatMessageMeta}>
+                {msg.role === 'user' ? t['com.affine.caseAssistant.akteDetail.chat.role.user']() : t['com.affine.caseAssistant.akteDetail.chat.role.copilot']()}
+                {msg.durationMs ? ` · ${(msg.durationMs / 1000).toFixed(1)}s` : ''}
+              </div>
+              <div className={styles.chatMessageContent}>
+                {msg.status === 'pending' ? t['com.affine.caseAssistant.akteDetail.chat.pending']() : msg.content}
+              </div>
+              {msg.sourceCitations.length > 0 && (
+                <div className={styles.chatCitations}>
+                  {t.t('com.affine.caseAssistant.akteDetail.chat.sources', { count: msg.sourceCitations.length })}
+                </div>
+              )}
+            </div>
+          ))
+        )}
+        <div ref={messagesEndRef} />
+      </div>
+
+      {/* Input */}
+      <div className={styles.chatInputBar}>
+        <textarea
+          value={inputValue}
+          onChange={e => setInputValue(e.target.value)}
+          onKeyDown={e => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault();
+              handleSend();
+            }
+          }}
+          placeholder={activeSessionId ? t['com.affine.caseAssistant.akteDetail.chat.placeholder.active']() : t['com.affine.caseAssistant.akteDetail.chat.placeholder.inactive']()}
+          disabled={!activeSessionId || isBusy}
+          rows={2}
+          className={styles.chatTextarea}
+        />
+        <button
+          type="button"
+          onClick={handleSend}
+          disabled={!inputValue.trim() || !activeSessionId || isBusy}
+          className={styles.chatSendButton}
+        >
+          {isBusy ? '…' : '→'}
+        </button>
+      </div>
+      {isBusy && (
+        <div className={styles.chatBusyHint}>
+          Copilot analysiert…
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// EXPORTS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export const Component = () => {
+  return <AkteDetailPage />;
+};
+
+export default Component;

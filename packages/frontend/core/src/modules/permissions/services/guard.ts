@@ -143,7 +143,9 @@ export class GuardService extends Service {
     exhaustMapWithTrailing(() =>
       fromPromise(() => this.guardStore.getWorkspacePermissions()).pipe(
         backoffRetry({
-          count: Infinity,
+          count: 8,
+          delay: 300,
+          maxDelay: 5000,
         })
       )
     )
@@ -156,7 +158,9 @@ export class GuardService extends Service {
         exhaustMap((docId: string) =>
           fromPromise(() => this.loadDocPermission(docId)).pipe(
             backoffRetry({
-              count: Infinity,
+              count: 8,
+              delay: 300,
+              maxDelay: 5000,
             })
           )
         )

@@ -1,25 +1,14 @@
-import { cssVarV2 } from '@toeverything/theme/v2';
 import { style } from '@vanilla-extract/css';
-export const scrollContainer = style({
-  flex: 1,
-  width: '100%',
-  paddingBottom: '32px',
-});
-export const headerCreateNewButton = style({
-  transition: 'opacity 0.1s ease-in-out',
-});
 
-export const headerCreateNewCollectionIconButton = style({
-  padding: '4px 8px',
-  fontSize: '16px',
-  width: '32px',
-  height: '28px',
-  borderRadius: '8px',
-});
-export const headerCreateNewButtonHidden = style({
-  opacity: 0,
-  pointerEvents: 'none',
-});
+import {
+  interactionTransition,
+  layoutGutter,
+  layoutGutterMd,
+  layoutGutterSm,
+  stickyFilterBarStyle,
+  surfaceEnter,
+  workspaceAmbientBackground,
+} from '../layouts/workspace-list-shared-styles';
 
 export const body = style({
   display: 'flex',
@@ -28,12 +17,43 @@ export const body = style({
   width: '100%',
   containerName: 'docs-body',
   containerType: 'size',
+  background: workspaceAmbientBackground,
+});
+
+export const topControls = style({
+  ...stickyFilterBarStyle('docs-body'),
+  gap: 10,
+  paddingTop: 12,
+  paddingBottom: 10,
+  '@container': {
+    'docs-body (width <= 500px)': {
+      gap: 8,
+      paddingTop: 8,
+      paddingBottom: 8,
+      paddingLeft: `${layoutGutterMd}px`,
+      paddingRight: `${layoutGutterMd}px`,
+    },
+  },
 });
 
 export const scrollArea = style({
   height: 0,
   flex: 1,
-  paddingTop: '12px',
+  paddingTop: '10px',
+  paddingBottom: '14px',
+  paddingLeft: `${layoutGutter}px`,
+  paddingRight: `${layoutGutter}px`,
+  overflowY: 'auto',
+  '@container': {
+    'docs-body (width <= 500px)': {
+      paddingLeft: `${layoutGutterMd}px`,
+      paddingRight: `${layoutGutterMd}px`,
+    },
+    'docs-body (width <= 393px)': {
+      paddingLeft: `${layoutGutterSm}px`,
+      paddingRight: `${layoutGutterSm}px`,
+    },
+  },
 });
 
 // group
@@ -42,27 +62,25 @@ export const pinnedCollection = style({
   display: 'flex',
   flexDirection: 'column',
   gap: 8,
-  padding: '0 24px',
-  paddingTop: '12px',
+  padding: `0 ${layoutGutter}px`,
   '@container': {
     'docs-body (width <= 500px)': {
-      padding: '0 20px',
+      padding: `0 ${layoutGutterMd}px`,
     },
     'docs-body (width <= 393px)': {
-      padding: '0 16px',
+      padding: `0 ${layoutGutterSm}px`,
     },
   },
 });
 
 export const filterArea = style({
-  padding: '0 24px',
-  paddingTop: '12px',
+  padding: `0 ${layoutGutter}px`,
   '@container': {
     'docs-body (width <= 500px)': {
-      padding: '0 20px',
+      padding: `0 ${layoutGutterMd}px`,
     },
     'docs-body (width <= 393px)': {
-      padding: '0 16px',
+      padding: `0 ${layoutGutterSm}px`,
     },
   },
 });
@@ -70,12 +88,34 @@ export const filterArea = style({
 export const filterInnerArea = style({
   display: 'flex',
   flexDirection: 'row',
+  alignItems: 'center',
+  flexWrap: 'wrap',
   gap: 8,
-  padding: '8px',
-  background: cssVarV2('layer/background/secondary'),
-  borderRadius: '12px',
 });
 
 export const filters = style({
   flex: 1,
+});
+
+export const docsSurface = style({
+  minHeight: '100%',
+  borderRadius: 0,
+  border: 'none',
+  background: 'transparent',
+  backdropFilter: 'none',
+  boxShadow: 'none',
+  overflow: 'visible',
+  animation: `${surfaceEnter} 280ms cubic-bezier(0.22, 1, 0.36, 1) both`,
+  transition: interactionTransition,
+  '@container': {
+    'docs-body (width <= 500px)': {
+      borderRadius: 0,
+    },
+  },
+  '@media': {
+    '(prefers-reduced-motion: reduce)': {
+      animation: 'none',
+      transition: 'none',
+    },
+  },
 });

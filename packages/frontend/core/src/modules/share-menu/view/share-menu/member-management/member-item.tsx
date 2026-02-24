@@ -22,7 +22,7 @@ import { useI18n } from '@affine/i18n';
 import track from '@affine/track';
 import { useLiveData, useService } from '@toeverything/infra';
 import clsx from 'clsx';
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 
 import { PlanTag } from '../plan-tag';
 import * as styles from './member-item.css';
@@ -141,10 +141,17 @@ const Options = ({
   const canTransferOwner =
     useGuard('Doc_TransferOwner', docService.doc.id) && !!isWorkspaceOwner;
   const canManageUsers = useGuard('Doc_Users_Manage', docService.doc.id);
+  const [isRoleUpdating, setIsRoleUpdating] = useState(false);
+  const [isRemovingMember, setIsRemovingMember] = useState(false);
+  const isMutating = isRoleUpdating || isRemovingMember;
 
   const updateUserRole = useCallback(
     async (userId: string, role: DocRole) => {
+      if (isRoleUpdating) {
+        return;
+      }
       track.$.sharePanel.$.modifyUserDocRole({ control: 'Update', role });
+      setIsRoleUpdating(true);
       try {
         const res = await docGrantedUsersService.updateUserRole(userId, role);
         if (res) {
@@ -162,9 +169,11 @@ const Options = ({
         notify.error({
           title: t[`error.${err.name}`](err.data),
         });
+      } finally {
+        setIsRoleUpdating(false);
       }
     },
-    [docGrantedUsersService, t]
+    [docGrantedUsersService, isRoleUpdating, t]
   );
 
   const changeToManager = useAsyncCallback(async () => {
@@ -211,7 +220,11 @@ const Options = ({
   }, [changeToOwner, openConfirmModal, t]);
 
   const removeMember = useAsyncCallback(async () => {
+    if (isRemovingMember) {
+      return;
+    }
     track.$.sharePanel.$.modifyUserDocRole({ control: 'Remove' });
+    setIsRemovingMember(true);
     try {
       await docGrantedUsersService.revokeUsersRole(userId);
       docGrantedUsersService.loadMore();
@@ -220,8 +233,10 @@ const Options = ({
       notify.error({
         title: t[`error.${err.name}`](err.data),
       });
+    } finally {
+      setIsRemovingMember(false);
     }
-  }, [docGrantedUsersService, userId, t]);
+  }, [docGrantedUsersService, isRemovingMember, userId, t]);
 
   const operationButtonInfo = useMemo(() => {
     return [
@@ -252,14 +267,14 @@ const Options = ({
           key={item.label}
           onSelect={item.onClick}
           selected={memberRole === item.role}
-          disabled={!canManageUsers}
+          disabled={!canManageUsers || isMutating}
         >
           <div className={styles.planTagContainer}>
             {item.label} {item.showPlanTag ? <PlanTag /> : null}
           </div>
         </MenuItem>
       ))}
-      <MenuItem onSelect={openTransferOwnerModal} disabled={!canTransferOwner}>
+      <MenuItem onSelect={openTransferOwnerModal} disabled={!canTransferOwner || isMutating}>
         {t['com.affine.share-menu.member-management.set-as-owner']()}
       </MenuItem>
       <MenuSeparator />
@@ -267,7 +282,7 @@ const Options = ({
         onSelect={removeMember}
         type="danger"
         className={styles.remove}
-        disabled={!canManageUsers}
+        disabled={!canManageUsers || isMutating}
       >
         {t['com.affine.share-menu.member-management.remove']()}
       </MenuItem>

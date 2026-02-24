@@ -1,6 +1,23 @@
-import { DocAction, DocRole, WorkspaceAction, WorkspaceRole } from './types';
+import {
+  DocAction,
+  DocRole,
+  OrgAction,
+  OrgRole,
+  WorkspaceAction,
+  WorkspaceRole,
+} from './types';
 
-export type ResourceType = 'ws' | 'doc';
+export type ResourceType = 'org' | 'ws' | 'doc';
+
+interface OrgResource {
+  type: 'org';
+  payload: {
+    organizationId: string;
+    userId: string;
+  };
+  action: OrgAction;
+  role: OrgRole;
+}
 
 interface WorkspaceResource {
   type: 'ws';
@@ -25,7 +42,7 @@ interface DocResource {
   role: DocRole;
 }
 
-export type KnownResource = WorkspaceResource | DocResource;
+export type KnownResource = OrgResource | WorkspaceResource | DocResource;
 export type Resource<Type extends ResourceType = 'ws'> = Extract<
   KnownResource,
   { type: Type }

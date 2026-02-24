@@ -47,6 +47,9 @@ export const leftSidebarButton = style({
 export const rightSidebarButton = style({
   transition: 'all 0.2s ease-in-out',
   selectors: {
+    '&:focus-visible': {
+      boxShadow: `0 0 0 2px ${cssVar('primaryColor')}`,
+    },
     '&[data-show=true]': {
       opacity: 1,
       width: 32,

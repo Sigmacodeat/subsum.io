@@ -1,7 +1,7 @@
-import { Button } from '@affine/admin/components/ui/button';
-import { Input } from '@affine/admin/components/ui/input';
-import { Label } from '@affine/admin/components/ui/label';
-import { Separator } from '@affine/admin/components/ui/separator';
+import { Button } from '../../../components/ui/button';
+import { Input } from '../../../components/ui/input';
+import { Label } from '../../../components/ui/label';
+import { Separator } from '../../../components/ui/separator';
 import type { FeatureType } from '@affine/graphql';
 import { ChevronRightIcon } from 'lucide-react';
 import type { ChangeEvent } from 'react';

@@ -12,6 +12,34 @@ const items = [
     to: '/all',
   },
   {
+    value: 'akten',
+    label: 'Akten',
+    testId: 'workspace-akten-button',
+    to: '/akten',
+    isRawLabel: true,
+  },
+  {
+    value: 'mandanten',
+    label: 'Mandanten',
+    testId: 'workspace-mandanten-button',
+    to: '/mandanten',
+    isRawLabel: true,
+  },
+  {
+    value: 'fristen',
+    label: 'Fristen',
+    testId: 'workspace-fristen-button',
+    to: '/fristen',
+    isRawLabel: true,
+  },
+  {
+    value: 'termine',
+    label: 'Termine',
+    testId: 'workspace-termine-button',
+    to: '/termine',
+    isRawLabel: true,
+  },
+  {
     value: 'collections',
     label: 'com.affine.collections.header',
     testId: 'workspace-collections-button',
@@ -45,7 +73,9 @@ export const ExplorerNavigation = ({ active }: { active: NavigationKey }) => {
           }}
           className={styles.item}
         >
-          {t[item.label]()}
+          {'isRawLabel' in item && item.isRawLabel
+            ? item.label
+            : t[item.label]()}
         </WorkbenchLink>
       ))}
     </div>

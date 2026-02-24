@@ -20,7 +20,7 @@ import {
   SplitViewIcon,
 } from '@blocksuite/icons/rc';
 import { useLiveData, useServices } from '@toeverything/infra';
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 
 import type { NodeOperation } from '../../tree/types';
 
@@ -54,16 +54,26 @@ export const useNavigationPanelCollectionNodeOperations = (
     )
   );
   const { openConfirmModal } = useConfirmModal();
+  const [isCreatingDoc, setIsCreatingDoc] = useState(false);
+  const [isDeletingCollection, setIsDeletingCollection] = useState(false);
 
   const createAndAddDocument = useCallback(() => {
+    if (isCreatingDoc) {
+      return;
+    }
+    setIsCreatingDoc(true);
     const newDoc = createPage();
-    collectionService.addDocToCollection(collectionId, newDoc.id);
-    track.$.navigationPanel.collections.createDoc();
-    track.$.navigationPanel.collections.addDocToCollection({
-      control: 'button',
-    });
-    onOpenCollapsed();
-  }, [collectionId, collectionService, createPage, onOpenCollapsed]);
+    try {
+      collectionService.addDocToCollection(collectionId, newDoc.id);
+      track.$.navigationPanel.collections.createDoc();
+      track.$.navigationPanel.collections.addDocToCollection({
+        control: 'button',
+      });
+      onOpenCollapsed();
+    } finally {
+      setIsCreatingDoc(false);
+    }
+  }, [collectionId, collectionService, createPage, isCreatingDoc, onOpenCollapsed]);
 
   const handleToggleFavoriteCollection = useCallback(() => {
     compatibleFavoriteItemsAdapter.toggle(collectionId, 'collection');
@@ -73,6 +83,9 @@ export const useNavigationPanelCollectionNodeOperations = (
   }, [compatibleFavoriteItemsAdapter, collectionId]);
 
   const handleAddDocToCollection = useCallback(() => {
+    if (isCreatingDoc) {
+      return;
+    }
     openConfirmModal({
       title: t['com.affine.collection.add-doc.confirm.title'](),
       description: t['com.affine.collection.add-doc.confirm.description'](),
@@ -83,7 +96,7 @@ export const useNavigationPanelCollectionNodeOperations = (
       },
       onConfirm: createAndAddDocument,
     });
-  }, [createAndAddDocument, openConfirmModal, t]);
+  }, [createAndAddDocument, isCreatingDoc, openConfirmModal, t]);
 
   const handleOpenInSplitView = useCallback(() => {
     workbenchService.workbench.openCollection(collectionId, { at: 'beside' });
@@ -98,11 +111,29 @@ export const useNavigationPanelCollectionNodeOperations = (
   }, [collectionId, workbenchService.workbench]);
 
   const handleDeleteCollection = useCallback(() => {
-    collectionService.deleteCollection(collectionId);
-    track.$.navigationPanel.organize.deleteOrganizeItem({
-      type: 'collection',
-    });
-  }, [collectionId, collectionService]);
+    if (isDeletingCollection) {
+      return;
+    }
+
+    setIsDeletingCollection(true);
+    try {
+      if (favorite) {
+        compatibleFavoriteItemsAdapter.toggle(collectionId, 'collection');
+      }
+      collectionService.deleteCollection(collectionId);
+      track.$.navigationPanel.organize.deleteOrganizeItem({
+        type: 'collection',
+      });
+    } finally {
+      setIsDeletingCollection(false);
+    }
+  }, [
+    collectionId,
+    collectionService,
+    compatibleFavoriteItemsAdapter,
+    favorite,
+    isDeletingCollection,
+  ]);
 
   const handleShowEdit = useCallback(() => {
     onOpenEdit();
@@ -119,6 +150,7 @@ export const useNavigationPanelCollectionNodeOperations = (
             size="16"
             data-testid="collection-add-doc-button"
             onClick={handleAddDocToCollection}
+            disabled={isCreatingDoc || isDeletingCollection}
             tooltip={t[
               'com.affine.rootAppSidebar.explorer.collection-add-tooltip'
             ]()}
@@ -141,6 +173,7 @@ export const useNavigationPanelCollectionNodeOperations = (
           <MenuItem
             prefixIcon={<PlusIcon />}
             onClick={handleAddDocToCollection}
+            disabled={isCreatingDoc || isDeletingCollection}
           >
             {t['New Page']()}
           </MenuItem>
@@ -194,6 +227,7 @@ export const useNavigationPanelCollectionNodeOperations = (
             prefixIcon={<DeleteIcon />}
             data-testid="collection-delete-button"
             onClick={handleDeleteCollection}
+            disabled={isDeletingCollection || isCreatingDoc}
           >
             {t['Delete']()}
           </MenuItem>
@@ -208,6 +242,8 @@ export const useNavigationPanelCollectionNodeOperations = (
       handleOpenInSplitView,
       handleShowEdit,
       handleToggleFavoriteCollection,
+      isCreatingDoc,
+      isDeletingCollection,
       t,
     ]
   );

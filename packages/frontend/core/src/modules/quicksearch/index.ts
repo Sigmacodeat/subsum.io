@@ -2,6 +2,8 @@ import { type Framework } from '@toeverything/infra';
 
 import { WorkspaceServerService } from '../cloud';
 import { CollectionService } from '../collection';
+import { CaseAssistantService } from '../case-assistant/services/case-assistant';
+import { LegalCopilotWorkflowService } from '../case-assistant/services/legal-copilot-workflow';
 import { WorkspaceDialogService } from '../dialogs';
 import { DocsService } from '../doc';
 import { DocDisplayMetaService } from '../doc-display-meta';
@@ -23,6 +25,7 @@ import { CreationQuickSearchSession } from './impls/creation';
 import { DocsQuickSearchSession } from './impls/docs';
 import { ExternalLinksQuickSearchSession } from './impls/external-links';
 import { JournalsQuickSearchSession } from './impls/journals';
+import { LegalDeskQuickSearchSession } from './impls/legal-desk';
 import { LinksQuickSearchSession } from './impls/links';
 import { RecentDocsQuickSearchSession } from './impls/recent-docs';
 import { TagsQuickSearchSession } from './impls/tags';
@@ -37,6 +40,8 @@ export { CommandsQuickSearchSession } from './impls/commands';
 export { CreationQuickSearchSession } from './impls/creation';
 export { DocsQuickSearchSession } from './impls/docs';
 export { ExternalLinksQuickSearchSession } from './impls/external-links';
+export { LegalDeskQuickSearchSession } from './impls/legal-desk';
+export type { LegalDeskPayload, LegalDeskResultKind } from './impls/legal-desk';
 export { LinksQuickSearchSession } from './impls/links';
 export { RecentDocsQuickSearchSession } from './impls/recent-docs';
 export { TagsQuickSearchSession } from './impls/tags';
@@ -81,5 +86,9 @@ export function configureQuickSearchModule(framework: Framework) {
       JournalService,
       WorkspaceDialogService,
       DocDisplayMetaService,
+    ])
+    .entity(LegalDeskQuickSearchSession, [
+      CaseAssistantService,
+      LegalCopilotWorkflowService,
     ]);
 }

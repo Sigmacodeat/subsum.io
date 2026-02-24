@@ -7,6 +7,15 @@ export interface AuthConfig {
     ttl: number;
     ttr: number;
   };
+  adminSession: {
+    ttl: number;
+    stepUpTtl: number;
+    mfaChallengeTtl: number;
+    trustedDeviceTtl: number;
+  };
+  csrf: {
+    strictSignOut: boolean;
+  };
   allowSignup: boolean;
   allowSignupForOauth: boolean;
   requireEmailDomainVerification: boolean;
@@ -70,5 +79,25 @@ defineModuleConfig('auth', {
   'session.ttr': {
     desc: 'Application auth time to refresh in seconds.',
     default: 60 * 60 * 24 * 7, // 7 days
+  },
+  'adminSession.ttl': {
+    desc: 'Admin session expiration time in seconds (for admin step-up flow).',
+    default: 60 * 60 * 4, // 4 hours
+  },
+  'adminSession.stepUpTtl': {
+    desc: 'How long an admin MFA step-up remains valid in seconds.',
+    default: 60 * 20, // 20 minutes
+  },
+  'adminSession.mfaChallengeTtl': {
+    desc: 'Admin MFA challenge token TTL in seconds.',
+    default: 60 * 10, // 10 minutes
+  },
+  'adminSession.trustedDeviceTtl': {
+    desc: 'Trusted admin device fingerprint TTL in seconds.',
+    default: 60 * 60 * 24 * 30, // 30 days
+  },
+  'csrf.strictSignOut': {
+    desc: 'Whether POST /api/auth/sign-out requires a matching CSRF header and cookie token.',
+    default: true,
   },
 });

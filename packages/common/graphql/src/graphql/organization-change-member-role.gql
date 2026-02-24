@@ -1,0 +1,3 @@
+mutation changeOrgMemberRole($organizationId: String!, $userId: String!, $role: OrgRole!) {
+  changeOrgMemberRole(organizationId: $organizationId, userId: $userId, role: $role)
+}

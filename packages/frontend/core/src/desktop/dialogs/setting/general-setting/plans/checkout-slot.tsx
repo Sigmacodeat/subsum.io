@@ -1,4 +1,7 @@
+import { notify } from '@affine/component';
 import { useAsyncCallback } from '@affine/core/components/hooks/affine-async-hooks';
+import { UserFriendlyError } from '@affine/error';
+import { useI18n } from '@affine/i18n';
 import {
   SubscriptionService,
   UserQuotaService,
@@ -37,6 +40,7 @@ export const CheckoutSlot = ({
   const [isMutating, setMutating] = useState(false);
   const [isOpenedExternalWindow, setOpenedExternalWindow] = useState(false);
   const urlService = useService(UrlService);
+  const t = useI18n();
 
   const subscriptionService = useService(SubscriptionService);
   const userQuotaService = useService(UserQuotaService);
@@ -70,7 +74,15 @@ export const CheckoutSlot = ({
       setIdempotencyKey(nanoid());
       onCheckoutSuccess?.();
     } catch (e) {
-      onCheckoutError?.(e);
+      if (onCheckoutError) {
+        onCheckoutError(e);
+      } else {
+        const err = UserFriendlyError.fromAny(e);
+        notify.error({
+          title: t['com.affine.payment.checkout.error.title'](),
+          message: err.message,
+        });
+      }
     } finally {
       setMutating(false);
     }

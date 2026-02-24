@@ -1,5 +1,7 @@
 import { cssVarV2 } from '@toeverything/theme/v2';
-import { style } from '@vanilla-extract/css';
+import { createVar, style } from '@vanilla-extract/css';
+
+export const tagColorVar = createVar('tag-color');
 
 export const header = style({
   display: 'flex',
@@ -62,6 +64,10 @@ export const tagSelectorTriggerIcon = style({
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
+  vars: {
+    [tagColorVar]: cssVarV2('icon/primary'),
+  },
+  color: tagColorVar,
   ':after': {
     width: 7,
     height: 7,
@@ -139,6 +145,10 @@ export const tagSelectorItemIcon = style({
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
+  vars: {
+    [tagColorVar]: cssVarV2('icon/primary'),
+  },
+  color: tagColorVar,
   ':after': {
     width: 7,
     height: 7,

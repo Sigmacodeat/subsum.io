@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import ava, { TestFn } from 'ava';
+import type { CookieOptions, Response } from 'express';
 
 import { CurrentUser } from '../../core/auth';
 import { AuthService } from '../../core/auth/service';
@@ -141,6 +142,24 @@ test('should be able to sign out session', async t => {
   t.is(userSession, null);
 });
 
+test('should revoke active sessions when user is disabled', async t => {
+  const { auth, models, u1 } = t.context;
+
+  const session = await auth.createUserSession(u1.id);
+  const before = await auth.getUserSession(session.sessionId);
+  t.truthy(before);
+
+  await models.user.update(u1.id, { disabled: true });
+
+  let after = await auth.getUserSession(session.sessionId);
+  for (let i = 0; i < 10 && after; i++) {
+    await new Promise(resolve => setTimeout(resolve, 20));
+    after = await auth.getUserSession(session.sessionId);
+  }
+
+  t.is(after, null);
+});
+
 test('should not return expired session', async t => {
   const { auth, u1, db } = t.context;
 
@@ -217,4 +236,50 @@ test('should be able to signout multi accounts session', async t => {
   const nullSession = await auth.getUserSession(session.id, u2.id);
 
   t.is(nullSession, null);
+});
+
+test('setUserCookie should inherit secure option from auth cookie options', t => {
+  const { auth } = t.context;
+  let options: CookieOptions | undefined;
+  const res = {
+    cookie: (_name: string, _value: string, opts: CookieOptions) => {
+      options = opts;
+      return res as unknown as Response;
+    },
+  } as unknown as Response;
+
+  auth.setUserCookie(res, 'test-user-id');
+
+  t.truthy(options);
+  t.is(options?.secure, auth.cookieOptions.secure);
+  t.is(options?.httpOnly, false);
+});
+
+test('setCookies should always create a fresh session (session fixation prevention)', async t => {
+  const { auth, db } = t.context;
+
+  const user = await db.user.create({
+    data: { email: 'fixation@affine.pro', name: 'Fixation Test' },
+  });
+
+  // Create a pre-auth session that an attacker could have planted
+  const preAuthSession = await db.session.create({ data: {} });
+
+  const cookies: Record<string, string> = {};
+  const req = {
+    cookies: { [AuthService.sessionCookieName]: preAuthSession.id },
+    headers: {},
+  } as unknown as import('express').Request;
+  const res = {
+    cookie: (name: string, value: string) => {
+      cookies[name] = value;
+    },
+  } as unknown as import('express').Response;
+
+  await auth.setCookies(req, res, user.id);
+
+  const newSessionId = cookies[AuthService.sessionCookieName];
+  t.truthy(newSessionId);
+  // Must NOT reuse the pre-auth session
+  t.not(newSessionId, preAuthSession.id);
 });

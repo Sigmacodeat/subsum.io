@@ -21,15 +21,15 @@
   },
   "scripts": {
     "start": "electron .",
-    "dev": "cross-env DEV_SERVER_URL=http://localhost:8080 node ./scripts/dev.ts",
-    "dev:prod": "node ./scripts/dev.ts",
-    "build": "cross-env NODE_ENV=production node ./scripts/build-layers.ts",
-    "build:dev": "node ./scripts/build-layers.ts",
-    "generate-assets": "node ./scripts/generate-assets.ts",
+    "dev": "cross-env DEV_SERVER_URL=http://localhost:8080 node --loader ts-node/esm ./scripts/dev.ts",
+    "dev:prod": "node --loader ts-node/esm ./scripts/dev.ts",
+    "build": "cross-env NODE_ENV=production node --loader ts-node/esm ./scripts/build-layers.ts",
+    "build:dev": "node --loader ts-node/esm ./scripts/build-layers.ts",
+    "generate-assets": "node --loader ts-node/esm ./scripts/generate-assets.ts",
     "package": "electron-forge package",
     "make": "electron-forge make",
-    "make-squirrel": "node ./scripts/make-squirrel.ts",
-    "make-nsis": "node ./scripts/make-nsis.ts"
+    "make-squirrel": "node --loader ts-node/esm ./scripts/make-squirrel.ts",
+    "make-nsis": "node --loader ts-node/esm ./scripts/make-nsis.ts"
   },
   "devDependencies": {
     "@affine-tools/utils": "workspace:*",

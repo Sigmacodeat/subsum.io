@@ -64,12 +64,21 @@ type AdminDashboard {
   blobStorageHistory: [AdminDashboardValueDayPoint!]!
   copilotConversations: SafeInt!
   generatedAt: DateTime!
+  periodPaidInvoices: Int!
+  periodSignups: Int!
+  registeredUsers: Int!
+  revenueHistory: [AdminDashboardValueDayPoint!]!
+  revenuePaidCents: SafeInt!
+  revenueWindow: TimeWindow!
+  signupHistory: [AdminDashboardValueDayPoint!]!
+  signupWindow: TimeWindow!
   storageWindow: TimeWindow!
   syncActiveUsers: Int!
   syncActiveUsersTimeline: [AdminDashboardMinutePoint!]!
   syncWindow: TimeWindow!
   topSharedLinks: [AdminSharedLinkTopItem!]!
   topSharedLinksWindow: TimeWindow!
+  totalUsers: Int!
   workspaceStorageBytes: SafeInt!
   workspaceStorageHistory: [AdminDashboardValueDayPoint!]!
 }
@@ -91,6 +100,11 @@ type AdminDashboardValueDayPoint {
   value: SafeInt!
 }
 
+input AdminPayoutActionInput {
+  note: String
+  payoutId: String!
+}
+
 type AdminSharedLinkTopItem {
   docId: String!
   guestViews: SafeInt!
@@ -107,6 +121,14 @@ enum AdminSharedLinksOrder {
   PublishedAtDesc
   UpdatedAtDesc
   ViewsDesc
+}
+
+input AdminUpdateAffiliateInput {
+  levelOneRateBps: Int
+  levelTwoRateBps: Int
+  payoutEmail: String
+  status: String
+  userId: String!
 }
 
 input AdminUpdateWorkspaceInput {
@@ -168,6 +190,143 @@ enum AdminWorkspaceSort {
   PublicPageCount
   SnapshotCount
   SnapshotSize
+}
+
+type AffiliateAdminListItemType {
+  createdAt: DateTime!
+  email: String!
+  name: String!
+  paidCents: Int!
+  pendingCents: Int!
+  referralCode: String!
+  referrals: Int!
+  status: String!
+  taxInfoComplete: Boolean!
+  termsAcceptedAt: DateTime
+  userId: String!
+}
+
+type AffiliateAdminOverviewType {
+  activeAffiliates: Int!
+  paidCommissionsCents: Int!
+  paidOutCents: Int!
+  pendingCommissionsCents: Int!
+  periodReferralCount: Int!
+  reversedCommissionsCents: Int!
+  totalReferralCount: Int!
+}
+
+type AffiliateAdminPayoutDetailType {
+  events: [AffiliateComplianceEventType!]!
+  items: [AffiliatePayoutItemType!]!
+  payout: AffiliatePayoutType!
+}
+
+type AffiliateComplianceEventType {
+  actorUserId: String
+  affiliateUserId: String!
+  createdAt: DateTime!
+  eventType: String!
+  id: String!
+  message: String!
+  metadata: JSONObject
+  payoutId: String
+  severity: String!
+}
+
+type AffiliateDashboardType {
+  activeReferralCount: Int!
+  hierarchy: [AffiliateHierarchyNodeType!]!
+  paidCommissionsCents: Int!
+  payouts: [AffiliatePayoutType!]!
+  pendingCommissionsCents: Int!
+  profile: AffiliateProfileType!
+  recentLedgerEntries: [AffiliateLedgerEntryType!]!
+  recentReferrals: [AffiliateReferralType!]!
+  referralCount: Int!
+}
+
+type AffiliateHierarchyNodeType {
+  activeReferralCount: Int!
+  children: [AffiliateHierarchyNodeType!]!
+  directReferralCount: Int!
+  email: String
+  joinedAt: DateTime!
+  level: Int!
+  name: String
+  referralCode: String!
+  totalCommissionsCents: Int!
+  userId: String!
+}
+
+type AffiliateLedgerEntryType {
+  amountCents: Int!
+  availableAt: DateTime!
+  createdAt: DateTime!
+  currency: String!
+  id: String!
+  invoiceId: String
+  level: Int!
+  reason: String
+  referredUserId: String!
+  status: String!
+}
+
+type AffiliatePayoutItemType {
+  amountCents: Int!
+  createdAt: DateTime!
+  currency: String!
+  invoiceId: String
+  ledgerId: String!
+  level: Int!
+  referredUserId: String!
+  taxInfoComplete: Boolean!
+  termsAcceptedAt: DateTime
+}
+
+type AffiliatePayoutType {
+  createdAt: DateTime!
+  currency: String!
+  id: String!
+  paidAt: DateTime
+  periodEnd: DateTime!
+  periodStart: DateTime!
+  status: String!
+  stripeTransferId: String
+  stripeTransferStatus: String
+  totalCents: Int!
+}
+
+type AffiliateProfileType {
+  createdAt: DateTime!
+  levelOneRateBps: Int!
+  levelTwoRateBps: Int!
+  parentAffiliateUserId: String
+  payoutEmail: String
+  referralCode: String!
+  status: String!
+  stripeConnectAccountId: String
+  stripeConnectCountry: String
+  stripeDetailsSubmitted: Boolean!
+  stripePayoutsEnabled: Boolean!
+  stripeRequirements: JSONObject
+  taxInfo: JSONObject
+  termsAcceptedAt: DateTime
+  termsVersion: String
+  updatedAt: DateTime!
+  userId: String!
+}
+
+type AffiliateReferralType {
+  activatedAt: DateTime
+  campaign: String
+  createdAt: DateTime!
+  id: String!
+  referralCode: String!
+  referredEmail: String
+  referredName: String
+  referredUserId: String!
+  source: String
 }
 
 type AggregateBucketHitsObjectType {
@@ -755,6 +914,14 @@ input CreateCopilotPromptInput {
   name: String!
 }
 
+input CreateOrganizationInput {
+  """Organization name"""
+  name: String!
+
+  """Organization slug (URL-friendly identifier)"""
+  slug: String!
+}
+
 input CreateUserInput {
   email: String!
   name: String
@@ -1304,6 +1471,17 @@ type InviteLink {
   link: String!
 }
 
+input InviteOrgMemberInput {
+  """Email of the user to invite"""
+  email: String!
+
+  """Organization ID"""
+  organizationId: String!
+
+  """Role to assign"""
+  role: OrgRole! = Member
+}
+
 type InviteResult {
   email: String!
 
@@ -1501,6 +1679,9 @@ type MissingOauthQueryParameterDataType {
 type Mutation {
   abortBlobUpload(key: String!, uploadId: String!, workspaceId: String!): Boolean!
   acceptInviteById(inviteId: String!, sendAcceptMail: Boolean @deprecated(reason: "never used"), workspaceId: String @deprecated(reason: "never used")): Boolean!
+
+  """Accept an organization invitation"""
+  acceptOrgInvitation(organizationId: String!): Boolean!
   activateLicense(license: String!, workspaceId: String!): License!
 
   """add a blob to context"""
@@ -1518,6 +1699,9 @@ type Mutation {
   """Update workspace embedding files"""
   addWorkspaceEmbeddingFiles(blob: Upload!, workspaceId: String!): CopilotWorkspaceFile!
   addWorkspaceFeature(feature: FeatureType!, workspaceId: String!): Boolean!
+  adminMarkAffiliatePayoutFailed(input: AdminPayoutActionInput!): AffiliatePayoutType!
+  adminMarkAffiliatePayoutPaid(input: AdminPayoutActionInput!): AffiliatePayoutType!
+  adminUpdateAffiliate(input: AdminUpdateAffiliateInput!): AffiliateProfileType!
 
   """Update workspace flags and features for admin"""
   adminUpdateWorkspace(input: AdminUpdateWorkspaceInput!): AdminWorkspace
@@ -1526,10 +1710,17 @@ type Mutation {
   applyDocUpdates(docId: String!, op: String!, updates: String!, workspaceId: String!): String!
   approveMember(userId: String!, workspaceId: String!): Boolean!
 
+  """Assign a workspace to an organization"""
+  assignWorkspaceToOrg(organizationId: String!, workspaceId: String!): Boolean!
+
   """Ban an user"""
   banUser(id: String!): UserType!
   cancelSubscription(idempotencyKey: String @deprecated(reason: "use header `Idempotency-Key`"), plan: SubscriptionPlan = Pro, workspaceId: String): SubscriptionType!
+  captureAffiliateReferral(campaign: String, code: String!, source: String): Boolean!
   changeEmail(email: String!, token: String!): UserType!
+
+  """Change the role of a member in an organization"""
+  changeOrgMemberRole(organizationId: String!, role: OrgRole!, userId: String!): Boolean!
   changePassword(newPassword: String!, token: String!, userId: String): Boolean!
   claimAudioTranscription(jobId: String!): TranscriptionResultType
 
@@ -1560,6 +1751,9 @@ type Mutation {
   """Create a stripe customer portal to manage payment methods"""
   createCustomerPortal: String!
   createInviteLink(expireTime: WorkspaceInviteLinkExpireTime!, workspaceId: String!): InviteLink!
+
+  """Create a new organization"""
+  createOrganization(input: CreateOrganizationInput!): OrganizationType!
   createReply(input: ReplyCreateInput!): ReplyObjectType!
   createSelfhostWorkspaceCustomerPortal(workspaceId: String!): String!
 
@@ -1574,6 +1768,9 @@ type Mutation {
 
   """Delete a comment"""
   deleteComment(id: String!): Boolean!
+
+  """Delete an organization"""
+  deleteOrganization(id: String!): Boolean!
 
   """Delete a reply"""
   deleteReply(id: String!): Boolean!
@@ -1596,6 +1793,9 @@ type Mutation {
   importUsers(input: ImportUsersInput!): [UserImportResultType!]!
   installLicense(license: Upload!, workspaceId: String!): License!
   inviteMembers(emails: [String!]!, workspaceId: String!): [InviteResult!]!
+
+  """Invite a user to an organization"""
+  inviteOrgMember(input: InviteOrgMemberInput!): Boolean!
   leaveWorkspace(sendLeaveMail: Boolean @deprecated(reason: "no used anymore"), workspaceId: String!, workspaceName: String @deprecated(reason: "no longer used")): Boolean!
   linkCalDAVAccount(input: LinkCalDAVAccountInput!): CalendarAccountObjectType!
   linkCalendarAccount(input: LinkCalendarAccountInput!): String!
@@ -1633,6 +1833,9 @@ type Mutation {
   """remove a file from context"""
   removeContextFile(options: RemoveContextFileInput!): Boolean!
 
+  """Remove a member from an organization"""
+  removeOrgMember(organizationId: String!, userId: String!): Boolean!
+
   """Remove workspace embedding files"""
   removeWorkspaceEmbeddingFiles(fileId: String!, workspaceId: String!): Boolean!
   removeWorkspaceFeature(feature: FeatureType!, workspaceId: String!): Boolean!
@@ -1649,6 +1852,7 @@ type Mutation {
   revokeMember(userId: String!, workspaceId: String!): Boolean!
   revokePublicDoc(docId: String!, workspaceId: String!): DocType!
   revokeUserAccessToken(id: String!): Boolean!
+  runAffiliatePayouts: Int!
   sendChangeEmail(callbackUrl: String!, email: String): Boolean!
   sendChangePasswordEmail(callbackUrl: String!, email: String @deprecated(reason: "fetched from signed in user")): Boolean!
   sendSetPasswordEmail(callbackUrl: String!, email: String @deprecated(reason: "fetched from signed in user")): Boolean!
@@ -1656,6 +1860,7 @@ type Mutation {
   sendVerifyChangeEmail(callbackUrl: String!, email: String!, token: String!): Boolean!
   sendVerifyEmail(callbackUrl: String!): Boolean!
   setBlob(blob: Upload!, workspaceId: String!): String!
+  setupAffiliateStripeConnect(input: SetupStripeConnectInput!): StripeConnectLinkType!
   submitAudioTranscription(blob: Upload, blobId: String!, blobs: [Upload!], workspaceId: String!): TranscriptionResultType
 
   """Trigger cleanup of trashed doc embeddings"""
@@ -1663,6 +1868,9 @@ type Mutation {
 
   """Trigger generate missing titles cron job"""
   triggerGenerateTitleCron: Boolean!
+
+  """Unassign a workspace from an organization"""
+  unassignWorkspaceFromOrg(organizationId: String!, workspaceId: String!): Boolean!
   unlinkCalendarAccount(accountId: String!): Boolean!
 
   """update app configuration"""
@@ -1679,6 +1887,9 @@ type Mutation {
   updateCopilotSession(options: UpdateChatSessionInput!): String!
   updateDocDefaultRole(input: UpdateDocDefaultRoleInput!): Boolean!
   updateDocUserRole(input: UpdateDocUserRoleInput!): Boolean!
+
+  """Update an organization"""
+  updateOrganization(input: UpdateOrganizationInput!): OrganizationType!
   updateProfile(input: UpdateUserInput!): UserType!
 
   """Update a reply content"""
@@ -1706,6 +1917,7 @@ type Mutation {
 
   """Upload a comment attachment and return the access url"""
   uploadCommentAttachment(attachment: Upload!, docId: String!, workspaceId: String!): String!
+  upsertAffiliateProfile(input: UpsertAffiliateProfileInput!): AffiliateProfileType!
   verifyEmail(token: String!): Boolean!
 }
 
@@ -1789,6 +2001,67 @@ enum OAuthProviderType {
   GitHub
   Google
   OIDC
+}
+
+type OrgMemberType {
+  """Member joined date"""
+  createdAt: DateTime!
+  id: ID!
+
+  """User role in organization"""
+  role: OrgRole!
+
+  """Member status in organization"""
+  status: OrganizationMemberStatus!
+
+  """Member user info"""
+  user: WorkspaceUserType!
+}
+
+"""User role in organization"""
+enum OrgRole {
+  Admin
+  Member
+  Owner
+}
+
+type OrgWorkspaceType {
+  """Workspace created date"""
+  createdAt: DateTime!
+  id: ID!
+
+  """Workspace name"""
+  name: String
+}
+
+"""Member status in organization"""
+enum OrganizationMemberStatus {
+  Accepted
+  Pending
+}
+
+type OrganizationType {
+  """Avatar key"""
+  avatarKey: String
+
+  """Organization created date"""
+  createdAt: DateTime!
+  id: ID!
+
+  """Number of members in the organization"""
+  memberCount: Int!
+
+  """Members of organization"""
+  members(skip: Int, take: Int): [OrgMemberType!]!
+
+  """Organization name"""
+  name: String!
+
+  """Organization slug (URL-friendly identifier)"""
+  slug: String!
+
+  """Workspaces belonging to the organization"""
+  workspaces: [OrgWorkspaceType!]!
 }
 
 type PageInfo {
@@ -1896,11 +2169,16 @@ type PublicUserType {
 }
 
 type Query {
+  adminAffiliateOverview(periodDays: Int = 30): AffiliateAdminOverviewType!
+  adminAffiliatePayoutDetail(payoutId: String!): AffiliateAdminPayoutDetailType!
+  adminAffiliates(first: Int = 50, keyword: String, skip: Int = 0): [AffiliateAdminListItemType!]!
+
   """List all shared links across workspaces for admin panel"""
   adminAllSharedLinks(filter: AdminAllSharedLinksFilterInput, pagination: PaginationInput!): PaginatedAdminAllSharedLink!
 
   """Get aggregated dashboard metrics for admin panel"""
   adminDashboard(input: AdminDashboardInput): AdminDashboard!
+  adminRecentAffiliatePayouts(limit: Int = 50): [AffiliatePayoutType!]!
 
   """Get workspace detail for admin"""
   adminWorkspace(id: String!): AdminWorkspace
@@ -1926,6 +2204,14 @@ type Query {
 
   """List all copilot prompts"""
   listCopilotPrompts: [CopilotPromptType!]!
+  myAffiliateDashboard: AffiliateDashboardType!
+  myAffiliateProfile: AffiliateProfileType!
+
+  """Get organization by id"""
+  organization(id: String!): OrganizationType!
+
+  """Get all organizations for the current user"""
+  organizations: [OrganizationType!]!
   prices: [SubscriptionPrice!]!
 
   """Get public user by id"""
@@ -2233,6 +2519,11 @@ enum ServerFeature {
   Payment
 }
 
+input SetupStripeConnectInput {
+  country: String!
+  email: String
+}
+
 type SpaceAccessDeniedDataType {
   spaceId: String!
 }
@@ -2260,6 +2551,10 @@ type StreamObject {
   toolCallId: String
   toolName: String
   type: String!
+}
+
+type StripeConnectLinkType {
+  url: String!
 }
 
 type SubscriptionAlreadyExistsDataType {
@@ -2423,6 +2718,16 @@ input UpdateDocUserRoleInput {
   workspaceId: String!
 }
 
+input UpdateOrganizationInput {
+  id: ID!
+
+  """Organization name"""
+  name: String
+
+  """Organization slug"""
+  slug: String
+}
+
 input UpdateUserInput {
   """User name"""
   name: String
@@ -2464,6 +2769,17 @@ input UpdateWorkspaceInput {
 
 """The `Upload` scalar type represents a file upload."""
 scalar Upload
+
+input UpsertAffiliateProfileInput {
+  acceptTerms: Boolean
+  legalName: String
+  levelOneRateBps: Int
+  levelTwoRateBps: Int
+  parentReferralCode: String
+  payoutEmail: String
+  taxCountry: String
+  taxId: String
+}
 
 type UserImportFailedType {
   email: String!

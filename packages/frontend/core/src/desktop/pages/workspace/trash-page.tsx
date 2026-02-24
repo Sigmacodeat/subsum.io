@@ -5,7 +5,6 @@ import {
 } from '@affine/core/components/explorer/context';
 import { DocsExplorer } from '@affine/core/components/explorer/docs-view/docs-list';
 import { useBlockSuiteMetaHelper } from '@affine/core/components/hooks/affine/use-block-suite-meta-helper';
-import { Header } from '@affine/core/components/pure/header';
 import { CollectionRulesService } from '@affine/core/modules/collection-rules';
 import { GlobalContextService } from '@affine/core/modules/global-context';
 import { WorkspacePermissionService } from '@affine/core/modules/permissions';
@@ -27,14 +26,15 @@ import * as styles from './trash-page.css';
 const TrashHeader = () => {
   const t = useI18n();
   return (
-    <Header
-      left={
+    <div className={styles.trashHeader} role="region" aria-label="Papierkorb Header">
+      <div className={styles.trashTitleWrap}>
         <div className={styles.trashTitle}>
           <DeleteIcon className={styles.trashIcon} />
           {t['com.affine.workspaceSubPath.trash']()}
         </div>
-      }
-    />
+        <span className={styles.trashSubtitle}>Wiederherstellen oder endgültig löschen</span>
+      </div>
+    </div>
   );
 };
 

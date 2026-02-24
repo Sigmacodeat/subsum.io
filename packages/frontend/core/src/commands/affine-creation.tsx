@@ -1,20 +1,22 @@
 import type { useI18n } from '@affine/i18n';
 import { track } from '@affine/track';
 import type { DocMode } from '@blocksuite/affine/model';
-import { ImportIcon, PlusIcon } from '@blocksuite/icons/rc';
+import { ExportIcon, ImportIcon, PlusIcon } from '@blocksuite/icons/rc';
 
 import type { usePageHelper } from '../blocksuite/block-suite-page-list/utils';
-import type { GlobalDialogService } from '../modules/dialogs';
+import type { GlobalDialogService, WorkspaceDialogService } from '../modules/dialogs';
 import { registerAffineCommand } from './registry';
 
 export function registerAffineCreationCommands({
   pageHelper,
   t,
   globalDialogService,
+  workspaceDialogService,
 }: {
   t: ReturnType<typeof useI18n>;
   pageHelper: ReturnType<typeof usePageHelper>;
   globalDialogService: GlobalDialogService;
+  workspaceDialogService: WorkspaceDialogService;
 }) {
   const unsubs: Array<() => void> = [];
   unsubs.push(
@@ -81,6 +83,23 @@ export function registerAffineCreationCommands({
         });
 
         globalDialogService.open('import-workspace', undefined);
+      },
+    })
+  );
+
+  unsubs.push(
+    registerAffineCommand({
+      id: 'affine:export-workspace',
+      category: 'affine:creation',
+      icon: <ExportIcon />,
+      label: t['Full Backup'](),
+      preconditionStrategy: () => {
+        return BUILD_CONFIG.isElectron;
+      },
+      run() {
+        workspaceDialogService.open('setting', {
+          activeTab: 'workspace:storage',
+        });
       },
     })
   );

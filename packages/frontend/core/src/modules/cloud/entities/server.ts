@@ -1,6 +1,7 @@
 import type { ServerFeature } from '@affine/graphql';
 import {
   backoffRetry,
+  catchErrorInto,
   effect,
   Entity,
   fromPromise,
@@ -10,6 +11,7 @@ import {
 } from '@toeverything/infra';
 import { exhaustMap, map, tap } from 'rxjs';
 
+import { resolveServerDisplayName } from '../constant';
 import { ServerScope } from '../scopes/server';
 import { AuthService } from '../services/auth';
 import { FetchService } from '../services/fetch';
@@ -57,6 +59,7 @@ export class Server extends Entity<{
   );
 
   readonly isConfigRevalidating$ = new LiveData(false);
+  readonly configError$ = new LiveData<any | null>(null);
 
   readonly features$ = this.config$.map(config => {
     return Array.from(new Set(config.features)).reduce((acc, cur) => {
@@ -75,19 +78,28 @@ export class Server extends Entity<{
         this.serverConfigStore.fetchServerConfig(this.baseUrl, signal)
       ).pipe(
         backoffRetry({
-          count: Infinity,
+          count: 8,
+          delay: 300,
+          maxDelay: 5000,
         }),
         tap(config => {
+          const serverName = resolveServerDisplayName(
+            this.serverMetadata.id,
+            config.type,
+            config.name
+          );
           this.serverListStore.updateServerConfig(this.serverMetadata.id, {
             credentialsRequirement: config.credentialsRequirement,
             features: config.features,
             oauthProviders: config.oauthProviders,
-            serverName: config.name,
+            serverName,
             type: config.type,
             version: config.version,
             initialized: config.initialized,
           });
+          this.configError$.next(null);
         }),
+        catchErrorInto(this.configError$),
         onStart(() => {
           this.isConfigRevalidating$.next(true);
         }),

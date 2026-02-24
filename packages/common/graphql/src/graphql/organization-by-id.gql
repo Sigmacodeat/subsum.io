@@ -1,0 +1,27 @@
+query getOrganizationById($id: String!) {
+  organization(id: $id) {
+    id
+    name
+    slug
+    avatarKey
+    createdAt
+    memberCount
+    members {
+      id
+      user {
+        id
+        name
+        email
+        avatarUrl
+      }
+      role
+      status
+      createdAt
+    }
+    workspaces {
+      id
+      name
+      createdAt
+    }
+  }
+}

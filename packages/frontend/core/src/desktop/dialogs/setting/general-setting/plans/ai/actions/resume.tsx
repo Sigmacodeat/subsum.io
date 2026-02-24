@@ -5,6 +5,7 @@ import {
   useConfirmModal,
 } from '@affine/component';
 import { useAsyncCallback } from '@affine/core/components/hooks/affine-async-hooks';
+import { UserFriendlyError } from '@affine/error';
 import { SubscriptionService } from '@affine/core/modules/cloud';
 import { SubscriptionPlan } from '@affine/graphql';
 import { useI18n } from '@affine/i18n';
@@ -45,26 +46,36 @@ export const AIResume = (btnProps: ButtonProps) => {
       cancelText:
         t['com.affine.payment.ai.action.resume.confirm.cancel-text'](),
       onConfirm: async () => {
-        setIsMutating(true);
-        await subscription.resumeSubscription(
-          idempotencyKey,
-          SubscriptionPlan.AI
-        );
-        if (aiSubscription) {
-          track.$.settingsPanel.plans.confirmResumingSubscription({
-            plan: aiSubscription.plan,
-            recurring: aiSubscription.recurring,
+        try {
+          setIsMutating(true);
+          await subscription.resumeSubscription(
+            idempotencyKey,
+            SubscriptionPlan.AI
+          );
+          if (aiSubscription) {
+            track.$.settingsPanel.plans.confirmResumingSubscription({
+              plan: aiSubscription.plan,
+              recurring: aiSubscription.recurring,
+            });
+          }
+          notify({
+            icon: <SingleSelectCheckSolidIcon />,
+            iconColor: cssVar('processingColor'),
+            title:
+              t['com.affine.payment.ai.action.resume.confirm.notify.title'](),
+            message:
+              t['com.affine.payment.ai.action.resume.confirm.notify.msg'](),
           });
+          setIdempotencyKey(nanoid());
+        } catch (err) {
+          const e = UserFriendlyError.fromAny(err);
+          notify.error({
+            title: t['com.affine.payment.resume.error.title'](),
+            message: e.message,
+          });
+        } finally {
+          setIsMutating(false);
         }
-        notify({
-          icon: <SingleSelectCheckSolidIcon />,
-          iconColor: cssVar('processingColor'),
-          title:
-            t['com.affine.payment.ai.action.resume.confirm.notify.title'](),
-          message:
-            t['com.affine.payment.ai.action.resume.confirm.notify.msg'](),
-        });
-        setIdempotencyKey(nanoid());
       },
     });
   }, [subscription, openConfirmModal, t, idempotencyKey]);

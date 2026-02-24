@@ -11,6 +11,7 @@ import { WorkbenchLink } from '@affine/core/modules/workbench';
 import { useI18n } from '@affine/i18n';
 import { ArrowDownSmallIcon, DoneIcon, SearchIcon } from '@blocksuite/icons/rc';
 import { useLiveData, useService } from '@toeverything/infra';
+import { assignInlineVars } from '@vanilla-extract/dynamic';
 import clsx from 'clsx';
 import {
   forwardRef,
@@ -85,7 +86,7 @@ const TagSelectorTrigger = forwardRef<
     >
       <div
         className={styles.tagSelectorTriggerIcon}
-        style={{ color: tagColor }}
+        style={assignInlineVars({ [styles.tagColorVar]: tagColor })}
       />
       <div className={styles.tagSelectorTriggerName}>{tagName}</div>
       <div className={styles.tagSelectorTriggerDropdown}>
@@ -173,7 +174,7 @@ const TagLink = ({
       >
         <div
           className={styles.tagSelectorItemIcon}
-          style={{ color: tagColor }}
+          style={assignInlineVars({ [styles.tagColorVar]: tagColor })}
         />
         <div className={styles.tagSelectorItemText}>{tagTitle}</div>
         {checked ? (

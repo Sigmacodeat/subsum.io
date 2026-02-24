@@ -20,12 +20,14 @@ import semver from 'semver';
 import { type Server, Socket } from 'socket.io';
 
 import {
+  Cache,
   CallMetric,
   checkCanaryDateClientVersion,
   DocNotFound,
   DocUpdateBlocked,
   EventBus,
   GatewayErrorWrapper,
+  getRequestClientIp,
   metrics,
   NotInSpace,
   OnEvent,
@@ -76,6 +78,8 @@ const MIN_WS_CLIENT_VERSION = new semver.Range('>=0.25.0', {
 const DOC_UPDATES_PROTOCOL_026 = new semver.Range('>=0.26.0-0', {
   includePrerelease: true,
 });
+const WS_CONNECT_RATE_LIMIT = 120;
+const WS_CONNECT_RATE_WINDOW_MS = 10_000;
 
 type SyncProtocolRoomType = Extract<RoomType, 'sync-025' | 'sync-026'>;
 const SOCKET_PRESENCE_USER_ID_KEY = 'affinePresenceUserId';
@@ -213,6 +217,7 @@ export class SpaceSyncGateway
   private flushTimer?: NodeJS.Timeout;
 
   constructor(
+    private readonly cache: Cache,
     private readonly ac: AccessController,
     private readonly event: EventBus,
     private readonly workspace: PgWorkspaceDocStorageAdapter,
@@ -299,6 +304,8 @@ export class SpaceSyncGateway
   }
 
   handleConnection(client: Socket) {
+    void this.enforceConnectionRateLimit(client);
+
     this.connectionCount++;
     this.logger.debug(`New connection, total: ${this.connectionCount}`);
     metrics.socketio.gauge('connections').record(this.connectionCount);
@@ -319,6 +326,27 @@ export class SpaceSyncGateway
     }).catch(error => {
       this.logger.warn('Failed to flush active users minute', error as Error);
     });
+  }
+
+  private async enforceConnectionRateLimit(client: Socket) {
+    const request = client.request as Request;
+    const ip = getRequestClientIp(request) || 'unknown';
+    const key = `socketio:connect:rate:${ip}`;
+
+    const count = await this.cache.increase(key);
+    if (count === 1) {
+      await this.cache.expire(key, WS_CONNECT_RATE_WINDOW_MS);
+    }
+
+    if (count <= WS_CONNECT_RATE_LIMIT) {
+      return;
+    }
+
+    metrics.socketio.counter('connect_rate_limited').add(1);
+    this.logger.warn(
+      `Socket connection rate limit exceeded for ${ip}: ${count}/${WS_CONNECT_RATE_WINDOW_MS}ms`
+    );
+    setImmediate(() => client.disconnect(true));
   }
 
   private attachPresenceUserId(client: Socket) {
@@ -558,8 +586,10 @@ export class SpaceSyncGateway
     const { spaceType, spaceId, docId, update } = message;
     const adapter = this.selectAdapter(client, spaceType);
 
-    // TODO(@forehalo): enable after frontend supporting doc revert
-    // await this.ac.user(user.id).doc(spaceId, docId).assert('Doc.Update');
+    if (spaceType === SpaceType.Workspace) {
+      await this.ac.user(user.id).doc(spaceId, docId).allowLocal().assert('Doc.Update');
+    }
+
     const timestamp = await adapter.push(
       spaceId,
       docId,

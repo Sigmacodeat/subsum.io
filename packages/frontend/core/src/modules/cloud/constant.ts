@@ -6,17 +6,37 @@ import {
 
 import type { ServerConfig, ServerMetadata } from './types';
 
+import { getSubsumioCanonicalOrigin } from '../../utils/subsumio-domains';
+
+export const OFFICIAL_CLOUD_SERVER_ID = 'affine-cloud';
+export const SUBSUMIO_CLOUD_NAME = 'Subsumio Cloud';
+export const SUBSUMIO_SELF_HOSTED_CLOUD_NAME = 'Subsumio Self-Hosted Cloud';
+
+export const resolveServerDisplayName = (
+  serverId: string,
+  serverType: ServerDeploymentType,
+  serverName: string
+) => {
+  if (serverId !== OFFICIAL_CLOUD_SERVER_ID) {
+    return serverName;
+  }
+
+  return serverType === ServerDeploymentType.Selfhosted
+    ? SUBSUMIO_SELF_HOSTED_CLOUD_NAME
+    : SUBSUMIO_CLOUD_NAME;
+};
+
 export const BUILD_IN_SERVERS: (ServerMetadata & { config: ServerConfig })[] =
   environment.isSelfHosted
     ? [
         {
-          id: 'affine-cloud',
+          id: OFFICIAL_CLOUD_SERVER_ID,
           baseUrl: location.origin,
           // selfhosted baseUrl is `location.origin`
           // this is ok for web app, but not for desktop app
           // since we never build desktop app in selfhosted mode, so it's fine
           config: {
-            serverName: 'Affine Selfhost',
+            serverName: SUBSUMIO_SELF_HOSTED_CLOUD_NAME,
             features: [],
             oauthProviders: [],
             type: ServerDeploymentType.Selfhosted,
@@ -32,12 +52,12 @@ export const BUILD_IN_SERVERS: (ServerMetadata & { config: ServerConfig })[] =
     : BUILD_CONFIG.debug
       ? [
           {
-            id: 'affine-cloud',
+            id: OFFICIAL_CLOUD_SERVER_ID,
             baseUrl: BUILD_CONFIG.isElectron
               ? 'http://localhost:8080'
               : location.origin,
             config: {
-              serverName: 'Affine Cloud',
+              serverName: SUBSUMIO_CLOUD_NAME,
               features: [
                 ServerFeature.Indexer,
                 ServerFeature.Copilot,
@@ -63,14 +83,14 @@ export const BUILD_IN_SERVERS: (ServerMetadata & { config: ServerConfig })[] =
       : BUILD_CONFIG.appBuildType === 'stable'
         ? [
             {
-              id: 'affine-cloud',
+              id: OFFICIAL_CLOUD_SERVER_ID,
               baseUrl: BUILD_CONFIG.isNative
                 ? BUILD_CONFIG.isIOS
                   ? 'https://apple.getaffineapp.com'
-                  : 'https://app.affine.pro'
+                  : getSubsumioCanonicalOrigin('app')
                 : location.origin,
               config: {
-                serverName: 'Affine Cloud',
+                serverName: SUBSUMIO_CLOUD_NAME,
                 features: [
                   ServerFeature.Indexer,
                   ServerFeature.Copilot,
@@ -96,14 +116,14 @@ export const BUILD_IN_SERVERS: (ServerMetadata & { config: ServerConfig })[] =
         : BUILD_CONFIG.appBuildType === 'beta'
           ? [
               {
-                id: 'affine-cloud',
+                id: OFFICIAL_CLOUD_SERVER_ID,
                 baseUrl: BUILD_CONFIG.isNative
                   ? BUILD_CONFIG.isIOS
                     ? 'https://apple.getaffineapp.com'
-                    : 'https://insider.affine.pro'
+                    : getSubsumioCanonicalOrigin('app')
                   : location.origin,
                 config: {
-                  serverName: 'Affine Cloud',
+                  serverName: SUBSUMIO_CLOUD_NAME,
                   features: [
                     ServerFeature.Indexer,
                     ServerFeature.Copilot,
@@ -129,10 +149,10 @@ export const BUILD_IN_SERVERS: (ServerMetadata & { config: ServerConfig })[] =
           : BUILD_CONFIG.appBuildType === 'internal'
             ? [
                 {
-                  id: 'affine-cloud',
-                  baseUrl: 'https://insider.affine.pro',
+                  id: OFFICIAL_CLOUD_SERVER_ID,
+                  baseUrl: getSubsumioCanonicalOrigin('app'),
                   config: {
-                    serverName: 'Affine Cloud',
+                    serverName: SUBSUMIO_CLOUD_NAME,
                     features: [
                       ServerFeature.Indexer,
                       ServerFeature.Copilot,
@@ -158,12 +178,12 @@ export const BUILD_IN_SERVERS: (ServerMetadata & { config: ServerConfig })[] =
             : BUILD_CONFIG.appBuildType === 'canary'
               ? [
                   {
-                    id: 'affine-cloud',
+                    id: OFFICIAL_CLOUD_SERVER_ID,
                     baseUrl: BUILD_CONFIG.isNative
-                      ? 'https://affine.fail'
+                      ? getSubsumioCanonicalOrigin('app')
                       : location.origin,
                     config: {
-                      serverName: 'Affine Cloud',
+                      serverName: SUBSUMIO_CLOUD_NAME,
                       features: [
                         ServerFeature.Indexer,
                         ServerFeature.Copilot,
@@ -196,10 +216,10 @@ export type TelemetryChannel =
   | 'local';
 
 const OFFICIAL_TELEMETRY_ENDPOINTS: Record<TelemetryChannel, string> = {
-  stable: 'https://app.affine.pro',
-  beta: 'https://insider.affine.pro',
-  internal: 'https://insider.affine.pro',
-  canary: 'https://affine.fail',
+  stable: getSubsumioCanonicalOrigin('app'),
+  beta: getSubsumioCanonicalOrigin('app'),
+  internal: getSubsumioCanonicalOrigin('app'),
+  canary: getSubsumioCanonicalOrigin('app'),
   local: 'http://localhost:8080',
 };
 

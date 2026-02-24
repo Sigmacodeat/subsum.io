@@ -9,19 +9,17 @@
     errorEl.innerHTML = [
       '<style>',
       '.gue {display:flex;flex-direction:column;align-items:center;justify-content:center;width:380px;}',
-      '.gue img{width:380px;}',
       '.gue div{padding:16px 40px 0 40px;text-align:center;}',
       '.gue .p1{color:#141414;line-height:24px;font-weight:500;}',
       '.gue .p2{color:#7A7A7A;line-height:22px;}',
       '</style>',
       '<div class="gue">',
-      '<img src="https://cdn.affine.pro/error.png" />',
       '<div>',
       '<p class="p1">Unsupported Environment</p>',
       '<p class="p2">',
-      'It looks like AFFiNE cannot run in this environment.',
+      'It looks like Subsumio cannot run in this environment.',
       "Please ensure you are using a supported browser or update your device's operating system to the latest version.",
-      'If the issue persists, visit our <a href="https://github.com/toeverything/AFFiNE/issues">support page</a> for further assistance.',
+      'If the issue persists, visit our <a href="https://subsum.io">support page</a> for further assistance.',
       '</p>',
       '</div>',
       '</div>',
@@ -51,16 +49,17 @@
 
     console.error('unhandled unrecoverable error', error);
 
-    var shouldCache =
-      // syntax error
-      error && error instanceof SyntaxError;
-
-    if (!shouldCache) {
-      return;
+    // Keep this page exclusively for real environment capability issues.
+    // Generic runtime/syntax errors should surface in the console instead of
+    // being mislabeled as "Unsupported Environment".
+    if (
+      error &&
+      error instanceof ReferenceError &&
+      /Promise|Map|fetch|customElements|MutationObserver/i.test(error.message)
+    ) {
+      event.stopImmediatePropagation();
+      showGlobalErrorPage();
     }
-
-    event.stopImmediatePropagation();
-    showGlobalErrorPage();
   }
 
   function registerGlobalErrorHandler() {

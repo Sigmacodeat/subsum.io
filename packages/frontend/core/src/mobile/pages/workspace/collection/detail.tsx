@@ -1,4 +1,5 @@
 import { useThemeColorV2 } from '@affine/component';
+import { PageNotFound } from '@affine/core/desktop/pages/404';
 import { CollectionService } from '@affine/core/modules/collection';
 import { GlobalContextService } from '@affine/core/modules/global-context';
 import { useLiveData, useServices } from '@toeverything/infra';
@@ -36,8 +37,7 @@ export const Component = () => {
   }, [collection, globalContext]);
 
   if (!collection) {
-    // TODO: implement 404 page
-    return <div></div>;
+    return <PageNotFound />;
   }
 
   return <CollectionDetail collection={collection} />;

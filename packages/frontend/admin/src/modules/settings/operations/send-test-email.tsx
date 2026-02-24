@@ -1,5 +1,5 @@
-import { Button } from '@affine/admin/components/ui/button';
-import { useMutation } from '@affine/admin/use-mutation';
+import { Button } from '../../../components/ui/button';
+import { useMutation } from '../../../use-mutation';
 import { notify } from '@affine/component';
 import type { UserFriendlyError } from '@affine/error';
 import { sendTestEmailMutation } from '@affine/graphql';

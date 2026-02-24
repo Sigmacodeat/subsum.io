@@ -11,6 +11,40 @@ const logger = new DebugLogger('i18n');
 
 const defaultLng: Language = 'en';
 
+const rewriteSettingBrand = (value: string) => {
+  return value
+    .replaceAll('AFFiNE.Pro', 'subsumio.ai')
+    .replaceAll('AFFINE.PRO', 'subsumio.ai')
+    .replaceAll('docs.affine.pro', 'subsumio.ai')
+    .replaceAll('affine.pro', 'subsumio.ai')
+    .replaceAll('AFFiNE', 'Subsumio')
+    .replaceAll('AFFINE', 'Subsumio')
+    .replaceAll('Affine', 'Subsumio');
+};
+
+const normalizeSettingBranding = <T>(key: string, value: T): T => {
+  void key;
+
+  if (typeof value === 'string') {
+    return rewriteSettingBrand(value) as T;
+  }
+
+  if (Array.isArray(value)) {
+    return value.map(item => normalizeSettingBranding(key, item)) as T;
+  }
+
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value).map(([nestedKey, nestedValue]) => [
+        nestedKey,
+        normalizeSettingBranding(key, nestedValue),
+      ])
+    ) as T;
+  }
+
+  return value;
+};
+
 let _instance: i18n | null = null;
 export const getOrCreateI18n = (): i18n => {
   if (!_instance) {
@@ -121,7 +155,7 @@ export function createI18nWrapper(getI18nFn: () => i18n) {
 
       const i18n = getI18nFn();
       if (i18n.exists(key)) {
-        return i18n.t(key, options);
+        return normalizeSettingBranding(key, i18n.t(key, options));
       } else {
         // unknown translate key 'xxx.xxx' returns itself
         return key;

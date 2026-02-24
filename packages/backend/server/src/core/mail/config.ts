@@ -32,7 +32,7 @@ declare global {
 defineModuleConfig('mailer', {
   'SMTP.name': {
     desc: 'Name of the email server (e.g. your domain name)',
-    default: 'AFFiNE Server',
+    default: 'Subsumio Server',
     env: 'MAILER_SERVERNAME',
   },
   'SMTP.host': {
@@ -56,8 +56,8 @@ defineModuleConfig('mailer', {
     env: 'MAILER_PASSWORD',
   },
   'SMTP.sender': {
-    desc: 'Sender of all the emails (e.g. "AFFiNE Self Hosted &lt;noreply@example.com&gt;")',
-    default: 'AFFiNE Self Hosted <noreply@example.com>',
+    desc: 'Sender of all the emails (e.g. "Subsumio Self Hosted &lt;noreply@example.com&gt;")',
+    default: 'Subsumio Self Hosted <noreply@example.com>',
     env: 'MAILER_SENDER',
   },
   'SMTP.ignoreTLS': {
@@ -73,7 +73,7 @@ defineModuleConfig('mailer', {
   },
   'fallbackSMTP.name': {
     desc: 'Name of the fallback email server (e.g. your domain name)',
-    default: 'AFFiNE Server',
+    default: 'Subsumio Server',
   },
   'fallbackSMTP.host': {
     desc: 'Host of the email server (e.g. smtp.gmail.com)',
@@ -92,7 +92,7 @@ defineModuleConfig('mailer', {
     default: '',
   },
   'fallbackSMTP.sender': {
-    desc: 'Sender of all the emails (e.g. "AFFiNE Self Hosted &lt;noreply@example.com&gt;")',
+    desc: 'Sender of all the emails (e.g. "Subsumio Self Hosted &lt;noreply@example.com&gt;")',
     default: '',
   },
   'fallbackSMTP.ignoreTLS': {

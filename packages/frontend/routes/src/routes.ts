@@ -14,7 +14,9 @@ export const ROUTES = {
     dashboard: '/admin/dashboard',
     accounts: '/admin/accounts',
     workspaces: '/admin/workspaces',
+    affiliates: '/admin/affiliates',
     queue: '/admin/queue',
+    reports: '/admin/reports',
     ai: '/admin/ai',
     settings: { index: '/admin/settings', module: '/admin/settings/:module' },
     about: '/admin/about',
@@ -33,7 +35,9 @@ export const RELATIVE_ROUTES = {
     dashboard: 'dashboard',
     accounts: 'accounts',
     workspaces: 'workspaces',
+    affiliates: 'affiliates',
     queue: 'queue',
+    reports: 'reports',
     ai: 'ai',
     settings: { index: 'settings', module: ':module' },
     about: 'about',
@@ -50,7 +54,9 @@ admin.setup = () => '/admin/setup';
 admin.dashboard = () => '/admin/dashboard';
 admin.accounts = () => '/admin/accounts';
 admin.workspaces = () => '/admin/workspaces';
+admin.affiliates = () => '/admin/affiliates';
 admin.queue = () => '/admin/queue';
+admin.reports = () => '/admin/reports';
 admin.ai = () => '/admin/ai';
 const admin_settings = () => '/admin/settings';
 admin_settings.module = (params: { module: string }) =>

@@ -21,7 +21,9 @@ import {
   InvalidLicenseToActivate,
   InvalidLicenseUpdateParams,
   LicenseNotFound,
+  metrics,
   Mutex,
+  Throttle,
 } from '../../../base';
 import { Public } from '../../../core/auth';
 import { SelfhostTeamSubscriptionManager } from '../manager/selfhost';
@@ -45,9 +47,13 @@ const UpdateRecurringParams = z.object({
 });
 
 @Public()
+@Throttle('strict')
 @Controller('/api/team/licenses')
 export class LicenseController {
   private readonly logger = new Logger(LicenseController.name);
+
+  private readonly teamLicenseEndpointCounter =
+    metrics.controllers.counter('team_license_endpoint_total');
 
   constructor(
     private readonly db: PrismaClient,
@@ -62,6 +68,7 @@ export class LicenseController {
     await using lock = await this.mutex.acquire(`license-activation:${key}`);
 
     if (!lock) {
+      this.recordEndpointResult('activate', 'rate_limited');
       throw new InvalidLicenseToActivate({
         reason: 'Too Many Requests',
       });
@@ -74,6 +81,7 @@ export class LicenseController {
     });
 
     if (!license) {
+      this.recordEndpointResult('activate', 'license_not_found');
       throw new InvalidLicenseToActivate({
         reason: 'License not found',
       });
@@ -89,6 +97,7 @@ export class LicenseController {
       license.installedAt ||
       subscription.status !== SubscriptionStatus.Active
     ) {
+      this.recordEndpointResult('activate', 'invalid_license');
       throw new InvalidLicenseToActivate({
         reason: 'Invalid license',
       });
@@ -109,10 +118,17 @@ export class LicenseController {
       .status(HttpStatus.OK)
       .header('x-next-validate-key', validateKey)
       .json(this.license(subscription));
+
+    this.recordEndpointResult('activate', 'success');
   }
 
   @Post('/:license/deactivate')
-  async deactivate(@Param('license') key: string) {
+  async deactivate(
+    @Param('license') key: string,
+    @Headers('x-validate-key') validateKey: string
+  ) {
+    await this.ensureValidatedLicense(key, validateKey, 'deactivate');
+
     await this.db.license.update({
       where: {
         key,
@@ -122,6 +138,8 @@ export class LicenseController {
         validateKey: null,
       },
     });
+
+    this.recordEndpointResult('deactivate', 'success');
 
     return {
       success: true,
@@ -134,25 +152,26 @@ export class LicenseController {
     @Param('license') key: string,
     @Headers('x-validate-key') revalidateKey: string
   ) {
-    const license = await this.db.license.findUnique({
-      where: {
-        key,
-      },
-    });
+    await using lock = await this.mutex.acquire(`license-health:${key}`);
+
+    if (!lock) {
+      metrics.controllers.counter('team_license_health_rate_limited').add(1);
+      this.recordEndpointResult('health', 'rate_limited');
+      throw new InvalidLicenseToActivate({
+        reason: 'Too Many Requests',
+      });
+    }
+
+    await this.ensureValidatedLicense(key, revalidateKey, 'health');
 
     const subscription = await this.manager.getActiveSubscription({
       key,
       plan: SubscriptionPlan.SelfHostedTeam,
     });
 
-    if (!license || !subscription) {
+    if (!subscription) {
+      this.recordEndpointResult('health', 'license_not_found');
       throw new LicenseNotFound();
-    }
-
-    if (!license.validateKey || license.validateKey !== revalidateKey) {
-      throw new InvalidLicenseToActivate({
-        reason: 'Invalid validate key',
-      });
     }
 
     const validateKey = randomUUID();
@@ -169,29 +188,24 @@ export class LicenseController {
       .status(HttpStatus.OK)
       .header('x-next-validate-key', validateKey)
       .json(this.license(subscription));
+
+    this.recordEndpointResult('health', 'success');
   }
 
   @Post('/:license/seats')
   async updateSeats(
     @Param('license') key: string,
+    @Headers('x-validate-key') validateKey: string,
     @Body() body: z.infer<typeof UpdateSeatsParams>
   ) {
+    const license = await this.ensureValidatedLicense(key, validateKey, 'seats');
+
     const parseResult = UpdateSeatsParams.safeParse(body);
 
     if (parseResult.error) {
       throw new InvalidLicenseUpdateParams({
         reason: parseResult.error.message,
       });
-    }
-
-    const license = await this.db.license.findUnique({
-      where: {
-        key,
-      },
-    });
-
-    if (!license) {
-      throw new LicenseNotFound();
     }
 
     await this.subscription.updateSubscriptionQuantity(
@@ -201,29 +215,28 @@ export class LicenseController {
       },
       parseResult.data.seats
     );
+
+    this.recordEndpointResult('seats', 'success');
   }
 
   @Post('/:license/recurring')
   async updateRecurring(
     @Param('license') key: string,
+    @Headers('x-validate-key') validateKey: string,
     @Body() body: z.infer<typeof UpdateRecurringParams>
   ) {
+    const license = await this.ensureValidatedLicense(
+      key,
+      validateKey,
+      'recurring'
+    );
+
     const parseResult = UpdateRecurringParams.safeParse(body);
 
     if (parseResult.error) {
       throw new InvalidLicenseUpdateParams({
         reason: parseResult.error.message,
       });
-    }
-
-    const license = await this.db.license.findUnique({
-      where: {
-        key,
-      },
-    });
-
-    if (!license) {
-      throw new LicenseNotFound();
     }
 
     await this.subscription.updateSubscriptionRecurring(
@@ -233,10 +246,17 @@ export class LicenseController {
       },
       parseResult.data.recurring
     );
+
+    this.recordEndpointResult('recurring', 'success');
   }
 
   @Post('/:license/create-customer-portal')
-  async createCustomerPortal(@Param('license') key: string) {
+  async createCustomerPortal(
+    @Param('license') key: string,
+    @Headers('x-validate-key') validateKey: string
+  ) {
+    await this.ensureValidatedLicense(key, validateKey, 'create_customer_portal');
+
     const subscription = await this.db.subscription.findFirst({
       where: {
         targetId: key,
@@ -244,6 +264,7 @@ export class LicenseController {
     });
 
     if (!subscription || !subscription.stripeSubscriptionId) {
+      this.recordEndpointResult('create_customer_portal', 'license_not_found');
       throw new LicenseNotFound();
     }
 
@@ -262,8 +283,11 @@ export class LicenseController {
           customer: customer.id,
         });
 
+      this.recordEndpointResult('create_customer_portal', 'success');
+
       return { url: portal.url };
     } catch (e) {
+      this.recordEndpointResult('create_customer_portal', 'portal_create_failed');
       this.logger.error('Failed to create customer portal.', e);
       throw new CustomerPortalCreateFailed();
     }
@@ -276,5 +300,64 @@ export class LicenseController {
       quantity: subscription.quantity,
       endAt: subscription.end?.getTime(),
     };
+  }
+
+  private async ensureValidatedLicense(
+    key: string,
+    validateKey: string | undefined,
+    endpoint:
+      | 'deactivate'
+      | 'seats'
+      | 'recurring'
+      | 'create_customer_portal'
+      | 'health'
+  ) {
+    const license = await this.db.license.findUnique({
+      where: {
+        key,
+      },
+    });
+
+    if (!license) {
+      this.recordEndpointResult(endpoint, 'license_not_found');
+      throw new LicenseNotFound();
+    }
+
+    if (!license.validateKey || license.validateKey !== validateKey) {
+      metrics.controllers
+        .counter('team_license_validate_key_rejected')
+        .add(1, { endpoint });
+      this.recordEndpointResult(endpoint, 'invalid_validate_key');
+      this.logger.warn(
+        `Rejected team license request due to invalid validate key: ${endpoint}`
+      );
+      throw new InvalidLicenseToActivate({
+        reason: 'Invalid validate key',
+      });
+    }
+
+    return license;
+  }
+
+  private recordEndpointResult(
+    endpoint:
+      | 'activate'
+      | 'deactivate'
+      | 'seats'
+      | 'recurring'
+      | 'create_customer_portal'
+      | 'health',
+    outcome:
+      | 'success'
+      | 'rate_limited'
+      | 'license_not_found'
+      | 'invalid_validate_key'
+      | 'invalid_license'
+      | 'portal_create_failed'
+  ) {
+    this.teamLicenseEndpointCounter.add(1, {
+      endpoint,
+      outcome,
+    });
   }
 }

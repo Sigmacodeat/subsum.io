@@ -892,6 +892,13 @@ export interface CreateCopilotPromptInput {
   name: Scalars['String']['input'];
 }
 
+export interface CreateOrganizationInput {
+  /** Organization name */
+  name: Scalars['String']['input'];
+  /** Organization slug (URL-friendly identifier) */
+  slug: Scalars['String']['input'];
+}
+
 export interface CreateUserInput {
   email: Scalars['String']['input'];
   name?: InputMaybe<Scalars['String']['input']>;
@@ -1524,6 +1531,15 @@ export interface InviteLink {
   link: Scalars['String']['output'];
 }
 
+export interface InviteOrgMemberInput {
+  /** Email of the user to invite */
+  email: Scalars['String']['input'];
+  /** Organization ID */
+  organizationId: Scalars['String']['input'];
+  /** Role to assign */
+  role?: InputMaybe<OrgRole>;
+}
+
 export interface InviteResult {
   __typename?: 'InviteResult';
   email: Scalars['String']['output'];
@@ -1716,6 +1732,7 @@ export interface Mutation {
   __typename?: 'Mutation';
   abortBlobUpload: Scalars['Boolean']['output'];
   acceptInviteById: Scalars['Boolean']['output'];
+  acceptOrgInvitation: Scalars['Boolean']['output'];
   activateLicense: License;
   /** add a blob to context */
   addContextBlob: CopilotContextBlob;
@@ -1733,10 +1750,12 @@ export interface Mutation {
   /** Apply updates to a doc using LLM and return the merged markdown. */
   applyDocUpdates: Scalars['String']['output'];
   approveMember: Scalars['Boolean']['output'];
+  assignWorkspaceToOrg: Scalars['Boolean']['output'];
   /** Ban an user */
   banUser: UserType;
   cancelSubscription: SubscriptionType;
   changeEmail: UserType;
+  changeOrgMemberRole: Scalars['Boolean']['output'];
   changePassword: Scalars['Boolean']['output'];
   claimAudioTranscription: Maybe<TranscriptionResultType>;
   /** Cleanup sessions */
@@ -1759,6 +1778,7 @@ export interface Mutation {
   /** Create a stripe customer portal to manage payment methods */
   createCustomerPortal: Scalars['String']['output'];
   createInviteLink: InviteLink;
+  createOrganization: OrganizationType;
   createReply: ReplyObjectType;
   createSelfhostWorkspaceCustomerPortal: Scalars['String']['output'];
   /** Create a new user */
@@ -1770,6 +1790,7 @@ export interface Mutation {
   deleteBlob: Scalars['Boolean']['output'];
   /** Delete a comment */
   deleteComment: Scalars['Boolean']['output'];
+  deleteOrganization: Scalars['Boolean']['output'];
   /** Delete a reply */
   deleteReply: Scalars['Boolean']['output'];
   /** Delete a user account */
@@ -1787,6 +1808,7 @@ export interface Mutation {
   importUsers: Array<UserImportResultType>;
   installLicense: License;
   inviteMembers: Array<InviteResult>;
+  inviteOrgMember: Scalars['Boolean']['output'];
   leaveWorkspace: Scalars['Boolean']['output'];
   linkCalDAVAccount: CalendarAccountObjectType;
   linkCalendarAccount: Scalars['String']['output'];
@@ -1813,6 +1835,7 @@ export interface Mutation {
   removeContextDoc: Scalars['Boolean']['output'];
   /** remove a file from context */
   removeContextFile: Scalars['Boolean']['output'];
+  removeOrgMember: Scalars['Boolean']['output'];
   /** Remove workspace embedding files */
   removeWorkspaceEmbeddingFiles: Scalars['Boolean']['output'];
   removeWorkspaceFeature: Scalars['Boolean']['output'];
@@ -1839,6 +1862,7 @@ export interface Mutation {
   triggerCleanupTrashedDocEmbeddings: Scalars['Boolean']['output'];
   /** Trigger generate missing titles cron job */
   triggerGenerateTitleCron: Scalars['Boolean']['output'];
+  unassignWorkspaceFromOrg: Scalars['Boolean']['output'];
   unlinkCalendarAccount: Scalars['Boolean']['output'];
   /** update app configuration */
   updateAppConfig: Scalars['JSONObject']['output'];
@@ -1851,6 +1875,7 @@ export interface Mutation {
   updateCopilotSession: Scalars['String']['output'];
   updateDocDefaultRole: Scalars['Boolean']['output'];
   updateDocUserRole: Scalars['Boolean']['output'];
+  updateOrganization: OrganizationType;
   updateProfile: UserType;
   /** Update a reply content */
   updateReply: Scalars['Boolean']['output'];
@@ -1883,6 +1908,10 @@ export interface MutationAcceptInviteByIdArgs {
   inviteId: Scalars['String']['input'];
   sendAcceptMail?: InputMaybe<Scalars['Boolean']['input']>;
   workspaceId?: InputMaybe<Scalars['String']['input']>;
+}
+
+export interface MutationAcceptOrgInvitationArgs {
+  organizationId: Scalars['String']['input'];
 }
 
 export interface MutationActivateLicenseArgs {
@@ -1933,6 +1962,11 @@ export interface MutationApproveMemberArgs {
   workspaceId: Scalars['String']['input'];
 }
 
+export interface MutationAssignWorkspaceToOrgArgs {
+  organizationId: Scalars['String']['input'];
+  workspaceId: Scalars['String']['input'];
+}
+
 export interface MutationBanUserArgs {
   id: Scalars['String']['input'];
 }
@@ -1946,6 +1980,12 @@ export interface MutationCancelSubscriptionArgs {
 export interface MutationChangeEmailArgs {
   email: Scalars['String']['input'];
   token: Scalars['String']['input'];
+}
+
+export interface MutationChangeOrgMemberRoleArgs {
+  organizationId: Scalars['String']['input'];
+  role: OrgRole;
+  userId: Scalars['String']['input'];
 }
 
 export interface MutationChangePasswordArgs {
@@ -2011,6 +2051,10 @@ export interface MutationCreateInviteLinkArgs {
   workspaceId: Scalars['String']['input'];
 }
 
+export interface MutationCreateOrganizationArgs {
+  input: CreateOrganizationInput;
+}
+
 export interface MutationCreateReplyArgs {
   input: ReplyCreateInput;
 }
@@ -2039,6 +2083,10 @@ export interface MutationDeleteBlobArgs {
 }
 
 export interface MutationDeleteCommentArgs {
+  id: Scalars['String']['input'];
+}
+
+export interface MutationDeleteOrganizationArgs {
   id: Scalars['String']['input'];
 }
 
@@ -2092,6 +2140,10 @@ export interface MutationInstallLicenseArgs {
 export interface MutationInviteMembersArgs {
   emails: Array<Scalars['String']['input']>;
   workspaceId: Scalars['String']['input'];
+}
+
+export interface MutationInviteOrgMemberArgs {
+  input: InviteOrgMemberInput;
 }
 
 export interface MutationLeaveWorkspaceArgs {
@@ -2151,6 +2203,11 @@ export interface MutationRemoveContextDocArgs {
 
 export interface MutationRemoveContextFileArgs {
   options: RemoveContextFileInput;
+}
+
+export interface MutationRemoveOrgMemberArgs {
+  organizationId: Scalars['String']['input'];
+  userId: Scalars['String']['input'];
 }
 
 export interface MutationRemoveWorkspaceEmbeddingFilesArgs {
@@ -2245,6 +2302,11 @@ export interface MutationSubmitAudioTranscriptionArgs {
   workspaceId: Scalars['String']['input'];
 }
 
+export interface MutationUnassignWorkspaceFromOrgArgs {
+  organizationId: Scalars['String']['input'];
+  workspaceId: Scalars['String']['input'];
+}
+
 export interface MutationUnlinkCalendarAccountArgs {
   accountId: Scalars['String']['input'];
 }
@@ -2277,6 +2339,10 @@ export interface MutationUpdateDocDefaultRoleArgs {
 
 export interface MutationUpdateDocUserRoleArgs {
   input: UpdateDocUserRoleInput;
+}
+
+export interface MutationUpdateOrganizationArgs {
+  input: UpdateOrganizationInput;
 }
 
 export interface MutationUpdateProfileArgs {
@@ -2413,6 +2479,64 @@ export enum OAuthProviderType {
   GitHub = 'GitHub',
   Google = 'Google',
   OIDC = 'OIDC',
+}
+
+export interface OrgMemberType {
+  __typename?: 'OrgMemberType';
+  /** Member joined date */
+  createdAt: Scalars['DateTime']['output'];
+  id: Scalars['String']['output'];
+  /** User role in organization */
+  role: OrgRole;
+  /** Member status in organization */
+  status: OrganizationMemberStatus;
+  /** Member user info */
+  user: WorkspaceUserType;
+}
+
+export enum OrgRole {
+  Admin = 'Admin',
+  Member = 'Member',
+  Owner = 'Owner',
+}
+
+export interface OrgWorkspaceType {
+  __typename?: 'OrgWorkspaceType';
+  /** Workspace created date */
+  createdAt: Scalars['DateTime']['output'];
+  id: Scalars['String']['output'];
+  /** Workspace name */
+  name: Maybe<Scalars['String']['output']>;
+}
+
+export enum OrganizationMemberStatus {
+  Accepted = 'Accepted',
+  Pending = 'Pending',
+  Rejected = 'Rejected',
+}
+
+export interface OrganizationType {
+  __typename?: 'OrganizationType';
+  /** Avatar key */
+  avatarKey: Maybe<Scalars['String']['output']>;
+  /** Organization created date */
+  createdAt: Scalars['DateTime']['output'];
+  id: Scalars['String']['output'];
+  /** Number of members in the organization */
+  memberCount: Scalars['Int']['output'];
+  /** Members of the organization */
+  members: Array<OrgMemberType>;
+  /** Organization name */
+  name: Scalars['String']['output'];
+  /** Organization slug (URL-friendly identifier) */
+  slug: Scalars['String']['output'];
+  /** Workspaces belonging to the organization */
+  workspaces: Array<OrgWorkspaceType>;
+}
+
+export interface OrganizationTypeMembersArgs {
+  skip?: InputMaybe<Scalars['Int']['input']>;
+  take?: InputMaybe<Scalars['Int']['input']>;
 }
 
 export interface PageInfo {
@@ -2556,6 +2680,10 @@ export interface Query {
   getInviteInfo: InvitationType;
   /** List all copilot prompts */
   listCopilotPrompts: Array<CopilotPromptType>;
+  /** Get organization by id */
+  organization: OrganizationType;
+  /** Get all organizations for the current user */
+  organizations: Array<OrganizationType>;
   prices: Array<SubscriptionPrice>;
   /** Get public user by id */
   publicUserById: Maybe<PublicUserType>;
@@ -2622,6 +2750,10 @@ export interface QueryErrorArgs {
 
 export interface QueryGetInviteInfoArgs {
   inviteId: Scalars['String']['input'];
+}
+
+export interface QueryOrganizationArgs {
+  id: Scalars['String']['input'];
 }
 
 export interface QueryPublicUserByIdArgs {
@@ -3127,6 +3259,14 @@ export interface UpdateDocUserRoleInput {
   workspaceId: Scalars['String']['input'];
 }
 
+export interface UpdateOrganizationInput {
+  id: Scalars['String']['input'];
+  /** Organization name */
+  name?: InputMaybe<Scalars['String']['input']>;
+  /** Organization slug */
+  slug?: InputMaybe<Scalars['String']['input']>;
+}
+
 export interface UpdateUserInput {
   /** User name */
   name?: InputMaybe<Scalars['String']['input']>;
@@ -3153,7 +3293,7 @@ export interface UpdateWorkspaceInput {
   enableDocEmbedding?: InputMaybe<Scalars['Boolean']['input']>;
   /** Enable workspace sharing */
   enableSharing?: InputMaybe<Scalars['Boolean']['input']>;
-  /** Enable url previous when sharing */
+  /** Enable URL preview */
   enableUrlPreview?: InputMaybe<Scalars['Boolean']['input']>;
   id: Scalars['ID']['input'];
   /** is Public workspace */
@@ -6983,6 +7123,144 @@ export type NotificationCountQuery = {
   } | null;
 };
 
+export type AssignWorkspaceToOrgMutationVariables = Exact<{
+  organizationId: Scalars['String']['input'];
+  workspaceId: Scalars['String']['input'];
+}>;
+
+export type AssignWorkspaceToOrgMutation = {
+  __typename?: 'Mutation';
+  assignWorkspaceToOrg: boolean;
+};
+
+export type GetOrganizationByIdQueryVariables = Exact<{
+  id: Scalars['String']['input'];
+}>;
+
+export type GetOrganizationByIdQuery = {
+  __typename?: 'Query';
+  organization: {
+    __typename?: 'OrganizationType';
+    id: string;
+    name: string;
+    slug: string;
+    avatarKey: string | null;
+    createdAt: string;
+    memberCount: number;
+    members: Array<{
+      __typename?: 'OrgMemberType';
+      id: string;
+      role: OrgRole;
+      status: OrganizationMemberStatus;
+      createdAt: string;
+      user: {
+        __typename?: 'WorkspaceUserType';
+        id: string;
+        name: string;
+        email: string;
+        avatarUrl: string | null;
+      };
+    }>;
+    workspaces: Array<{
+      __typename?: 'OrgWorkspaceType';
+      id: string;
+      name: string | null;
+      createdAt: string;
+    }>;
+  };
+};
+
+export type ChangeOrgMemberRoleMutationVariables = Exact<{
+  organizationId: Scalars['String']['input'];
+  userId: Scalars['String']['input'];
+  role: OrgRole;
+}>;
+
+export type ChangeOrgMemberRoleMutation = {
+  __typename?: 'Mutation';
+  changeOrgMemberRole: boolean;
+};
+
+export type CreateOrganizationMutationVariables = Exact<{
+  input: CreateOrganizationInput;
+}>;
+
+export type CreateOrganizationMutation = {
+  __typename?: 'Mutation';
+  createOrganization: {
+    __typename?: 'OrganizationType';
+    id: string;
+    name: string;
+    slug: string;
+  };
+};
+
+export type DeleteOrganizationMutationVariables = Exact<{
+  id: Scalars['String']['input'];
+}>;
+
+export type DeleteOrganizationMutation = {
+  __typename?: 'Mutation';
+  deleteOrganization: boolean;
+};
+
+export type InviteOrgMemberMutationVariables = Exact<{
+  input: InviteOrgMemberInput;
+}>;
+
+export type InviteOrgMemberMutation = {
+  __typename?: 'Mutation';
+  inviteOrgMember: boolean;
+};
+
+export type GetOrganizationsQueryVariables = Exact<{ [key: string]: never }>;
+
+export type GetOrganizationsQuery = {
+  __typename?: 'Query';
+  organizations: Array<{
+    __typename?: 'OrganizationType';
+    id: string;
+    name: string;
+    slug: string;
+    avatarKey: string | null;
+    createdAt: string;
+  }>;
+};
+
+export type RemoveOrgMemberMutationVariables = Exact<{
+  organizationId: Scalars['String']['input'];
+  userId: Scalars['String']['input'];
+}>;
+
+export type RemoveOrgMemberMutation = {
+  __typename?: 'Mutation';
+  removeOrgMember: boolean;
+};
+
+export type UnassignWorkspaceFromOrgMutationVariables = Exact<{
+  organizationId: Scalars['String']['input'];
+  workspaceId: Scalars['String']['input'];
+}>;
+
+export type UnassignWorkspaceFromOrgMutation = {
+  __typename?: 'Mutation';
+  unassignWorkspaceFromOrg: boolean;
+};
+
+export type UpdateOrganizationMutationVariables = Exact<{
+  input: UpdateOrganizationInput;
+}>;
+
+export type UpdateOrganizationMutation = {
+  __typename?: 'Mutation';
+  updateOrganization: {
+    __typename?: 'OrganizationType';
+    id: string;
+    name: string;
+    slug: string;
+  };
+};
+
 export type PricesQueryVariables = Exact<{ [key: string]: never }>;
 
 export type PricesQuery = {
@@ -7969,6 +8247,16 @@ export type Queries =
       response: NotificationCountQuery;
     }
   | {
+      name: 'getOrganizationByIdQuery';
+      variables: GetOrganizationByIdQueryVariables;
+      response: GetOrganizationByIdQuery;
+    }
+  | {
+      name: 'getOrganizationsQuery';
+      variables: GetOrganizationsQueryVariables;
+      response: GetOrganizationsQuery;
+    }
+  | {
       name: 'pricesQuery';
       variables: PricesQueryVariables;
       response: PricesQuery;
@@ -8374,6 +8662,46 @@ export type Mutations =
       name: 'mentionUserMutation';
       variables: MentionUserMutationVariables;
       response: MentionUserMutation;
+    }
+  | {
+      name: 'assignWorkspaceToOrgMutation';
+      variables: AssignWorkspaceToOrgMutationVariables;
+      response: AssignWorkspaceToOrgMutation;
+    }
+  | {
+      name: 'changeOrgMemberRoleMutation';
+      variables: ChangeOrgMemberRoleMutationVariables;
+      response: ChangeOrgMemberRoleMutation;
+    }
+  | {
+      name: 'createOrganizationMutation';
+      variables: CreateOrganizationMutationVariables;
+      response: CreateOrganizationMutation;
+    }
+  | {
+      name: 'deleteOrganizationMutation';
+      variables: DeleteOrganizationMutationVariables;
+      response: DeleteOrganizationMutation;
+    }
+  | {
+      name: 'inviteOrgMemberMutation';
+      variables: InviteOrgMemberMutationVariables;
+      response: InviteOrgMemberMutation;
+    }
+  | {
+      name: 'removeOrgMemberMutation';
+      variables: RemoveOrgMemberMutationVariables;
+      response: RemoveOrgMemberMutation;
+    }
+  | {
+      name: 'unassignWorkspaceFromOrgMutation';
+      variables: UnassignWorkspaceFromOrgMutationVariables;
+      response: UnassignWorkspaceFromOrgMutation;
+    }
+  | {
+      name: 'updateOrganizationMutation';
+      variables: UpdateOrganizationMutationVariables;
+      response: UpdateOrganizationMutation;
     }
   | {
       name: 'publishPageMutation';

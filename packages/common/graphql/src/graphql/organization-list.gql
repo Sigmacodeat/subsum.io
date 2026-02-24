@@ -1,0 +1,9 @@
+query getOrganizations {
+  organizations {
+    id
+    name
+    slug
+    avatarKey
+    createdAt
+  }
+}

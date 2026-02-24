@@ -15,7 +15,10 @@ import { useCallback, useMemo } from 'react';
 
 import { useAppSettingHelper } from '../../../../../components/hooks/affine/use-app-setting-helper';
 import { OpenInAppLinksMenu } from './links';
-import { settingWrapper } from './style.css';
+import {
+  settingWrapper,
+  themeSettingsPanel,
+} from './style.css';
 import { ThemeEditorSetting } from './theme-editor-setting';
 
 export const getThemeOptions = (t: ReturnType<typeof useI18n>) =>
@@ -40,15 +43,17 @@ export const getThemeOptions = (t: ReturnType<typeof useI18n>) =>
 export const ThemeSettings = () => {
   const t = useI18n();
   const { setTheme, theme } = useTheme();
-
+  const activeTheme =
+    theme === 'light' || theme === 'dark' || theme === 'system'
+      ? theme
+      : 'system';
   const radioItems = useMemo<RadioItem[]>(() => getThemeOptions(t), [t]);
 
   return (
     <RadioGroup
       items={radioItems}
-      value={theme}
-      width={250}
-      className={settingWrapper}
+      value={activeTheme}
+      width="100%"
       onChange={useCallback(
         (value: string) => {
           setTheme(value);
@@ -169,10 +174,13 @@ export const AppearanceSettings = () => {
 
       <SettingWrapper title={t['com.affine.appearanceSettings.theme.title']()}>
         <SettingRow
-          name={t['com.affine.appearanceSettings.color.title']()}
-          desc={t['com.affine.appearanceSettings.color.description']()}
+          name={t['com.affine.appearanceSettings.theme.title']()}
+          desc={t['com.affine.appearanceSettings.themeVariant.description']()}
+          spreadCol={false}
         >
-          <ThemeSettings />
+          <div className={themeSettingsPanel}>
+            <ThemeSettings />
+          </div>
         </SettingRow>
         <SettingRow
           name={t['com.affine.appearanceSettings.language.title']()}

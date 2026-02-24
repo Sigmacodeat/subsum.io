@@ -213,22 +213,33 @@ const NavigationPanelFolderNodeFolder = ({
     [navigationPanelService, path]
   );
   const [newFolderId, setNewFolderId] = useState<string | null>(null);
+  const [isDeletingFolder, setIsDeletingFolder] = useState(false);
+  const [isCreatingDoc, setIsCreatingDoc] = useState(false);
 
   const { createPage } = usePageHelper(
     workspaceService.workspace.docCollection
   );
   const handleDelete = useCallback(() => {
-    node.delete();
-    track.$.navigationPanel.organize.deleteOrganizeItem({
-      type: 'folder',
-    });
-    notify.success({
-      title: t['com.affine.rootAppSidebar.organize.delete.notify-title']({
-        name,
-      }),
-      message: t['com.affine.rootAppSidebar.organize.delete.notify-message'](),
-    });
-  }, [name, node, t]);
+    if (isDeletingFolder) {
+      return;
+    }
+    setIsDeletingFolder(true);
+    try {
+      node.delete();
+      track.$.navigationPanel.organize.deleteOrganizeItem({
+        type: 'folder',
+      });
+      notify.success({
+        title: t['com.affine.rootAppSidebar.organize.delete.notify-title']({
+          name,
+        }),
+        message:
+          t['com.affine.rootAppSidebar.organize.delete.notify-message'](),
+      });
+    } finally {
+      setIsDeletingFolder(false);
+    }
+  }, [isDeletingFolder, name, node, t]);
 
   const children = useLiveData(node.sortedChildren$);
 
@@ -585,15 +596,23 @@ const NavigationPanelFolderNodeFolder = ({
   );
 
   const handleNewDoc = useCallback(() => {
-    const newDoc = createPage();
-    node.createLink('doc', newDoc.id, node.indexAt('before'));
-    track.$.navigationPanel.folders.createDoc();
-    track.$.navigationPanel.organize.createOrganizeItem({
-      type: 'link',
-      target: 'doc',
-    });
-    setCollapsed(false);
-  }, [createPage, node, setCollapsed]);
+    if (isCreatingDoc || isDeletingFolder) {
+      return;
+    }
+    setIsCreatingDoc(true);
+    try {
+      const newDoc = createPage();
+      node.createLink('doc', newDoc.id, node.indexAt('before'));
+      track.$.navigationPanel.folders.createDoc();
+      track.$.navigationPanel.organize.createOrganizeItem({
+        type: 'link',
+        target: 'doc',
+      });
+      setCollapsed(false);
+    } finally {
+      setIsCreatingDoc(false);
+    }
+  }, [createPage, isCreatingDoc, isDeletingFolder, node, setCollapsed]);
 
   const handleCreateSubfolder = useCallback(() => {
     const newFolderId = node.createFolder(
@@ -658,6 +677,7 @@ const NavigationPanelFolderNodeFolder = ({
           <IconButton
             size="16"
             onClick={handleNewDoc}
+            disabled={isCreatingDoc || isDeletingFolder}
             tooltip={t[
               'com.affine.rootAppSidebar.explorer.organize-add-tooltip'
             ]()}
@@ -732,6 +752,8 @@ const NavigationPanelFolderNodeFolder = ({
             type={'danger'}
             prefixIcon={<DeleteIcon />}
             onClick={handleDelete}
+            disabled={isDeletingFolder || isCreatingDoc}
+            data-testid="folder-delete-button"
           >
             {t['com.affine.rootAppSidebar.organize.delete']()}
           </MenuItem>
@@ -743,6 +765,8 @@ const NavigationPanelFolderNodeFolder = ({
     handleCreateSubfolder,
     handleDelete,
     handleNewDoc,
+    isCreatingDoc,
+    isDeletingFolder,
     node,
     t,
   ]);

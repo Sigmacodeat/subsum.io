@@ -2,12 +2,20 @@ import { cssVar } from '@toeverything/theme';
 import { cssVarV2 } from '@toeverything/theme/v2';
 import { style, styleVariants } from '@vanilla-extract/css';
 
+import {
+  glassFill,
+  glassStroke,
+  interactionTransition,
+} from '../../../layouts/workspace-list-shared-styles';
+
 const interactive = style({
   position: 'relative',
   cursor: 'pointer',
+  transition: interactionTransition,
   selectors: {
     '&:hover': {
-      backgroundColor: cssVar('hoverColor'),
+      backgroundColor:
+        'color-mix(in srgb, var(--affine-hover-color, rgba(255, 255, 255, 0.06)) 40%, transparent)',
     },
     '&::before': {
       content: '""',
@@ -70,23 +78,29 @@ export const dailyCountHeader = style({
 export const dailyCountNav = style([
   interactive,
   {
-    height: 28,
+    minHeight: 32,
     width: 0,
     flex: 1,
-    fontWeight: 500,
-    fontSize: 14,
-    padding: '4px 8px',
+    fontWeight: 600,
+    fontSize: 13,
+    padding: '5px 10px',
     whiteSpace: 'nowrap',
-    borderRadius: 8,
+    borderRadius: 10,
+    border: `0.5px solid ${glassStroke}`,
+    background:
+      `${glassFill}, color-mix(in srgb, var(--affine-background-primary-color) 74%, transparent)`,
+    color: cssVarV2('text/primary'),
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    color: cssVar('textSecondaryColor'),
-    transition: 'all .3s',
+    transition: interactionTransition,
     selectors: {
       '&[aria-selected="true"]': {
-        backgroundColor: cssVar('backgroundTertiaryColor'),
-        color: cssVar('textPrimaryColor'),
+        background:
+          `linear-gradient(135deg, color-mix(in srgb, ${cssVarV2('button/primary')} 68%, var(--affine-background-primary-color) 32%) 0%, color-mix(in srgb, ${cssVarV2('button/primary')} 56%, var(--affine-background-primary-color) 44%) 100%)`,
+        color: cssVarV2('button/pureWhiteText'),
+        borderColor: `color-mix(in srgb, ${cssVarV2('button/primary')} 34%, transparent)`,
+        boxShadow: '0 6px 16px color-mix(in srgb, var(--affine-primary-color) 18%, rgba(0, 0, 0, 0.16))',
       },
     },
   },
@@ -133,13 +147,16 @@ export const pageItem = style([
     width: '100%',
     display: 'flex',
     alignItems: 'center',
-    borderRadius: 4,
-    padding: '0 4px',
+    borderRadius: 8,
+    padding: '0 8px',
     gap: 8,
-    height: 30,
+    minHeight: 32,
+    border: `0.5px solid transparent`,
     selectors: {
       '&[aria-selected="true"]': {
-        backgroundColor: cssVar('hoverColor'),
+        background:
+          'color-mix(in srgb, var(--affine-hover-color, rgba(255, 255, 255, 0.06)) 40%, transparent)',
+        borderColor: 'color-mix(in srgb, var(--affine-border-color) 80%, transparent)',
       },
     },
   },
@@ -184,8 +201,11 @@ export const journalConflictMoreTrigger = style([
   interactive,
   {
     color: cssVar('textSecondaryColor'),
-    height: 30,
-    borderRadius: 4,
+    minHeight: 32,
+    borderRadius: 8,
+    border: `0.5px solid ${glassStroke}`,
+    background:
+      `${glassFill}, color-mix(in srgb, var(--affine-background-primary-color) 74%, transparent)`,
     padding: '0px 8px',
     fontSize: cssVar('fontSm'),
     display: 'flex',
@@ -197,7 +217,7 @@ export const duplicateTag = style({
   border: `1px solid ${cssVarV2('database/border')}`,
   background: cssVarV2('layer/background/error'),
   color: cssVarV2('toast/iconState/error'),
-  borderRadius: 4,
+  borderRadius: 8,
   fontSize: cssVar('fontXs'),
   lineHeight: '20px',
   fontWeight: 400,

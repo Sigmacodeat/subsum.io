@@ -1,17 +1,27 @@
 import { cssVar } from '@toeverything/theme';
 import { cssVarV2 } from '@toeverything/theme/v2';
 import { globalStyle, style } from '@vanilla-extract/css';
+
+import {
+  glassFill,
+  glassStroke,
+  interactionTransition,
+} from '../../../pages/workspace/layouts/workspace-list-shared-styles';
+
 export const settingSlideBar = style({
   width: '25%',
   maxWidth: '242px',
-  background: cssVar('backgroundSecondaryColor'),
-  padding: '20px 0px 0px 12px',
+  background:
+    'linear-gradient(180deg, color-mix(in srgb, var(--affine-background-primary-color) 90%, transparent) 0%, color-mix(in srgb, var(--affine-background-primary-color) 78%, transparent) 100%)',
+  padding: '16px 0 0 12px',
   height: '100%',
   flexShrink: 0,
   display: 'flex',
   flexDirection: 'column',
   gap: '16px',
   overflowY: 'auto',
+  borderRight: `0.5px solid ${glassStroke}`,
+  backdropFilter: 'blur(14px) saturate(140%)',
 });
 export const sidebarTitle = style({
   fontSize: cssVar('fontH6'),
@@ -36,19 +46,29 @@ export const sidebarItemsWrapper = style({
 export const sidebarSelectItem = style({
   display: 'flex',
   alignItems: 'center',
-  padding: '4px 8px',
-  height: '30px',
+  padding: '5px 8px',
+  minHeight: '32px',
   flexShrink: 0,
   fontSize: cssVar('fontSm'),
   borderRadius: '8px',
+  border: `0.5px solid transparent`,
   cursor: 'pointer',
   userSelect: 'none',
+  transition: interactionTransition,
+  ':focus-visible': {
+    outline: `1px solid ${cssVarV2('button/primary')}`,
+    outlineOffset: 1,
+  },
   ':hover': {
-    background: cssVar('hoverColor'),
+    background: `${glassFill}, ${cssVar('hoverColor')}`,
+    borderColor: cssVarV2('button/primary'),
+    transform: 'translateY(-0.5px)',
   },
   selectors: {
     '&.active': {
-      background: cssVar('hoverColor'),
+      background: `${glassFill}, ${cssVar('hoverColor')}`,
+      borderColor: cssVarV2('button/primary'),
+      color: cssVarV2('text/primary'),
     },
   },
 });
@@ -127,7 +147,7 @@ export const sidebarGroup = style({
 });
 
 export const accountButton = style({
-  padding: '4px 8px',
+  padding: '5px 8px',
   borderRadius: '8px',
   cursor: 'pointer',
   userSelect: 'none',
@@ -135,12 +155,21 @@ export const accountButton = style({
   columnGap: '10px',
   justifyContent: 'space-between',
   alignItems: 'center',
+  border: `0.5px solid transparent`,
+  transition: interactionTransition,
+  ':focus-visible': {
+    outline: `1px solid ${cssVarV2('button/primary')}`,
+    outlineOffset: 1,
+  },
   ':hover': {
-    background: cssVar('hoverColor'),
+    background: `${glassFill}, ${cssVar('hoverColor')}`,
+    borderColor: cssVarV2('button/primary'),
+    transform: 'translateY(-0.5px)',
   },
   selectors: {
     '&.active': {
-      background: cssVar('hoverColor'),
+      background: `${glassFill}, ${cssVar('hoverColor')}`,
+      borderColor: cssVarV2('button/primary'),
     },
   },
 });

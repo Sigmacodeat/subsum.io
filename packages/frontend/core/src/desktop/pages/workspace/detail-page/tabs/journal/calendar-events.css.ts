@@ -2,6 +2,11 @@ import { cssVar } from '@toeverything/theme';
 import { cssVarV2 } from '@toeverything/theme/v2';
 import { createVar, style } from '@vanilla-extract/css';
 
+import {
+  glassFill,
+  interactionTransition,
+} from '../../../layouts/workspace-list-shared-styles';
+
 export const primaryColor = createVar('calendar-event-primary');
 
 export const list = style({
@@ -15,12 +20,19 @@ export const event = style({
   display: 'flex',
   gap: 8,
   alignItems: 'center',
-  padding: '5px 4px',
-  borderRadius: 4,
+  padding: '6px 8px',
+  borderRadius: 8,
+  border: `0.5px solid transparent`,
+  background:
+    `${glassFill}, color-mix(in srgb, ${cssVarV2('layer/background/secondary')} 90%, transparent)`,
+  backdropFilter: 'blur(12px) saturate(140%)',
+  transition: interactionTransition,
   cursor: 'pointer',
   selectors: {
     '&:hover': {
-      backgroundColor: cssVarV2.layer.background.hoverOverlay,
+      backgroundColor:
+        'color-mix(in srgb, var(--affine-hover-color, rgba(255, 255, 255, 0.06)) 40%, transparent)',
+      borderColor: 'color-mix(in srgb, var(--affine-border-color) 80%, transparent)',
     },
   },
 });
@@ -71,6 +83,10 @@ export const eventNewDoc = style({
   },
 });
 
+export const newDocIcon = style({
+  fontSize: 18,
+});
+
 export const nameTooltip = style({
   backgroundColor: cssVarV2.layer.background.overlayPanel,
   padding: '8px 6px',
@@ -88,6 +104,7 @@ export const nameTooltipIcon = style({
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
+  color: primaryColor,
   ':before': {
     content: '',
     width: 14,

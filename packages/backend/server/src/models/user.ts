@@ -37,6 +37,7 @@ declare global {
   interface Events {
     'user.created': User;
     'user.updated': User;
+    'user.disabled': User;
     'user.deleted': User & {
       // TODO(@forehalo): unlink foreign key constraint on [WorkspaceUserPermission] to delegate
       // dealing of owned workspaces of deleted users to workspace model
@@ -202,6 +203,8 @@ export class UserModel extends BaseModel {
 
   @Transactional()
   async update(id: string, data: UpdateUserInput) {
+    const before = await this.get(id, { withDisabled: true });
+
     if (data.password) {
       data.password = await this.crypto.encryptPassword(data.password);
     }
@@ -222,6 +225,11 @@ export class UserModel extends BaseModel {
 
     this.logger.debug(`User [${user.id}] updated`);
     this.event.emit('user.updated', user);
+
+    if (before && !before.disabled && user.disabled) {
+      this.event.emit('user.disabled', user);
+    }
+
     return user;
   }
 

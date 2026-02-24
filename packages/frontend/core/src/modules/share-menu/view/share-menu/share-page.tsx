@@ -77,7 +77,11 @@ export const AFFiNESharePage = (
   const sharedMode = useLiveData(shareInfoService.shareInfo.sharedMode$);
   const baseUrl = serverService.server.baseUrl;
   const isLoading =
-    isSharedPage === null || sharedMode === null || baseUrl === null;
+    isSharedPage === null ||
+    sharedMode === null ||
+    baseUrl === null ||
+    canManageUsers === undefined ||
+    canPublish === undefined;
 
   if (isLoading) {
     // TODO(@eyhn): loading and error UI
@@ -119,12 +123,31 @@ export const SharePage = (
     onClickMembers: () => void;
   }
 ) => {
+  const t = useI18n();
   if (props.workspaceMetadata.flavour === 'local') {
     return <LocalSharePage {...props} />;
   } else {
     return (
       // TODO(@eyhn): refactor this part
-      <ErrorBoundary fallback={null}>
+      <ErrorBoundary
+        fallbackRender={({ resetErrorBoundary }) => {
+          return (
+            <div className={styles.columnContainerStyle} style={{ gap: 12 }}>
+              <div className={styles.descriptionStyle}>
+                {t['com.affine.error.message']?.() ??
+                  'Something went wrong while loading sharing settings.'}
+              </div>
+              <Button
+                variant="secondary"
+                onClick={resetErrorBoundary}
+                data-testid="share-menu-error-retry"
+              >
+                {t['com.affine.error.retry']?.() ?? 'Retry'}
+              </Button>
+            </div>
+          );
+        }}
+      >
         <Suspense>
           <AFFiNESharePage {...props} />
         </Suspense>

@@ -20,6 +20,7 @@ import {
   LockIcon,
 } from '@blocksuite/icons/rc';
 import { useLiveData, useService } from '@toeverything/infra';
+import { assignInlineVars } from '@vanilla-extract/dynamic';
 import { cssVar } from '@toeverything/theme';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
@@ -84,7 +85,7 @@ function AnalyticsChartTooltip({
       <div className={styles.tooltipRow}>
         <span
           className={styles.legendDot}
-          style={{ backgroundColor: totalViewsColor }}
+          style={assignInlineVars({ [styles.legendDotColor]: totalViewsColor })}
           aria-hidden="true"
         />
         {t['com.affine.doc.analytics.chart.total-views']()}
@@ -95,7 +96,7 @@ function AnalyticsChartTooltip({
       <div className={styles.tooltipRow}>
         <span
           className={styles.legendDot}
-          style={{ backgroundColor: uniqueViewsColor }}
+          style={assignInlineVars({ [styles.legendDotColor]: uniqueViewsColor })}
           aria-hidden="true"
         />
         {t['com.affine.doc.analytics.chart.unique-views']()}
@@ -429,7 +430,7 @@ export const EditorAnalyticsPanel = ({
               <span className={styles.legendItem}>
                 <span
                   className={styles.legendDot}
-                  style={{ backgroundColor: totalViewsColor }}
+                  style={assignInlineVars({ [styles.legendDotColor]: totalViewsColor })}
                   aria-hidden="true"
                 />
                 {t['com.affine.doc.analytics.chart.total-views']()}
@@ -437,7 +438,7 @@ export const EditorAnalyticsPanel = ({
               <span className={styles.legendItem}>
                 <span
                   className={styles.legendDot}
-                  style={{ backgroundColor: uniqueViewsColor }}
+                  style={assignInlineVars({ [styles.legendDotColor]: uniqueViewsColor })}
                   aria-hidden="true"
                 />
                 {t['com.affine.doc.analytics.chart.unique-views']()}

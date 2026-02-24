@@ -50,6 +50,7 @@ export const AppContainer = ({
       })}
       data-noise-background={noisyBackground}
       data-translucent={blurBackground}
+      data-theme-variant="default"
     >
       <LayoutComponent fallback={fallback}>{children}</LayoutComponent>
     </div>

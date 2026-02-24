@@ -97,7 +97,8 @@ export class UserSubscriptionManager extends SubscriptionManager {
   async checkout(
     lookupKey: LookupKey,
     params: z.infer<typeof CheckoutParams>,
-    { user }: z.infer<typeof UserSubscriptionCheckoutArgs>
+    { user }: z.infer<typeof UserSubscriptionCheckoutArgs>,
+    idempotencyKey?: string
   ) {
     if (
       lookupKey.plan !== SubscriptionPlan.Pro &&
@@ -169,13 +170,29 @@ export class UserSubscriptionManager extends SubscriptionManager {
     })();
 
     const trials = (() => {
-      if (lookupKey.plan === SubscriptionPlan.AI && !strategy.aiSubscribed) {
-        return {
-          trial_period_days: 7,
-        } as Stripe.Checkout.SessionCreateParams.SubscriptionData;
+      const isFirstProTrial =
+        lookupKey.plan === SubscriptionPlan.Pro && !strategy.proSubscribed;
+      const isFirstAiTrial =
+        lookupKey.plan === SubscriptionPlan.AI && !strategy.aiSubscribed;
+
+      if (!isFirstProTrial && !isFirstAiTrial) {
+        return undefined;
       }
-      return undefined;
+
+      return {
+        trial_period_days: 14,
+      } as Stripe.Checkout.SessionCreateParams.SubscriptionData;
     })();
+
+    const paymentMethodCollection: Pick<
+      Stripe.Checkout.SessionCreateParams,
+      'payment_method_collection'
+    > = trials
+      ? {
+          // enforce credit card collection up-front for trials
+          payment_method_collection: 'always',
+        }
+      : {};
 
     // mode: 'subscription' or 'payment' for lifetime and onetime payment
     const mode =
@@ -194,18 +211,22 @@ export class UserSubscriptionManager extends SubscriptionManager {
             },
           };
 
-    return this.stripe.checkout.sessions.create({
-      customer: customer.stripeCustomerId,
-      line_items: [
-        {
-          price: price.price.id,
-          quantity: 1,
-        },
-      ],
-      ...mode,
-      ...discounts,
-      success_url: this.url.safeLink(params.successCallbackLink || '/'),
-    });
+    return this.stripe.checkout.sessions.create(
+      {
+        customer: customer.stripeCustomerId,
+        line_items: [
+          {
+            price: price.price.id,
+            quantity: 1,
+          },
+        ],
+        ...mode,
+        ...discounts,
+        ...paymentMethodCollection,
+        success_url: this.url.safeLink(params.successCallbackLink || '/'),
+      },
+      idempotencyKey ? { idempotencyKey } : undefined
+    );
   }
 
   async getSubscription(args: z.infer<typeof UserSubscriptionIdentity>) {

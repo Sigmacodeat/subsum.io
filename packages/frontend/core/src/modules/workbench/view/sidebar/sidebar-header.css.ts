@@ -23,6 +23,14 @@ export const spacer = style({
   minWidth: 12,
 });
 
+export const closeButton = style({
+  selectors: {
+    '&:focus-visible': {
+      boxShadow: `0 0 0 2px ${cssVar('primaryColor')}`,
+    },
+  },
+});
+
 export const standaloneExtensionSwitcherWrapper = style({
   display: 'flex',
   alignItems: 'center',

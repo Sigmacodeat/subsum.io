@@ -16,6 +16,16 @@ export interface PaymentStartupConfig {
     environment?: 'sandbox' | 'production';
     productMap?: Record<string, { plan: string; recurring: string }>;
   };
+  esign?: {
+    enabled?: boolean;
+    webhookSecret?: string;
+    /** allowed webhook timestamp age in seconds */
+    webhookToleranceSec?: number;
+    /** Optional downstream endpoint to forward validated webhook payloads */
+    relayEndpoint?: string;
+    /** Optional bearer token for relay endpoint */
+    relayAuthToken?: string;
+  };
 }
 
 export interface PaymentRuntimeConfig {
@@ -56,6 +66,18 @@ declare global {
         environment?: 'sandbox' | 'production';
         /** Product whitelist mapping: productId -> { plan, recurring } */
         productMap?: Record<string, { plan: string; recurring: string }>;
+      }>;
+      esign: ConfigItem<{
+        /** Whether enable eSign webhook endpoint */
+        enabled?: boolean;
+        /** Shared HMAC secret to verify webhook signatures */
+        webhookSecret?: string;
+        /** Allowed timestamp age in seconds for replay protection */
+        webhookToleranceSec?: number;
+        /** Optional downstream endpoint to forward validated webhook payloads */
+        relayEndpoint?: string;
+        /** Optional bearer token for relay endpoint */
+        relayAuthToken?: string;
       }>;
     };
   }
@@ -99,5 +121,15 @@ defineModuleConfig('payment', {
       productMap: {},
     },
     link: 'https://www.revenuecat.com/docs/',
+  },
+  esign: {
+    desc: 'eSign webhook integration configs',
+    default: {
+      enabled: false,
+      webhookSecret: '',
+      webhookToleranceSec: 300,
+      relayEndpoint: '',
+      relayAuthToken: '',
+    },
   },
 });

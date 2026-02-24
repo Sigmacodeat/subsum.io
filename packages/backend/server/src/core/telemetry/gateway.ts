@@ -34,7 +34,7 @@ export class TelemetryGateway {
     const origin = client.handshake.headers.origin;
     const referer = client.handshake.headers.referer;
     if (!this.telemetry.isOriginAllowed(origin, referer)) {
-      throw new BadRequest(`Invalid origin: ${origin}, referer: ${referer}`);
+      throw new BadRequest('Invalid origin');
     }
 
     const ack = await this.telemetry.collectBatch({

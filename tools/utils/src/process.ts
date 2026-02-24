@@ -5,7 +5,7 @@ import {
   type SpawnOptions,
 } from 'node:child_process';
 
-import { Logger } from './logger';
+import { Logger } from './logger.js';
 
 const children = new Set<ChildProcess>();
 

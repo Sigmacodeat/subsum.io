@@ -49,7 +49,9 @@ export class TelemetryService {
   isOriginAllowed(origin?: string | string[] | null, referer?: string | null) {
     const normalizedOrigin = Array.isArray(origin) ? origin[0] : origin;
     if (!normalizedOrigin && !referer) {
-      return true;
+      // No origin or referer means a direct/server-side request.
+      // Deny by default to prevent unauthenticated telemetry injection.
+      return false;
     }
 
     const originAllowed = normalizedOrigin

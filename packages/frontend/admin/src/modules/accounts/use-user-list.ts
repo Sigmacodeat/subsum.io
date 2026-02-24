@@ -1,4 +1,4 @@
-import { useQuery } from '@affine/admin/use-query';
+import { useQuery } from '../../use-query';
 import type { FeatureType } from '@affine/graphql';
 import { listUsersQuery } from '@affine/graphql';
 import { useEffect, useMemo, useState } from 'react';

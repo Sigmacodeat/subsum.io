@@ -1,7 +1,7 @@
 import { LeafPaths, LeafVisitor } from '../../base';
-import { DocRole, WorkspaceRole } from '../../models';
+import { DocRole, OrgRole, WorkspaceRole } from '../../models';
 
-export { DocRole, WorkspaceRole };
+export { DocRole, OrgRole, WorkspaceRole };
 /**
  * Definitions of all possible actions
  *
@@ -46,6 +46,33 @@ export const Actions = {
     },
   },
 
+  // Organization Actions
+  Organization: {
+    Read: '',
+    Update: '',
+    Delete: '',
+    TransferOwner: '',
+    Members: {
+      Read: '',
+      Invite: '',
+      Manage: '',
+      Remove: '',
+    },
+    Workspaces: {
+      Read: '',
+      Assign: '',
+      Unassign: '',
+      Create: '',
+    },
+    Settings: {
+      Read: '',
+      Update: '',
+    },
+    Billing: {
+      Manage: '',
+    },
+  },
+
   // Doc Actions
   Doc: {
     Read: '',
@@ -76,6 +103,37 @@ export const Actions = {
 } as const;
 
 export const RoleActionsMap = {
+  OrgRole: {
+    get [OrgRole.Member]() {
+      return [
+        Action.Organization.Read,
+        Action.Organization.Members.Read,
+        Action.Organization.Workspaces.Read,
+        Action.Organization.Settings.Read,
+      ];
+    },
+    get [OrgRole.Admin]() {
+      return [
+        ...this[OrgRole.Member],
+        Action.Organization.Update,
+        Action.Organization.Members.Invite,
+        Action.Organization.Members.Manage,
+        Action.Organization.Members.Remove,
+        Action.Organization.Workspaces.Assign,
+        Action.Organization.Workspaces.Unassign,
+        Action.Organization.Workspaces.Create,
+        Action.Organization.Settings.Update,
+      ];
+    },
+    get [OrgRole.Owner]() {
+      return [
+        ...this[OrgRole.Admin],
+        Action.Organization.Delete,
+        Action.Organization.TransferOwner,
+        Action.Organization.Billing.Manage,
+      ];
+    },
+  },
   WorkspaceRole: {
     get [WorkspaceRole.External]() {
       return [
@@ -165,9 +223,11 @@ export const RoleActionsMap = {
 type ResourceActionName<T extends keyof typeof Actions> =
   `${T}.${LeafPaths<(typeof Actions)[T]>}`;
 
+export type OrgAction = ResourceActionName<'Organization'>;
 export type WorkspaceAction = ResourceActionName<'Workspace'>;
 export type DocAction = ResourceActionName<'Doc'>;
-export type Action = WorkspaceAction | DocAction;
+export type Action = OrgAction | WorkspaceAction | DocAction;
+export type OrgActionPermissions = Record<OrgAction, boolean>;
 export type WorkspaceActionPermissions = Record<WorkspaceAction, boolean>;
 export type DocActionPermissions = Record<DocAction, boolean>;
 
@@ -207,9 +267,27 @@ export const Action: LeafVisitor<typeof Actions> = buildPathReader(
   val => typeof val === 'string'
 );
 
+export const ORG_ACTIONS = RoleActionsMap.OrgRole[OrgRole.Owner];
 export const WORKSPACE_ACTIONS =
   RoleActionsMap.WorkspaceRole[WorkspaceRole.Owner];
 export const DOC_ACTIONS = RoleActionsMap.DocRole[DocRole.Owner];
+
+export function mapOrgRoleToPermissions(orgRole: OrgRole | null) {
+  const permissions = ORG_ACTIONS.reduce((map, action) => {
+    map[action] = false;
+    return map;
+  }, {} as OrgActionPermissions);
+
+  if (orgRole === null) {
+    return permissions;
+  }
+
+  RoleActionsMap.OrgRole[orgRole].forEach(action => {
+    permissions[action] = true;
+  });
+
+  return permissions;
+}
 
 export function mapWorkspaceRoleToPermissions(
   workspaceRole: WorkspaceRole | null

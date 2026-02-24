@@ -4,14 +4,10 @@ import { isNil, pick, pickBy } from 'lodash-es';
 import type { ParsedQuery, ParseOptions } from 'query-string';
 import queryString from 'query-string';
 
+import { isSubsumioAppLikeOrigin } from '../../utils/subsumio-domains';
+
 function maybeAffineOrigin(origin: string, baseUrl: string) {
-  return (
-    origin.startsWith('assets://') ||
-    origin.endsWith('affine.pro') || // stable/beta
-    origin.endsWith('apple.getaffineapp.com') || // stable/beta
-    origin.endsWith('affine.fail') || // canary
-    origin === baseUrl // localhost or self-hosted
-  );
+  return isSubsumioAppLikeOrigin(origin, baseUrl);
 }
 
 export const resolveRouteLinkMeta = (

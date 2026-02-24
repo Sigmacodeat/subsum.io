@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { once } from 'lodash-es';
 import { type BuiltInParserName, format } from 'prettier';
 
-import { ProjectRoot } from './path';
+import { ProjectRoot } from './path.js';
 
 const readConfig = once(() => {
   const path = ProjectRoot.join('.prettierrc').value;

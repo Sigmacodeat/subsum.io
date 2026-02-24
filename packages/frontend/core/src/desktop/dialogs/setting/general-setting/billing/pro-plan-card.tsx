@@ -1,6 +1,6 @@
 import { Button } from '@affine/component';
 import { SettingRow } from '@affine/component/setting-components';
-import { SubscriptionService } from '@affine/core/modules/cloud';
+import { getPlanMarketingName, SubscriptionService } from '@affine/core/modules/cloud';
 import {
   SubscriptionPlan,
   SubscriptionRecurring,
@@ -50,6 +50,7 @@ export const ProPlanCard = ({
   const proPrice = useLiveData(subscriptionService.prices.proPrice$);
 
   const currentPlan = proSubscription?.plan ?? SubscriptionPlan.Free;
+  const currentPlanName = getPlanMarketingName(t, currentPlan);
   const currentRecurring =
     proSubscription?.recurring ?? SubscriptionRecurring.Monthly;
 
@@ -77,7 +78,7 @@ export const ProPlanCard = ({
               <Trans
                 i18nKey={getMessageKey(currentPlan, currentRecurring)}
                 values={{
-                  planName: currentPlan,
+                  planName: currentPlanName,
                 }}
                 components={{
                   1: (
@@ -107,6 +108,7 @@ export const ProPlanCard = ({
             : t['com.affine.payment.billing-setting.year']()}
         </span>
       </p>
+      <p>{t['com.affine.payment.money-back-guarantee']()}</p>
     </div>
   );
 };
@@ -151,7 +153,7 @@ const PlanAction = ({
   subscriptionStatus,
   gotoPlansSetting,
 }: {
-  plan: string;
+  plan: SubscriptionPlan;
   gotoPlansSetting: () => void;
   subscriptionStatus?: SubscriptionStatus;
 }) => {

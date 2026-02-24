@@ -1,0 +1,3 @@
+mutation assignWorkspaceToOrg($organizationId: String!, $workspaceId: String!) {
+  assignWorkspaceToOrg(organizationId: $organizationId, workspaceId: $workspaceId)
+}

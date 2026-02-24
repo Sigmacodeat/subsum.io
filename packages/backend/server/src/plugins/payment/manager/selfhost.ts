@@ -63,7 +63,8 @@ export class SelfhostTeamSubscriptionManager extends SubscriptionManager {
   async checkout(
     lookupKey: LookupKey,
     params: z.infer<typeof CheckoutParams>,
-    args: z.infer<typeof SelfhostTeamCheckoutArgs>
+    args: z.infer<typeof SelfhostTeamCheckoutArgs>,
+    idempotencyKey?: string
   ) {
     const { quantity } = args;
 
@@ -96,24 +97,27 @@ export class SelfhostTeamSubscriptionManager extends SubscriptionManager {
       false
     );
 
-    return this.stripe.checkout.sessions.create({
-      line_items: [
-        {
-          price: price.price.id,
-          quantity,
-          adjustable_quantity: {
-            enabled: true,
-            minimum: 1,
+    return this.stripe.checkout.sessions.create(
+      {
+        line_items: [
+          {
+            price: price.price.id,
+            quantity,
+            adjustable_quantity: {
+              enabled: true,
+              minimum: 1,
+            },
           },
+        ],
+        tax_id_collection: {
+          enabled: true,
         },
-      ],
-      tax_id_collection: {
-        enabled: true,
+        ...discounts,
+        mode: 'subscription',
+        success_url: successUrl,
       },
-      ...discounts,
-      mode: 'subscription',
-      success_url: successUrl,
-    });
+      idempotencyKey ? { idempotencyKey } : undefined
+    );
   }
 
   async saveStripeSubscription(subscription: KnownStripeSubscription) {

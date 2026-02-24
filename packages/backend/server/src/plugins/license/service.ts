@@ -243,12 +243,28 @@ export class LicenseService {
   async deactivateTeamLicense(license: InstalledLicense) {
     await this.fetchAffinePro(`/api/team/licenses/${license.key}/deactivate`, {
       method: 'POST',
+      headers: {
+        'x-validate-key': license.validateKey,
+      },
     });
   }
 
   async updateTeamRecurring(key: string, recurring: SubscriptionRecurring) {
+    const license = await this.db.installedLicense.findUnique({
+      where: {
+        key,
+      },
+    });
+
+    if (!license) {
+      throw new LicenseNotFound();
+    }
+
     await this.fetchAffinePro(`/api/team/licenses/${key}/recurring`, {
       method: 'POST',
+      headers: {
+        'x-validate-key': license.validateKey,
+      },
       body: JSON.stringify({
         recurring,
       }),
@@ -270,6 +286,9 @@ export class LicenseService {
       `/api/team/licenses/${license.key}/create-customer-portal`,
       {
         method: 'POST',
+        headers: {
+          'x-validate-key': license.validateKey,
+        },
       }
     );
   }
@@ -300,6 +319,9 @@ export class LicenseService {
     const count = await this.models.workspaceUser.chargedCount(workspaceId);
     await this.fetchAffinePro(`/api/team/licenses/${license.key}/seats`, {
       method: 'POST',
+      headers: {
+        'x-validate-key': license.validateKey,
+      },
       body: JSON.stringify({
         seats: count,
       }),

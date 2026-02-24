@@ -76,6 +76,17 @@ jobs:
         with:
           electron-install: false
           full-cache: true
+      - name: Validate marketing localization SEO integrity
+        run: node ./packages/frontend/apps/marketing/scripts/validate-localization-seo.mjs
+      - name: Generate localization SEO coverage report
+        run: node ./packages/frontend/apps/marketing/scripts/generate-localization-seo-report.mjs
+      - name: Upload localization SEO coverage report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: localization-seo-coverage-report
+          path: packages/frontend/apps/marketing/LOCALIZATION_SEO_COVERAGE.md
+          if-no-files-found: warn
       - name: Run i18n codegen
         run: yarn affine @affine/i18n build
       - name: Run ESLint
@@ -485,7 +496,7 @@ jobs:
           electron-install: false
       - name: Setup filename
         id: filename
-        working-directory: ${{ env.DEV_DRIVE_WORKSPACE }}
+        working-directory: ${{ env.DEV_DRIVE_WORKSPACE || github.workspace }}
         shell: bash
         run: |
           export PLATFORM_ARCH_ABI=$(node -e "console.log(require('@napi-rs/cli').parseTriple('${{ matrix.spec.target }}').platformArchABI)")
@@ -500,7 +511,7 @@ jobs:
         if: always()
         with:
           name: ${{ steps.filename.outputs.filename }}
-          path: ${{ env.DEV_DRIVE_WORKSPACE }}/packages/frontend/native/${{ steps.filename.outputs.filename }}
+          path: ${{ (env.DEV_DRIVE_WORKSPACE || github.workspace) }}/packages/frontend/native/${{ steps.filename.outputs.filename }}
           if-no-files-found: error
 
   build-server-native:

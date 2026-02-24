@@ -1,10 +1,20 @@
 import { cssVarV2 } from '@toeverything/theme/v2';
 import { style } from '@vanilla-extract/css';
 
+import {
+  glassFill,
+  glassStroke,
+  interactionTransition,
+} from '../layouts/workspace-list-shared-styles';
+
 export const root = style({
   position: 'relative',
   height: '100%',
   width: '100%',
+  borderBottom: `0.5px solid ${glassStroke}`,
+  background:
+    'linear-gradient(180deg, color-mix(in srgb, var(--affine-background-primary-color) 90%, transparent) 0%, color-mix(in srgb, var(--affine-background-primary-color) 76%, transparent) 100%)',
+  backdropFilter: 'blur(16px) saturate(145%)',
 });
 
 export const header = style({
@@ -13,6 +23,7 @@ export const header = style({
   width: '100%',
   alignItems: 'center',
   gap: 12,
+  padding: '0 10px',
   containerName: 'detail-page-header',
   containerType: 'inline-size',
 });
@@ -32,6 +43,12 @@ export const iconButtonContainer = style({
   display: 'flex',
   alignItems: 'center',
   gap: 10,
+  padding: '2px 8px',
+  borderRadius: 12,
+  border: `0.5px solid ${glassStroke}`,
+  background: `${glassFill}, color-mix(in srgb, ${cssVarV2('layer/background/secondary')} 90%, transparent)`,
+  backdropFilter: 'blur(12px) saturate(140%)',
+  transition: interactionTransition,
 });
 
 export const dragHandle = style({
@@ -75,4 +92,9 @@ export const journalTemplateMark = style({
       display: 'none',
     },
   },
+});
+
+export const verticalDivider = style({
+  height: 20,
+  marginLeft: 4,
 });

@@ -1,5 +1,7 @@
 import { cssVar } from '@toeverything/theme';
-import { style } from '@vanilla-extract/css';
+import { createVar, style } from '@vanilla-extract/css';
+
+export const legendDotColor = createVar('legend-dot-color');
 
 export const root = style({
   display: 'flex',
@@ -126,6 +128,7 @@ export const legendDot = style({
   width: '8px',
   height: '8px',
   borderRadius: '50%',
+  backgroundColor: legendDotColor,
 });
 
 export const tooltip = style({

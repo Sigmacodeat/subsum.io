@@ -17,6 +17,9 @@ import { PageDetailEditor } from '@affine/core/components/page-detail-editor';
 import { WorkspacePropertySidebar } from '@affine/core/components/properties/sidebar';
 import { TrashPageFooter } from '@affine/core/components/pure/trash-page-footer';
 import { TopTip } from '@affine/core/components/top-tip';
+import { CaseAssistantService } from '@affine/core/modules/case-assistant';
+import { CaseAssistantStore } from '@affine/core/modules/case-assistant/stores/case-assistant';
+import type { MatterRecord } from '@affine/core/modules/case-assistant/types';
 import { ServerService } from '@affine/core/modules/cloud';
 import { DocService } from '@affine/core/modules/doc';
 import { EditorService } from '@affine/core/modules/editor';
@@ -47,6 +50,7 @@ import {
   CommentIcon,
   ExportIcon,
   FrameIcon,
+  NotificationIcon,
   PropertyIcon,
   TocIcon,
   TodayIcon,
@@ -60,7 +64,7 @@ import {
 import clsx from 'clsx';
 import { nanoid } from 'nanoid';
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import type { Subscription } from 'rxjs';
 
 import { PageNotFound } from '../../404';
@@ -69,10 +73,28 @@ import { DetailPageHeader } from './detail-page-header';
 import { DetailPageWrapper } from './detail-page-wrapper';
 import { EditorAdapterPanel } from './tabs/adapter';
 import { EditorAnalyticsPanel } from './tabs/analytics';
+import { EditorCaseAssistantPanel } from './tabs/case-assistant';
+import type { SidebarSectionId } from './tabs/case-assistant/panel-types';
 import { EditorChatPanel } from './tabs/chat';
 import { EditorFramePanel } from './tabs/frame';
 import { EditorJournalPanel } from './tabs/journal';
 import { EditorOutlinePanel } from './tabs/outline';
+
+const ANWALTS_WORKFLOW_TAB_IDS = [
+  'wiedervorlage',
+  'notizen',
+  'vollmachten',
+  'zeiten',
+  'termine',
+  'kalender',
+  'finanzen',
+  'konflikte',
+] as const;
+type AnwaltsWorkflowTabId = (typeof ANWALTS_WORKFLOW_TAB_IDS)[number];
+
+function isAnwaltsWorkflowTabId(value: string): value is AnwaltsWorkflowTabId {
+  return ANWALTS_WORKFLOW_TAB_IDS.includes(value as AnwaltsWorkflowTabId);
+}
 
 const DetailPageImpl = memo(function DetailPageImpl() {
   const {
@@ -99,6 +121,147 @@ const DetailPageImpl = memo(function DetailPageImpl() {
 
   const mode = useLiveData(editor.mode$);
   const activeSidebarTab = useLiveData(view.activeSidebarTab$);
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  const preselectedMatterId = new URLSearchParams(location.search).get('caMatterId') ?? undefined;
+  const preselectedClientId = new URLSearchParams(location.search).get('caClientId') ?? undefined;
+  const preselectedOnboardingFlow = (() => {
+    const value = new URLSearchParams(location.search).get('caOnboarding');
+    return value === 'documents-first' || value === 'manual'
+      ? value
+      : undefined;
+  })();
+  const preselectedSidebarSection = (() => {
+    const value = new URLSearchParams(location.search).get('caSidebar');
+    return value === 'anwalts-workflow'
+      ? (value as SidebarSectionId)
+      : undefined;
+  })();
+  const preselectedAnwaltsWorkflowTab = (() => {
+    const value = new URLSearchParams(location.search).get('caWorkflowTab');
+    if (!value) {
+      return undefined;
+    }
+    return isAnwaltsWorkflowTabId(value) ? value : undefined;
+  })();
+  const preselectedDeadlineId =
+    new URLSearchParams(location.search).get('caDeadlineId')?.trim() || undefined;
+
+  // Persist matter/client IDs in state so they survive URL param cleanup
+  const [persistedMatterId, setPersistedMatterId] = useState<string | undefined>(preselectedMatterId);
+  const [persistedClientId, setPersistedClientId] = useState<string | undefined>(preselectedClientId);
+  const [persistedOnboardingFlow, setPersistedOnboardingFlow] = useState<
+    'manual' | 'documents-first' | undefined
+  >(preselectedOnboardingFlow);
+  const [persistedSidebarSection, setPersistedSidebarSection] = useState<SidebarSectionId | undefined>(
+    preselectedSidebarSection
+  );
+  const [persistedAnwaltsWorkflowTab, setPersistedAnwaltsWorkflowTab] = useState<
+    AnwaltsWorkflowTabId | undefined
+  >(preselectedAnwaltsWorkflowTab);
+  const [persistedDeadlineId, setPersistedDeadlineId] = useState<string | undefined>(
+    preselectedDeadlineId
+  );
+  useEffect(() => {
+    if (preselectedMatterId) setPersistedMatterId(preselectedMatterId);
+    if (preselectedClientId) setPersistedClientId(preselectedClientId);
+    if (preselectedOnboardingFlow) setPersistedOnboardingFlow(preselectedOnboardingFlow);
+    if (preselectedSidebarSection) setPersistedSidebarSection(preselectedSidebarSection);
+    if (preselectedAnwaltsWorkflowTab) {
+      setPersistedAnwaltsWorkflowTab(preselectedAnwaltsWorkflowTab);
+    }
+    if (preselectedDeadlineId) setPersistedDeadlineId(preselectedDeadlineId);
+  }, [
+    preselectedMatterId,
+    preselectedClientId,
+    preselectedOnboardingFlow,
+    preselectedSidebarSection,
+    preselectedAnwaltsWorkflowTab,
+    preselectedDeadlineId,
+  ]);
+
+  const caStore = useService(CaseAssistantStore);
+  const caGraph = useLiveData(caStore.watchGraph());
+  const akteContext = persistedMatterId
+    ? (caGraph?.matters?.[persistedMatterId] as MatterRecord | undefined)
+    : undefined;
+
+  const hasAutoOpenedOnboardingSidebarRef = useRef(false);
+  const hasAutoOpenedDeepLinkedSidebarRef = useRef(false);
+
+  useEffect(() => {
+    if (
+      !preselectedMatterId &&
+      !preselectedClientId &&
+      !preselectedOnboardingFlow &&
+      !preselectedSidebarSection &&
+      !preselectedAnwaltsWorkflowTab &&
+      !preselectedDeadlineId
+    ) {
+      return;
+    }
+
+    const params = new URLSearchParams(location.search);
+    const hadMatter = params.has('caMatterId');
+    const hadClient = params.has('caClientId');
+    const hadOnboarding = params.has('caOnboarding');
+    const hadSidebar = params.has('caSidebar');
+    const hadWorkflowTab = params.has('caWorkflowTab');
+    const hadDeadlineId = params.has('caDeadlineId');
+    params.delete('caMatterId');
+    params.delete('caClientId');
+    params.delete('caOnboarding');
+    params.delete('caSidebar');
+    params.delete('caWorkflowTab');
+    params.delete('caDeadlineId');
+    if (!hadMatter && !hadClient && !hadOnboarding && !hadSidebar && !hadWorkflowTab && !hadDeadlineId) {
+      return;
+    }
+
+    const nextSearch = params.toString();
+    navigate(
+      {
+        pathname: location.pathname,
+        search: nextSearch ? `?${nextSearch}` : '',
+      },
+      { replace: true }
+    );
+  }, [
+    location.pathname,
+    location.search,
+    navigate,
+    preselectedClientId,
+    preselectedMatterId,
+    preselectedOnboardingFlow,
+    preselectedSidebarSection,
+    preselectedAnwaltsWorkflowTab,
+    preselectedDeadlineId,
+  ]);
+
+  useEffect(() => {
+    if (hasAutoOpenedOnboardingSidebarRef.current) {
+      return;
+    }
+    if (!persistedOnboardingFlow) {
+      return;
+    }
+    hasAutoOpenedOnboardingSidebarRef.current = true;
+    workbench.openSidebar();
+    view.activeSidebarTab('case-assistant');
+  }, [persistedOnboardingFlow, view, workbench]);
+
+  useEffect(() => {
+    if (hasAutoOpenedDeepLinkedSidebarRef.current) {
+      return;
+    }
+    if (!persistedSidebarSection && !persistedAnwaltsWorkflowTab && !persistedDeadlineId) {
+      return;
+    }
+    hasAutoOpenedDeepLinkedSidebarRef.current = true;
+    workbench.openSidebar();
+    view.activeSidebarTab('case-assistant');
+  }, [persistedSidebarSection, persistedAnwaltsWorkflowTab, persistedDeadlineId, view, workbench]);
 
   const isInTrash = useLiveData(doc.meta$.map(meta => meta.trash));
   const editorContainer = useLiveData(editor.editorContainer$);
@@ -107,6 +270,7 @@ const DetailPageImpl = memo(function DetailPageImpl() {
   const { appSettings } = useAppSettingHelper();
 
   const peekView = useService(PeekViewService).peekView;
+  useService(CaseAssistantService);
 
   const isActiveView = useIsActiveView();
   // TODO(@eyhn): remove jotai here
@@ -336,6 +500,32 @@ const DetailPageImpl = memo(function DetailPageImpl() {
           data-dynamic-top-border={BUILD_CONFIG.isElectron}
           data-has-scroll-top={hasScrollTop}
         >
+          {/* Akte context banner – shows when document opened from Akte */}
+          {akteContext && persistedMatterId && (
+            <div className={styles.akteContextBanner}>
+              <span>📁</span>
+              <span>Dokument in Akte:</span>
+              <span
+                className={styles.akteContextLink}
+                role="button"
+                tabIndex={0}
+                onClick={() => workbench.open(`/akten/${persistedMatterId}`)}
+              >
+                {akteContext.externalRef ? `${akteContext.externalRef} — ` : ''}
+                {akteContext.title}
+              </span>
+              <span style={{ marginLeft: 'auto', fontSize: 12 }}>
+                <span
+                  className={styles.akteContextLink}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => workbench.open(`/akten/${persistedMatterId}`)}
+                >
+                  ← Zurück zur Akte
+                </span>
+              </span>
+            </div>
+          )}
           {/* Add a key to force rerender when page changed, to avoid error boundary persisting. */}
           <AffineErrorBoundary key={doc.id}>
             <TopTip pageId={doc.id} workspace={workspace} />
@@ -378,6 +568,32 @@ const DetailPageImpl = memo(function DetailPageImpl() {
           <EditorChatPanel editor={editorContainer} />
         </ViewSidebarTab>
       )}
+
+      <ViewSidebarTab
+        tabId="case-assistant"
+        icon={<NotificationIcon />}
+        unmountOnInactive={false}
+      >
+        <Scrollable.Root className={styles.sidebarScrollArea}>
+          <Scrollable.Viewport>
+            <EditorCaseAssistantPanel
+              caseId={doc.id}
+              workspaceId={workspace.id}
+              title={doc.title$.value ?? 'Untitled Case'}
+              sourceDoc={doc.blockSuiteDoc}
+              editorContainer={editorContainer}
+              variant="operations"
+              initialSidebarSection={persistedSidebarSection ?? 'cockpit'}
+              initialSelectedMatterId={persistedMatterId}
+              initialSelectedClientId={persistedClientId}
+              initialOnboardingFlow={persistedOnboardingFlow}
+              initialAnwaltsWorkflowTab={persistedAnwaltsWorkflowTab}
+              initialDeadlineId={persistedDeadlineId}
+            />
+          </Scrollable.Viewport>
+          <Scrollable.Scrollbar />
+        </Scrollable.Root>
+      </ViewSidebarTab>
 
       <ViewSidebarTab tabId="properties" icon={<PropertyIcon />}>
         <Scrollable.Root className={styles.sidebarScrollArea}>

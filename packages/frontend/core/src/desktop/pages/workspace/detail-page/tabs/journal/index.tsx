@@ -38,6 +38,7 @@ import type { HTMLAttributes, PropsWithChildren, ReactNode } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { CalendarEvents } from './calendar-events';
+import { LegalCalendarEvents } from './legal-calendar-events';
 import * as styles from './journal.css';
 import { JournalTemplateOnboarding } from './template-onboarding';
 import { JournalTemplateSetting } from './template-setting';
@@ -297,6 +298,7 @@ export const EditorJournalPanel = () => {
       <JournalTemplateOnboarding />
       <JournalConflictBlock date={selectedDate} />
       <CalendarEvents date={selectedDate} />
+      <LegalCalendarEvents date={selectedDate} />
       <JournalDailyCountBlock date={selectedDate} />
       <JournalTemplateSetting />
     </div>

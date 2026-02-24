@@ -102,6 +102,10 @@ export abstract class CopilotProvider<C = any> {
 
   async refreshOnlineModels() {}
 
+  getOnlineModelIds(): string[] {
+    return [...this.onlineModelList];
+  }
+
   private findValidModel(
     cond: ModelFullConditions
   ): CopilotProviderModel | undefined {

@@ -17,3 +17,9 @@ export enum WorkspaceRole {
   Admin = 10,
   Owner = 99,
 }
+
+export enum OrgRole {
+  Member = 1,
+  Admin = 10,
+  Owner = 99,
+}

@@ -20,6 +20,7 @@ import { AuthService, ServerService } from '../../../../modules/cloud';
 import type { SettingSidebarItem, SettingState } from '../types';
 import { AboutAffine } from './about';
 import { AppearanceSettings } from './appearance';
+import { AffiliateSettings } from './affiliate';
 import { BackupSettingPanel } from './backup';
 import { BillingSettings } from './billing';
 import { EditorSettings } from './editor';
@@ -122,6 +123,12 @@ export const useGeneralSettingList = (): GeneralSettingList => {
           icon: <PaymentIcon />,
           testId: 'billing-panel-trigger',
         });
+        settings.splice(5, 0, {
+          key: 'affiliate',
+          title: 'Affiliate Program',
+          icon: <UpgradeIcon />,
+          testId: 'affiliate-panel-trigger',
+        });
       }
     }
 
@@ -184,6 +191,8 @@ export const GeneralSetting = ({
       return <AFFiNEPricingPlans />;
     case 'billing':
       return <BillingSettings onChangeSettingState={onChangeSettingState} />;
+    case 'affiliate':
+      return <AffiliateSettings />;
     case 'experimental-features':
       return <ExperimentalFeatures />;
     case 'backup':

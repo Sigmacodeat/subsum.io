@@ -20,6 +20,7 @@ import {
   CalendarProviderName,
   CalendarSyncTokenInvalid,
 } from '../providers';
+import { CalendarOAuthService } from '../oauth';
 import type {
   CalendarProviderListCalendarsParams,
   CalendarProviderListEventsParams,
@@ -85,6 +86,7 @@ const module = await createModule({
   ],
 });
 const calendarService = module.get(CalendarService);
+const calendarOAuthService = module.get(CalendarOAuthService);
 const providerFactory = module.get(CalendarProviderFactory);
 const models = module.get(Models);
 module.get(CryptoHelper).onConfigInit();
@@ -155,6 +157,13 @@ test.afterEach.always(() => {
 
 test.after.always(async () => {
   await module.close();
+});
+
+test('calendar oauth state should reject 36 chars non-uuid', t => {
+  const forged = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+
+  t.is(forged.length, 36);
+  t.false(calendarOAuthService.isValidState(forged));
 });
 
 test('listAccounts includes calendars count', async t => {

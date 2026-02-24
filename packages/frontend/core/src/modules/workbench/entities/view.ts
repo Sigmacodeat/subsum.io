@@ -113,11 +113,24 @@ export class View extends Entity<{
       replace?: boolean;
     } = {}
   ) {
-    const oldQueryStrings = queryString.parse(location.search, {
+    const oldQueryStrings = queryString.parse(this.history.location.search, {
       parseBooleans: true,
       parseNumbers: parseNumbers,
     });
-    const newQueryStrings = { ...oldQueryStrings, ...patch };
+    const newQueryStrings = { ...oldQueryStrings, ...patch } as Record<
+      string,
+      unknown
+    >;
+
+    for (const [key, value] of Object.entries(newQueryStrings)) {
+      if (value === undefined || value === null || value === '') {
+        delete newQueryStrings[key];
+        continue;
+      }
+      if (Array.isArray(value) && value.length === 0) {
+        delete newQueryStrings[key];
+      }
+    }
 
     if (forceUpdate || !isEqual(oldQueryStrings, newQueryStrings)) {
       const search = queryString.stringify(newQueryStrings);

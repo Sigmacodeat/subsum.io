@@ -131,6 +131,7 @@ export class WorkspaceMemberResolver {
     }
   }
 
+  @Throttle('strict')
   @Mutation(() => [InviteResult])
   async inviteMembers(
     @CurrentUser() me: CurrentUser,
@@ -261,6 +262,7 @@ export class WorkspaceMemberResolver {
     return null;
   }
 
+  @Throttle('strict')
   @Mutation(() => InviteLink)
   async createInviteLink(
     @CurrentUser() user: CurrentUser,
@@ -299,6 +301,7 @@ export class WorkspaceMemberResolver {
     };
   }
 
+  @Throttle('strict')
   @Mutation(() => Boolean)
   async revokeInviteLink(
     @CurrentUser() user: CurrentUser,
@@ -484,6 +487,7 @@ export class WorkspaceMemberResolver {
     return true;
   }
 
+  @Throttle('strict')
   @Mutation(() => Boolean)
   @Public()
   async acceptInviteById(

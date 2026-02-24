@@ -3,13 +3,16 @@ import {
   SettingHeader,
   SettingWrapper,
 } from '@affine/component/setting-components';
+import { SWRErrorBoundary } from '@affine/core/components/pure/swr-error-bundary';
 import { SubscriptionService } from '@affine/core/modules/cloud';
 import { useI18n } from '@affine/i18n';
 import { track } from '@affine/track';
 import { useLiveData, useService } from '@toeverything/infra';
 import { useCallback, useEffect } from 'react';
+import type { FallbackProps } from 'react-error-boundary';
 
 import type { SettingState } from '../../types';
+import AddonManagementSection from '../../../../../modules/case-assistant/sections/addon-management-section';
 import { AIPlanCard } from './ai-plan-card';
 import { BelieverIdentifier } from './biliever-identifier';
 import { BillingHistory } from './billing-history';
@@ -17,6 +20,32 @@ import { PaymentMethod } from './payment-method';
 import { ProPlanCard } from './pro-plan-card';
 import * as styles from './style.css';
 import { TypeformLink } from './typeform-link';
+
+const BillingErrorFallback = ({ resetErrorBoundary }: FallbackProps) => {
+  const t = useI18n();
+  return (
+    <SettingWrapper
+      title={t['com.affine.payment.billing-setting.information']()}
+    >
+      <div
+        style={{
+          padding: '16px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '8px',
+        }}
+      >
+        <span>{t['com.affine.payment.plans-error-tip']()}</span>
+        <a
+          onClick={resetErrorBoundary}
+          style={{ cursor: 'pointer', textDecoration: 'underline' }}
+        >
+          {t['com.affine.payment.plans-error-retry']()}
+        </a>
+      </div>
+    </SettingWrapper>
+  );
+};
 
 export const BillingSettings = ({
   onChangeSettingState,
@@ -26,7 +55,7 @@ export const BillingSettings = ({
   const t = useI18n();
 
   return (
-    <>
+    <SWRErrorBoundary FallbackComponent={BillingErrorFallback}>
       <SettingHeader
         title={t['com.affine.payment.billing-setting.title']()}
         subtitle={t['com.affine.payment.billing-setting.subtitle']()}
@@ -36,10 +65,13 @@ export const BillingSettings = ({
       >
         <SubscriptionSettings onChangeSettingState={onChangeSettingState} />
       </SettingWrapper>
+      <SettingWrapper title="Power-Add-ons">
+        <AddonManagementSection />
+      </SettingWrapper>
       <SettingWrapper title={t['com.affine.payment.billing-setting.history']()}>
         <BillingHistory />
       </SettingWrapper>
-    </>
+    </SWRErrorBoundary>
   );
 };
 

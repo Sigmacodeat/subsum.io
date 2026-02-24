@@ -1,0 +1,3 @@
+mutation inviteOrgMember($input: InviteOrgMemberInput!) {
+  inviteOrgMember(input: $input)
+}

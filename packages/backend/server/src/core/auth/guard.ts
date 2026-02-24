@@ -4,7 +4,7 @@ import type {
   FactoryProvider,
   OnModuleInit,
 } from '@nestjs/common';
-import { Injectable, SetMetadata } from '@nestjs/common';
+import { Injectable, Logger, SetMetadata } from '@nestjs/common';
 import { ModuleRef, Reflector } from '@nestjs/core';
 import type { Request, Response } from 'express';
 import semver from 'semver';
@@ -34,6 +34,7 @@ const INTERNAL_ACCESS_TOKEN_CLOCK_SKEW_MS = 30 * 1000;
 @Injectable()
 export class AuthGuard implements CanActivate, OnModuleInit {
   private auth!: AuthService;
+  private readonly logger = new Logger(AuthGuard.name);
   private readonly cachedVersionRange = new Map<string, semver.Range | null>();
   private static readonly HARD_REQUIRED_VERSION = '>=0.25.0';
   private static readonly CANARY_REQUIRED_VERSION = 'canary (within 2 months)';
@@ -140,6 +141,11 @@ export class AuthGuard implements CanActivate, OnModuleInit {
 
         const versionCheckResult = this.checkClientVersion(clientVersion);
         if (!versionCheckResult.ok) {
+          this.logger.warn(
+            `Client version rejected: clientVersion=${clientVersion ?? 'unset'} ` +
+              `requiredVersion=${versionCheckResult.requiredVersion} ` +
+              `userId=${userSession.user.id}`
+          );
           await this.auth.signOut(userSession.session.sessionId);
           if (res) {
             await this.auth.refreshCookies(res, userSession.session.sessionId);
@@ -289,7 +295,11 @@ export const AuthWebsocketOptionsProvider: FactoryProvider = {
         const session = await (async () => {
           try {
             return await guard.signIn(upgradeReq);
-          } catch {
+          } catch (error) {
+            new Logger(AuthGuard.name).warn('WebSocket authentication failed', {
+              socketId: socket.id,
+              error: error instanceof Error ? error.message : String(error),
+            });
             return null;
           }
         })();

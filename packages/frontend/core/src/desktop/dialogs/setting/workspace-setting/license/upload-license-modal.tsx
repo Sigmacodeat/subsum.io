@@ -70,7 +70,6 @@ export const UploadLicenseModal = ({
       } catch (e) {
         const err = UserFriendlyError.fromAny(e);
         onOpenChange(false);
-        console.error(err);
         openConfirmModal({
           title:
             t[
@@ -115,7 +114,10 @@ export const UploadLicenseModal = ({
         }
       })
       .catch(err => {
-        console.error(err);
+        notify.error({
+          title: 'Copy failed',
+          message: String(err),
+        });
       });
   }, [t, workspace.id]);
 

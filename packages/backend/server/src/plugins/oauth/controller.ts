@@ -22,6 +22,7 @@ import {
   OauthAccountAlreadyConnected,
   OauthStateExpired,
   SignUpForbidden,
+  Throttle,
   UnknownOauthProvider,
   URLHelper,
   UseNamedGuard,
@@ -47,6 +48,7 @@ export class OAuthController {
   ) {}
 
   @Public()
+  @Throttle('strict')
   @UseNamedGuard('version')
   @Post('/preflight')
   @HttpCode(HttpStatus.OK)
@@ -118,6 +120,7 @@ export class OAuthController {
   // let's simply ignore it for callback which will block apple oauth post_form mode
   // @UseNamedGuard('version')
   @Public()
+  @Throttle('strict')
   @Post('/callback')
   @HttpCode(HttpStatus.OK)
   async callback(
@@ -202,40 +205,45 @@ export class OAuthController {
       throw new InvalidAuthState();
     }
 
+    const consumedState = await this.oauth.consumeOAuthState(stateStr);
+    if (!consumedState) {
+      throw new OauthStateExpired();
+    }
+    const effectiveState = consumedState;
+
     let tokens: Tokens;
     try {
-      tokens = await provider.getToken(code, state);
+      tokens = await provider.getToken(code, effectiveState);
     } catch (err) {
-      let rayBodyString = '';
-      if (req.rawBody) {
-        // only log the first 4096 bytes of the raw body
-        rayBodyString = req.rawBody.subarray(0, 4096).toString('utf-8');
-      }
-      this.logger.warn(
-        `Error getting oauth token for ${state.provider}, callback code: ${code}, stateStr: ${stateStr}, rawBody: ${rayBodyString}, error: ${err}`
-      );
+      this.logger.warn('Error getting oauth token', {
+        provider: effectiveState.provider,
+        hasRawBody: Boolean(req.rawBody),
+        client: effectiveState.client,
+        clientVersion: effectiveState.clientVersion,
+        error: err,
+      });
       throw err;
     }
 
-    const externAccount = await provider.getUser(tokens, state);
+    const externAccount = await provider.getUser(tokens, effectiveState);
     const user = await this.getOrCreateUserFromOauth(
-      state.provider,
+      effectiveState.provider,
       externAccount,
       tokens
     );
 
-    await this.auth.setCookies(req, res, user.id, state.clientVersion);
+    await this.auth.setCookies(req, res, user.id, effectiveState.clientVersion);
 
     if (
-      state.provider === OAuthProviderName.Apple &&
-      (!state.client || state.client === 'web')
+      effectiveState.provider === OAuthProviderName.Apple &&
+      (!effectiveState.client || effectiveState.client === 'web')
     ) {
-      return this.url.safeRedirect(res, state.redirectUri ?? '/');
+      return this.url.safeRedirect(res, effectiveState.redirectUri ?? '/');
     }
 
     res.send({
       id: user.id,
-      redirectUri: state.redirectUri,
+      redirectUri: effectiveState.redirectUri,
     });
   }
 

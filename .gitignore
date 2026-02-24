@@ -56,6 +56,8 @@ Thumbs.db
 # env
 *.env.local
 *.local.env
+.env
+.env.*
 .history
 
 .next
@@ -67,6 +69,8 @@ test-results
 playwright-report
 playwright/.cache
 download
+!packages/frontend/apps/marketing/src/app/\[locale\]/download
+!packages/frontend/apps/marketing/src/app/\[locale\]/download/**
 
 # Cache
 .eslintcache
@@ -92,3 +96,6 @@ af.cmd
 
 # playwright
 storageState.json
+
+# secrets
+private.key

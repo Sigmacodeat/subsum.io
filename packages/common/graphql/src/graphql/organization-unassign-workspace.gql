@@ -1,0 +1,3 @@
+mutation unassignWorkspaceFromOrg($organizationId: String!, $workspaceId: String!) {
+  unassignWorkspaceFromOrg(organizationId: $organizationId, workspaceId: $workspaceId)
+}

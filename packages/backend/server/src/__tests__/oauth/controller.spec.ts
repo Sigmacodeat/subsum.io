@@ -279,6 +279,14 @@ test('should be able to save oauth state', async t => {
   t.is(state!.provider, OAuthProviderName.Google);
 });
 
+test('should reject callback state that is 36 chars but not uuid', async t => {
+  const { oauth } = t.context;
+  const forged = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+
+  t.is(forged.length, 36);
+  t.false(oauth.isValidState(forged));
+});
+
 test('should be able to get registered oauth providers', async t => {
   const { oauth } = t.context;
 
@@ -328,6 +336,7 @@ test('should throw if state is missing in callback uri', async t => {
 test('should throw if state is expired', async t => {
   const { app, oauth } = t.context;
   Sinon.stub(oauth, 'isValidState').resolves(true);
+  Sinon.stub(oauth, 'consumeOAuthState').resolves(null);
 
   await app
     .POST('/api/oauth/callback')
@@ -367,6 +376,8 @@ test('should throw if provider is missing in state', async t => {
 
   // @ts-expect-error mock
   Sinon.stub(oauth, 'getOAuthState').resolves({});
+  // @ts-expect-error mock
+  Sinon.stub(oauth, 'consumeOAuthState').resolves({});
   Sinon.stub(oauth, 'isValidState').resolves(true);
 
   await app
@@ -390,6 +401,8 @@ test('should throw if provider is invalid in callback uri', async t => {
 
   // @ts-expect-error mock
   Sinon.stub(oauth, 'getOAuthState').resolves({ provider: 'Invalid' });
+  // @ts-expect-error mock
+  Sinon.stub(oauth, 'consumeOAuthState').resolves({ provider: 'Invalid' });
   Sinon.stub(oauth, 'isValidState').resolves(true);
 
   await app
@@ -418,6 +431,10 @@ function mockOAuthProvider(
 
   Sinon.stub(oauth, 'isValidState').resolves(true);
   Sinon.stub(oauth, 'getOAuthState').resolves({
+    provider: OAuthProviderName.Google,
+    clientNonce,
+  });
+  Sinon.stub(oauth, 'consumeOAuthState').resolves({
     provider: OAuthProviderName.Google,
     clientNonce,
   });
@@ -515,6 +532,44 @@ test('should throw if client_nonce is invalid', async t => {
     });
 
   t.pass();
+});
+
+test('should reject replayed oauth callback state', async t => {
+  const { app } = t.context;
+
+  const preflight = await app
+    .POST('/api/oauth/preflight')
+    .send({ provider: 'Google', client_nonce: 'replay-test-nonce' })
+    .expect(HttpStatus.OK);
+
+  const redirect = new URL(preflight.body.url);
+  const state = redirect.searchParams.get('state');
+  t.truthy(state);
+
+  const provider = app.get(GoogleOAuthProvider);
+  Sinon.stub(provider, 'getToken').resolves({ accessToken: '1' });
+  Sinon.stub(provider, 'getUser').resolves({
+    id: '1',
+    email: `replay-${randomUUID()}@affine.pro`,
+    avatarUrl: 'avatar',
+  });
+
+  await app
+    .POST('/api/oauth/callback')
+    .send({ code: '1', state, client_nonce: 'replay-test-nonce' })
+    .expect(HttpStatus.OK);
+
+  await app
+    .POST('/api/oauth/callback')
+    .send({ code: '1', state, client_nonce: 'replay-test-nonce' })
+    .expect(HttpStatus.BAD_REQUEST)
+    .expect({
+      status: 400,
+      code: 'Bad Request',
+      type: 'BAD_REQUEST',
+      name: 'OAUTH_STATE_EXPIRED',
+      message: 'OAuth state expired, please try again.',
+    });
 });
 
 test('should not throw if account registered', async t => {

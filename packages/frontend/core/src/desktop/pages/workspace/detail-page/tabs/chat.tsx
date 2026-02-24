@@ -159,7 +159,7 @@ export const EditorChatPanel = ({ editor, onLoad }: SidebarTabProps) => {
       const sessionId = await AIProvider.session.createSession({
         docId: doc.id,
         workspaceId: doc.workspace.id,
-        promptName: 'Chat With AFFiNE AI',
+        promptName: 'Chat With Subsumio AI',
         reuseLatestChat: false,
         ...options,
       });

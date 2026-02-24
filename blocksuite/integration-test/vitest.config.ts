@@ -1,6 +1,13 @@
 import { vanillaExtractPlugin } from '@vanilla-extract/vite-plugin';
 import { defineConfig } from 'vitest/config';
 
+const shouldRunHeadless = process.env.VITEST_BROWSER_HEADLESS !== 'false';
+const shouldRunFullBrowserMatrix =
+  process.env.CI === 'true' || process.env.VITEST_BROWSER_MATRIX === 'full';
+const browserInstances = shouldRunFullBrowserMatrix
+  ? [{ browser: 'chromium' }, { browser: 'firefox' }, { browser: 'webkit' }]
+  : [{ browser: 'chromium' }];
+
 export default defineConfig(_configEnv =>
   defineConfig({
     esbuild: { target: 'es2018' },
@@ -18,12 +25,8 @@ export default defineConfig(_configEnv =>
       retry: process.env.CI === 'true' ? 3 : 0,
       browser: {
         enabled: true,
-        headless: process.env.CI === 'true',
-        instances: [
-          { browser: 'chromium' },
-          { browser: 'firefox' },
-          { browser: 'webkit' },
-        ],
+        headless: shouldRunHeadless,
+        instances: browserInstances,
         provider: 'playwright',
         isolate: false,
         viewport: {

@@ -10,10 +10,10 @@ export class AppController {
   @Get()
   info() {
     return {
-      compatibility: env.version,
-      message: `AFFiNE ${env.version} Server`,
-      type: env.DEPLOYMENT_TYPE,
-      flavor: env.FLAVOR,
+      compatibility: globalThis.env.version,
+      message: `Subsumio ${globalThis.env.version} Server`,
+      type: globalThis.env.DEPLOYMENT_TYPE,
+      flavor: globalThis.env.FLAVOR,
     };
   }
 }

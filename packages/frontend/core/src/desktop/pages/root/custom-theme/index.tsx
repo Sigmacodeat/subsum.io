@@ -1,3 +1,6 @@
+import {
+  applyThemeVariantVariables,
+} from '@affine/core/components/theme-provider/theme-variants';
 import { EditorSettingService } from '@affine/core/modules/editor-setting';
 import { FeatureFlagService } from '@affine/core/modules/feature-flag';
 import { ThemeEditorService } from '@affine/core/modules/theme-editor';
@@ -19,6 +22,7 @@ export const CustomThemeModifier = () => {
   );
   const settings = useLiveData(editorSettingService.editorSetting.settings$);
   const { resolvedTheme } = useTheme();
+  const resolvedMode = resolvedTheme === 'dark' ? 'dark' : 'light';
 
   useEffect(() => {
     if (!enableThemeEditor) return;
@@ -38,6 +42,9 @@ export const CustomThemeModifier = () => {
       // recover color scheme set by next-themes
       document.documentElement.style.colorScheme = mode;
 
+      // Re-apply theme-variant variables that were cleared by cssText reset
+      applyThemeVariantVariables('default', mode as 'light' | 'dark');
+
       Object.entries(valueMap).forEach(([key, value]) => {
         value && document.documentElement.style.setProperty(key, value);
       });
@@ -47,7 +54,7 @@ export const CustomThemeModifier = () => {
       _provided = false;
       sub.unsubscribe();
     };
-  }, [resolvedTheme, enableThemeEditor, themeEditorService]);
+  }, [resolvedTheme, enableThemeEditor, themeEditorService, resolvedMode]);
 
   // Apply font size CSS variable when settings change
   useEffect(() => {

@@ -48,10 +48,10 @@ const McpServerSetting = () => {
       ? JSON.stringify(
           {
             mcpServers: {
-              [`${workspaceName} - AFFiNE`]: {
+              [`${workspaceName} - Subsumio`]: {
                 type: 'streamable-http',
                 url: `${serverService.server.baseUrl}/api/workspaces/${workspaceService.workspace.id}/mcp`,
-                note: 'Read docs from AFFiNE workspace',
+                note: 'Read docs from Subsumio workspace',
                 headers: {
                   Authorization: `Bearer ${mcpAccessToken.token}`,
                 },

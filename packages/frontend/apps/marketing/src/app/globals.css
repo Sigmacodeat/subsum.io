@@ -51,6 +51,7 @@
     body {
       background: #fff !important;
       color: #0f172a !important;
+      padding-bottom: 20mm !important;
     }
 
     header,
@@ -156,6 +157,24 @@
       page-break-inside: avoid;
     }
 
+    .prose table {
+      width: 100%;
+      font-size: 9.8pt;
+    }
+
+    .prose th,
+    .prose td {
+      padding: 3pt 5pt;
+      vertical-align: top;
+      word-break: break-word;
+      overflow-wrap: anywhere;
+    }
+
+    .prose a {
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+
     .prose pre {
       white-space: pre-wrap;
       border: 1px solid rgba(15, 23, 42, 0.12);
@@ -249,6 +268,15 @@
            rounded-xl border-2 border-cyan-300/80 bg-white hover:bg-cyan-50/80 hover:border-cyan-400/80
            transform hover:-translate-y-0.5 transition-all duration-300
            focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:ring-offset-2;
+  }
+
+  .btn-secondary-on-dark {
+    @apply inline-flex items-center justify-center px-8 py-4 text-white text-base font-semibold
+           rounded-xl border-2 border-white/22 bg-white/12 hover:bg-white/18 hover:border-white/34
+           shadow-[0_10px_28px_-18px_rgba(0,0,0,0.75)]
+           transform hover:-translate-y-0.5 transition-all duration-300
+           focus:outline-none focus:ring-2 focus:ring-white/85 focus:ring-offset-2 focus:ring-offset-slate-950;
+    backdrop-filter: blur(10px);
   }
 
   .btn-accent {

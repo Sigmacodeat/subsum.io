@@ -10,6 +10,30 @@ export const workbenchRoutes = [
     lazy: () => import('./pages/workspace/all-page/all-page'),
   },
   {
+    path: '/akten',
+    lazy: () => import('./pages/workspace/all-akten/all-akten'),
+  },
+  {
+    path: '/akten/:matterId',
+    lazy: () => import('./pages/workspace/akte-detail/akte-detail-page'),
+  },
+  {
+    path: '/mandanten',
+    lazy: () => import('./pages/workspace/all-mandanten/all-mandanten'),
+  },
+  {
+    path: '/mandanten/:clientId',
+    lazy: () => import('./pages/workspace/mandant-detail/mandant-detail-page'),
+  },
+  {
+    path: '/fristen',
+    lazy: () => import('./pages/workspace/all-fristen/all-fristen'),
+  },
+  {
+    path: '/termine',
+    lazy: () => import('./pages/workspace/all-termine/all-termine'),
+  },
+  {
     path: '/collection',
     lazy: () => import('./pages/workspace/all-collection'),
   },

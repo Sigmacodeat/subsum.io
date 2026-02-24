@@ -9,7 +9,13 @@ export const navWrapperStyle = style({
     },
   },
   paddingBottom: 8,
+  transition: 'background-color .2s ease, box-shadow .2s ease',
+  backgroundColor: 'var(--affine-background-secondary-color)',
+  boxShadow: '1px 0 0 var(--affine-border-color)',
   selectors: {
+    '[data-theme="dark"] &': {
+      boxShadow: '1px 0 0 var(--affine-border-color)',
+    },
     '&[data-has-border=true]': {
       borderRight: `0.5px solid ${cssVarV2('layer/insideBorder/border')}`,
     },
@@ -78,7 +84,7 @@ export const navBodyStyle = style({
   height: 'calc(100% - 52px)',
   display: 'flex',
   flexDirection: 'column',
-  rowGap: '4px',
+  rowGap: '2px',
 });
 export const sidebarFloatMaskStyle = style({
   transition: 'opacity .15s',

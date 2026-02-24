@@ -12,6 +12,7 @@ import {
 import { configureAppSidebarModule } from './app-sidebar';
 import { configAtMenuConfigModule } from './at-menu-config';
 import { configureBlobManagementModule } from './blob-management';
+import { configureCaseAssistantModule } from './case-assistant';
 import { configureCloudModule } from './cloud';
 import { configureCollectionModule } from './collection';
 import { configureCollectionRulesModule } from './collection-rules';
@@ -81,6 +82,7 @@ export function configureCommonModules(framework: Framework) {
   configureNavigationModule(framework);
   configureTagModule(framework);
   configureCloudModule(framework);
+  configureCaseAssistantModule(framework);
   configureQuotaModule(framework);
   configurePermissionsModule(framework);
   configureShareDocsModule(framework);

@@ -1,8 +1,12 @@
 import { Switch } from '@affine/component';
 import { AuthService, SubscriptionService } from '@affine/core/modules/cloud';
+import {
+  buildPlanBenefits,
+  getCloudPlanDefinition,
+  getPlanMarketingName,
+} from '@affine/core/modules/cloud';
 import { SubscriptionPlan, SubscriptionRecurring } from '@affine/graphql';
 import { Trans, useI18n } from '@affine/i18n';
-import { AfFiNeIcon } from '@blocksuite/icons/rc';
 import { useLiveData, useServices } from '@toeverything/infra';
 import {
   type ReactNode,
@@ -28,7 +32,6 @@ export type Benefits = Record<
     title: ReactNode;
   }>
 >;
-type BenefitsGetter = (t: T) => Benefits;
 interface BasePrice {
   plan: SubscriptionPlan;
   name: string;
@@ -55,44 +58,11 @@ export interface DynamicPrice extends BasePrice {
   ) => ReactNode;
 }
 
-const freeBenefits: BenefitsGetter = t => ({
-  [t['com.affine.payment.cloud.free.benefit.g1']()]: ([1, 2, 3] as const).map(
-    i => ({
-      title: t[`com.affine.payment.cloud.free.benefit.g1-${i}`](),
-    })
-  ),
-  [t['com.affine.payment.cloud.free.benefit.g2']()]: (
-    [1, 2, 3, 4, 5] as const
-  ).map(i => ({
-    title: t[`com.affine.payment.cloud.free.benefit.g2-${i}`](),
-  })),
-});
-
-const proBenefits: BenefitsGetter = t => ({
-  [t['com.affine.payment.cloud.pro.benefit.g1']()]: [
-    {
-      title: t['com.affine.payment.cloud.pro.benefit.g1-1'](),
-      icon: <AfFiNeIcon />,
-    },
-    ...([2, 3, 4, 5, 7, 8] as const).map(i => ({
-      title: t[`com.affine.payment.cloud.pro.benefit.g1-${i}`](),
-    })),
-  ],
-});
-
-const teamBenefits: BenefitsGetter = t => ({
-  [t['com.affine.payment.cloud.team-workspace.benefit.g1']()]: [
-    {
-      title: t['com.affine.payment.cloud.team-workspace.benefit.g1-1'](),
-      icon: <AfFiNeIcon />,
-    },
-    ...([2, 3, 4, 5, 6] as const).map(i => ({
-      title: t[`com.affine.payment.cloud.team-workspace.benefit.g1-${i}`](),
-    })),
-  ],
-});
-
 export function getPlanDetail(t: T) {
+  const freeDef = getCloudPlanDefinition('free');
+  const soloDef = getCloudPlanDefinition('solo');
+  const kanzleiDef = getCloudPlanDefinition('kanzlei');
+
   return new Map<SubscriptionPlan, FixedPrice | DynamicPrice>([
     [
       SubscriptionPlan.Free,
@@ -101,10 +71,10 @@ export function getPlanDetail(t: T) {
         plan: SubscriptionPlan.Free,
         price: '0',
         yearlyPrice: '0',
-        name: t['com.affine.payment.cloud.free.name'](),
-        description: t['com.affine.payment.cloud.free.description'](),
+        name: t[freeDef.nameKey](),
+        description: t[freeDef.descriptionKey](),
         titleRenderer: () => t['com.affine.payment.cloud.free.title'](),
-        benefits: freeBenefits(t),
+        benefits: buildPlanBenefits(t, freeDef),
       },
     ],
     [
@@ -114,8 +84,8 @@ export function getPlanDetail(t: T) {
         plan: SubscriptionPlan.Pro,
         price: '1',
         yearlyPrice: '1',
-        name: t['com.affine.payment.cloud.pro.name'](),
-        description: t['com.affine.payment.cloud.pro.description'](),
+        name: t[soloDef.nameKey](),
+        description: t[soloDef.descriptionKey](),
         titleRenderer: (recurring, detail) => {
           const price =
             recurring === SubscriptionRecurring.Yearly
@@ -134,7 +104,7 @@ export function getPlanDetail(t: T) {
             </>
           );
         },
-        benefits: proBenefits(t),
+        benefits: buildPlanBenefits(t, soloDef),
       },
     ],
     [
@@ -144,8 +114,8 @@ export function getPlanDetail(t: T) {
         plan: SubscriptionPlan.Team,
         price: '2',
         yearlyPrice: '2',
-        name: t['com.affine.payment.cloud.team-workspace.name'](),
-        description: t['com.affine.payment.cloud.team-workspace.description'](),
+        name: t[kanzleiDef.nameKey](),
+        description: t[kanzleiDef.descriptionKey](),
         titleRenderer: (recurring, detail) => {
           const price =
             recurring === SubscriptionRecurring.Yearly
@@ -168,7 +138,7 @@ export function getPlanDetail(t: T) {
             </>
           );
         },
-        benefits: teamBenefits(t),
+        benefits: buildPlanBenefits(t, kanzleiDef),
       },
     ],
   ]);
@@ -233,6 +203,7 @@ export const CloudPlans = () => {
   }, [prices, t]);
 
   const currentPlan = proSubscription?.plan ?? SubscriptionPlan.Free;
+  const currentPlanName = getPlanMarketingName(t, currentPlan);
   const isCanceled = !!proSubscription?.canceledAt;
   const currentRecurring =
     proSubscription?.recurring ?? SubscriptionRecurring.Monthly;
@@ -274,30 +245,35 @@ export const CloudPlans = () => {
           plan: `${getRecurringLabel({
             recurring: currentRecurring,
             t,
-          })} ${currentPlan}`,
+          })} ${currentPlanName}`,
         })}
       </p>
     ) : (
-      <p>
-        <Trans
-          plan={currentPlan}
-          i18nKey="com.affine.payment.subtitle-active"
-          values={{ currentPlan }}
-        >
-          You are currently on the {{ currentPlan }} plan. If you have any
-          questions, please contact our&nbsp;
-          <a
-            href="mailto:support@toeverything.info"
-            style={{ color: 'var(--affine-link-color)' }}
+      <>
+        <p>
+          <Trans
+            i18nKey="com.affine.payment.subtitle-active"
+            values={{ currentPlan: currentPlanName }}
           >
-            customer support
-          </a>
-          .
-        </Trans>
-      </p>
+            You are currently on the {{ currentPlan }} plan. If you have any
+            questions, please contact our&nbsp;
+            <a
+              href="mailto:support@toeverything.info"
+              style={{ color: 'var(--affine-link-color)' }}
+            >
+              customer support
+            </a>
+            .
+          </Trans>
+        </p>
+        <p>{t['com.affine.payment.money-back-guarantee']()}</p>
+      </>
     )
   ) : (
-    <p>{t['com.affine.payment.subtitle-not-signed-in']()}</p>
+    <>
+      <p>{t['com.affine.payment.subtitle-not-signed-in']()}</p>
+      <p>{t['com.affine.payment.money-back-guarantee']()}</p>
+    </>
   );
 
   // toggle

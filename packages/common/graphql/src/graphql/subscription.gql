@@ -8,6 +8,8 @@ query subscription {
       recurring
       start
       end
+      trialStart
+      trialEnd
       nextBillAt
       canceledAt
       variant

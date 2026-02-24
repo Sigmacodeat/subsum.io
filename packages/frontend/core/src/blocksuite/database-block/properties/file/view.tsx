@@ -2,6 +2,9 @@ import { Popover, uniReactRoot } from '@affine/component';
 import { Button } from '@affine/component/ui/button';
 import { Menu, MenuItem } from '@affine/component/ui/menu';
 import { PeekViewService } from '@affine/core/modules/peek-view/services/peek-view';
+import { getPlanMarketingName } from '@affine/core/modules/cloud';
+import { SubscriptionPlan } from '@affine/graphql';
+import { useI18n } from '@affine/i18n';
 import {
   type Cell,
   type CellRenderProps,
@@ -389,6 +392,7 @@ const FileCellComponent: ForwardRefRenderFunction<
   const fileList = useSignalValue(manager.fileList);
   const isEditing = useSignalValue(manager.isEditing);
   const workspaceDialogService = useService(WorkspaceDialogService);
+  const t = useI18n();
   const jumpToPricePlan = useCallback(() => {
     workspaceDialogService.open('setting', {
       activeTab: 'plans',
@@ -425,7 +429,7 @@ const FileCellComponent: ForwardRefRenderFunction<
               The maximum size per file is 100MB
             </div>
             <a className={styles.upgradeLink} onClick={jumpToPricePlan}>
-              Upgrade to Pro
+              Upgrade to {getPlanMarketingName(t, SubscriptionPlan.Pro)}
             </a>
           </div>
         </div>

@@ -20,6 +20,7 @@ import {
   DocNotFound,
   getRequestTrackerId,
   InvalidHistoryTimestamp,
+  Throttle,
 } from '../../base';
 import { DocMode, Models, PublicDocMode } from '../../models';
 import { CurrentUser, Public } from '../auth';
@@ -52,6 +53,7 @@ export class WorkspacesController {
   //
   // NOTE: because graphql can't represent a File, so we have to use REST API to get blob
   @Public()
+  @Throttle('default')
   @Get('/:id/blobs/:name')
   @CallMetric('controllers', 'workspace_get_blob')
   async blob(
@@ -113,6 +115,7 @@ export class WorkspacesController {
 
   // get doc binary
   @Public()
+  @Throttle('default')
   @Get('/:id/docs/:guid')
   @CallMetric('controllers', 'workspace_get_doc')
   async doc(

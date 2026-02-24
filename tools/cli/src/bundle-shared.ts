@@ -29,8 +29,13 @@ export function assertRspackSupportedPackageName(name: string) {
 const IN_CI = !!process.env.CI;
 const httpProxyMiddlewareLogLevel = IN_CI ? 'silent' : 'error';
 
+// Reserve :3000 for the public marketing site by default.
+// Dashboard/web dev server can still be explicitly moved via PORT/DEV_PORT.
+const DEV_SERVER_PORT = Number(process.env.PORT ?? process.env.DEV_PORT ?? 8080);
+
 export const DEFAULT_DEV_SERVER_CONFIG: WebpackDevServerConfiguration = {
   host: '0.0.0.0',
+  port: DEV_SERVER_PORT,
   allowedHosts: 'all',
   hot: false,
   liveReload: true,
@@ -42,10 +47,16 @@ export const DEFAULT_DEV_SERVER_CONFIG: WebpackDevServerConfiguration = {
     // see: https://webpack.js.org/configuration/dev-server/#websocketurl
     // must be an explicit ws/wss URL because custom protocols (e.g. assets://)
     // cannot be used to construct WebSocket endpoints in Electron
-    webSocketURL: 'ws://0.0.0.0:8080/ws',
+    webSocketURL: `ws://0.0.0.0:${DEV_SERVER_PORT}/ws`,
   },
   historyApiFallback: {
     rewrites: [
+      {
+        from: /^\/admin(\/.*)?$/,
+        to: (context: any) => {
+          return context.parsedUrl.pathname;
+        },
+      },
       {
         from: /.*/,
         to: () => {
@@ -57,6 +68,12 @@ export const DEFAULT_DEV_SERVER_CONFIG: WebpackDevServerConfiguration = {
     ],
   },
   proxy: [
+    {
+      context: '/admin',
+      target: process.env.ADMIN_DEV_SERVER_URL ?? 'http://localhost:8081',
+      changeOrigin: true,
+      logLevel: httpProxyMiddlewareLogLevel,
+    },
     {
       context: '/api',
       target: 'http://localhost:3010',

@@ -1,13 +1,15 @@
 import type { RouteObject } from 'react-router-dom';
 
-import { Component as All } from './pages/workspace/all';
-import { Component as Collection } from './pages/workspace/collection';
-import { Component as CollectionDetail } from './pages/workspace/collection/detail';
-import { Component as Home } from './pages/workspace/home';
-import { Component as Journals } from './pages/workspace/journals';
-import { Component as Search } from './pages/workspace/search';
-import { Component as Tag } from './pages/workspace/tag';
-import { Component as TagDetail } from './pages/workspace/tag/detail';
+import { Component as All } from './pages/workspace/all.js';
+import { Component as Collection } from './pages/workspace/collection/index.js';
+import { Component as CollectionDetail } from './pages/workspace/collection/detail.js';
+import { Component as Fristen } from './pages/workspace/fristen.js';
+import { Component as Home } from './pages/workspace/home.js';
+import { Component as Journals } from './pages/workspace/journals.js';
+import { Component as Search } from './pages/workspace/search.js';
+import { Component as Tag } from './pages/workspace/tag/index.js';
+import { Component as TagDetail } from './pages/workspace/tag/detail.js';
+import { Component as Termine } from './pages/workspace/termine.js';
 
 export const workbenchRoutes = [
   {
@@ -46,6 +48,14 @@ export const workbenchRoutes = [
     path: '/journals',
     // lazy: () => import('./pages/workspace/journals'),
     Component: Journals,
+  },
+  {
+    path: '/fristen',
+    Component: Fristen,
+  },
+  {
+    path: '/termine',
+    Component: Termine,
   },
   {
     path: '/trash',

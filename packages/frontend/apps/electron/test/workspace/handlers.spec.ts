@@ -8,6 +8,30 @@ import { afterAll, afterEach, describe, expect, test, vi } from 'vitest';
 const tmpDir = path.join(__dirname, 'tmp');
 const appDataPath = path.join(tmpDir, 'app-data');
 
+vi.doMock('@affine/native', () => ({
+  DocStoragePool: class {
+    constructor() {
+      return new Proxy(this, {
+        get(target, property, receiver) {
+          if (Reflect.has(target, property)) {
+            return Reflect.get(target, property, receiver);
+          }
+          return async () => null;
+        },
+      });
+    }
+
+    async connect() {}
+    async checkpoint() {}
+    async disconnect() {}
+  },
+  DocStorage: class {
+    async validate() {
+      return false;
+    }
+  },
+}));
+
 vi.doMock('@affine/electron/helper/db/ensure-db', () => ({
   ensureSQLiteDB: async () => ({
     destroy: () => {},

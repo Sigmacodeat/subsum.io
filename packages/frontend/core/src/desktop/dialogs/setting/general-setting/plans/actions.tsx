@@ -2,6 +2,7 @@ import { notify } from '@affine/component';
 import { useDowngradeNotify } from '@affine/core/components/affine/subscription-landing/notify';
 import { getDowngradeQuestionnaireLink } from '@affine/core/components/hooks/affine/use-subscription-notify';
 import { useAsyncCallback } from '@affine/core/components/hooks/affine-async-hooks';
+import { UserFriendlyError } from '@affine/error';
 import { SubscriptionPlan } from '@affine/graphql';
 import { useI18n } from '@affine/i18n';
 import { track } from '@affine/track';
@@ -40,6 +41,7 @@ export const CancelAction = ({
   const proSubscription = useLiveData(subscription.pro$);
   const authService = useService(AuthService);
   const downgradeNotify = useDowngradeNotify();
+  const t = useI18n();
 
   useEffect(() => {
     if (!open || !proSubscription) return;
@@ -77,6 +79,12 @@ export const CancelAction = ({
           })
         );
       }
+    } catch (err) {
+      const e = UserFriendlyError.fromAny(err);
+      notify.error({
+        title: t['com.affine.payment.cancel.error.title'](),
+        message: e.message,
+      });
     } finally {
       setIsMutating(false);
     }
@@ -86,6 +94,7 @@ export const CancelAction = ({
     idempotencyKey,
     onOpenChange,
     downgradeNotify,
+    t,
   ]);
 
   return (
@@ -115,6 +124,7 @@ export const CancelTeamAction = ({
   const workspaceSubscription = useLiveData(subscription.subscription$);
   const authService = useService(AuthService);
   const downgradeNotify = useDowngradeNotify();
+  const t = useI18n();
 
   const downgrade = useAsyncCallback(async () => {
     try {
@@ -141,6 +151,12 @@ export const CancelTeamAction = ({
           })
         );
       }
+    } catch (err) {
+      const e = UserFriendlyError.fromAny(err);
+      notify.error({
+        title: t['com.affine.payment.cancel.error.title'](),
+        message: e.message,
+      });
     } finally {
       setIsMutating(false);
     }
@@ -151,6 +167,7 @@ export const CancelTeamAction = ({
     idempotencyKey,
     onOpenChange,
     downgradeNotify,
+    t,
   ]);
 
   if (workspaceSubscription?.canceledAt) {
@@ -188,25 +205,36 @@ export const ResumeAction = ({
   const [isMutating, setIsMutating] = useState(false);
   const subscription = useService(SubscriptionService).subscription;
 
-  const resume = useAsyncCallback(async () => {
-    try {
-      setIsMutating(true);
-      await subscription.resumeSubscription(idempotencyKey);
-      await subscription.waitForRevalidation();
-      // refresh idempotency key
-      setIdempotencyKey(nanoid());
-      onOpenChange(false);
-      const proSubscription = subscription.pro$.value;
-      if (proSubscription) {
-        track.$.settingsPanel.plans.confirmResumingSubscription({
-          plan: proSubscription.plan,
-          recurring: proSubscription.recurring,
+  const t = useI18n();
+
+  const resume = useAsyncCallback(
+    async () => {
+      try {
+        setIsMutating(true);
+        await subscription.resumeSubscription(idempotencyKey);
+        await subscription.waitForRevalidation();
+        // refresh idempotency key
+        setIdempotencyKey(nanoid());
+        onOpenChange(false);
+        const proSubscription = subscription.pro$.value;
+        if (proSubscription) {
+          track.$.settingsPanel.plans.confirmResumingSubscription({
+            plan: proSubscription.plan,
+            recurring: proSubscription.recurring,
+          });
+        }
+      } catch (err) {
+        const e = UserFriendlyError.fromAny(err);
+        notify.error({
+          title: t['com.affine.payment.resume.error.title'](),
+          message: e.message,
         });
+      } finally {
+        setIsMutating(false);
       }
-    } finally {
-      setIsMutating(false);
-    }
-  }, [subscription, idempotencyKey, onOpenChange]);
+    },
+    [subscription, idempotencyKey, onOpenChange, t]
+  );
 
   return (
     <>
@@ -249,6 +277,12 @@ export const TeamResumeAction = ({
       notify.success({
         title: t['com.affine.payment.resume.success.title'](),
         message: t['com.affine.payment.resume.success.team.message'](),
+      });
+    } catch (err) {
+      const e = UserFriendlyError.fromAny(err);
+      notify.error({
+        title: t['com.affine.payment.resume.error.title'](),
+        message: e.message,
       });
     } finally {
       setIsMutating(false);

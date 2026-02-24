@@ -1,5 +1,5 @@
-import { useMutation } from '@affine/admin/use-mutation';
-import { useQuery } from '@affine/admin/use-query';
+import { useMutation } from '../../use-mutation';
+import { useQuery } from '../../use-query';
 import { notify } from '@affine/component';
 import { UserFriendlyError } from '@affine/error';
 import {

@@ -131,6 +131,22 @@ test('should trigger user.updated event', async t => {
   t.true(spy.calledOnceWithExactly(updatedUser));
 });
 
+test('should trigger user.disabled event when user is disabled', async t => {
+  const event = t.context.module.get(EventBus);
+  const spy = Sinon.spy();
+  event.on('user.disabled', spy);
+
+  const user = await t.context.user.create({
+    email: 'disable-me@affine.pro',
+  });
+
+  const disabledUser = await t.context.user.update(user.id, {
+    disabled: true,
+  });
+
+  t.true(spy.calledOnceWithExactly(disabledUser));
+});
+
 test('should get user by id', async t => {
   const user = await t.context.user.create({
     email: 'test@affine.pro',

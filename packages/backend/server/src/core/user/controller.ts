@@ -4,12 +4,14 @@ import type { Response } from 'express';
 import {
   ActionForbidden,
   applyAttachHeaders,
+  Throttle,
   UserAvatarNotFound,
 } from '../../base';
 import { Public } from '../auth/guard';
 import { AvatarStorage } from '../storage';
 
 @Public()
+@Throttle('default')
 @Controller('/api/avatars')
 export class UserAvatarController {
   constructor(private readonly storage: AvatarStorage) {}

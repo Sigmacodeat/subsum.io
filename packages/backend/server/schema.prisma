@@ -1,6 +1,5 @@
 generator client {
   provider        = "prisma-client-js"
-  output          = "../../../node_modules/.prisma/client"
   binaryTargets   = ["native", "debian-openssl-3.0.x", "linux-arm64-openssl-3.0.x"]
   previewFeatures = ["metrics", "relationJoins", "nativeDistinct", "postgresqlExtensions"]
 }
@@ -8,6 +7,7 @@ generator client {
 datasource db {
   provider   = "postgresql"
   url        = env("DATABASE_URL")
+  directUrl  = env("DIRECT_URL")
   extensions = [pgvector(map: "vector")]
 }
 
@@ -25,32 +25,46 @@ model User {
   registered      Boolean   @default(true)
   disabled        Boolean   @default(false)
 
-  features                    UserFeature[]
-  userStripeCustomer          UserStripeCustomer?
-  workspaces                  WorkspaceUserRole[]
+  features                         UserFeature[]
+  userStripeCustomer               UserStripeCustomer?
+  addonPurchases                   AddonPurchase[]
+  addonCreditBalances              AddonCreditBalance[]
+  addonCreditTransactions          AddonCreditTransaction[]
+  workspaces                       WorkspaceUserRole[]
   // Invite others to join the workspace
-  WorkspaceInvitations        WorkspaceUserRole[]         @relation("inviter")
-  docPermissions              WorkspaceDocUserRole[]
-  connectedAccounts           ConnectedAccount[]
-  calendarAccounts            CalendarAccount[]
-  sessions                    UserSession[]
-  aiSessions                  AiSession[]
-  appConfigs                  AppConfig[]
-  userSnapshots               UserSnapshot[]
-  createdSnapshot             Snapshot[]                  @relation("createdSnapshot")
-  updatedSnapshot             Snapshot[]                  @relation("updatedSnapshot")
-  createdUpdate               Update[]                    @relation("createdUpdate")
-  createdHistory              SnapshotHistory[]           @relation("createdHistory")
-  createdAiJobs               AiJobs[]                    @relation("createdAiJobs")
+  WorkspaceInvitations             WorkspaceUserRole[]            @relation("inviter")
+  docPermissions                   WorkspaceDocUserRole[]
+  connectedAccounts                ConnectedAccount[]
+  calendarAccounts                 CalendarAccount[]
+  sessions                         UserSession[]
+  aiSessions                       AiSession[]
+  appConfigs                       AppConfig[]
+  userSnapshots                    UserSnapshot[]
+  createdSnapshot                  Snapshot[]                     @relation("createdSnapshot")
+  updatedSnapshot                  Snapshot[]                     @relation("updatedSnapshot")
+  createdUpdate                    Update[]                       @relation("createdUpdate")
+  createdHistory                   SnapshotHistory[]              @relation("createdHistory")
+  createdAiJobs                    AiJobs[]                       @relation("createdAiJobs")
   // receive notifications
-  notifications               Notification[]              @relation("user_notifications")
-  settings                    UserSettings?
-  comments                    Comment[]
-  replies                     Reply[]
-  commentAttachments          CommentAttachment[]         @relation("createdCommentAttachments")
-  AccessToken                 AccessToken[]
-  workspaceCalendars          WorkspaceCalendar[]
-  workspaceMemberLastAccesses WorkspaceMemberLastAccess[]
+  notifications                    Notification[]                 @relation("user_notifications")
+  settings                         UserSettings?
+  comments                         Comment[]
+  replies                          Reply[]
+  commentAttachments               CommentAttachment[]            @relation("createdCommentAttachments")
+  AccessToken                      AccessToken[]
+  workspaceCalendars               WorkspaceCalendar[]
+  workspaceMemberLastAccesses      WorkspaceMemberLastAccess[]
+  organizations                    OrganizationUserRole[]
+  orgInvitations                   OrganizationUserRole[]         @relation("org_inviter")
+  affiliateProfile                 AffiliateProfile?
+  affiliateReferrals               AffiliateReferralAttribution[] @relation("affiliate_referrer")
+  affiliateReferredBy              AffiliateReferralAttribution[] @relation("affiliate_referred")
+  affiliateLedgerEntries           AffiliateCommissionLedger[]    @relation("affiliate_ledger_owner")
+  affiliateLedgerFromReferrals     AffiliateCommissionLedger[]    @relation("affiliate_ledger_referred")
+  affiliatePayouts                 AffiliatePayout[]
+  affiliateComplianceEvents        AffiliateComplianceEvent[]     @relation("affiliate_compliance_actor")
+  affiliateSubjectComplianceEvents AffiliateComplianceEvent[]     @relation("affiliate_compliance_subject")
+  reportedIssues                   IssueReport[] @relation("user_reported_issues")
 
   @@index([email])
   @@map("users")
@@ -124,6 +138,48 @@ model MagicLinkOtp {
   @@map("magic_link_otps")
 }
 
+// ─── Organization (Kanzlei-Ebene) ───────────────────────────────────────────
+model Organization {
+  id        String   @id @default(uuid()) @db.VarChar
+  name      String   @db.VarChar
+  slug      String   @unique @db.VarChar
+  avatarKey String?  @map("avatar_key") @db.VarChar
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  members    OrganizationUserRole[]
+  workspaces Workspace[]
+
+  @@index([slug])
+  @@map("organizations")
+}
+
+enum OrganizationMemberStatus {
+  Pending
+  Accepted
+}
+
+model OrganizationUserRole {
+  id             String                   @id @default(uuid()) @db.VarChar
+  organizationId String                   @map("organization_id") @db.VarChar
+  userId         String                   @map("user_id") @db.VarChar
+  // OrgRole: Owner = 99, Admin = 10, Member = 1
+  type           Int                      @db.SmallInt
+  status         OrganizationMemberStatus @default(Pending)
+  inviterId      String?                  @map("inviter_id") @db.VarChar
+  createdAt      DateTime                 @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime                 @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  inviter      User?        @relation(name: "org_inviter", fields: [inviterId], references: [id], onDelete: SetNull)
+
+  @@unique([organizationId, userId])
+  @@index([organizationId, type, status])
+  @@index([userId])
+  @@map("organization_user_roles")
+}
+
 model Workspace {
   // NOTE: manually set this column type to identity in migration file
   sid                 Int      @unique @default(autoincrement())
@@ -139,7 +195,10 @@ model Workspace {
   avatarKey           String?  @map("avatar_key") @db.VarChar
   indexed             Boolean  @default(false)
   lastCheckEmbeddings DateTime @default("1970-01-01T00:00:00-00:00") @map("last_check_embeddings") @db.Timestamptz(3)
+  // Optional link to an Organization (Kanzlei)
+  organizationId      String?  @map("organization_id") @db.VarChar
 
+  organization               Organization?               @relation(fields: [organizationId], references: [id], onDelete: SetNull)
   features                   WorkspaceFeature[]
   docs                       WorkspaceDoc[]
   permissions                WorkspaceUserRole[]
@@ -149,13 +208,16 @@ model Workspace {
   embedFiles                 AiWorkspaceFiles[]
   comments                   Comment[]
   commentAttachments         CommentAttachment[]
+  issueReports               IssueReport[]
   workspaceCalendars         WorkspaceCalendar[]
   workspaceAdminStats        WorkspaceAdminStats[]
   workspaceAdminStatsDirties WorkspaceAdminStatsDirty[]
   workspaceAdminStatsDaily   WorkspaceAdminStatsDaily[]
   workspaceDocViewDaily      WorkspaceDocViewDaily[]
   workspaceMemberLastAccess  WorkspaceMemberLastAccess[]
+  webhookDeliveries          WebhookDelivery[]
 
+  @@index([organizationId])
   @@index([lastCheckEmbeddings])
   @@index([createdAt])
   @@map("workspaces")
@@ -810,6 +872,229 @@ model Invoice {
   @@map("invoices")
 }
 
+enum AffiliateStatus {
+  pending
+  active
+  suspended
+  blocked
+}
+
+enum AffiliateLedgerStatus {
+  pending
+  approved
+  paid
+  reversed
+}
+
+enum AffiliatePayoutStatus {
+  pending
+  processing
+  paid
+  failed
+}
+
+model AffiliateProfile {
+  userId                 String          @id @map("user_id") @db.VarChar
+  referralCode           String          @unique @map("referral_code") @db.VarChar(32)
+  status                 AffiliateStatus @default(active)
+  parentAffiliateUserId  String?         @map("parent_affiliate_user_id") @db.VarChar
+  levelOneRateBps        Int             @default(2000) @map("level_one_rate_bps") @db.Integer
+  levelTwoRateBps        Int             @default(500) @map("level_two_rate_bps") @db.Integer
+  payoutEmail            String?         @map("payout_email") @db.VarChar
+  stripeConnectAccountId String?         @unique @map("stripe_connect_account_id") @db.VarChar
+  stripeConnectCountry   String?         @map("stripe_connect_country") @db.VarChar(2)
+  stripeChargesEnabled   Boolean         @default(false) @map("stripe_charges_enabled")
+  stripePayoutsEnabled   Boolean         @default(false) @map("stripe_payouts_enabled")
+  stripeDetailsSubmitted Boolean         @default(false) @map("stripe_details_submitted")
+  stripeRequirements     Json?           @map("stripe_requirements") @db.JsonB
+  termsAcceptedAt        DateTime?       @map("terms_accepted_at") @db.Timestamptz(3)
+  termsVersion           String?         @map("terms_version") @db.VarChar(64)
+  taxInfo                Json?           @map("tax_info") @db.JsonB
+  metadata               Json?           @db.JsonB
+  createdAt              DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt              DateTime        @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@index([parentAffiliateUserId])
+  @@map("affiliate_profiles")
+}
+
+model AffiliateReferralAttribution {
+  id              String    @id @default(uuid()) @db.VarChar
+  affiliateUserId String    @map("affiliate_user_id") @db.VarChar
+  referredUserId  String    @map("referred_user_id") @db.VarChar
+  referralCode    String    @map("referral_code") @db.VarChar(32)
+  source          String?   @db.VarChar(64)
+  campaign        String?   @db.VarChar(128)
+  metadata        Json?     @db.JsonB
+  activatedAt     DateTime? @map("activated_at") @db.Timestamptz(3)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  affiliateUser User @relation("affiliate_referrer", fields: [affiliateUserId], references: [id], onDelete: Cascade)
+  referredUser  User @relation("affiliate_referred", fields: [referredUserId], references: [id], onDelete: Cascade)
+
+  @@unique([referredUserId])
+  @@index([affiliateUserId, createdAt])
+  @@index([referralCode])
+  @@map("affiliate_referral_attributions")
+}
+
+model AffiliateCommissionLedger {
+  id              String                @id @default(uuid()) @db.VarChar
+  affiliateUserId String                @map("affiliate_user_id") @db.VarChar
+  referredUserId  String                @map("referred_user_id") @db.VarChar
+  invoiceId       String?               @map("invoice_id")
+  level           Int                   @db.SmallInt
+  status          AffiliateLedgerStatus @default(pending)
+  amountCents     Int                   @map("amount_cents") @db.Integer
+  currency        String                @db.VarChar(3)
+  reason          String?               @db.VarChar(64)
+  availableAt     DateTime              @map("available_at") @db.Timestamptz(3)
+  paidAt          DateTime?             @map("paid_at") @db.Timestamptz(3)
+  reversedAt      DateTime?             @map("reversed_at") @db.Timestamptz(3)
+  createdAt       DateTime              @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime              @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  affiliateUser User                  @relation("affiliate_ledger_owner", fields: [affiliateUserId], references: [id], onDelete: Cascade)
+  referredUser  User                  @relation("affiliate_ledger_referred", fields: [referredUserId], references: [id], onDelete: Cascade)
+  payoutItems   AffiliatePayoutItem[]
+
+  @@index([affiliateUserId, status, availableAt])
+  @@index([referredUserId])
+  @@index([invoiceId])
+  @@map("affiliate_commission_ledger")
+}
+
+model AffiliatePayout {
+  id                   String                @id @default(uuid()) @db.VarChar
+  affiliateUserId      String                @map("affiliate_user_id") @db.VarChar
+  status               AffiliatePayoutStatus @default(pending)
+  periodStart          DateTime              @map("period_start") @db.Timestamptz(3)
+  periodEnd            DateTime              @map("period_end") @db.Timestamptz(3)
+  totalCents           Int                   @map("total_cents") @db.Integer
+  currency             String                @db.VarChar(3)
+  stripeTransferId     String?               @unique @map("stripe_transfer_id") @db.VarChar
+  stripeTransferStatus String?               @map("stripe_transfer_status") @db.VarChar(32)
+  note                 String?               @db.Text
+  createdAt            DateTime              @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt            DateTime              @updatedAt @map("updated_at") @db.Timestamptz(3)
+  paidAt               DateTime?             @map("paid_at") @db.Timestamptz(3)
+
+  affiliateUser    User                       @relation(fields: [affiliateUserId], references: [id], onDelete: Cascade)
+  items            AffiliatePayoutItem[]
+  complianceEvents AffiliateComplianceEvent[]
+
+  @@index([affiliateUserId, createdAt])
+  @@map("affiliate_payouts")
+}
+
+model AffiliatePayoutItem {
+  payoutId String @map("payout_id") @db.VarChar
+  ledgerId String @map("ledger_id") @db.VarChar
+
+  payout AffiliatePayout           @relation(fields: [payoutId], references: [id], onDelete: Cascade)
+  ledger AffiliateCommissionLedger @relation(fields: [ledgerId], references: [id], onDelete: Cascade)
+
+  @@id([payoutId, ledgerId])
+  @@index([ledgerId])
+  @@map("affiliate_payout_items")
+}
+
+model AffiliateComplianceEvent {
+  id              String   @id @default(uuid()) @db.VarChar
+  affiliateUserId String   @map("affiliate_user_id") @db.VarChar
+  actorUserId     String?  @map("actor_user_id") @db.VarChar
+  payoutId        String?  @map("payout_id") @db.VarChar
+  eventType       String   @map("event_type") @db.VarChar(64)
+  severity        String   @db.VarChar(16)
+  message         String   @db.Text
+  metadata        Json?    @db.JsonB
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  affiliateUser User             @relation("affiliate_compliance_subject", fields: [affiliateUserId], references: [id], onDelete: Cascade)
+  actorUser     User?            @relation("affiliate_compliance_actor", fields: [actorUserId], references: [id], onDelete: SetNull)
+  payout        AffiliatePayout? @relation(fields: [payoutId], references: [id], onDelete: SetNull)
+
+  @@index([affiliateUserId, createdAt])
+  @@index([payoutId, createdAt])
+  @@index([eventType, createdAt])
+  @@map("affiliate_compliance_events")
+}
+
+model AddonPurchase {
+  id                      Int       @id @default(autoincrement()) @db.Integer
+  userId                  String    @map("user_id") @db.VarChar(36)
+  addonType               String    @map("addon_type") @db.VarChar(50)
+  addonName               String    @map("addon_name") @db.VarChar(100)
+  stripePriceId           String    @map("stripe_price_id") @db.Text
+  stripeCheckoutSessionId String?   @map("stripe_checkout_session_id") @db.Text
+  stripeInvoiceId         String?   @map("stripe_invoice_id") @db.Text
+  status                  String    @default("pending") @db.VarChar(20)
+  quantity                Int       @default(1) @db.Integer
+  unitPriceCents          Int       @map("unit_price_cents") @db.Integer
+  totalPriceCents         Int       @map("total_price_cents") @db.Integer
+  currency                String    @default("eur") @db.VarChar(3)
+  recurring               String    @default("monthly") @db.VarChar(20)
+  stripeSubscriptionId    String?   @map("stripe_subscription_id") @db.Text
+  startsAt                DateTime? @map("starts_at") @db.Timestamptz(6)
+  endsAt                  DateTime? @map("ends_at") @db.Timestamptz(6)
+  canceledAt              DateTime? @map("canceled_at") @db.Timestamptz(6)
+  createdAt               DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt               DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  metadata                Json?     @db.JsonB
+
+  user               User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  creditTransactions AddonCreditTransaction[]
+
+  @@unique([stripeCheckoutSessionId])
+  @@unique([stripeSubscriptionId])
+  @@index([userId])
+  @@index([userId, addonType])
+  @@map("addon_purchases")
+}
+
+model AddonCreditBalance {
+  id             Int      @id @default(autoincrement()) @db.Integer
+  userId         String   @map("user_id") @db.VarChar(36)
+  addonType      String   @map("addon_type") @db.VarChar(50)
+  currentBalance Int      @default(0) @map("current_balance") @db.Integer
+  totalPurchased Int      @default(0) @map("total_purchased") @db.Integer
+  totalConsumed  Int      @default(0) @map("total_consumed") @db.Integer
+  lastUpdatedAt  DateTime @default(now()) @map("last_updated_at") @db.Timestamptz(6)
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, addonType])
+  @@index([userId])
+  @@map("addon_credit_balances")
+}
+
+model AddonCreditTransaction {
+  id              Int      @id @default(autoincrement()) @db.Integer
+  userId          String   @map("user_id") @db.VarChar(36)
+  addonPurchaseId Int?     @map("addon_purchase_id") @db.Integer
+  addonType       String   @map("addon_type") @db.VarChar(50)
+  transactionType String   @map("transaction_type") @db.VarChar(20)
+  amount          Int      @db.Integer
+  balanceBefore   Int      @map("balance_before") @db.Integer
+  balanceAfter    Int      @map("balance_after") @db.Integer
+  description     String?  @db.Text
+  referenceId     String?  @map("reference_id") @db.VarChar(100)
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user     User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  purchase AddonPurchase? @relation(fields: [addonPurchaseId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, transactionType, referenceId])
+  @@index([userId])
+  @@index([userId, addonType, createdAt(sort: Desc)])
+  @@map("addon_credit_transactions")
+}
+
 model License {
   key         String    @id @map("key") @db.VarChar
   createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
@@ -900,6 +1185,136 @@ model Notification {
   // for user notifications list, including read and unread, ordered by createdAt
   @@index([userId, createdAt, read])
   @@map("notifications")
+}
+
+enum IssueReportStatus {
+  new
+  triaged
+  in_progress
+  resolved
+  rejected
+  duplicate
+}
+
+enum IssueReportSeverity {
+  low
+  medium
+  high
+  critical
+}
+
+enum IssueReportApp {
+  web
+  electron
+}
+
+model IssueReport {
+  id          String  @id @default(uuid()) @db.VarChar
+  workspaceId String  @map("workspace_id") @db.VarChar
+  reporterId  String? @map("reporter_id") @db.VarChar
+
+  status   IssueReportStatus   @default(new)
+  severity IssueReportSeverity @default(medium)
+  app      IssueReportApp
+
+  title       String? @db.VarChar
+  description String  @db.Text
+  expected    String? @db.Text
+  actual      String? @db.Text
+
+  route        String? @db.VarChar
+  featureArea  String? @map("feature_area") @db.VarChar
+  appVersion   String? @map("app_version") @db.VarChar
+  distribution String? @db.VarChar
+  buildType    String? @map("build_type") @db.VarChar
+
+  diagnostics Json?   @db.JsonB
+  dedupeKey   String? @map("dedupe_key") @db.VarChar
+  duplicateOf String? @map("duplicate_of") @db.VarChar
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  workspace   Workspace               @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  reporter    User?                   @relation("user_reported_issues", fields: [reporterId], references: [id], onDelete: SetNull)
+  attachments IssueReportAttachment[]
+
+  duplicateParent IssueReport?  @relation("issue_report_duplicates", fields: [duplicateOf], references: [id], onDelete: SetNull)
+  duplicates      IssueReport[] @relation("issue_report_duplicates")
+
+  @@index([workspaceId, createdAt(sort: Desc)])
+  @@index([status, createdAt(sort: Desc)])
+  @@index([dedupeKey])
+  @@map("issue_reports")
+}
+
+model IssueReportAttachment {
+  id        String   @id @default(uuid()) @db.VarChar
+  reportId  String   @map("report_id") @db.VarChar
+  key       String   @db.VarChar
+  name      String   @db.VarChar
+  mime      String   @db.VarChar
+  size      Int      @db.Integer
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  report IssueReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@unique([reportId, key])
+  @@index([reportId, createdAt(sort: Desc)])
+  @@map("issue_report_attachments")
+}
+
+enum WebhookDeliveryStatus {
+  pending
+  running
+  succeeded
+  failed
+}
+
+model WebhookDelivery {
+  id                 String                @id @default(uuid()) @db.VarChar
+  workspaceId        String                @map("workspace_id") @db.VarChar
+  webhookId          String                @map("webhook_id") @db.VarChar
+  eventId            String                @map("event_id") @db.VarChar
+  eventType          String                @map("event_type") @db.VarChar
+  payload            Json                  @db.JsonB
+  status             WebhookDeliveryStatus @default(pending)
+  attemptCount       Int                   @default(0) @map("attempt_count")
+  lastError          String?               @map("last_error") @db.Text
+  lastResponseStatus Int?                  @map("last_response_status")
+  nextRetryAt        DateTime?             @map("next_retry_at") @db.Timestamptz(3)
+  succeededAt        DateTime?             @map("succeeded_at") @db.Timestamptz(3)
+  failedAt           DateTime?             @map("failed_at") @db.Timestamptz(3)
+  createdAt          DateTime              @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime              @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  workspace Workspace                @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  attempts  WebhookDeliveryAttempt[]
+
+  @@unique([workspaceId, eventId, webhookId])
+  @@index([workspaceId, createdAt])
+  @@index([workspaceId, webhookId, createdAt])
+  @@index([workspaceId, status, createdAt])
+  @@index([workspaceId, eventType, createdAt])
+  @@map("webhook_deliveries")
+}
+
+model WebhookDeliveryAttempt {
+  id             String    @id @default(uuid()) @db.VarChar
+  deliveryId     String    @map("delivery_id") @db.VarChar
+  attemptNo      Int       @map("attempt_no")
+  startedAt      DateTime  @map("started_at") @db.Timestamptz(3)
+  finishedAt     DateTime? @map("finished_at") @db.Timestamptz(3)
+  durationMs     Int?      @map("duration_ms")
+  responseStatus Int?      @map("response_status")
+  error          String?   @db.Text
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  delivery WebhookDelivery @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
+
+  @@unique([deliveryId, attemptNo])
+  @@index([deliveryId, startedAt])
+  @@map("webhook_delivery_attempts")
 }
 
 model UserSettings {

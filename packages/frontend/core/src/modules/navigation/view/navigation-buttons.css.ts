@@ -3,11 +3,13 @@ import { style } from '@vanilla-extract/css';
 export const container = style({
   display: 'flex',
   alignItems: 'center',
-  columnGap: '8px',
+  columnGap: '6px',
+  padding: '0 2px',
 });
 
 export const button = style({
-  width: '32px',
-  height: '32px',
+  width: '30px',
+  height: '30px',
   flexShrink: 0,
+  borderRadius: 8,
 });

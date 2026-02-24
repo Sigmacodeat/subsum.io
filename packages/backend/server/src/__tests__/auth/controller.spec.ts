@@ -7,8 +7,10 @@ import ava, { TestFn } from 'ava';
 import Sinon from 'sinon';
 import supertest from 'supertest';
 
+import { ConfigFactory } from '../../base/config';
 import { parseCookies as safeParseCookies } from '../../base/utils/request';
 import { AuthService } from '../../core/auth/service';
+import { Models } from '../../models';
 import {
   createTestingApp,
   currentUser,
@@ -19,6 +21,7 @@ import {
 const test = ava as TestFn<{
   auth: AuthService;
   db: PrismaClient;
+  models: Models;
   app: TestingApp;
 }>;
 
@@ -27,6 +30,7 @@ test.before(async t => {
 
   t.context.auth = app.get(AuthService);
   t.context.db = app.get(PrismaClient);
+  t.context.models = app.get(Models);
   t.context.app = app;
 });
 
@@ -51,6 +55,187 @@ test('should be able to sign in with credential', async t => {
 
   const session = await currentUser(app);
   t.is(session?.id, u1.id);
+});
+
+test('should require and verify admin MFA step-up', async t => {
+  const { app, models } = t.context;
+
+  const admin = await app.createUser('admin-mfa@affine.pro');
+  await models.userFeature.add(admin.id, 'administrator', 'test admin');
+
+  const signInRes = await app
+    .POST('/api/auth/sign-in')
+    .send({
+      email: admin.email,
+      password: admin.password,
+      admin_step_up: true,
+    })
+    .expect(HttpStatus.ACCEPTED);
+
+  t.true(signInRes.body.mfaRequired);
+  t.truthy(signInRes.body.ticket);
+
+  const signInMail = app.mails.last('SignIn');
+  const otp = signInMail?.props?.otp as string | undefined;
+  t.truthy(otp);
+
+  await app
+    .POST('/api/auth/admin/verify-mfa')
+    .send({
+      ticket: signInRes.body.ticket,
+      otp,
+    })
+    .expect(HttpStatus.CREATED);
+
+  const session = await currentUser(app);
+  t.is(session?.id, admin.id);
+});
+
+test('should reject admin MFA verification with wrong OTP', async t => {
+  const { app, models } = t.context;
+
+  const admin = await app.createUser('admin-wrong-otp@affine.pro');
+  await models.userFeature.add(admin.id, 'administrator', 'test admin');
+
+  const signInRes = await app
+    .POST('/api/auth/sign-in')
+    .send({
+      email: admin.email,
+      password: admin.password,
+      admin_step_up: true,
+    })
+    .expect(HttpStatus.ACCEPTED);
+
+  await app
+    .POST('/api/auth/admin/verify-mfa')
+    .send({
+      ticket: signInRes.body.ticket,
+      otp: '000000',
+    })
+    .expect(HttpStatus.BAD_REQUEST);
+
+  const session = await currentUser(app);
+  t.is(session, null);
+});
+
+test('should allow admin MFA resend with same ticket', async t => {
+  const { app, models } = t.context;
+
+  const admin = await app.createUser('admin-resend@affine.pro');
+  await models.userFeature.add(admin.id, 'administrator', 'test admin');
+
+  const signInRes = await app
+    .POST('/api/auth/sign-in')
+    .send({
+      email: admin.email,
+      password: admin.password,
+      admin_step_up: true,
+    })
+    .expect(HttpStatus.ACCEPTED);
+
+  const ticket = signInRes.body.ticket;
+  const initialMailCount = app.mails.count('SignIn');
+
+  const resendRes = await app
+    .POST('/api/auth/admin/resend-mfa')
+    .send({ ticket })
+    .expect(HttpStatus.CREATED);
+
+  t.true(resendRes.body.resent);
+  t.is(resendRes.body.ticket, ticket);
+  t.is(app.mails.count('SignIn'), initialMailCount + 1);
+
+  const newOtp = app.mails.last('SignIn')?.props?.otp as string;
+  t.truthy(newOtp);
+
+  await app
+    .POST('/api/auth/admin/verify-mfa')
+    .send({ ticket, otp: newOtp })
+    .expect(HttpStatus.CREATED);
+
+  const session = await currentUser(app);
+  t.is(session?.id, admin.id);
+});
+
+test('should reject admin MFA resend with invalid ticket', async t => {
+  const { app } = t.context;
+
+  const res = await app
+    .POST('/api/auth/admin/resend-mfa')
+    .send({ ticket: 'invalid-ticket-12345' })
+    .expect(HttpStatus.BAD_REQUEST);
+
+  t.is(res.status, HttpStatus.BAD_REQUEST);
+});
+
+test('should list admin trusted devices', async t => {
+  const { app, models } = t.context;
+
+  const admin = await app.createUser('admin-devices@affine.pro');
+  await models.userFeature.add(admin.id, 'administrator', 'test admin');
+  await app.login(admin);
+
+  const res = await app
+    .GET('/api/auth/admin/trusted-devices')
+    .expect(HttpStatus.OK);
+
+  t.true(Array.isArray(res.body.devices));
+});
+
+test('should reject trusted devices list for non-admin', async t => {
+  const { app } = t.context;
+
+  const user = await app.createUser('regular-user@affine.pro');
+  await app.login(user);
+
+  const res = await app
+    .GET('/api/auth/admin/trusted-devices')
+    .expect(HttpStatus.FORBIDDEN);
+
+  t.is(res.status, HttpStatus.FORBIDDEN);
+});
+
+test('should revoke specific admin trusted device', async t => {
+  const { app, models } = t.context;
+
+  const admin = await app.createUser('admin-revoke@affine.pro');
+  await models.userFeature.add(admin.id, 'administrator', 'test admin');
+  await app.login(admin);
+
+  const fingerprint = 'test-device-fingerprint-123';
+
+  const revokeRes = await app
+    .DELETE(`/api/auth/admin/trusted-devices?fingerprint=${fingerprint}`)
+    .expect(HttpStatus.OK);
+
+  t.is(typeof revokeRes.body.removed, 'number');
+});
+
+test('should revoke all admin trusted devices', async t => {
+  const { app, models } = t.context;
+
+  const admin = await app.createUser('admin-revoke-all@affine.pro');
+  await models.userFeature.add(admin.id, 'administrator', 'test admin');
+  await app.login(admin);
+
+  const revokeRes = await app
+    .DELETE('/api/auth/admin/trusted-devices')
+    .expect(HttpStatus.OK);
+
+  t.is(typeof revokeRes.body.removed, 'number');
+});
+
+test('should reject trusted device revoke for non-admin', async t => {
+  const { app } = t.context;
+
+  const user = await app.createUser('regular-revoke@affine.pro');
+  await app.login(user);
+
+  const res = await app
+    .DELETE('/api/auth/admin/trusted-devices')
+    .expect(HttpStatus.FORBIDDEN);
+
+  t.is(res.status, HttpStatus.FORBIDDEN);
 });
 
 test('should record sign in client version when header is provided', async t => {
@@ -202,8 +387,43 @@ test('should be able to sign out', async t => {
   t.falsy(session);
 });
 
-test('should be able to sign out when csrf header is missing (compat)', async t => {
+test('should reject sign out when csrf header is missing in strict mode', async t => {
   const { app } = t.context;
+
+  const u1 = await app.createUser('u1@affine.pro');
+
+  const signInRes = await supertest(app.getHttpServer())
+    .post('/api/auth/sign-in')
+    .send({ email: u1.email, password: u1.password })
+    .expect(200);
+
+  const cookies = parseCookies(signInRes);
+  const cookieHeader = Object.entries(cookies)
+    .map(([k, v]) => `${k}=${v}`)
+    .join('; ');
+
+  await supertest(app.getHttpServer())
+    .post('/api/auth/sign-out')
+    .set('Cookie', cookieHeader)
+    .expect(HttpStatus.FORBIDDEN);
+
+  const sessionRes = await supertest(app.getHttpServer())
+    .get('/api/auth/session')
+    .set('Cookie', cookieHeader)
+    .expect(200);
+
+  t.truthy(sessionRes.body.user);
+});
+
+test('should be able to sign out when csrf header is missing in compat mode', async t => {
+  const { app } = t.context;
+  app.get(ConfigFactory).override({
+    auth: {
+      csrf: {
+        strictSignOut: false,
+      },
+    },
+  });
 
   const u1 = await app.createUser('u1@affine.pro');
 

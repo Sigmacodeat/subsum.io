@@ -1,27 +1,27 @@
-import { Button } from '@affine/admin/components/ui/button';
+import { Button } from '../../components/ui/button';
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@affine/admin/components/ui/card';
+} from '../../components/ui/card';
 import {
   type ChartConfig,
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
-} from '@affine/admin/components/ui/chart';
-import { Label } from '@affine/admin/components/ui/label';
+} from '../../components/ui/chart';
+import { Label } from '../../components/ui/label';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@affine/admin/components/ui/select';
-import { Separator } from '@affine/admin/components/ui/separator';
-import { Skeleton } from '@affine/admin/components/ui/skeleton';
+} from '../../components/ui/select';
+import { Separator } from '../../components/ui/separator';
+import { Skeleton } from '../../components/ui/skeleton';
 import {
   Table,
   TableBody,
@@ -29,14 +29,16 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@affine/admin/components/ui/table';
-import { useQuery } from '@affine/admin/use-query';
+} from '../../components/ui/table';
+import { useQuery } from '../../use-query';
 import { adminDashboardQuery } from '@affine/graphql';
 import { ROUTES } from '@affine/routes';
 import {
   DatabaseIcon,
+  DollarSignIcon,
   MessageSquareTextIcon,
   RefreshCwIcon,
+  UserPlusIcon,
   UsersIcon,
 } from 'lucide-react';
 import { type ReactNode, Suspense, useMemo, useState } from 'react';
@@ -76,6 +78,35 @@ const adminDashboardOverviewQuery: typeof adminDashboardQuery = {
       value
     }
     storageWindow {
+      from
+      to
+      timezone
+      bucket
+      requestedSize
+      effectiveSize
+    }
+    totalUsers
+    registeredUsers
+    periodSignups
+    signupHistory {
+      date
+      value
+    }
+    signupWindow {
+      from
+      to
+      timezone
+      bucket
+      requestedSize
+      effectiveSize
+    }
+    revenuePaidCents
+    periodPaidInvoices
+    revenueHistory {
+      date
+      value
+    }
+    revenueWindow {
       from
       to
       timezone
@@ -154,12 +185,70 @@ type TrendPoint = {
   secondary?: number;
 };
 
+type AdminDashboardOverview = {
+  syncActiveUsers: number;
+  syncActiveUsersTimeline: Array<{ minute: string; activeUsers: number }>;
+  syncWindow: {
+    from: string;
+    to: string;
+    timezone: string;
+    bucket: string;
+    requestedSize: number;
+    effectiveSize: number;
+  };
+  copilotConversations: number;
+  workspaceStorageBytes: number;
+  blobStorageBytes: number;
+  workspaceStorageHistory: Array<{ date: string; value: number }>;
+  blobStorageHistory: Array<{ date: string; value: number }>;
+  storageWindow: {
+    from: string;
+    to: string;
+    timezone: string;
+    bucket: string;
+    requestedSize: number;
+    effectiveSize: number;
+  };
+  totalUsers: number;
+  registeredUsers: number;
+  periodSignups: number;
+  signupHistory: Array<{ date: string; value: number }>;
+  signupWindow: {
+    from: string;
+    to: string;
+    timezone: string;
+    bucket: string;
+    requestedSize: number;
+    effectiveSize: number;
+  };
+  revenuePaidCents: number;
+  periodPaidInvoices: number;
+  revenueHistory: Array<{ date: string; value: number }>;
+  revenueWindow: {
+    from: string;
+    to: string;
+    timezone: string;
+    bucket: string;
+    requestedSize: number;
+    effectiveSize: number;
+  };
+  generatedAt: string;
+};
+
 function formatDateTime(value: string) {
   return utcDateTimeFormatter.format(new Date(value));
 }
 
 function formatDate(value: string) {
   return utcDateFormatter.format(new Date(value));
+}
+
+function formatMoney(cents: number) {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'EUR',
+    maximumFractionDigits: 0,
+  }).format((cents ?? 0) / 100);
 }
 
 function downsample<T>(items: T[], maxPoints: number) {
@@ -630,7 +719,72 @@ function DashboardPageContent() {
     }
   );
 
-  const dashboard = data.adminDashboard;
+  const dashboardRaw =
+    (data.adminDashboard as unknown as Partial<AdminDashboardOverview> | undefined) ??
+    {};
+  const defaultWindow = {
+    from: '',
+    to: '',
+    timezone: 'UTC',
+    bucket: '',
+    requestedSize: 0,
+    effectiveSize: 0,
+  };
+  const syncWindow = {
+    ...defaultWindow,
+    ...dashboardRaw.syncWindow,
+  };
+  const storageWindow = {
+    ...defaultWindow,
+    ...dashboardRaw.storageWindow,
+  };
+  const signupWindow = {
+    ...defaultWindow,
+    ...dashboardRaw.signupWindow,
+  };
+  const revenueWindow = {
+    ...defaultWindow,
+    ...dashboardRaw.revenueWindow,
+  };
+  const syncActiveUsersTimeline = dashboardRaw.syncActiveUsersTimeline ?? [];
+  const workspaceStorageHistory = dashboardRaw.workspaceStorageHistory ?? [];
+  const blobStorageHistory = dashboardRaw.blobStorageHistory ?? [];
+  const signupHistory = dashboardRaw.signupHistory ?? [];
+  const revenueHistory = dashboardRaw.revenueHistory ?? [];
+  const dashboardDefaults: AdminDashboardOverview = {
+    syncActiveUsers: 0,
+    syncActiveUsersTimeline,
+    syncWindow,
+    copilotConversations: 0,
+    workspaceStorageBytes: 0,
+    blobStorageBytes: 0,
+    workspaceStorageHistory,
+    blobStorageHistory,
+    storageWindow,
+    totalUsers: 0,
+    registeredUsers: 0,
+    periodSignups: 0,
+    signupHistory,
+    signupWindow,
+    revenuePaidCents: 0,
+    periodPaidInvoices: 0,
+    revenueHistory,
+    revenueWindow,
+    generatedAt: new Date(0).toISOString(),
+  };
+  const dashboard: AdminDashboardOverview = {
+    ...dashboardDefaults,
+    ...dashboardRaw,
+    syncWindow,
+    storageWindow,
+    signupWindow,
+    revenueWindow,
+    syncActiveUsersTimeline,
+    workspaceStorageHistory,
+    blobStorageHistory,
+    signupHistory,
+    revenueHistory,
+  };
 
   const syncPoints = useMemo(
     () =>
@@ -656,6 +810,34 @@ function DashboardPageContent() {
     );
     return toIndexedTrendPoints(downsample(merged, 60));
   }, [dashboard.blobStorageHistory, dashboard.workspaceStorageHistory]);
+
+  const signupPoints = useMemo(
+    () =>
+      toIndexedTrendPoints(
+        downsample(
+          dashboard.signupHistory.map(point => ({
+            label: formatDate(point.date),
+            primary: point.value,
+          })),
+          60
+        )
+      ),
+    [dashboard.signupHistory]
+  );
+
+  const revenuePoints = useMemo(
+    () =>
+      toIndexedTrendPoints(
+        downsample(
+          dashboard.revenueHistory.map(point => ({
+            label: formatDate(point.date),
+            primary: point.value,
+          })),
+          60
+        )
+      ),
+    [dashboard.revenueHistory]
+  );
 
   const totalStorageBytes =
     dashboard.workspaceStorageBytes + dashboard.blobStorageBytes;
@@ -724,11 +906,19 @@ function DashboardPageContent() {
           </CardContent>
         </Card>
 
-        <div className="grid grid-cols-1 gap-5 lg:grid-cols-12">
+        <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-5">
           <div className="h-full min-w-0 lg:col-span-5">
             <PrimaryMetricCard
               value={intFormatter.format(dashboard.syncActiveUsers)}
               description={`${dashboard.syncWindow.effectiveSize}h active window`}
+            />
+          </div>
+          <div className="h-full min-w-0 lg:col-span-3">
+            <SecondaryMetricCard
+              title="Period Signups"
+              value={intFormatter.format(dashboard.periodSignups)}
+              description={`${dashboard.signupWindow.effectiveSize}d window • ${intFormatter.format(dashboard.registeredUsers)} registered / ${intFormatter.format(dashboard.totalUsers)} users`}
+              icon={<UserPlusIcon className="h-4 w-4" aria-hidden="true" />}
             />
           </div>
           <div className="h-full min-w-0 lg:col-span-3">
@@ -739,6 +929,14 @@ function DashboardPageContent() {
               icon={
                 <MessageSquareTextIcon className="h-4 w-4" aria-hidden="true" />
               }
+            />
+          </div>
+          <div className="h-full min-w-0 lg:col-span-4">
+            <SecondaryMetricCard
+              title="Paid Revenue"
+              value={formatMoney(dashboard.revenuePaidCents)}
+              description={`${dashboard.periodPaidInvoices} paid invoices in ${dashboard.revenueWindow.effectiveSize}d`}
+              icon={<DollarSignIcon className="h-4 w-4" aria-hidden="true" />}
             />
           </div>
           <div className="h-full min-w-0 lg:col-span-4">
@@ -811,6 +1009,42 @@ function DashboardPageContent() {
                   Blob: {formatBytes(dashboard.blobStorageBytes)}
                 </div>
               </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+          <Card className="border-border/60 bg-card shadow-1">
+            <CardHeader>
+              <CardTitle className="text-base">Signup Trend</CardTitle>
+              <CardDescription>
+                {dashboard.signupWindow.effectiveSize}d daily registrations
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <TrendChart
+                ariaLabel="Signup trend"
+                points={signupPoints}
+                primaryLabel="Signups"
+                primaryFormatter={value => intFormatter.format(value)}
+              />
+            </CardContent>
+          </Card>
+
+          <Card className="border-border/60 bg-card shadow-1">
+            <CardHeader>
+              <CardTitle className="text-base">Revenue Trend</CardTitle>
+              <CardDescription>
+                {dashboard.revenueWindow.effectiveSize}d paid invoice amount
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <TrendChart
+                ariaLabel="Revenue trend"
+                points={revenuePoints}
+                primaryLabel="Paid Revenue"
+                primaryFormatter={value => formatMoney(value)}
+              />
             </CardContent>
           </Card>
         </div>

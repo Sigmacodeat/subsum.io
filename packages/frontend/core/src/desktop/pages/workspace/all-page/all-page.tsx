@@ -366,40 +366,44 @@ export const AllPage = () => {
       <ViewBody>
         <div className={styles.body}>
           <MigrationAllDocsDataNotification />
-          <div className={styles.pinnedCollection}>
-            <PinnedCollections
-              activeCollectionId={selectedCollectionId}
-              onActiveAll={handleSelectAll}
-              onActiveCollection={handleSelectCollection}
-              onAddFilter={handleNewTempFilter}
-              hiddenAdd={tempFilters !== null}
-            />
-          </div>
-          <div className={styles.filterArea}>
-            {tempFilters !== null && (
-              <div className={styles.filterInnerArea}>
-                <Filters
-                  // When the selected collection changes, the filters internal state should be reset
-                  key={selectedCollectionId ?? 'all'}
-                  className={styles.filters}
-                  filters={tempFilters}
-                  onChange={handleFilterChange}
-                  defaultDraftFilter={tempFiltersInitial}
-                />
-                <Button
-                  variant="plain"
-                  onClick={() => {
-                    setTempFilters(null);
-                  }}
-                >
-                  {t['Cancel']()}
-                </Button>
-                <Button onClick={handleSaveFilters}>{t['save']()}</Button>
-              </div>
-            )}
+          <div className={styles.topControls}>
+            <div className={styles.pinnedCollection}>
+              <PinnedCollections
+                activeCollectionId={selectedCollectionId}
+                onActiveAll={handleSelectAll}
+                onActiveCollection={handleSelectCollection}
+                onAddFilter={handleNewTempFilter}
+                hiddenAdd={tempFilters !== null}
+              />
+            </div>
+            <div className={styles.filterArea}>
+              {tempFilters !== null && (
+                <div className={styles.filterInnerArea}>
+                  <Filters
+                    // When the selected collection changes, the filters internal state should be reset
+                    key={selectedCollectionId ?? 'all'}
+                    className={styles.filters}
+                    filters={tempFilters}
+                    onChange={handleFilterChange}
+                    defaultDraftFilter={tempFiltersInitial}
+                  />
+                  <Button
+                    variant="plain"
+                    onClick={() => {
+                      setTempFilters(null);
+                    }}
+                  >
+                    {t['Cancel']()}
+                  </Button>
+                  <Button onClick={handleSaveFilters}>{t['save']()}</Button>
+                </div>
+              )}
+            </div>
           </div>
           <div className={styles.scrollArea}>
-            <DocsExplorer />
+            <div className={styles.docsSurface}>
+              <DocsExplorer />
+            </div>
           </div>
         </div>
       </ViewBody>

@@ -24,8 +24,12 @@ import { DocModel } from './doc';
 import { DocUserModel } from './doc-user';
 import { FeatureModel } from './feature';
 import { HistoryModel } from './history';
+import { IssueReportAttachmentModel } from './issue-report-attachment';
+import { IssueReportModel } from './issue-report';
 import { MagicLinkOtpModel } from './magic-link-otp';
 import { NotificationModel } from './notification';
+import { OrganizationModel } from './organization';
+import { OrganizationUserModel } from './organization-user';
 import { MODELS_SYMBOL } from './provider';
 import { SessionModel } from './session';
 import { UserModel } from './user';
@@ -33,6 +37,7 @@ import { UserDocModel } from './user-doc';
 import { UserFeatureModel } from './user-feature';
 import { UserSettingsModel } from './user-settings';
 import { VerificationTokenModel } from './verification-token';
+import { WebhookDeliveryModel } from './webhook-delivery';
 import { WorkspaceModel } from './workspace';
 import { WorkspaceAnalyticsModel } from './workspace-analytics';
 import { WorkspaceCalendarModel } from './workspace-calendar';
@@ -45,6 +50,8 @@ const MODELS = {
   verificationToken: VerificationTokenModel,
   magicLinkOtp: MagicLinkOtpModel,
   feature: FeatureModel,
+  organization: OrganizationModel,
+  organizationUser: OrganizationUserModel,
   workspace: WorkspaceModel,
   userFeature: UserFeatureModel,
   workspaceFeature: WorkspaceFeatureModel,
@@ -54,6 +61,8 @@ const MODELS = {
   docUser: DocUserModel,
   history: HistoryModel,
   notification: NotificationModel,
+  issueReport: IssueReportModel,
+  issueReportAttachment: IssueReportAttachmentModel,
   userSettings: UserSettingsModel,
   copilotSession: CopilotSessionModel,
   copilotContext: CopilotContextModel,
@@ -70,6 +79,7 @@ const MODELS = {
   calendarEventInstance: CalendarEventInstanceModel,
   workspaceCalendar: WorkspaceCalendarModel,
   workspaceAnalytics: WorkspaceAnalyticsModel,
+  webhookDelivery: WebhookDeliveryModel,
 };
 
 type ModelsType = {
@@ -139,6 +149,8 @@ export * from './feature';
 export * from './history';
 export * from './magic-link-otp';
 export * from './notification';
+export * from './issue-report';
+export * from './issue-report-attachment';
 export * from './session';
 export * from './user';
 export * from './user-doc';
@@ -149,4 +161,6 @@ export * from './workspace';
 export * from './workspace-analytics';
 export * from './workspace-calendar';
 export * from './workspace-feature';
+export * from './organization';
+export * from './organization-user';
 export * from './workspace-user';

@@ -262,6 +262,33 @@ class AdminDashboard {
   @Field(() => TimeWindow)
   topSharedLinksWindow!: TimeWindow;
 
+  @Field(() => Int)
+  totalUsers!: number;
+
+  @Field(() => Int)
+  registeredUsers!: number;
+
+  @Field(() => Int)
+  periodSignups!: number;
+
+  @Field(() => [AdminDashboardValueDayPoint])
+  signupHistory!: AdminDashboardValueDayPoint[];
+
+  @Field(() => TimeWindow)
+  signupWindow!: TimeWindow;
+
+  @Field(() => SafeIntResolver)
+  revenuePaidCents!: number;
+
+  @Field(() => Int)
+  periodPaidInvoices!: number;
+
+  @Field(() => [AdminDashboardValueDayPoint])
+  revenueHistory!: AdminDashboardValueDayPoint[];
+
+  @Field(() => TimeWindow)
+  revenueWindow!: TimeWindow;
+
   @Field(() => Date)
   generatedAt!: Date;
 }

@@ -8,11 +8,11 @@ export const tabMaxWidth = createVar('200px');
 
 export const root = style({
   width: '100%',
-  height: '40px',
+  height: '44px',
   display: 'flex',
   alignItems: 'center',
   flexDirection: 'row',
-  gap: '8px',
+  gap: '6px',
   overflow: 'clip',
   pointerEvents: 'auto',
   ['WebkitAppRegion' as string]: 'drag',
@@ -42,7 +42,7 @@ export const tabs = style({
   display: 'flex',
   flexDirection: 'row',
   alignItems: 'center',
-  paddingLeft: 8,
+  paddingLeft: 6,
   overflow: 'hidden',
   height: '100%',
   selectors: {
@@ -73,41 +73,50 @@ export const tabWrapper = style({
   height: '100%',
   overflow: 'hidden',
   position: 'relative',
-  padding: '0 6px',
-  margin: '0 -6px',
+  padding: '0 4px',
+  margin: '0 -4px',
 });
 
 export const tab = style({
-  height: 26,
+  height: 30,
   minWidth: 32,
   maxWidth: tabMaxWidth,
   width: 200,
   overflow: 'clip',
-  background: cssVarV2('tab/tabBackground/default'),
+  background: 'color-mix(in srgb, var(--affine-background-secondary-color) 92%, transparent)',
   display: 'flex',
   justifyContent: 'flex-start',
   alignItems: 'center',
   color: cssVarV2('tab/fontColor/default'),
   userSelect: 'none',
-  borderRadius: 4,
+  borderRadius: 8,
   position: 'relative',
+  border: `1px solid ${cssVarV2('layer/insideBorder/border')}`,
+  boxShadow: '0 1px 0 rgba(255,255,255,0.02) inset',
+  transition: 'background 0.14s ease, border-color 0.14s ease, box-shadow 0.14s ease',
   ['WebkitAppRegion' as string]: 'no-drag',
   selectors: {
     [`${tabWrapper} &`]: {
-      marginRight: 8,
+      marginRight: 6,
     },
     '&[data-active="true"]': {
-      boxShadow: `0 0 0 1px ${cssVarV2('button/innerBlackBorder')}`,
+      background: 'color-mix(in srgb, var(--affine-background-overlay-panel-color) 96%, transparent)',
+      borderColor: 'color-mix(in srgb, var(--affine-primary-color) 42%, var(--affine-border-color))',
+      boxShadow: '0 8px 18px rgba(0, 0, 0, 0.14), 0 1px 0 rgba(255,255,255,0.06) inset',
     },
     [`${tabWrapper}[data-dragging="true"] &`]: {
       boxShadow: `0 0 0 1px ${cssVar('primaryColor')}`,
+    },
+    '&:hover:not([data-active="true"])': {
+      background: cssVarV2('layer/background/hoverOverlay'),
+      borderColor: 'color-mix(in srgb, var(--affine-primary-color) 24%, var(--affine-border-color))',
     },
   },
 });
 
 export const splitViewLabel = style({
   minWidth: 48,
-  padding: '0 8px',
+  padding: '0 10px',
   height: '100%',
   display: 'flex',
   gap: '4px',
@@ -117,7 +126,7 @@ export const splitViewLabel = style({
   flex: 1,
   selectors: {
     '&[data-active="true"]': {
-      background: cssVarV2('tab/tabBackground/active'),
+      background: 'transparent',
     },
   },
 });
@@ -140,10 +149,10 @@ export const tabCloseButtonWrapper = style({
       width: 48,
     },
     [`${splitViewLabel}:last-of-type[data-active=true] + &`]: {
-      background: `linear-gradient(270deg, ${cssVarV2('tab/tabBackground/active')} 50%, rgba(255, 255, 255, 0.00) 100%)`,
+      background: `linear-gradient(270deg, color-mix(in srgb, var(--affine-background-overlay-panel-color) 92%, transparent) 50%, rgba(255, 255, 255, 0.00) 100%)`,
     },
     [`${splitViewLabel}:last-of-type[data-active=false] + &`]: {
-      background: `linear-gradient(270deg, ${cssVarV2('tab/tabBackground/default')} 65.71%, rgba(244, 244, 245, 0.00) 100%)`,
+      background: `linear-gradient(270deg, color-mix(in srgb, var(--affine-background-secondary-color) 92%, transparent) 65.71%, rgba(244, 244, 245, 0.00) 100%)`,
     },
   },
 });
@@ -178,9 +187,9 @@ export const tabCloseButton = style([
   tabIcon,
   {
     pointerEvents: 'auto',
-    width: 16,
-    height: 16,
-    borderRadius: 2,
+    width: 18,
+    height: 18,
+    borderRadius: 4,
     display: 'none',
     color: cssVarV2('tab/iconColor/default'),
     selectors: {
@@ -189,7 +198,7 @@ export const tabCloseButton = style([
       },
       '&:hover': {
         color: cssVarV2('tab/iconColor/hover'),
-        background: cssVarV2('layer/background/hoverOverlay'),
+        background: 'color-mix(in srgb, var(--affine-background-primary-color) 80%, transparent)',
       },
     },
   },

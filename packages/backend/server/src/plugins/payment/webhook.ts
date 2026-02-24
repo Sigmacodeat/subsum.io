@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import Stripe from 'stripe';
 
 import { OnEvent } from '../../base';
+import { AffiliateService } from './affiliate';
 import { SubscriptionService } from './service';
 import { StripeFactory } from './stripe';
 
@@ -15,7 +16,8 @@ import { StripeFactory } from './stripe';
 export class StripeWebhook {
   constructor(
     private readonly service: SubscriptionService,
-    private readonly stripeProvider: StripeFactory
+    private readonly stripeProvider: StripeFactory,
+    private readonly affiliate: AffiliateService
   ) {}
 
   get stripe() {
@@ -37,8 +39,13 @@ export class StripeWebhook {
   ) {
     const invoice = await this.stripe.invoices.retrieve(event.data.object.id);
 
+    if (invoice.status === 'paid') {
+      await this.affiliate.processPaidInvoice(invoice.id);
+    }
+
     if (invoice.status === 'void' || invoice.status === 'uncollectible') {
       await this.service.handleRefundedInvoice(invoice.id, 'refund');
+      await this.affiliate.reverseInvoiceCommissions(invoice.id, 'refund');
     }
 
     await this.service.saveStripeInvoice(invoice);
@@ -79,6 +86,7 @@ export class StripeWebhook {
 
     if (invoiceId) {
       await this.service.handleRefundedInvoice(invoiceId, 'refund');
+      await this.affiliate.reverseInvoiceCommissions(invoiceId, 'refund');
     }
   }
 
@@ -95,6 +103,7 @@ export class StripeWebhook {
     const invoiceId = this.extractInvoiceId(charge);
     if (invoiceId) {
       await this.service.handleRefundedInvoice(invoiceId, 'dispute_open');
+      await this.affiliate.reverseInvoiceCommissions(invoiceId, 'dispute_open');
     }
   }
 
@@ -115,6 +124,13 @@ export class StripeWebhook {
       const reason =
         status === 'won' ? 'dispute_won' : ('dispute_lost' as const);
       await this.service.handleRefundedInvoice(invoiceId, reason);
+      await this.affiliate.reverseInvoiceCommissions(invoiceId, reason);
     }
+  }
+
+  @OnEvent('stripe.account.updated')
+  async onConnectAccountUpdated(event: Stripe.AccountUpdatedEvent) {
+    const account = await this.stripe.accounts.retrieve(event.data.object.id);
+    await (this.affiliate as any).syncStripeConnectAccount(account);
   }
 }

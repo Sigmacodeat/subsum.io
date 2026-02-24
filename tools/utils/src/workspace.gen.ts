@@ -1300,6 +1300,11 @@ export const PackageList = [
     ],
   },
   {
+    location: 'packages/frontend/apps/marketing',
+    name: '@legalopscopilot/marketing',
+    workspaceDependencies: [],
+  },
+  {
     location: 'packages/frontend/apps/mobile',
     name: '@affine/mobile',
     workspaceDependencies: [
@@ -1592,6 +1597,7 @@ export type PackageName =
   | '@affine/electron'
   | '@affine/electron-renderer'
   | '@affine/ios'
+  | '@legalopscopilot/marketing'
   | '@affine/mobile'
   | '@affine/web'
   | '@affine/component'

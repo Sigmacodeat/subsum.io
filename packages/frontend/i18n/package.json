@@ -10,7 +10,10 @@
   },
   "scripts": {
     "build": "r build.ts",
-    "dev": "r build.ts --dev"
+    "dev": "r build.ts --dev",
+    "sync": "node tolgee-sync.mjs sync",
+    "download": "node tolgee-sync.mjs download",
+    "verify": "node verify-i18n.mjs"
   },
   "keywords": [],
   "repository": {

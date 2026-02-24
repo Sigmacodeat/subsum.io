@@ -12,6 +12,7 @@ export interface ResizeHandleProps extends React.HtmlHTMLAttributes<HTMLDivEleme
   open: boolean;
   minWidth: number;
   maxWidth: number;
+  width: number;
   resizeHandlePos: 'left' | 'right';
   resizeHandleOffset?: number;
   resizeHandleVerticalPadding?: number;
@@ -56,6 +57,7 @@ const ResizeHandle = ({
   resizing,
   minWidth,
   maxWidth,
+  width,
   resizeHandlePos,
   resizeHandleOffset,
   resizeHandleVerticalPadding,
@@ -135,6 +137,34 @@ const ResizeHandle = ({
     dropTargetOptions,
   ]);
 
+  const onKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLDivElement>) => {
+      if (!open) return;
+      const step = e.shiftKey ? 64 : 16;
+      const key = e.key;
+      if (key !== 'ArrowLeft' && key !== 'ArrowRight' && key !== 'Home' && key !== 'End') {
+        return;
+      }
+      e.preventDefault();
+
+      let nextWidth = width;
+      if (key === 'Home') nextWidth = minWidth;
+      if (key === 'End') nextWidth = maxWidth;
+
+      if (key === 'ArrowLeft') {
+        nextWidth = resizeHandlePos === 'left' ? width + step : width - step;
+      }
+      if (key === 'ArrowRight') {
+        nextWidth = resizeHandlePos === 'left' ? width - step : width + step;
+      }
+
+      nextWidth = Math.min(maxWidth, Math.max(minWidth, nextWidth));
+      onWidthChange(nextWidth);
+      onWidthChanged?.(nextWidth);
+    },
+    [maxWidth, minWidth, onWidthChange, onWidthChanged, open, resizeHandlePos, width]
+  );
+
   return (
     <Tooltip
       content={tooltip}
@@ -149,6 +179,10 @@ const ResizeHandle = ({
           ref.current = node;
           dropTargetRef.current = node;
         }}
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="Resize sidebar"
+        tabIndex={open ? 0 : -1}
         style={assignInlineVars({
           [styles.resizeHandleOffsetVar]: `${resizeHandleOffset ?? 0}px`,
           [styles.resizeHandleVerticalPadding]: `${
@@ -160,6 +194,7 @@ const ResizeHandle = ({
         data-resizing={resizing}
         data-open={open}
         onMouseDown={onResizeStart}
+        onKeyDown={onKeyDown}
       >
         <div className={styles.resizerInner} />
       </div>
@@ -233,6 +268,7 @@ export const ResizePanel = forwardRef<HTMLDivElement, ResizePanelProps>(
           tooltipShortcutClassName={resizeHandleTooltipShortcutClassName}
           maxWidth={maxWidth}
           minWidth={minWidth}
+          width={safeWidth}
           onOpen={onOpen}
           onResizing={onResizing}
           onWidthChange={onWidthChange}

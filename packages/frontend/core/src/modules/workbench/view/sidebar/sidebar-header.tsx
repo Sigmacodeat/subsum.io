@@ -1,6 +1,7 @@
 import { IconButton } from '@affine/component';
 import { RightSidebarIcon } from '@blocksuite/icons/rc';
 
+import { getSidebarText } from './sidebar-i18n';
 import * as styles from './sidebar-header.css';
 
 export type HeaderProps = {
@@ -26,7 +27,13 @@ function Container({
 
 const ToggleButton = ({ onToggle }: { onToggle?: () => void }) => {
   return (
-    <IconButton size="24" onClick={onToggle} data-testid="right-sidebar-close">
+    <IconButton
+      size="24"
+      onClick={onToggle}
+      data-testid="right-sidebar-close"
+      aria-label={getSidebarText('closeRightSidebar')}
+      className={styles.closeButton}
+    >
       <RightSidebarIcon />
     </IconButton>
   );

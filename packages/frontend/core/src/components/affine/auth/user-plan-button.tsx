@@ -1,4 +1,5 @@
 import { Tooltip } from '@affine/component/ui/tooltip';
+import { getPlanMarketingName } from '@affine/core/modules/cloud';
 import { SubscriptionPlan } from '@affine/graphql';
 import { useI18n } from '@affine/i18n';
 import { useLiveData, useService } from '@toeverything/infra';
@@ -43,7 +44,9 @@ export const UserPlanButton = ({
     return;
   }
 
-  const planLabel = isBeliever ? 'Believer' : (plan ?? SubscriptionPlan.Free);
+  const planLabel = isBeliever
+    ? 'Believer'
+    : getPlanMarketingName(t, plan ?? SubscriptionPlan.Free);
 
   return (
     <Tooltip content={t['com.affine.payment.tag-tooltips']()} side="top">

@@ -10,7 +10,7 @@
     "outDir": "./dist",
     "tsBuildInfoFile": "./dist/tsconfig.tsbuildinfo"
   },
-  "include": ["./src"],
+  "include": ["./src/**/*.ts", "./src/**/*.tsx", "./src/**/*.d.ts"],
   "references": [
     { "path": "../../common/s3-compat" },
     { "path": "../native" },

@@ -11,12 +11,16 @@ export const ThemeSetting = () => {
 
   const options = useMemo(() => getThemeOptions(t), [t]);
   const { setTheme, theme } = useTheme();
+  const activeTheme =
+    theme === 'light' || theme === 'dark' || theme === 'system'
+      ? theme
+      : 'system';
 
   return (
     <RowLayout label={t['com.affine.mobile.setting.appearance.theme']()}>
       <SettingDropdownSelect
         options={options}
-        value={theme}
+        value={activeTheme}
         onChange={setTheme}
       />
     </RowLayout>

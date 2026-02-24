@@ -42,6 +42,7 @@ import {
   SubPageTarget,
 } from './sub-page';
 import type { SettingState } from './types';
+import { OrganizationSetting } from './organization-setting';
 import { WorkspaceSetting } from './workspace-setting';
 
 interface SettingProps extends ModalProps {
@@ -52,6 +53,9 @@ interface SettingProps extends ModalProps {
 
 const isWorkspaceSetting = (key: string): boolean =>
   key.startsWith('workspace:');
+
+const isOrganizationSetting = (key: string): boolean =>
+  key.startsWith('organization:');
 
 const CenteredLoading = () => {
   return (
@@ -213,6 +217,11 @@ const SettingModalInner = ({
                   {settingState.activeTab === 'account' &&
                   loginStatus === 'authenticated' ? (
                     <AccountSetting onChangeSettingState={setSettingState} />
+                  ) : isOrganizationSetting(settingState.activeTab) ? (
+                    <OrganizationSetting
+                      activeTab={settingState.activeTab}
+                      onChangeSettingState={setSettingState}
+                    />
                   ) : isWorkspaceSetting(settingState.activeTab) ? (
                     <WorkspaceSetting
                       activeTab={settingState.activeTab}

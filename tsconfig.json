@@ -138,6 +138,7 @@
     { "path": "./packages/frontend/apps/electron" },
     { "path": "./packages/frontend/apps/electron-renderer" },
     { "path": "./packages/frontend/apps/ios" },
+    { "path": "./packages/frontend/apps/marketing" },
     { "path": "./packages/frontend/apps/mobile" },
     { "path": "./packages/frontend/apps/web" },
     { "path": "./packages/frontend/component" },

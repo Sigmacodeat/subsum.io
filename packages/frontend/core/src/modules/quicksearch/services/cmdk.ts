@@ -7,6 +7,7 @@ import { CollectionsQuickSearchSession } from '../impls/collections';
 import { CommandsQuickSearchSession } from '../impls/commands';
 import { CreationQuickSearchSession } from '../impls/creation';
 import { DocsQuickSearchSession } from '../impls/docs';
+import { LegalDeskQuickSearchSession } from '../impls/legal-desk';
 import { LinksQuickSearchSession } from '../impls/links';
 import { RecentDocsQuickSearchSession } from '../impls/recent-docs';
 import { TagsQuickSearchSession } from '../impls/tags';
@@ -34,6 +35,7 @@ export class CMDKQuickSearchService extends Service {
           this.framework.createEntity(DocsQuickSearchSession),
           this.framework.createEntity(LinksQuickSearchSession),
           this.framework.createEntity(TagsQuickSearchSession),
+          this.framework.createEntity(LegalDeskQuickSearchSession),
         ],
         result => {
           if (!result) {
@@ -113,6 +115,11 @@ export class CMDKQuickSearchService extends Service {
             }
             return;
           }
+
+          if (result.source === 'legal-desk') {
+            this._handleLegalDeskResult(result.payload);
+            return;
+          }
         },
         {
           placeholder: {
@@ -120,6 +127,56 @@ export class CMDKQuickSearchService extends Service {
           },
         }
       );
+    }
+  }
+
+  /**
+   * Opens a legal-desk-scoped quick search that only searches across
+   * Mandanten, Akten, and Rechtsdokumente. Used by the dedicated
+   * "Akten-Suche" sidebar button.
+   */
+  toggleLegalDesk() {
+    if (this.quickSearchService.quickSearch.show$.value) {
+      this.quickSearchService.quickSearch.hide();
+    } else {
+      this.quickSearchService.quickSearch.show(
+        [this.framework.createEntity(LegalDeskQuickSearchSession)],
+        result => {
+          if (!result) {
+            return;
+          }
+          if (result.source === 'legal-desk') {
+            this._handleLegalDeskResult(result.payload);
+          }
+        },
+        {
+          label: {
+            key: 'Akten-Suche',
+          } as any,
+          placeholder: {
+            key: 'Mandant, Aktenzahl, Stichwort …',
+          } as any,
+        }
+      );
+    }
+  }
+
+  private _handleLegalDeskResult(payload: {
+    kind: string;
+    clientId?: string;
+    matterId?: string;
+    docId?: string;
+    label: string;
+  }) {
+    const params = new URLSearchParams();
+    if (payload.matterId) {
+      params.set('caMatterId', payload.matterId);
+    }
+    if (payload.clientId) {
+      params.set('caClientId', payload.clientId);
+    }
+    if (params.size > 0) {
+      this.workbenchService.workbench.open(`/chat?${params.toString()}`);
     }
   }
 }

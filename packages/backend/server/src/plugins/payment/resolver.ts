@@ -1,6 +1,6 @@
-import { Headers } from '@nestjs/common';
 import {
   Args,
+  Context,
   Field,
   InputType,
   Int,
@@ -13,6 +13,7 @@ import {
   Resolver,
 } from '@nestjs/graphql';
 import { PrismaClient, Provider, type User } from '@prisma/client';
+import type { Request } from 'express';
 import { GraphQLJSONObject } from 'graphql-scalars';
 import { groupBy } from 'lodash-es';
 import Stripe from 'stripe';
@@ -21,6 +22,7 @@ import { z } from 'zod';
 import {
   AccessDenied,
   AuthenticationRequired,
+  BadRequest,
   FailedToCheckout,
   InvalidSubscriptionParameters,
   Throttle,
@@ -46,6 +48,17 @@ registerEnumType(SubscriptionRecurring, { name: 'SubscriptionRecurring' });
 registerEnumType(SubscriptionVariant, { name: 'SubscriptionVariant' });
 registerEnumType(SubscriptionPlan, { name: 'SubscriptionPlan' });
 registerEnumType(InvoiceStatus, { name: 'InvoiceStatus' });
+
+export function requireIdempotencyKey(
+  headerKey?: string,
+  legacyArgKey?: string
+): string {
+  const key = (headerKey ?? legacyArgKey)?.trim();
+  if (!key) {
+    throw new BadRequest('Idempotency key is required.');
+  }
+  return key;
+}
 
 @ObjectType()
 class SubscriptionPrice {
@@ -219,9 +232,27 @@ class CreateCheckoutSessionInput implements z.infer<typeof CheckoutParams> {
 
 @Resolver(() => SubscriptionType)
 export class SubscriptionResolver {
-  constructor(private readonly service: SubscriptionService) {}
+  constructor(
+    private readonly service: SubscriptionService,
+    private readonly ac: AccessController
+  ) {}
+
+  private async assertTeamPaymentManage(userId: string, workspaceId: string) {
+    await this.ac
+      .user(userId)
+      .workspace(workspaceId)
+      .assert('Workspace.Payment.Manage');
+  }
+
+  private resolveIdempotencyHeader(
+    context?: { req?: Request } | null
+  ): string | undefined {
+    const raw = context?.req?.headers['idempotency-key'];
+    return Array.isArray(raw) ? raw[0] : raw;
+  }
 
   @Public()
+  @Throttle('default')
   @Query(() => [SubscriptionPrice])
   async prices(
     @CurrentUser() user?: CurrentUser
@@ -283,32 +314,44 @@ export class SubscriptionResolver {
   }
 
   @Public()
+  @Throttle('strict')
   @Mutation(() => String, {
     description: 'Create a subscription checkout link of stripe',
   })
   async createCheckoutSession(
     @CurrentUser() user: CurrentUser | null,
     @Args({ name: 'input', type: () => CreateCheckoutSessionInput })
-    input: CreateCheckoutSessionInput
+    input: CreateCheckoutSessionInput,
+    @Context() context?: { req?: Request }
   ) {
     let session: Stripe.Checkout.Session;
+    const idempotencyKey = this.resolveIdempotencyHeader(context);
+    const dedupeKey = idempotencyKey?.trim() || input.idempotencyKey?.trim();
 
     if (input.plan === SubscriptionPlan.SelfHostedTeam) {
       session = await this.service.checkout(input, {
         plan: input.plan as any,
         quantity: input.args?.quantity ?? 10,
         user,
-      });
+      }, dedupeKey);
     } else {
       if (!user) {
         throw new AuthenticationRequired();
+      }
+
+      if (input.plan === SubscriptionPlan.Team) {
+        const workspaceId = input.args?.workspaceId;
+        if (!workspaceId) {
+          throw new WorkspaceIdRequiredToUpdateTeamSubscription();
+        }
+        await this.assertTeamPaymentManage(user.id, workspaceId);
       }
 
       session = await this.service.checkout(input, {
         plan: input.plan as any,
         user,
         workspaceId: input.args?.workspaceId,
-      });
+      }, dedupeKey);
     }
 
     if (!session.url) {
@@ -318,6 +361,7 @@ export class SubscriptionResolver {
     return session.url;
   }
 
+  @Throttle('strict')
   @Mutation(() => String, {
     description: 'Create a stripe customer portal to manage payment methods',
   })
@@ -325,6 +369,7 @@ export class SubscriptionResolver {
     return this.service.createCustomerPortal(user.id);
   }
 
+  @Throttle('strict')
   @Mutation(() => SubscriptionType)
   async cancelSubscription(
     @CurrentUser() user: CurrentUser,
@@ -337,22 +382,29 @@ export class SubscriptionResolver {
     plan: SubscriptionPlan,
     @Args({ name: 'workspaceId', type: () => String, nullable: true })
     workspaceId: string | null,
-    @Headers('idempotency-key') idempotencyKey?: string,
+    @Context() context?: { req?: Request },
     @Args('idempotencyKey', {
       type: () => String,
       nullable: true,
       deprecationReason: 'use header `Idempotency-Key`',
     })
-    _?: string
+    legacyIdempotencyKey?: string
   ) {
+    const idempotencyKey = this.resolveIdempotencyHeader(context);
+    const dedupeKey = requireIdempotencyKey(
+      idempotencyKey,
+      legacyIdempotencyKey
+    );
+
     if (plan === SubscriptionPlan.Team) {
       if (!workspaceId) {
         throw new WorkspaceIdRequiredToUpdateTeamSubscription();
       }
+      await this.assertTeamPaymentManage(user.id, workspaceId);
 
       return this.service.cancelSubscription(
         { workspaceId, plan },
-        idempotencyKey
+        dedupeKey
       );
     }
 
@@ -362,10 +414,11 @@ export class SubscriptionResolver {
         // @ts-expect-error exam inside
         plan,
       },
-      idempotencyKey
+      dedupeKey
     );
   }
 
+  @Throttle('strict')
   @Mutation(() => SubscriptionType)
   async resumeSubscription(
     @CurrentUser() user: CurrentUser,
@@ -378,22 +431,29 @@ export class SubscriptionResolver {
     plan: SubscriptionPlan,
     @Args({ name: 'workspaceId', type: () => String, nullable: true })
     workspaceId: string | null,
-    @Headers('idempotency-key') idempotencyKey?: string,
+    @Context() context?: { req?: Request },
     @Args('idempotencyKey', {
       type: () => String,
       nullable: true,
       deprecationReason: 'use header `Idempotency-Key`',
     })
-    _?: string
+    legacyIdempotencyKey?: string
   ) {
+    const idempotencyKey = this.resolveIdempotencyHeader(context);
+    const dedupeKey = requireIdempotencyKey(
+      idempotencyKey,
+      legacyIdempotencyKey
+    );
+
     if (plan === SubscriptionPlan.Team) {
       if (!workspaceId) {
         throw new WorkspaceIdRequiredToUpdateTeamSubscription();
       }
+      await this.assertTeamPaymentManage(user.id, workspaceId);
 
       return this.service.resumeSubscription(
         { workspaceId, plan },
-        idempotencyKey
+        dedupeKey
       );
     }
 
@@ -403,10 +463,11 @@ export class SubscriptionResolver {
         // @ts-expect-error exam inside
         plan,
       },
-      idempotencyKey
+      dedupeKey
     );
   }
 
+  @Throttle('strict')
   @Mutation(() => SubscriptionType)
   async updateSubscriptionRecurring(
     @CurrentUser() user: CurrentUser,
@@ -421,23 +482,30 @@ export class SubscriptionResolver {
     workspaceId: string | null,
     @Args({ name: 'recurring', type: () => SubscriptionRecurring })
     recurring: SubscriptionRecurring,
-    @Headers('idempotency-key') idempotencyKey?: string,
+    @Context() context?: { req?: Request },
     @Args('idempotencyKey', {
       type: () => String,
       nullable: true,
       deprecationReason: 'use header `Idempotency-Key`',
     })
-    _?: string
+    legacyIdempotencyKey?: string
   ) {
+    const idempotencyKey = this.resolveIdempotencyHeader(context);
+    const dedupeKey = requireIdempotencyKey(
+      idempotencyKey,
+      legacyIdempotencyKey
+    );
+
     if (plan === SubscriptionPlan.Team) {
       if (!workspaceId) {
         throw new WorkspaceIdRequiredToUpdateTeamSubscription();
       }
+      await this.assertTeamPaymentManage(user.id, workspaceId);
 
       return this.service.updateSubscriptionRecurring(
         { workspaceId, plan },
         recurring,
-        idempotencyKey
+        dedupeKey
       );
     }
 
@@ -448,7 +516,7 @@ export class SubscriptionResolver {
         plan,
       },
       recurring,
-      idempotencyKey
+      dedupeKey
     );
   }
 

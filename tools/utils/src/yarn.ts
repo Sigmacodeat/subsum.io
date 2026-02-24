@@ -1,13 +1,13 @@
 import { once } from 'lodash-es';
 
-import { Logger } from './logger';
-import { exec } from './process';
-import type { YarnWorkspaceItem } from './types';
-import type { PackageName } from './workspace.gen';
+import { Logger } from './logger.js';
+import { exec } from './process.js';
+import type { YarnWorkspaceItem } from './types.js';
+import type { PackageName } from './workspace.gen.js';
 
 async function loadPackageList() {
   try {
-    const packageList = await import('./workspace.gen');
+    const packageList = await import('./workspace.gen.js');
     return packageList.PackageList;
   } catch (e) {
     console.log(e);

@@ -79,7 +79,8 @@ export abstract class SubscriptionManager {
   abstract checkout(
     lookupKey: LookupKey,
     params: z.infer<typeof CheckoutParams>,
-    args: any
+    args: any,
+    idempotencyKey?: string
   ): Promise<Stripe.Checkout.Session>;
 
   abstract saveStripeSubscription(

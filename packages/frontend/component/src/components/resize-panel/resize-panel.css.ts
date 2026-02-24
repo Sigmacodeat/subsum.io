@@ -44,6 +44,11 @@ export const root = style({
       visibility: 'hidden',
     },
   },
+  '@media': {
+    '(prefers-reduced-motion: reduce)': {
+      transition: 'none',
+    },
+  },
 });
 
 export const content = style({
@@ -74,6 +79,9 @@ export const resizeHandleContainer = style({
     '(max-width: 600px)': {
       // do not allow resizing on small screen
       display: 'none',
+    },
+    '(prefers-reduced-motion: reduce)': {
+      transition: 'none',
     },
   },
   transition: 'opacity 0.15s ease 0.1s',
@@ -106,6 +114,11 @@ export const resizerInner = style({
     [`${resizeHandleContainer}[data-resizing="true"] &`]: {
       width: '4px',
       borderRadius: '4px',
+    },
+  },
+  '@media': {
+    '(prefers-reduced-motion: reduce)': {
+      transition: 'none',
     },
   },
 });

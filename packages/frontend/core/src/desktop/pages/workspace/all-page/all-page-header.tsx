@@ -3,7 +3,6 @@ import { usePageHelper } from '@affine/core/blocksuite/block-suite-page-list/uti
 import { ExplorerDisplayMenuButton } from '@affine/core/components/explorer/display-menu';
 import { ViewToggle } from '@affine/core/components/explorer/display-menu/view-toggle';
 import type { DocListItemView } from '@affine/core/components/explorer/docs-view/doc-list-item';
-import { ExplorerNavigation } from '@affine/core/components/explorer/header/navigation';
 import type { ExplorerDisplayPreference } from '@affine/core/components/explorer/types';
 import { PageListNewPageButton } from '@affine/core/components/page-list/docs/page-list-new-page-button';
 import { WorkspaceDialogService } from '@affine/core/modules/dialogs';
@@ -83,8 +82,6 @@ export const AllDocsHeader = ({
 
   return (
     <div className={styles.header}>
-      <ExplorerNavigation active="docs" />
-
       <div className={styles.actions}>
         <ViewToggle view={view} onViewChange={onViewChange} />
         <ExplorerDisplayMenuButton

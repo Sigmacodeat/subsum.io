@@ -3,6 +3,7 @@ import type { ComponentType } from 'react';
 
 import CONFIG_DESCRIPTORS from '../../config.json';
 import type { ConfigInputProps } from './config-input-row';
+import { ManageTrustedDevices } from './operations/manage-trusted-devices';
 import { SendTestEmail } from './operations/send-test-email';
 export type ConfigType = 'String' | 'Number' | 'Boolean' | 'JSON' | 'Enum';
 
@@ -76,6 +77,7 @@ export const KNOWN_CONFIG_GROUPS = [
         desc: 'Maximum length requirement of password',
       },
     ],
+    operations: [ManageTrustedDevices],
   } as ConfigGroup<'auth'>,
   {
     name: 'Notification',

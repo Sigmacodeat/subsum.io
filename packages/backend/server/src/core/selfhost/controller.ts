@@ -7,6 +7,7 @@ import {
   InternalServerError,
   Mutex,
   PasswordRequired,
+  Throttle,
   UseNamedGuard,
 } from '../../base';
 import { Models } from '../../models';
@@ -32,6 +33,7 @@ export class CustomSetupController {
   ) {}
 
   @Public()
+  @Throttle('strict')
   @Post('/create-admin-user')
   async createAdmin(
     @Req() req: Request,

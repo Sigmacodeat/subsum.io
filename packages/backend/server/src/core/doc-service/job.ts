@@ -51,6 +51,9 @@ export class DocServiceCronJob {
 
   @Cron(CronExpression.EVERY_30_SECONDS)
   async schedule() {
+    if (!env.prod) {
+      return;
+    }
     const group = await this.models.doc.groupedUpdatesCount();
 
     for (const update of group) {
@@ -86,6 +89,9 @@ export class DocServiceCronJob {
 
   @Cron(CronExpression.EVERY_30_SECONDS)
   async scheduleRecordPendingDocUpdatesCount() {
+    if (!env.prod) {
+      return;
+    }
     await this.job.add(
       'doc.recordPendingDocUpdatesCount',
       {},
@@ -99,6 +105,9 @@ export class DocServiceCronJob {
 
   @Cron(CronExpression.EVERY_30_SECONDS)
   async scheduleFindEmptySummaryDocs() {
+    if (!env.prod) {
+      return;
+    }
     await this.job.add(
       'doc.findEmptySummaryDocs',
       {},

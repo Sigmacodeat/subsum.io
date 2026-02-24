@@ -6,7 +6,7 @@ import type { BuildContext } from 'esbuild';
 import * as esbuild from 'esbuild';
 import kill from 'tree-kill';
 
-import { config, electronDir, rootDir } from './common';
+import { config, electronDir, rootDir } from './common.js';
 
 // this means we don't spawn electron windows, mainly for testing
 const watchMode = process.argv.includes('--watch');

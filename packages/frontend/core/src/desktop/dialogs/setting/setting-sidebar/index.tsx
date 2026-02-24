@@ -20,6 +20,7 @@ import {
 } from 'react';
 
 import { useGeneralSettingList } from '../general-setting';
+import { useOrganizationSettingList } from '../organization-setting';
 import { useWorkspaceSettingList } from '../workspace-setting';
 import * as style from './style.css';
 
@@ -169,6 +170,7 @@ export const SettingSidebar = ({
   const loginStatus = useLiveData(useService(AuthService).session.status$);
   const generalList = useGeneralSettingList();
   const workspaceSettingList = useWorkspaceSettingList();
+  const organizationSettingList = useOrganizationSettingList();
   const gotoTab = useCallback(
     (tab: SettingTab) => {
       track.$.settingsPanel.menu.openSettings({ to: tab });
@@ -193,6 +195,11 @@ export const SettingSidebar = ({
         title: t['com.affine.settingSidebar.settings.workspace'](),
         items: workspaceSettingList,
       },
+      {
+        key: 'setting:organization',
+        title: t['com.affine.settingSidebar.settings.organization'](),
+        items: organizationSettingList,
+      },
     ].map(group => {
       return {
         ...group,
@@ -207,7 +214,7 @@ export const SettingSidebar = ({
       };
     });
     return res;
-  }, [activeTab, generalList, gotoTab, t, workspaceSettingList]);
+  }, [activeTab, generalList, gotoTab, organizationSettingList, t, workspaceSettingList]);
 
   return (
     <div className={style.settingSlideBar} data-testid="settings-sidebar">

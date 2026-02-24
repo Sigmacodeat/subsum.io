@@ -214,10 +214,10 @@ export function Template(props: PropsWithChildren) {
           }}
         >
           <Section>
-            <Link href="https://affine.pro">
+            <Link href="https://subsum.io">
               <Img
-                src="https://cdn.affine.pro/mail/2023-8-9/affine-logo.png"
-                alt="AFFiNE logo"
+                src="https://cdn.subsum.io/mail/subsumio-logo.png"
+                alt="Subsumio logo"
                 height="32px"
               />
             </Link>

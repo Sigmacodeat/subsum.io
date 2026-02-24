@@ -16,9 +16,9 @@ export type SignInProps = {
 export default function SignIn(props: SignInProps) {
   return (
     <Template>
-      <Title>Sign in to AFFiNE Cloud</Title>
+      <Title>Sign in to Subsumio Cloud</Title>
       <Content>
-        <P>You are signing in to AFFiNE. Here is your code:</P>
+        <P>You are signing in to Subsumio. Here is your code:</P>
         <OnelineCodeBlock>{props.otp}</OnelineCodeBlock>
         <P>
           Alternatively, you can sign in directly by clicking the magic link
@@ -36,6 +36,6 @@ export default function SignIn(props: SignInProps) {
 }
 
 SignIn.PreviewProps = {
-  url: 'https://app.affine.pro/magic-link?token=123456&email=test@test.com',
+  url: 'https://app.subsum.io/magic-link?token=123456&email=test@test.com',
   otp: '123456',
 };

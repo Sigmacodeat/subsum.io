@@ -1,7 +1,7 @@
-import { Button } from '@affine/admin/components/ui/button';
-import { Input } from '@affine/admin/components/ui/input';
-import { Label } from '@affine/admin/components/ui/label';
-import { Separator } from '@affine/admin/components/ui/separator';
+import { Button } from '../../components/ui/button';
+import { Input } from '../../components/ui/input';
+import { Label } from '../../components/ui/label';
+import { Separator } from '../../components/ui/separator';
 import { useState } from 'react';
 
 export function Keys() {
@@ -59,7 +59,7 @@ export function Keys() {
           </div>
           <Separator />
           <div className="px-5 space-y-3 text-sm font-normal text-muted-foreground">
-            Custom API keys may not perform as expected. AFFiNE does not
+            Custom API keys may not perform as expected. Subsumio does not
             guarantee results when using custom API keys.
           </div>
         </div>

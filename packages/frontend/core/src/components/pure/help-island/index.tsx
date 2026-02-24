@@ -8,7 +8,7 @@ import { CloseIcon, NewIcon } from '@blocksuite/icons/rc';
 import { useLiveData, useService, useServices } from '@toeverything/infra';
 import { useCallback, useState } from 'react';
 
-import { ContactIcon, HelpIcon, KeyboardIcon } from './icons';
+import { ContactIcon, HelpIcon, KeyboardIcon, ReportIssueIcon } from './icons';
 import {
   StyledAnimateWrapper,
   StyledIconWrapper,
@@ -20,10 +20,11 @@ const DEFAULT_SHOW_LIST: IslandItemNames[] = [
   'whatNew',
   'contact',
   'shortcuts',
+  'reportIssue',
 ];
 
 const DESKTOP_SHOW_LIST: IslandItemNames[] = [...DEFAULT_SHOW_LIST];
-type IslandItemNames = 'whatNew' | 'contact' | 'shortcuts';
+type IslandItemNames = 'whatNew' | 'contact' | 'shortcuts' | 'reportIssue';
 
 const showList = BUILD_CONFIG.isElectron
   ? DESKTOP_SHOW_LIST
@@ -57,6 +58,11 @@ export const HelpIsland = () => {
     () => openSettingModal('shortcuts'),
     [openSettingModal]
   );
+
+  const openIssueReport = useCallback(() => {
+    setShowSpread(false);
+    workspaceDialogService.open('issue-report', {});
+  }, [workspaceDialogService]);
 
   return (
     <StyledIsland
@@ -102,6 +108,16 @@ export const HelpIsland = () => {
               onClick={openShortcuts}
             >
               <KeyboardIcon />
+            </StyledIconWrapper>
+          </Tooltip>
+        )}
+        {showList.includes('reportIssue') && (
+          <Tooltip content={t['com.affine.helpIsland.helpAndFeedback']()} side="left">
+            <StyledIconWrapper
+              data-testid="report-issue-icon"
+              onClick={openIssueReport}
+            >
+              <ReportIssueIcon />
             </StyledIconWrapper>
           </Tooltip>
         )}

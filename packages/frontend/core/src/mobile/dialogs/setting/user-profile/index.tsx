@@ -80,8 +80,8 @@ const UnauthorizedUserProfile = () => {
     <BaseLayout
       onClick={() => globalDialogService.open('sign-in', {})}
       avatar={<Avatar size={48} rounded={4} />}
-      title="Sign up / Sign in"
-      caption="Sync with AFFiNE Cloud"
+      title="Sign in / Create account"
+      caption="Sync with Subsumio Cloud"
     />
   );
 };

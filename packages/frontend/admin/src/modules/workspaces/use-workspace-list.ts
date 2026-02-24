@@ -1,4 +1,4 @@
-import { useQuery } from '@affine/admin/use-query';
+import { useQuery } from '../../use-query';
 import type { AdminWorkspaceSort, FeatureType } from '@affine/graphql';
 import {
   adminWorkspacesCountQuery,

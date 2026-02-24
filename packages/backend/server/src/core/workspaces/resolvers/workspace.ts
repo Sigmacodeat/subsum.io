@@ -16,6 +16,7 @@ import {
   registerObjectType,
   SpaceAccessDenied,
   SpaceNotFound,
+  Throttle,
 } from '../../../base';
 import { Models } from '../../../models';
 import { CurrentUser } from '../../auth';
@@ -216,6 +217,7 @@ export class WorkspaceResolver {
     };
   }
 
+  @Throttle('strict')
   @Mutation(() => WorkspaceType, {
     description: 'Create a new workspace',
   })
@@ -255,6 +257,7 @@ export class WorkspaceResolver {
     return workspace;
   }
 
+  @Throttle('strict')
   @Mutation(() => WorkspaceType, {
     description: 'Update workspace',
   })
@@ -270,6 +273,7 @@ export class WorkspaceResolver {
     return this.models.workspace.update(id, updates);
   }
 
+  @Throttle('strict')
   @Mutation(() => Boolean)
   async deleteWorkspace(
     @CurrentUser() user: CurrentUser,

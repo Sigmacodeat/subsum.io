@@ -10,9 +10,10 @@ import {
   OnEvent,
   PROXY_MULTIPART_PATH,
   PROXY_UPLOAD_PATH,
-  STORAGE_PROXY_ROOT,
-  StorageProviderConfig,
+  type StorageProviderConfig,
+  Throttle,
   StorageProviderFactory,
+  STORAGE_PROXY_ROOT,
 } from '../../base';
 import {
   R2StorageConfig,
@@ -170,6 +171,7 @@ export class R2UploadController {
   }
 
   @Public()
+  @Throttle('strict')
   @Put('upload')
   @CallMetric('controllers', 'r2_proxy_upload')
   async upload(@Req() req: Request, @Res() res: Response) {
@@ -248,6 +250,7 @@ export class R2UploadController {
   }
 
   @Public()
+  @Throttle('strict')
   @Put('multipart')
   @CallMetric('controllers', 'r2_proxy_multipart')
   async uploadPart(@Req() req: Request, @Res() res: Response) {

@@ -62,6 +62,7 @@ export const InviteMemberEditor = ({
 }) => {
   const t = useI18n();
   const [selectedMembers, setSelectedMembers] = useState<Member[]>([]);
+  const [isInviting, setIsInviting] = useState(false);
   const docGrantedUsersService = useService(DocGrantedUsersService);
   const [inviteDocRoleType, setInviteDocRoleType] = useState<DocRole>(
     DocRole.Manager
@@ -97,11 +98,15 @@ export const InviteMemberEditor = ({
   const workspaceDialogService = useService(WorkspaceDialogService);
 
   const onInvite = useAsyncCallback(async () => {
+    if (isInviting || selectedMembers.length === 0) {
+      return;
+    }
     const selectedMemberIds = selectedMembers.map(member => member.id);
     track.$.sharePanel.$.inviteUserDocRole({
       control: 'member list',
       role: inviteDocRoleType,
     });
+    setIsInviting(true);
     try {
       await docGrantedUsersService.grantUsersRole(
         selectedMemberIds,
@@ -117,10 +122,13 @@ export const InviteMemberEditor = ({
       notify.error({
         title: t[`error.${err.name}`](err.data),
       });
+    } finally {
+      setIsInviting(false);
     }
   }, [
     docGrantedUsersService,
     inviteDocRoleType,
+    isInviting,
     onClickCancel,
     selectedMembers,
     t,
@@ -158,14 +166,27 @@ export const InviteMemberEditor = ({
     [focusInput]
   );
 
+  const handleCancel = useCallback(() => {
+    if (isInviting) {
+      return;
+    }
+    onClickCancel();
+  }, [isInviting, onClickCancel]);
+
   const switchToMemberManagementTab = useCallback(() => {
+    if (isInviting) {
+      return;
+    }
     workspaceDialogService.open('setting', {
       activeTab: 'workspace:members',
     });
-  }, [workspaceDialogService]);
+  }, [isInviting, workspaceDialogService]);
 
   const handleClickMember = useCallback(
     (member: Member) => {
+      if (isInviting) {
+        return;
+      }
       setSelectedMembers(prev => {
         if (prev.some(m => m.id === member.id)) {
           // if the member is already in the list, just return
@@ -177,16 +198,22 @@ export const InviteMemberEditor = ({
       memberSearchService.search('');
       focusInput();
     },
-    [focusInput, memberSearchService]
+    [focusInput, isInviting, memberSearchService]
   );
 
-  const handleRoleChange = useCallback((role: DocRole) => {
-    setInviteDocRoleType(role);
-  }, []);
+  const handleRoleChange = useCallback(
+    (role: DocRole) => {
+      if (isInviting) {
+        return;
+      }
+      setInviteDocRoleType(role);
+    },
+    [isInviting]
+  );
 
   return (
     <div className={styles.containerStyle}>
-      <div className={styles.headerStyle} onClick={onClickCancel}>
+      <div className={styles.headerStyle} onClick={handleCancel}>
         <ArrowLeftBigIcon className={styles.iconStyle} />
         {t['com.affine.share-menu.invite-editor.header']()}
       </div>
@@ -249,13 +276,13 @@ export const InviteMemberEditor = ({
           {t['com.affine.share-menu.invite-editor.manage-members']()}
         </span>
         <div className={styles.buttonsContainer}>
-          <Button className={styles.button} onClick={onClickCancel}>
+          <Button className={styles.button} onClick={handleCancel} disabled={isInviting}>
             {t['Cancel']()}
           </Button>
           <Button
             className={styles.button}
             variant="primary"
-            disabled={!selectedMembers.length}
+            disabled={!selectedMembers.length || isInviting}
             onClick={onInvite}
           >
             {t['com.affine.share-menu.invite-editor.invite']()}

@@ -6,7 +6,7 @@ import { Controller, Get, Logger, Req, Res } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import isMobile from 'is-mobile';
 
-import { Config, getRequestTrackerId, metrics } from '../../base';
+import { Config, getRequestTrackerId, metrics, Throttle } from '../../base';
 import { Models } from '../../models';
 import { htmlSanitize } from '../../native';
 import { Public } from '../auth';
@@ -90,6 +90,7 @@ export class DocRendererController {
   }
 
   @Public()
+  @Throttle('default')
   @Get('/*path')
   async render(@Req() req: Request, @Res() res: Response) {
     const assets: HtmlAssets =

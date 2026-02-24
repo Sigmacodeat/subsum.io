@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaClient, Provider, UserStripeCustomer } from '@prisma/client';
 import { omit, pick } from 'lodash-es';
+import Stripe from 'stripe';
 import { z } from 'zod';
 
 import {
@@ -67,7 +68,8 @@ export class WorkspaceSubscriptionManager extends SubscriptionManager {
   async checkout(
     lookupKey: LookupKey,
     params: z.infer<typeof CheckoutParams>,
-    args: z.infer<typeof WorkspaceSubscriptionCheckoutArgs>
+    args: z.infer<typeof WorkspaceSubscriptionCheckoutArgs>,
+    idempotencyKey?: string
   ) {
     const subscription = await this.getSubscription({
       plan: SubscriptionPlan.Team,
@@ -105,23 +107,32 @@ export class WorkspaceSubscriptionManager extends SubscriptionManager {
 
     const count = await this.models.workspaceUser.count(args.workspaceId);
 
-    return this.stripe.checkout.sessions.create({
-      customer: customer.stripeCustomerId,
-      line_items: [
-        {
-          price: price.price.id,
-          quantity: count,
-        },
-      ],
-      mode: 'subscription',
-      subscription_data: {
+    const subscriptionData: Stripe.Checkout.SessionCreateParams.SubscriptionData =
+      {
+        trial_period_days: 14,
         metadata: {
           workspaceId: args.workspaceId,
         },
+      };
+
+    return this.stripe.checkout.sessions.create(
+      {
+        customer: customer.stripeCustomerId,
+        line_items: [
+          {
+            price: price.price.id,
+            quantity: count,
+          },
+        ],
+        mode: 'subscription',
+        subscription_data: subscriptionData,
+        // enforce credit card collection up-front for trials
+        payment_method_collection: 'always',
+        ...discounts,
+        success_url: this.url.safeLink(params.successCallbackLink || '/'),
       },
-      ...discounts,
-      success_url: this.url.safeLink(params.successCallbackLink || '/'),
-    });
+      idempotencyKey ? { idempotencyKey } : undefined
+    );
   }
 
   async saveStripeSubscription(subscription: KnownStripeSubscription) {

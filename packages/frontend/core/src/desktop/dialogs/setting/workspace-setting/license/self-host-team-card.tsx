@@ -124,8 +124,6 @@ export const SelfHostTeamCard = () => {
         })
         .catch(e => {
           setLoading(false);
-
-          console.error(e);
           const error = UserFriendlyError.fromAny(e);
 
           notify.error({
@@ -152,8 +150,6 @@ export const SelfHostTeamCard = () => {
       })
       .catch(e => {
         setLoading(false);
-
-        console.error(e);
         const error = UserFriendlyError.fromAny(e);
 
         notify.error({
@@ -415,7 +411,7 @@ const ActionModal = ({
           components={{
             1: (
               <a
-                href="https://affine.pro/pricing/?type=selfhost#table"
+                href={BUILD_CONFIG.pricingUrl}
                 target="_blank"
                 rel="noreferrer"
                 style={{ color: cssVarV2('text/link') }}

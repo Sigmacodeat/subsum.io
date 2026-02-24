@@ -20,6 +20,8 @@ import { getRequestTrackerId } from '../utils/request-tracker';
 import type { ThrottlerType } from './config';
 import { THROTTLER_PROTECTED, Throttlers } from './decorators';
 
+const SAFE_HTTP_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
+
 @Injectable()
 export class ThrottlerStorage extends ThrottlerStorageService {}
 
@@ -159,8 +161,12 @@ export class CloudThrottlerGuard extends ThrottlerGuard {
 
     const throttler = this.getSpecifiedThrottler(context);
 
-    // if user is logged in, bypass non-protected handlers
-    if (!throttler && req.session?.user) {
+    // if user is logged in, bypass non-protected handlers only for safe HTTP methods
+    if (
+      !throttler &&
+      req.session?.user &&
+      SAFE_HTTP_METHODS.has(req.method.toUpperCase())
+    ) {
       return true;
     }
 

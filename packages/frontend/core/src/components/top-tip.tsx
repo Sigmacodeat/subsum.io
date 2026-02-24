@@ -65,7 +65,7 @@ export const TopTip = ({
   const isLoggedIn = loginStatus === 'authenticated';
 
   const [showWarning, setShowWarning] = useState(shouldShowWarning);
-  const [showLocalDemoTips, setShowLocalDemoTips] = useState(true);
+  const [showLocalDemoTips, setShowLocalDemoTips] = useState(false);
   const confirmEnableCloud = useEnableCloud();
 
   const globalDialogService = useService(GlobalDialogService);

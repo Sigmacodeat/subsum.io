@@ -6,6 +6,7 @@ import { useGuard } from '@affine/core/components/guard';
 import { useActiveBlocksuiteEditor } from '@affine/core/components/hooks/use-block-suite-editor';
 import { useNavigateHelper } from '@affine/core/components/hooks/use-navigate-helper';
 import { PageDetailEditor } from '@affine/core/components/page-detail-editor';
+import { PageNotFound } from '@affine/core/desktop/pages/404';
 import { DetailPageWrapper } from '@affine/core/desktop/pages/workspace/detail-page/detail-page-wrapper';
 import { PageHeader } from '@affine/core/mobile/components';
 import { useGlobalEvent } from '@affine/core/mobile/hooks/use-global-events';
@@ -220,7 +221,7 @@ const getSkeleton = (back: boolean) => (
 const getNotFound = (back: boolean) => (
   <>
     <PageHeader back={back} className={styles.header} />
-    Page Not Found (TODO)
+    <PageNotFound noPermission />
   </>
 );
 const skeleton = getSkeleton(false);

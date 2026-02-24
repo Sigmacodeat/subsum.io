@@ -30,18 +30,20 @@ export const closeIconStyle = style({
   zIndex: 1,
 });
 export const tipsContainer = style({
-  backgroundColor: cssVar('backgroundErrorColor'),
-  color: cssVar('errorColor'),
+  background:
+    `linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02)), ${cssVar('backgroundWarningColor')}`,
+  color: cssVar('warningColor'),
   width: '100%',
   fontSize: cssVar('fontSm'),
-  fontWeight: '700',
+  fontWeight: '600',
   display: 'flex',
   justifyContent: 'space-between',
   alignItems: 'center',
-  padding: '12px 16px',
+  padding: '10px 14px',
   position: 'absolute',
   zIndex: 1,
   gap: '16px',
+  borderBottom: `1px solid ${cssVar('borderColor')}`,
   containerType: 'inline-size',
   '@media': {
     'screen and (max-width: 520px)': {
@@ -50,7 +52,8 @@ export const tipsContainer = style({
   },
 });
 export const tipsMessage = style({
-  color: cssVar('errorColor'),
+  color: cssVar('warningColor'),
+  lineHeight: 1.35,
   flexGrow: 1,
   flexShrink: 1,
 });

@@ -120,7 +120,10 @@ const CalendarEventRenderer = ({ event }: { event: CalendarEvent }) => {
         }}
         content={
           <div className={styles.nameTooltipContent}>
-            <div className={styles.nameTooltipIcon} style={{ color }} />
+            <div
+              className={styles.nameTooltipIcon}
+              style={assignInlineVars({ [styles.primaryColor]: color })}
+            />
             <div className={styles.nameTooltipName}>{name}</div>
           </div>
         }
@@ -140,7 +143,7 @@ const CalendarEventRenderer = ({ event }: { event: CalendarEvent }) => {
               : formatTime(startAt, endAt)}
           </span>
           <span className={styles.eventNewDoc}>
-            <PlusIcon style={{ fontSize: 18 }} />
+            <PlusIcon className={styles.newDocIcon} />
             {t['com.affine.integration.calendar.new-doc']()}
           </span>
         </div>

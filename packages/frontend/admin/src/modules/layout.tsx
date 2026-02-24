@@ -1,10 +1,10 @@
 import {
   ResizablePanel,
   ResizablePanelGroup,
-} from '@affine/admin/components/ui/resizable';
-import { Separator } from '@affine/admin/components/ui/separator';
-import { TooltipProvider } from '@affine/admin/components/ui/tooltip';
-import { cn } from '@affine/admin/utils';
+} from '../components/ui/resizable';
+import { Separator } from '../components/ui/separator';
+import { TooltipProvider } from '../components/ui/tooltip';
+import { cn } from '../utils';
 import { AlignJustifyIcon } from 'lucide-react';
 import type { PropsWithChildren, ReactNode, RefObject } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -206,7 +206,7 @@ export const LeftPanel = ({
           </Button>
         </SheetTrigger>
         <SheetHeader className="hidden">
-          <SheetTitle>AFFiNE</SheetTitle>
+          <SheetTitle>Subsumio</SheetTitle>
           <SheetDescription>
             Admin panel for managing accounts, AI, config, and settings
           </SheetDescription>
@@ -223,7 +223,7 @@ export const LeftPanel = ({
               )}
             >
               <Logo />
-              AFFiNE
+              Subsumio
             </div>
             <Separator />
             <Nav />
@@ -265,7 +265,7 @@ export const LeftPanel = ({
           >
             <Logo />
           </span>
-          {!isCollapsed && 'AFFiNE'}
+          {!isCollapsed && 'Subsumio'}
         </div>
         <Nav isCollapsed={isCollapsed} />
       </div>

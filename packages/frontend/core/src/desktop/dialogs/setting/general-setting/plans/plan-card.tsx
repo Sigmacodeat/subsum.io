@@ -1,5 +1,7 @@
+import { notify } from '@affine/component';
 import { Button, type ButtonProps } from '@affine/component/ui/button';
 import { Tooltip } from '@affine/component/ui/tooltip';
+import { UserFriendlyError } from '@affine/error';
 import { generateSubscriptionCallbackLink } from '@affine/core/components/hooks/affine/use-subscription-notify';
 import { useAsyncCallback } from '@affine/core/components/hooks/affine-async-hooks';
 import {
@@ -203,7 +205,7 @@ const ActionButton = ({ detail, recurring }: PlanCardProps) => {
   ) : (
     <Upgrade
       recurring={recurring as SubscriptionRecurring}
-      plan={SubscriptionPlan.Pro}
+      plan={detail.plan}
     />
   );
 };
@@ -378,11 +380,21 @@ const ChangeRecurring = ({
   }, [to]);
 
   const change = useAsyncCallback(async () => {
-    setIsMutating(true);
-    await subscription.setSubscriptionRecurring(idempotencyKey, to);
-    setIdempotencyKey(nanoid());
-    setIsMutating(false);
-  }, [subscription, to, idempotencyKey]);
+    try {
+      setIsMutating(true);
+      await subscription.setSubscriptionRecurring(idempotencyKey, to);
+      setIdempotencyKey(nanoid());
+      setOpen(false);
+    } catch (err) {
+      const e = UserFriendlyError.fromAny(err);
+      notify.error({
+        title: t['com.affine.payment.change-recurring.error.title'](),
+        message: e.message,
+      });
+    } finally {
+      setIsMutating(false);
+    }
+  }, [subscription, to, idempotencyKey, t]);
 
   const changeCurringContent = (
     <Trans values={{ from, to, due }} className={styles.downgradeContent}>

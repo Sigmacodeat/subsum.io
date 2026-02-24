@@ -7,6 +7,7 @@ import { R2UploadController } from './r2-proxy';
 import {
   AvatarStorage,
   CommentAttachmentStorage,
+  IssueReportAttachmentStorage,
   WorkspaceBlobStorage,
 } from './wrappers';
 
@@ -16,10 +17,21 @@ import {
     WorkspaceBlobStorage,
     AvatarStorage,
     CommentAttachmentStorage,
+    IssueReportAttachmentStorage,
     BlobUploadCleanupJob,
   ],
-  exports: [WorkspaceBlobStorage, AvatarStorage, CommentAttachmentStorage],
+  exports: [
+    WorkspaceBlobStorage,
+    AvatarStorage,
+    CommentAttachmentStorage,
+    IssueReportAttachmentStorage,
+  ],
 })
 export class StorageModule {}
 
-export { AvatarStorage, CommentAttachmentStorage, WorkspaceBlobStorage };
+export {
+  AvatarStorage,
+  CommentAttachmentStorage,
+  IssueReportAttachmentStorage,
+  WorkspaceBlobStorage,
+};

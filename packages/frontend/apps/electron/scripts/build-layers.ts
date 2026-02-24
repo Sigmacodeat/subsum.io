@@ -3,7 +3,7 @@ import path from 'node:path';
 
 import * as esbuild from 'esbuild';
 
-import { config, mode, rootDir } from './common';
+import { config, mode, rootDir } from './common.js';
 
 async function buildLayers() {
   const common = config();

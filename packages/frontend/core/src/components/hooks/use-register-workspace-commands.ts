@@ -167,6 +167,7 @@ export function useRegisterWorkspaceCommands() {
   useEffect(() => {
     const unsub = registerAffineCreationCommands({
       globalDialogService,
+      workspaceDialogService,
       pageHelper: pageHelper,
       t,
     });
@@ -174,7 +175,13 @@ export function useRegisterWorkspaceCommands() {
     return () => {
       unsub();
     };
-  }, [store, pageHelper, t, globalDialogService]);
+  }, [
+    store,
+    pageHelper,
+    t,
+    globalDialogService,
+    workspaceDialogService,
+  ]);
 
   // register AffineHelpCommands
   useEffect(() => {

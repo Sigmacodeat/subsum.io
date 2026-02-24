@@ -11,11 +11,12 @@ import supertest from 'supertest';
 import {
   AFFiNELogger,
   ApplyType,
+  CloudThrottlerGuard,
   GlobalExceptionFilter,
   JobQueue,
 } from '../../base';
 import { SocketIoAdapter } from '../../base/websocket';
-import { AuthService } from '../../core/auth';
+import { AuthGuard, AuthService } from '../../core/auth';
 import { Mailer } from '../../core/mail';
 import { UserModel } from '../../models';
 import {
@@ -63,6 +64,8 @@ export async function createTestingApp(
 
   app.use(cookieParser());
   app.useWebSocketAdapter(new SocketIoAdapter(app));
+
+  app.useGlobalGuards(app.get(AuthGuard), app.get(CloudThrottlerGuard));
 
   if (moduleDef.tapApp) {
     moduleDef.tapApp(app);

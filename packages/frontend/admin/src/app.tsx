@@ -30,8 +30,14 @@ export const Dashboard = lazy(
 export const Workspaces = lazy(
   () => import(/* webpackChunkName: "workspaces" */ './modules/workspaces')
 );
+export const Affiliates = lazy(
+  () => import(/* webpackChunkName: "affiliates" */ './modules/affiliates')
+);
 export const Queue = lazy(
   () => import(/* webpackChunkName: "queue" */ './modules/queue')
+);
+export const Reports = lazy(
+  () => import(/* webpackChunkName: "reports" */ './modules/reports')
 );
 export const AI = lazy(
   () => import(/* webpackChunkName: "ai" */ './modules/ai')
@@ -130,7 +136,18 @@ export const App = () => {
                       )
                     }
                   />
+                  <Route
+                    path={ROUTES.admin.affiliates}
+                    element={
+                      environment.isSelfHosted ? (
+                        <Navigate to={ROUTES.admin.accounts} replace />
+                      ) : (
+                        <Affiliates />
+                      )
+                    }
+                  />
                   <Route path={`${ROUTES.admin.queue}/*`} element={<Queue />} />
+                  <Route path={ROUTES.admin.reports} element={<Reports />} />
                   <Route path={ROUTES.admin.ai} element={<AI />} />
                   <Route path={ROUTES.admin.about} element={<About />} />
                   <Route

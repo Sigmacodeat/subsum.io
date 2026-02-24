@@ -9,6 +9,12 @@ export class AppConfigModel extends BaseModel {
     return this.db.appConfig.findMany();
   }
 
+  async get(key: string) {
+    return this.db.appConfig.findUnique({
+      where: { id: key },
+    });
+  }
+
   @Transactional()
   async save(user: string, updates: Array<{ key: string; value: any }>) {
     return await Promise.allSettled(

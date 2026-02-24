@@ -3,6 +3,7 @@ import {
   pushGlobalLoadingEventAtom,
   resolveGlobalLoadingEventAtom,
 } from '@affine/component/global-loading';
+import { UserFriendlyError } from '@affine/error';
 import {
   AIProvider,
   CopilotClient,
@@ -16,6 +17,7 @@ import {
   EventSourceService,
   FetchService,
   GraphQLService,
+  ServerService,
 } from '@affine/core/modules/cloud';
 import {
   GlobalDialogService,
@@ -43,8 +45,16 @@ import {
   useServices,
 } from '@toeverything/infra';
 import { useSetAtom } from 'jotai';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { catchError, EMPTY, finalize, switchMap, tap, timeout } from 'rxjs';
+
+const CLOUD_ERROR_TOAST_COOLDOWN_MS = 10_000;
+
+const getCloudErrorMessage = (error: unknown): string => {
+  const userFriendlyError = UserFriendlyError.fromAny(error);
+  const message = userFriendlyError.message?.trim();
+  return message ? message : 'Cloud request failed. Please try again.';
+};
 
 /**
  * @deprecated just for legacy code, will be removed in the future
@@ -142,6 +152,48 @@ export const WorkspaceSideEffects = () => {
   const eventSourceService = useService(EventSourceService);
   const fetchService = useService(FetchService);
   const authService = useService(AuthService);
+  const serverService = useService(ServerService);
+  const lastCloudErrorToastRef = useRef<{
+    source: 'auth' | 'server-config';
+    message: string;
+    at: number;
+  } | null>(null);
+
+  useEffect(() => {
+    const maybeShowCloudErrorToast = (
+      source: 'auth' | 'server-config',
+      error: unknown
+    ) => {
+      if (!error) return;
+      const message = getCloudErrorMessage(error);
+      const now = Date.now();
+      const previous = lastCloudErrorToastRef.current;
+      if (
+        previous &&
+        previous.source === source &&
+        previous.message === message &&
+        now - previous.at < CLOUD_ERROR_TOAST_COOLDOWN_MS
+      ) {
+        return;
+      }
+      lastCloudErrorToastRef.current = { source, message, at: now };
+      toast(message);
+    };
+
+    const authErrorSub = authService.session.error$.subscribe(error => {
+      maybeShowCloudErrorToast('auth', error);
+    });
+    const serverConfigErrorSub = serverService.server.configError$.subscribe(
+      error => {
+        maybeShowCloudErrorToast('server-config', error);
+      }
+    );
+
+    return () => {
+      authErrorSub.unsubscribe();
+      serverConfigErrorSub.unsubscribe();
+    };
+  }, [authService, serverService]);
 
   useEffect(() => {
     const dispose = setupAIProvider(

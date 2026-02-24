@@ -24,8 +24,7 @@ export const UserSubscription = () => {
   }
 
   if (!supported) {
-    // TODO: enable this
-    // return null;
+    return null;
   }
 
   if (!nativePaywallProvider) {

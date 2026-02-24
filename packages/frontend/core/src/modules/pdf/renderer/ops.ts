@@ -5,4 +5,5 @@ import type { PDFMeta, RenderedPage, RenderPageOpts } from './types';
 export interface ClientOps extends OpSchema {
   open: [{ data: ArrayBuffer }, PDFMeta];
   render: [RenderPageOpts, RenderedPage];
+  extractText: [{ maxPages?: number }, { text: string; pageCount: number }];
 }

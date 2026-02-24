@@ -2613,6 +2613,131 @@ export const notificationCountQuery = {
 }`,
 };
 
+export const assignWorkspaceToOrgMutation = {
+  id: 'assignWorkspaceToOrgMutation' as const,
+  op: 'assignWorkspaceToOrg',
+  query: `mutation assignWorkspaceToOrg($organizationId: String!, $workspaceId: String!) {
+  assignWorkspaceToOrg(organizationId: $organizationId, workspaceId: $workspaceId)
+}`,
+};
+
+export const getOrganizationByIdQuery = {
+  id: 'getOrganizationByIdQuery' as const,
+  op: 'getOrganizationById',
+  query: `query getOrganizationById($id: String!) {
+  organization(id: $id) {
+    id
+    name
+    slug
+    avatarKey
+    createdAt
+    memberCount
+    members {
+      id
+      user {
+        id
+        name
+        email
+        avatarUrl
+      }
+      role
+      status
+      createdAt
+    }
+    workspaces {
+      id
+      name
+      createdAt
+    }
+  }
+}`,
+};
+
+export const changeOrgMemberRoleMutation = {
+  id: 'changeOrgMemberRoleMutation' as const,
+  op: 'changeOrgMemberRole',
+  query: `mutation changeOrgMemberRole($organizationId: String!, $userId: String!, $role: OrgRole!) {
+  changeOrgMemberRole(
+    organizationId: $organizationId
+    userId: $userId
+    role: $role
+  )
+}`,
+};
+
+export const createOrganizationMutation = {
+  id: 'createOrganizationMutation' as const,
+  op: 'createOrganization',
+  query: `mutation createOrganization($input: CreateOrganizationInput!) {
+  createOrganization(input: $input) {
+    id
+    name
+    slug
+  }
+}`,
+};
+
+export const deleteOrganizationMutation = {
+  id: 'deleteOrganizationMutation' as const,
+  op: 'deleteOrganization',
+  query: `mutation deleteOrganization($id: String!) {
+  deleteOrganization(id: $id)
+}`,
+};
+
+export const inviteOrgMemberMutation = {
+  id: 'inviteOrgMemberMutation' as const,
+  op: 'inviteOrgMember',
+  query: `mutation inviteOrgMember($input: InviteOrgMemberInput!) {
+  inviteOrgMember(input: $input)
+}`,
+};
+
+export const getOrganizationsQuery = {
+  id: 'getOrganizationsQuery' as const,
+  op: 'getOrganizations',
+  query: `query getOrganizations {
+  organizations {
+    id
+    name
+    slug
+    avatarKey
+    createdAt
+  }
+}`,
+};
+
+export const removeOrgMemberMutation = {
+  id: 'removeOrgMemberMutation' as const,
+  op: 'removeOrgMember',
+  query: `mutation removeOrgMember($organizationId: String!, $userId: String!) {
+  removeOrgMember(organizationId: $organizationId, userId: $userId)
+}`,
+};
+
+export const unassignWorkspaceFromOrgMutation = {
+  id: 'unassignWorkspaceFromOrgMutation' as const,
+  op: 'unassignWorkspaceFromOrg',
+  query: `mutation unassignWorkspaceFromOrg($organizationId: String!, $workspaceId: String!) {
+  unassignWorkspaceFromOrg(
+    organizationId: $organizationId
+    workspaceId: $workspaceId
+  )
+}`,
+};
+
+export const updateOrganizationMutation = {
+  id: 'updateOrganizationMutation' as const,
+  op: 'updateOrganization',
+  query: `mutation updateOrganization($input: UpdateOrganizationInput!) {
+  updateOrganization(input: $input) {
+    id
+    name
+    slug
+  }
+}`,
+};
+
 export const pricesQuery = {
   id: 'pricesQuery' as const,
   op: 'prices',
@@ -2866,6 +2991,8 @@ export const subscriptionQuery = {
       recurring
       start
       end
+      trialStart
+      trialEnd
       nextBillAt
       canceledAt
       variant

@@ -16,6 +16,7 @@ import { EnableCloudDialog } from './enable-cloud';
 import { ImportDialog } from './import';
 import { ImportTemplateDialog } from './import-template';
 import { ImportWorkspaceDialog } from './import-workspace';
+import { IssueReportDialog } from './issue-report';
 import { CollectionSelectorDialog } from './selectors/collection';
 import { DateSelectorDialog } from './selectors/date';
 import { DocSelectorDialog } from './selectors/doc';
@@ -41,6 +42,7 @@ const GLOBAL_DIALOGS = {
 
 const WORKSPACE_DIALOGS = {
   'doc-info': DocInfoDialog,
+  'issue-report': IssueReportDialog,
   'collection-editor': CollectionEditorDialog,
   'tag-selector': TagSelectorDialog,
   'doc-selector': DocSelectorDialog,

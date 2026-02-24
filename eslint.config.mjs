@@ -213,6 +213,15 @@ export default tseslint.config(
     },
   },
   {
+    files: ['packages/frontend/apps/marketing/**/*'],
+    rules: {
+      'import-x/no-extraneous-dependencies': [
+        'error',
+        { includeInternal: true, whitelist: ['@legalopscopilot/marketing'] },
+      ],
+    },
+  },
+  {
     files: [
       '**/__tests__/**/*',
       '**/*.stories.tsx',

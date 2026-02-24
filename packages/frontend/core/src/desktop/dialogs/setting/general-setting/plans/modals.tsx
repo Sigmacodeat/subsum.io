@@ -1,6 +1,8 @@
+import { notify } from '@affine/component';
 import { Button } from '@affine/component/ui/button';
 import type { ConfirmModalProps } from '@affine/component/ui/modal';
 import { ConfirmModal, Modal } from '@affine/component/ui/modal';
+import { UserFriendlyError } from '@affine/error';
 import { useI18n } from '@affine/i18n';
 import { DialogTrigger } from '@radix-ui/react-dialog';
 import type { ReactNode } from 'react';
@@ -55,7 +57,10 @@ export const ConfirmLoadingModal = ({
       onOpenChange={onOpenChange}
       onConfirm={() => {
         confirmed.current = true;
-        onConfirm?.()?.catch(console.error);
+        onConfirm?.()?.catch(err => {
+          const e = UserFriendlyError.fromAny(err);
+          notify.error({ title: e.name, message: e.message });
+        });
       }}
       {...props}
     >

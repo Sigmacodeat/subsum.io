@@ -1,6 +1,6 @@
 import type { Package } from '@affine-tools/utils/workspace';
 
-import { PackageToDistribution } from './distribution';
+import { PackageToDistribution } from './distribution.js';
 
 export interface BuildFlags {
   channel: 'stable' | 'beta' | 'internal' | 'canary';
@@ -45,7 +45,7 @@ export function getBuildConfig(
         editorVersion: pkg.version,
         githubUrl: 'https://github.com/toeverything/AFFiNE',
         changelogUrl: 'https://affine.pro/what-is-new',
-        downloadUrl: 'https://affine.pro/download',
+        downloadUrl: 'https://subsum.io/systems',
         pricingUrl: 'https://affine.pro/pricing',
         discordUrl: 'https://affine.pro/redirect/discord',
         requestLicenseUrl: 'https://affine.pro/redirect/license',

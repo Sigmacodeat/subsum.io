@@ -22,7 +22,7 @@ export class TelemetryController {
     const origin = req.headers.origin;
     const referer = req.headers.referer;
     if (!this.telemetry.isOriginAllowed(origin, referer)) {
-      throw new BadRequest(`Invalid origin: ${origin}, referer: ${referer}`);
+      throw new BadRequest('Invalid origin');
     }
 
     return res
@@ -45,7 +45,7 @@ export class TelemetryController {
     const origin = req.headers.origin;
     const referer = req.headers.referer;
     if (!this.telemetry.isOriginAllowed(origin, referer)) {
-      throw new BadRequest('Invalid origin: ' + origin);
+      throw new BadRequest('Invalid origin');
     }
 
     res.header({

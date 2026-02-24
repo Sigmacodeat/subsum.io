@@ -28,6 +28,7 @@ import {
   Paginated,
   PaginationInput,
   registerObjectType,
+  Throttle,
 } from '../../../base';
 import { PageInfo } from '../../../base/graphql/pagination';
 import { Models, PublicDocMode } from '../../../models';
@@ -391,6 +392,7 @@ export class WorkspaceDocResolver {
     };
   }
 
+  @Throttle('strict')
   @Mutation(() => DocType)
   async publishDoc(
     @CurrentUser() user: CurrentUser,
@@ -423,6 +425,7 @@ export class WorkspaceDocResolver {
     return doc;
   }
 
+  @Throttle('strict')
   @Mutation(() => DocType)
   async revokePublicDoc(
     @CurrentUser() user: CurrentUser,
@@ -657,6 +660,7 @@ export class DocResolver {
     );
   }
 
+  @Throttle('strict')
   @Mutation(() => Boolean)
   async grantDocUserRoles(
     @CurrentUser() user: CurrentUser,
@@ -696,6 +700,7 @@ export class DocResolver {
     return true;
   }
 
+  @Throttle('strict')
   @Mutation(() => Boolean)
   async revokeDocUserRoles(
     @CurrentUser() user: CurrentUser,
@@ -731,6 +736,7 @@ export class DocResolver {
     return true;
   }
 
+  @Throttle('strict')
   @Mutation(() => Boolean)
   async updateDocUserRole(
     @CurrentUser() user: CurrentUser,
@@ -779,6 +785,7 @@ export class DocResolver {
     return true;
   }
 
+  @Throttle('strict')
   @Mutation(() => Boolean)
   async updateDocDefaultRole(
     @CurrentUser() user: CurrentUser,

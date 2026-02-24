@@ -218,6 +218,18 @@ export class Workbench extends Entity {
     this.open('/all', options);
   }
 
+  openAkten(options?: WorkbenchOpenOptions) {
+    this.open('/akten', options);
+  }
+
+  openAkte(matterId: string, options?: WorkbenchOpenOptions) {
+    this.open(`/akten/${matterId}`, options);
+  }
+
+  openMandanten(options?: WorkbenchOpenOptions) {
+    this.open('/mandanten', options);
+  }
+
   openTrash(options?: WorkbenchOpenOptions) {
     this.open('/trash', options);
   }

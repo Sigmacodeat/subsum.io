@@ -401,48 +401,125 @@ window.addEventListener('focus', () => {
 });
 frameworkProvider.get(LifecycleService).applicationStart();
 
+type AuthDeepLinkPayload =
+  | {
+      method: 'oauth';
+      serverBaseUrl?: string;
+      payload: { code: string; state: string; provider: string };
+    }
+  | {
+      method: 'magic-link';
+      serverBaseUrl?: string;
+      payload: { email: string; token: string };
+    };
+
+function parseAuthDeepLinkPayload(url: string): AuthDeepLinkPayload | null {
+  try {
+    const urlObj = new URL(url);
+    if (urlObj.hostname !== 'authentication') {
+      return null;
+    }
+
+    const method = urlObj.searchParams.get('method');
+    const payloadRaw = urlObj.searchParams.get('payload');
+    const serverBaseUrl = urlObj.searchParams.get('server') ?? undefined;
+
+    if (!payloadRaw || (method !== 'magic-link' && method !== 'oauth')) {
+      return null;
+    }
+
+    const parsedPayload = JSON.parse(payloadRaw) as unknown;
+    if (!parsedPayload || typeof parsedPayload !== 'object') {
+      return null;
+    }
+
+    if (
+      method === 'oauth' &&
+      'code' in parsedPayload &&
+      'state' in parsedPayload &&
+      'provider' in parsedPayload &&
+      typeof parsedPayload.code === 'string' &&
+      typeof parsedPayload.state === 'string' &&
+      typeof parsedPayload.provider === 'string'
+    ) {
+      return {
+        method,
+        serverBaseUrl,
+        payload: {
+          code: parsedPayload.code,
+          state: parsedPayload.state,
+          provider: parsedPayload.provider,
+        },
+      };
+    }
+
+    if (
+      method === 'magic-link' &&
+      'email' in parsedPayload &&
+      'token' in parsedPayload &&
+      typeof parsedPayload.email === 'string' &&
+      typeof parsedPayload.token === 'string'
+    ) {
+      return {
+        method,
+        serverBaseUrl,
+        payload: {
+          email: parsedPayload.email,
+          token: parsedPayload.token,
+        },
+      };
+    }
+
+    return null;
+  } catch (error) {
+    console.error('Failed to parse authentication deep link', error);
+    return null;
+  }
+}
+
 CapacitorApp.addListener('appUrlOpen', ({ url }) => {
   // try to close browser if it's open
   Browser.close().catch(e => console.error('Failed to close browser', e));
 
-  const urlObj = new URL(url);
+  const parsed = parseAuthDeepLinkPayload(url);
+  if (!parsed) {
+    return;
+  }
 
-  if (urlObj.hostname === 'authentication') {
-    const method = urlObj.searchParams.get('method');
-    const payload = JSON.parse(urlObj.searchParams.get('payload') ?? 'false');
-    const serverBaseUrl = urlObj.searchParams.get('server');
+  const handleAuthDeepLink = async () => {
+    const defaultServer = frameworkProvider.get(DefaultServerService).server;
+    let targetServer = defaultServer;
 
-    if (
-      !method ||
-      (method !== 'magic-link' && method !== 'oauth') ||
-      !payload
-    ) {
-      console.error('Invalid authentication url', url);
+    if (parsed.serverBaseUrl) {
+      const serversService = frameworkProvider.get(ServersService);
+      targetServer = await serversService
+        .addOrGetServerByBaseUrl(parsed.serverBaseUrl)
+        .catch(error => {
+          console.error('Failed to resolve auth server from deep link', error);
+          return defaultServer;
+        });
+    }
+
+    const authService = targetServer.scope.get(AuthService);
+
+    if (parsed.method === 'oauth') {
+      await authService.signInOauth(
+        parsed.payload.code,
+        parsed.payload.state,
+        parsed.payload.provider
+      );
       return;
     }
 
-    let authService = frameworkProvider
-      .get(DefaultServerService)
-      .server.scope.get(AuthService);
+    await authService.signInMagicLink(
+      parsed.payload.email,
+      parsed.payload.token
+    );
+  };
 
-    if (serverBaseUrl) {
-      const serversService = frameworkProvider.get(ServersService);
-      const server = serversService.getServerByBaseUrl(serverBaseUrl);
-      if (server) {
-        authService = server.scope.get(AuthService);
-      }
-    }
-
-    if (method === 'oauth') {
-      authService
-        .signInOauth(payload.code, payload.state, payload.provider)
-        .catch(console.error);
-    } else if (method === 'magic-link') {
-      authService
-        .signInMagicLink(payload.email, payload.token)
-        .catch(console.error);
-    }
-  }
+  handleAuthDeepLink().catch(error => {
+    console.error('Failed to complete authentication deep link flow', error);
+  });
 }).catch(e => {
   console.error(e);
 });

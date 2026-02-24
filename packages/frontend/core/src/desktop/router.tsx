@@ -93,6 +93,10 @@ export const topLevelRoutes = [
         lazy: () => import('./pages/redirect'),
       },
       {
+        path: '/r',
+        lazy: () => import('./pages/mandanten-portal'),
+      },
+      {
         path: '/subscribe',
         lazy: () => import('./pages/subscribe'),
       },

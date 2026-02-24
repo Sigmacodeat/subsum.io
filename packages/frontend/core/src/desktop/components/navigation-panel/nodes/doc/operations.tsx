@@ -56,6 +56,7 @@ export const useNavigationPanelDocNodeOperations = (
   const { openConfirmModal } = useConfirmModal();
 
   const [addLinkedPageLoading, setAddLinkedPageLoading] = useState(false);
+  const [isDuplicating, setIsDuplicating] = useState(false);
   const docRecord = useLiveData(docsService.list.doc$(docId));
   const { appSettings } = useAppSettingHelper();
 
@@ -71,9 +72,17 @@ export const useNavigationPanelDocNodeOperations = (
 
   const { duplicate } = useBlockSuiteMetaHelper();
   const handleDuplicate = useCallback(() => {
-    duplicate(docId, true);
-    track.$.navigationPanel.docs.createDoc();
-  }, [docId, duplicate]);
+    if (isDuplicating) {
+      return;
+    }
+    setIsDuplicating(true);
+    try {
+      duplicate(docId, true);
+      track.$.navigationPanel.docs.createDoc();
+    } finally {
+      setIsDuplicating(false);
+    }
+  }, [docId, duplicate, isDuplicating]);
   const handleOpenInfoModal = useCallback(() => {
     track.$.docInfoPanel.$.open();
     options.openInfoModal();
@@ -201,7 +210,11 @@ export const useNavigationPanelDocNodeOperations = (
       {
         index: 99,
         view: (
-          <MenuItem prefixIcon={<DuplicateIcon />} onClick={handleDuplicate}>
+          <MenuItem
+            prefixIcon={<DuplicateIcon />}
+            onClick={handleDuplicate}
+            disabled={isDuplicating}
+          >
             {t['com.affine.header.option.duplicate']()}
           </MenuItem>
         ),
@@ -276,6 +289,7 @@ export const useNavigationPanelDocNodeOperations = (
       handleOpenInSplitView,
       handleOpenInfoModal,
       handleToggleFavoriteDoc,
+      isDuplicating,
       t,
     ]
   );

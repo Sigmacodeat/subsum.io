@@ -31,6 +31,7 @@ class PDFRendererBackend extends OpConsumer<ClientOps> {
     super(port);
     this.register('open', this.open.bind(this));
     this.register('render', this.render.bind(this));
+    this.register('extractText', this.extractText.bind(this));
   }
   private readonly viewer$: Observable<Viewer> = from(
     createPDFium().then(pdfium => {
@@ -123,6 +124,49 @@ class PDFRendererBackend extends OpConsumer<ClientOps> {
         }
 
         return transfer({ ...opts, bitmap }, [bitmap]);
+      })
+    );
+  }
+
+  extractText(opts: { maxPages?: number }) {
+    return this.doc$.pipe(
+      map(doc => {
+        if (!doc) {
+          throw new Error('Document not opened');
+        }
+
+        const pageCount = doc.pageCount();
+        const limit = Math.max(1, Math.min(pageCount, opts.maxPages ?? pageCount));
+        const pages: string[] = [];
+
+        for (let i = 0; i < limit; i++) {
+          const page = doc.page(i);
+          if (!page) continue;
+
+          try {
+            const p: any = page as any;
+            const text =
+              (typeof p.text === 'function' ? p.text() : undefined) ??
+              (typeof p.getText === 'function' ? p.getText() : undefined) ??
+              (typeof p.extractText === 'function' ? p.extractText() : undefined);
+            if (typeof text === 'string' && text.trim().length > 0) {
+              pages.push(text);
+            }
+          } catch {
+            // ignore per-page extraction errors
+          } finally {
+            try {
+              (page as any).close?.();
+            } catch {
+              // ignore
+            }
+          }
+        }
+
+        return {
+          text: pages.join('\n\n').trim(),
+          pageCount,
+        };
       })
     );
   }
