@@ -978,6 +978,7 @@ export default function ChatbotWidget({
   if (!currentIsOpen) {
     return (
       <div
+        data-subsumio-chatbot="1"
         className={`fixed bottom-6 z-50 flex flex-col items-end gap-3 ${isRtl ? 'left-6' : 'right-6'}`}
       >
         {nudgeText && (
@@ -1003,6 +1004,7 @@ export default function ChatbotWidget({
 
   return (
     <section
+      data-subsumio-chatbot="1"
       className={`fixed bottom-0 z-50 flex flex-col overflow-hidden bg-white shadow-2xl transition-all duration-300 sm:bottom-6 sm:rounded-2xl sm:border sm:border-slate-200 ${
         isAnimatingOpen ? 'animate-slideUpFade' : ''
       } h-[100dvh] w-full sm:h-[min(82vh,700px)] sm:w-[min(96vw,420px)] ${isRtl ? 'left-0 sm:left-6' : 'right-0 sm:right-6'}`}

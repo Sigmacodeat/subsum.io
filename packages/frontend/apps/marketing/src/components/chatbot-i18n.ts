@@ -368,9 +368,9 @@ const en: ChatbotStrings = {
   welcomeReturning:
     'Hey, welcome back! \uD83D\uDC4B What can I do for you today?',
   welcomePage:
-    'Hey! \uD83D\uDC4B You\'re on the \"{page}\" page. Tell me who you are — I\'ll find the fastest path for you.',
+    'Hey! \uD83D\uDC4B You\'re on the "{page}" page. Tell me who you are — I\'ll find the fastest path for you.',
   welcomeReturningPage:
-    'Welcome back! \uD83D\uDC4B You\'re checking out \"{page}\". How can I help?',
+    'Welcome back! \uD83D\uDC4B You\'re checking out "{page}". How can I help?',
   socialProof: '500+ law firms trust Subsumio',
 
   roleVisitor: '\uD83D\uDC40 Just browsing',
