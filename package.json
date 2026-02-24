@@ -9,7 +9,7 @@
     "lint": "next lint",
     "validate:localization-seo": "node ./scripts/validate-localization-seo.mjs",
     "report:localization-seo": "node ./scripts/generate-localization-seo-report.mjs",
-    "quality": "yarn validate:localization-seo && yarn report:localization-seo && yarn lint"
+    "quality": "npm run validate:localization-seo && npm run report:localization-seo && npm run lint"
   },
   "dependencies": {
     "@mdx-js/loader": "^3.1.0",

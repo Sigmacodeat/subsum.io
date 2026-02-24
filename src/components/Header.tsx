@@ -15,11 +15,10 @@ import LocBrandChip from './LocBrandChip';
 
 const primaryNavLinks = [
   { href: '/features', key: 'features' },
+  { href: '/semantic-database', key: 'semanticDatabase' },
   { href: '/quick-check', key: 'quickCheck' },
   { href: '/pricing', key: 'pricing' },
   { href: '/systems', key: 'download' },
-  { href: '/semantic-database', key: 'semanticDatabase' },
-  { href: '/security', key: 'security' },
 ] as const;
 
 const APP_ORIGIN = 'https://app.subsum.io';
