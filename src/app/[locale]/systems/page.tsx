@@ -46,13 +46,27 @@ const SOURCE_ARCHIVE_URL =
 const WEB_APP_URL = 'https://app.subsum.io';
 const GITHUB_LATEST_RELEASE_API =
   'https://api.github.com/repos/subsumio/subsumio/releases/latest';
-const IOS_STORE_URL =
-  process.env.NEXT_PUBLIC_SUBSUMIO_IOS_STORE_URL?.trim() || '/contact';
-const ANDROID_STORE_URL =
-  process.env.NEXT_PUBLIC_SUBSUMIO_ANDROID_STORE_URL?.trim() || '/contact';
+const IOS_STORE_URL_RAW =
+  process.env.NEXT_PUBLIC_SUBSUMIO_IOS_STORE_URL?.trim() || '';
+const ANDROID_STORE_URL_RAW =
+  process.env.NEXT_PUBLIC_SUBSUMIO_ANDROID_STORE_URL?.trim() || '';
+const HAS_IOS_STORE_URL = IOS_STORE_URL_RAW.length > 0;
+const HAS_ANDROID_STORE_URL = ANDROID_STORE_URL_RAW.length > 0;
+const IOS_STORE_URL = HAS_IOS_STORE_URL ? IOS_STORE_URL_RAW : '/contact';
+const ANDROID_STORE_URL = HAS_ANDROID_STORE_URL
+  ? ANDROID_STORE_URL_RAW
+  : '/contact';
 
 type DownloadCard = {
-  kind: 'web' | 'mac' | 'windows' | 'linux' | 'ios' | 'android' | 'server';
+  kind:
+    | 'web'
+    | 'mac'
+    | 'windows'
+    | 'linux'
+    | 'ios'
+    | 'ipados'
+    | 'android'
+    | 'server';
   title: string;
   body: string;
   platform: string;
@@ -363,7 +377,7 @@ function resolveCopy(locale: string): LocalizedCopy {
     heroKicker: 'Production release hub',
     releaseBadge: 'Latest stable builds available now',
     heroHighlights: [
-      '4 apps ready',
+      'All major platforms covered',
       'Stable channel live',
       'Enterprise rollout support',
     ],
@@ -380,13 +394,13 @@ function resolveCopy(locale: string): LocalizedCopy {
     journeySubtitle:
       'A clear path for legal teams: choose your setup, validate once, then scale confidently across all devices.',
     journeySteps: [
-      'Choose your channel and platform (web, desktop, mobile, Linux).',
+      'Choose your channel and platform (web, desktop, iOS/iPadOS, Android, Linux).',
       'Install on one pilot seat and validate login, sync, and document opening.',
       'Roll out team-wide with stable channel and keep web as instant fallback.',
     ],
     sectionPlatformTitle: 'All apps ready for download',
     sectionPlatformSubtitle:
-      'Choose your target system and deploy instantly. Subsumio is available as Web SaaS, Desktop, Mobile, Linux, and self-managed stack.',
+      'Choose your target system and deploy instantly. Subsumio is available as Web SaaS, macOS, Windows, Linux, iPhone, iPad, Android, and self-managed stack.',
     cards: [
       {
         kind: 'web',
@@ -439,22 +453,46 @@ function resolveCopy(locale: string): LocalizedCopy {
       {
         kind: 'ios',
         title: 'iOS Mobile',
-        body: 'Access Subsumio on iPhone and iPad for case review, secure messaging, and on-the-go updates.',
+        body: 'Access Subsumio on iPhone for case review, secure messaging, and on-the-go updates.',
         platform: 'iOS',
-        availability: 'Store rollout',
-        primaryLabel: 'Open iOS Distribution',
+        availability: HAS_IOS_STORE_URL
+          ? 'App Store live'
+          : 'Store rollout in progress',
+        primaryLabel: HAS_IOS_STORE_URL
+          ? 'Open iOS Distribution'
+          : 'Request iOS Rollout',
         primaryHref: IOS_STORE_URL,
         secondaryLabel: 'Mobile Rollout Support',
         secondaryHref: '/contact',
-        tags: ['iPhone', 'iPad', 'Mobile access'],
+        tags: ['iPhone', 'Mobile access', 'Secure messaging'],
+      },
+      {
+        kind: 'ipados',
+        title: 'iPadOS Mobile',
+        body: 'Use Subsumio on iPad for document-heavy review workflows, annotations, and secure collaboration.',
+        platform: 'iPadOS',
+        availability: HAS_IOS_STORE_URL
+          ? 'App Store live'
+          : 'Store rollout in progress',
+        primaryLabel: HAS_IOS_STORE_URL
+          ? 'Open iPadOS Distribution'
+          : 'Request iPadOS Rollout',
+        primaryHref: IOS_STORE_URL,
+        secondaryLabel: 'Mobile Rollout Support',
+        secondaryHref: '/contact',
+        tags: ['iPad', 'Review workflows', 'Annotations'],
       },
       {
         kind: 'android',
         title: 'Android Mobile',
         body: 'Deploy Subsumio for Android teams with centralized access to release channel guidance and rollout support.',
         platform: 'Android',
-        availability: 'Store rollout',
-        primaryLabel: 'Open Android Distribution',
+        availability: HAS_ANDROID_STORE_URL
+          ? 'Google Play live'
+          : 'Store rollout in progress',
+        primaryLabel: HAS_ANDROID_STORE_URL
+          ? 'Open Android Distribution'
+          : 'Request Android Rollout',
         primaryHref: ANDROID_STORE_URL,
         secondaryLabel: 'Mobile Rollout Support',
         secondaryHref: '/contact',
@@ -577,7 +615,7 @@ function resolveCopy(locale: string): LocalizedCopy {
       heroKicker: 'Produktions-Release-Hub',
       releaseBadge: 'Neueste stabile Builds sind live',
       heroHighlights: [
-        '4 Apps verfügbar',
+        'Alle Hauptplattformen abgedeckt',
         'Stable-Kanal live',
         'Enterprise Rollout-Support',
       ],
@@ -594,13 +632,13 @@ function resolveCopy(locale: string): LocalizedCopy {
       journeySubtitle:
         'Ein klarer Ablauf für Kanzleien: Setup wählen, einmal validieren, dann sicher auf alle Geräte ausrollen.',
       journeySteps: [
-        'Kanal und Plattform wählen (Web, Desktop, Mobile, Linux).',
+        'Kanal und Plattform wählen (Web, Desktop, iOS/iPadOS, Android, Linux).',
         'Auf einem Pilot-Arbeitsplatz installieren und Login, Sync sowie Dokument-Öffnung prüfen.',
         'Teamweit mit Stable ausrollen und die Web App als Fallback behalten.',
       ],
       sectionPlatformTitle: 'Alle Apps sind downloadbereit',
       sectionPlatformSubtitle:
-        'Wählen Sie Ihr Zielsystem und starten Sie sofort. Subsumio läuft als Web SaaS, Desktop, Mobile, Linux und Self-Managed Stack.',
+        'Wählen Sie Ihr Zielsystem und starten Sie sofort. Subsumio läuft als Web SaaS, macOS, Windows, Linux, iPhone, iPad, Android und Self-Managed Stack.',
       cards: [
         {
           kind: 'web',
@@ -653,22 +691,46 @@ function resolveCopy(locale: string): LocalizedCopy {
         {
           kind: 'ios',
           title: 'iOS Mobile',
-          body: 'Subsumio auf iPhone und iPad für Aktenreview, sichere Kommunikation und Updates unterwegs.',
+          body: 'Subsumio auf iPhone für Aktenreview, sichere Kommunikation und Updates unterwegs.',
           platform: 'iOS',
-          availability: 'Store-Rollout',
-          primaryLabel: 'iOS-Distribution öffnen',
+          availability: HAS_IOS_STORE_URL
+            ? 'App Store live'
+            : 'Store-Rollout in Vorbereitung',
+          primaryLabel: HAS_IOS_STORE_URL
+            ? 'iOS-Distribution öffnen'
+            : 'iOS-Rollout anfragen',
           primaryHref: IOS_STORE_URL,
           secondaryLabel: 'Mobile-Rollout Support',
           secondaryHref: '/contact',
-          tags: ['iPhone', 'iPad', 'Mobile access'],
+          tags: ['iPhone', 'Mobile access', 'Secure messaging'],
+        },
+        {
+          kind: 'ipados',
+          title: 'iPadOS Mobile',
+          body: 'Subsumio auf iPad für dokumentintensive Prüf-Workflows, Annotationen und sichere Zusammenarbeit.',
+          platform: 'iPadOS',
+          availability: HAS_IOS_STORE_URL
+            ? 'App Store live'
+            : 'Store-Rollout in Vorbereitung',
+          primaryLabel: HAS_IOS_STORE_URL
+            ? 'iPadOS-Distribution öffnen'
+            : 'iPadOS-Rollout anfragen',
+          primaryHref: IOS_STORE_URL,
+          secondaryLabel: 'Mobile-Rollout Support',
+          secondaryHref: '/contact',
+          tags: ['iPad', 'Review-Workflows', 'Annotationen'],
         },
         {
           kind: 'android',
           title: 'Android Mobile',
           body: 'Rollout für Android-Teams mit zentralem Zugriff auf Release-Channel-Hinweise und Deployment-Support.',
           platform: 'Android',
-          availability: 'Store-Rollout',
-          primaryLabel: 'Android-Distribution öffnen',
+          availability: HAS_ANDROID_STORE_URL
+            ? 'Google Play live'
+            : 'Store-Rollout in Vorbereitung',
+          primaryLabel: HAS_ANDROID_STORE_URL
+            ? 'Android-Distribution öffnen'
+            : 'Android-Rollout anfragen',
           primaryHref: ANDROID_STORE_URL,
           secondaryLabel: 'Mobile-Rollout Support',
           secondaryHref: '/contact',
@@ -810,8 +872,11 @@ export async function generateMetadata({
       'subsumio download',
       'macOS app download',
       'windows app download',
+      'microsoft windows app',
       'linux appimage',
       'ios app',
+      'ipados app',
+      'ipad app',
       'android app',
       'web saas',
     ],
@@ -1072,7 +1137,9 @@ export default async function SystemsPage({
                       <div className="flex items-center gap-3">
                         {card.kind === 'web' ? (
                           <Globe className="w-7 h-7 text-slate-700" />
-                        ) : card.kind === 'ios' || card.kind === 'android' ? (
+                        ) : card.kind === 'ios' ||
+                          card.kind === 'ipados' ||
+                          card.kind === 'android' ? (
                           <Smartphone className="w-7 h-7 text-slate-700" />
                         ) : card.kind === 'server' ? (
                           <Server className="w-7 h-7 text-slate-700" />
