@@ -687,7 +687,7 @@ export default function FeaturesContent() {
       <PrefooterCta
         title={tCta('title')}
         subtitle={tCta('subtitle')}
-        primaryAction={{ href: '/pricing', label: tCta('button') }}
+        primaryAction={{ href: 'https://app.subsum.io/auth/signUp', label: tCta('button') }}
         secondaryAction={{ href: '/pricing', label: tCta('details') }}
         meta={tCta('note')}
         titleClassName="lg:text-6xl tracking-tight text-balance leading-[1.08]"

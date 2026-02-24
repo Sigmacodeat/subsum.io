@@ -198,7 +198,7 @@ export default function AboutContent() {
       <PrefooterCta
         title={t('ctaTitle')}
         subtitle={t('ctaDesc')}
-        primaryAction={{ href: '/pricing', label: t('ctaButton') }}
+        primaryAction={{ href: 'https://app.subsum.io/auth/signUp', label: t('ctaButton') }}
       />
     </>
   );

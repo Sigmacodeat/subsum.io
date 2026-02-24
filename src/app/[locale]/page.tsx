@@ -177,13 +177,13 @@ function HeroSection() {
           <ScrollReveal delay={500} direction="up" distance={20}>
             <div className="flex w-full flex-col sm:flex-row sm:flex-wrap items-center justify-center gap-3 sm:gap-4 lg:gap-5 mb-5">
               <MagneticButton strength={0.12}>
-                <Link
-                  href="/pricing"
+                <a
+                  href="https://app.subsum.io/auth/signUp"
                   className="btn-primary inline-flex items-center justify-center gap-2 w-full sm:w-auto sm:min-w-[220px] text-lg !px-10 !py-5"
                 >
                   {t('ctaPrimary')}
                   <ArrowRight className="w-5 h-5" />
-                </Link>
+                </a>
               </MagneticButton>
               <MagneticButton strength={0.12}>
                 <Link
@@ -729,7 +729,7 @@ function AiSection() {
             <MagneticButton strength={0.1}>
               <Link
                 href="/features/collective-intelligence"
-                className="btn-secondary !border-cyan-300/30 !text-cyan-100 hover:!text-white hover:!border-cyan-200/50"
+                className="btn-secondary-on-dark"
               >
                 {tCta('details')}
                 <ArrowRight className="w-4 h-4 ml-1" />
@@ -1002,7 +1002,7 @@ function CollectiveIntelligenceSection() {
             </p>
             <Link
               href="/pricing"
-              className="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-200/35 bg-emerald-500/18 px-8 py-4 text-base font-semibold text-emerald-50 backdrop-blur-sm transition-colors duration-200 hover:bg-emerald-500/24 hover:border-emerald-200/45 sm:min-w-[220px] sm:px-10 sm:py-5 sm:text-lg focus-ring-on-dark"
+              className="btn-primary sm:min-w-[220px] sm:!px-10 sm:!py-5 sm:!text-lg focus:ring-offset-slate-950"
             >
               {t('ctaButton')}
               <ArrowRight className="h-5 w-5" />
@@ -1446,8 +1446,8 @@ function CtaSection() {
     <PrefooterCta
       title={t('title')}
       subtitle={t('subtitle')}
-      primaryAction={{ href: '/pricing', label: t('button') }}
-      secondaryAction={{ href: '/features', label: t('details') }}
+      primaryAction={{ href: 'https://app.subsum.io/auth/signUp', label: t('button') }}
+      secondaryAction={{ href: '/pricing', label: t('details') }}
       meta={t('note')}
       titleClassName="lg:text-5xl tracking-tight text-balance leading-[1.1]"
     />

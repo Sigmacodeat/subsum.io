@@ -2504,7 +2504,7 @@ type ServerConfigType {
 }
 
 enum ServerDeploymentType {
-  Affine
+  Subsumio
   Selfhosted
 }
 

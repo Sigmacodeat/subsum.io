@@ -1,12 +1,12 @@
 export const BRAND_NAME = 'Subsumio';
 
-export const BRAND_SITE_URL = 'https://subsumio.ai';
+export const BRAND_SITE_URL = 'https://subsum.io';
 
 export const BRAND_COMPANY_NAME = 'Sigmacode GmbH';
 
 export const BRAND_TAGLINE = 'BY SIGMACODE';
 
-export const BRAND_SUPPORT_EMAIL = 'support@subsumio.ai';
+export const BRAND_SUPPORT_EMAIL = 'support@subsum.io';
 
 export const BRAND_SUPPORT_LANGUAGES = ['English', 'German'];
 

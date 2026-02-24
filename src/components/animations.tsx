@@ -1012,7 +1012,7 @@ export function FloatingElement({
 
 /* ═══════════════════════════════════════════════════════════════
    21. ScrollScale — scales element based on scroll progress
-   Like affine.pro hero: starts small, scales to full as it enters
+   Starts small, scales to full size as element enters viewport
    ═══════════════════════════════════════════════════════════════ */
 interface ScrollScaleProps {
   children: ReactNode;
