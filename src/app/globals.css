@@ -5,6 +5,21 @@
 @tailwind utilities;
 
 /* ═══════════════════════════════════════════════════════════════
+   WORKSPACE DASHBOARD OVERRIDES
+   ═══════════════════════════════════════════════════════════════ */
+/* Remove gray background from main content area in workspace list pages */
+:where([data-workspace-list-page]) {
+  background: transparent !important;
+}
+
+:where([data-workspace-list-page]) > div,
+:where([data-workspace-list-page]) main,
+:where([data-workspace-list-page]) .workspace-content,
+:where([data-workspace-list-page]) .list-container {
+  background: transparent !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════
    BASE
    ═══════════════════════════════════════════════════════════════ */
 @layer base {

@@ -68,14 +68,6 @@ export const seoMarketOverrides: Partial<Record<Locale, LocaleSeoOverrides>> = {
         'contact legal ai team',
       ],
     },
-    '/tax': {
-      keywords: [
-        'tax ai software',
-        'tax assessment ai',
-        'deadline management tax',
-        'tax objection software',
-      ],
-    },
     '/legal/imprint': {
       title: 'Imprint',
       description: 'Legal notice and company information for Subsumio.',
@@ -138,18 +130,6 @@ export const seoMarketOverrides: Partial<Record<Locale, LocaleSeoOverrides>> = {
         'steuerkanzlei ki kosten',
         'bescheid prüfung software',
         'rechtsanwalt software preise',
-      ],
-    },
-    '/tax': {
-      title: 'Tax OS – KI für Steuerberater in Deutschland',
-      description:
-        'Tax OS von Subsumio: Automatische Bescheid-Prüfung, Fristen-Cockpit und KI-Steuerberatung für Steuerkanzleien in Deutschland.',
-      keywords: [
-        'tax os deutschland',
-        'bescheid prüfer software',
-        'einspruch steuerbescheid automatisch',
-        'fristenkalender steuerberater',
-        'steuerberater ki software',
       ],
     },
     '/security': {
@@ -237,13 +217,6 @@ export const seoMarketOverrides: Partial<Record<Locale, LocaleSeoOverrides>> = {
         'abgb ki analyse',
       ],
     },
-    '/tax': {
-      keywords: [
-        'steuerberater software österreich',
-        'finanzamt bescheid prüfung österreich',
-        'fristen österreich steuer',
-      ],
-    },
     '/security': {
       keywords: [
         'dsgvo österreich kanzlei software',
@@ -315,13 +288,6 @@ export const seoMarketOverrides: Partial<Record<Locale, LocaleSeoOverrides>> = {
         'steuerberatung software schweiz',
         'anwalt software zürich',
         'or zgb ki analyse',
-      ],
-    },
-    '/tax': {
-      keywords: [
-        'steuerberater software schweiz',
-        'steuererklärung software schweiz',
-        'fristen schweiz steuer',
       ],
     },
     '/security': {
@@ -400,16 +366,6 @@ export const seoMarketOverrides: Partial<Record<Locale, LocaleSeoOverrides>> = {
     '/contact': {
       keywords: ['démo logiciel avocat ia', 'contact logiciel juridique ia'],
     },
-    '/tax': {
-      title: 'Fiscalité – IA pour cabinets',
-      description:
-        'Outils IA pour la fiscalité : gestion des échéances, contrôle et analyse des dossiers.',
-      keywords: [
-        'logiciel fiscalité ia',
-        'gestion délais fiscaux',
-        'audit fiscal ia',
-      ],
-    },
     '/legal/imprint': {
       title: 'Mentions légales',
       description:
@@ -473,13 +429,6 @@ export const seoMarketOverrides: Partial<Record<Locale, LocaleSeoOverrides>> = {
         'rgpd logiciel avocat france',
         'sécurité données juridiques france',
         'iso 27001 logiciel juridique',
-      ],
-    },
-    '/tax': {
-      keywords: [
-        'logiciel fiscalité ia france',
-        'gestion délais fiscaux france',
-        'contrôle fiscal ia',
       ],
     },
     '/contact': {
@@ -555,13 +504,6 @@ export const seoMarketOverrides: Partial<Record<Locale, LocaleSeoOverrides>> = {
         'rendez-vous démo',
       ],
     },
-    '/tax': {
-      keywords: [
-        'logiciel fiscalité ia suisse',
-        'délais fiscaux suisse',
-        'audit fiscal ia',
-      ],
-    },
     '/legal/imprint': {
       title: 'Mentions légales',
       description: "Mentions légales et informations de l'éditeur.",
@@ -624,13 +566,6 @@ export const seoMarketOverrides: Partial<Record<Locale, LocaleSeoOverrides>> = {
     },
     '/contact': {
       keywords: ['demo software abogados ia', 'contacto software juridico ia'],
-    },
-    '/tax': {
-      keywords: [
-        'software fiscal ia',
-        'gestion plazos fiscales',
-        'inspeccion fiscal ia',
-      ],
     },
     '/legal/imprint': {
       title: 'Aviso legal',
@@ -695,13 +630,6 @@ export const seoMarketOverrides: Partial<Record<Locale, LocaleSeoOverrides>> = {
     '/contact': {
       keywords: ['demo software avvocati ia', 'contatto software legale ia'],
     },
-    '/tax': {
-      keywords: [
-        'software fiscale ia',
-        'gestione scadenze fiscali',
-        'accertamento fiscale ia',
-      ],
-    },
     '/legal/imprint': {
       title: 'Note legali',
       description: 'Informazioni legali e societarie di Subsumio.',
@@ -756,13 +684,6 @@ export const seoMarketOverrides: Partial<Record<Locale, LocaleSeoOverrides>> = {
         'prezzo software legale ia italia',
         'software commercialista ia',
         'gdpr software legale italia',
-      ],
-    },
-    '/tax': {
-      keywords: [
-        'software fiscale ia italia',
-        'gestione scadenze agenzia entrate',
-        'accertamento fiscale ia italia',
       ],
     },
     '/security': {
@@ -837,13 +758,6 @@ export const seoMarketOverrides: Partial<Record<Locale, LocaleSeoOverrides>> = {
     '/contact': {
       keywords: ['demo software avvocati', 'contatto subsumio', 'prenota demo'],
     },
-    '/tax': {
-      keywords: [
-        'software fiscale ia svizzera',
-        'scadenze fiscali svizzera',
-        'audit fiscale ia',
-      ],
-    },
     '/legal/imprint': {
       title: 'Note legali',
       description: 'Informazioni legali e societarie di Subsumio.',
@@ -907,13 +821,6 @@ export const seoMarketOverrides: Partial<Record<Locale, LocaleSeoOverrides>> = {
       keywords: [
         'demo oprogramowanie prawnicze ai',
         'kontakt oprogramowanie prawnicze ai',
-      ],
-    },
-    '/tax': {
-      keywords: [
-        'oprogramowanie podatkowe ai',
-        'zarzadzanie terminami podatkowymi',
-        'kontrola podatkowa ai',
       ],
     },
     '/legal/imprint': {
@@ -982,13 +889,6 @@ export const seoMarketOverrides: Partial<Record<Locale, LocaleSeoOverrides>> = {
         'contato software juridico ia',
       ],
     },
-    '/tax': {
-      keywords: [
-        'software fiscal ia brasil',
-        'gestao prazos receita federal',
-        'auditoria fiscal ia',
-      ],
-    },
     '/legal/imprint': {
       title: 'Aviso legal',
       description: 'Informações legais e empresariais da Subsumio.',
@@ -1052,13 +952,6 @@ export const seoMarketOverrides: Partial<Record<Locale, LocaleSeoOverrides>> = {
         'seguranca dados juridicos portugal',
       ],
     },
-    '/tax': {
-      keywords: [
-        'software fiscal ia portugal',
-        'gestao prazos at portugal',
-        'inspecao tributaria ia',
-      ],
-    },
     '/contact': {
       keywords: [
         'demo software jurídico ia',
@@ -1097,11 +990,6 @@ export const seoMarketOverrides: Partial<Record<Locale, LocaleSeoOverrides>> = {
       description:
         'Subsumioは法律・税務プロフェッショナル向けのAIプラットフォームです。',
       keywords: ['subsumio 会社', '法律 ai', 'リーガルテック'],
-    },
-    '/tax': {
-      title: '税務 – AIツール',
-      description: '税務向けAI：期限管理、レビュー、監査支援。',
-      keywords: ['税務 ai', '期限管理', '税務監査'],
     },
     '/pricing': {
       title: '料金 – 法律事務所向けAIソフトウェア',
@@ -1152,11 +1040,6 @@ export const seoMarketOverrides: Partial<Record<Locale, LocaleSeoOverrides>> = {
       title: '회사 소개 – Subsumio',
       description: 'Subsumio는 법률/세무 전문가를 위한 AI 플랫폼입니다.',
       keywords: ['subsumio 소개', '리걸테크', '법률 ai 회사'],
-    },
-    '/tax': {
-      title: '세무 – AI 도구',
-      description: '세무를 위한 AI: 기한 관리, 검토, 감사 지원.',
-      keywords: ['세무 ai', '기한 관리', '세무 감사'],
     },
     '/pricing': {
       title: '가격 – 법률 사무소를 위한 AI 소프트웨어',
@@ -1246,13 +1129,6 @@ export const seoMarketOverrides: Partial<Record<Locale, LocaleSeoOverrides>> = {
         'تحليل مستندات ذكاء اصطناعي',
         'كشف التناقضات في العقود',
         'إدارة المواعيد القانونية',
-      ],
-    },
-    '/tax': {
-      keywords: [
-        'برنامج ضريبي ذكاء اصطناعي',
-        'إدارة مواعيد ضريبية',
-        'تدقيق ضريبي ذكاء اصطناعي',
       ],
     },
     '/legal/imprint': {

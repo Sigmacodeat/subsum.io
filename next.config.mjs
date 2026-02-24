@@ -30,6 +30,16 @@ const nextConfig = {
         destination: '/:locale/systems',
         permanent: true,
       },
+      {
+        source: '/tax',
+        destination: '/features',
+        permanent: true,
+      },
+      {
+        source: '/:locale/tax',
+        destination: '/:locale/features',
+        permanent: true,
+      },
     ];
   },
   eslint: {
