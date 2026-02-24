@@ -930,6 +930,19 @@ export default function ChatbotWidget({
     }
   }, [currentIsOpen]);
 
+  useEffect(() => {
+    if (typeof window === 'undefined' || !currentIsOpen || window.innerWidth >= 640) {
+      return;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [currentIsOpen]);
+
   const handleSendMessage = () => {
     if (!inputValue.trim()) return;
 
@@ -979,10 +992,10 @@ export default function ChatbotWidget({
     return (
       <div
         data-subsumio-chatbot="1"
-        className={`fixed bottom-6 z-50 flex flex-col items-end gap-3 ${isRtl ? 'left-6' : 'right-6'}`}
+        className={`fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] z-50 flex flex-col items-end gap-3 ${isRtl ? 'left-4 sm:left-6' : 'right-4 sm:right-6'}`}
       >
         {nudgeText && (
-          <div className="animate-fadeIn relative mr-1 rounded-xl bg-slate-900 px-4 py-2.5 text-sm text-white shadow-lg">
+          <div className="animate-fadeIn relative mr-1 max-w-[min(78vw,18rem)] rounded-xl bg-slate-900 px-3.5 py-2 text-[13px] leading-snug text-white shadow-lg sm:max-w-none sm:px-4 sm:py-2.5 sm:text-sm">
             {nudgeText}
             <div className="absolute -bottom-1.5 right-5 h-3 w-3 rotate-45 bg-slate-900" />
           </div>
@@ -1003,17 +1016,25 @@ export default function ChatbotWidget({
   }
 
   return (
-    <section
-      data-subsumio-chatbot="1"
-      className={`fixed bottom-0 z-50 flex flex-col overflow-hidden bg-white shadow-2xl transition-all duration-300 sm:bottom-6 sm:rounded-2xl sm:border sm:border-slate-200 ${
-        isAnimatingOpen ? 'animate-slideUpFade' : ''
-      } h-[100dvh] w-full sm:h-[min(82vh,700px)] sm:w-[min(96vw,420px)] ${isRtl ? 'left-0 sm:left-6' : 'right-0 sm:right-6'}`}
-      dir={isRtl ? 'rtl' : 'ltr'}
-      aria-label={t.botName}
-      role="dialog"
-      aria-modal="true"
-    >
-      <div className="flex items-center justify-between bg-gradient-to-r from-primary-600 via-sky-600 to-cyan-600 p-4 text-white sm:rounded-t-2xl">
+    <>
+      <button
+        type="button"
+        onClick={handleToggle}
+        aria-label={t.close}
+        className="fixed inset-0 top-14 z-40 bg-slate-950/18 backdrop-blur-[1px] sm:hidden"
+      />
+
+      <section
+        data-subsumio-chatbot="1"
+        className={`fixed z-50 flex flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white/98 shadow-[0_22px_60px_rgba(15,23,42,0.24)] backdrop-blur-lg transition-all duration-300 ${
+          isAnimatingOpen ? 'animate-slideUpFade' : ''
+        } ${isRtl ? 'left-3 sm:left-6 sm:right-auto' : 'right-3 sm:right-6 sm:left-auto'} left-3 top-[calc(3.5rem+0.5rem)] bottom-[calc(0.75rem+env(safe-area-inset-bottom))] sm:top-auto sm:bottom-6 sm:h-[min(82vh,700px)] sm:w-[min(96vw,420px)] sm:rounded-2xl sm:border sm:border-slate-200`}
+        dir={isRtl ? 'rtl' : 'ltr'}
+        aria-label={t.botName}
+        role="dialog"
+        aria-modal="true"
+      >
+      <div className="flex items-center justify-between bg-gradient-to-r from-primary-600 via-sky-600 to-cyan-600 p-3.5 text-white sm:rounded-t-2xl sm:p-4">
         <div className="flex items-center gap-3">
           <div className="flex h-9 w-9 items-center justify-center rounded-full bg-white/20 backdrop-blur-sm">
             <Bot className="h-5 w-5" />
@@ -1035,13 +1056,13 @@ export default function ChatbotWidget({
         </button>
       </div>
 
-      <div className="flex items-center gap-2 border-b border-slate-200 bg-gradient-to-r from-slate-50 to-white px-4 py-1.5 text-xs text-slate-600">
+      <div className="flex items-center gap-2 border-b border-slate-200 bg-gradient-to-r from-slate-50 to-white px-3.5 py-1.5 text-[11px] text-slate-600 sm:px-4 sm:text-xs">
         <Globe className="h-3.5 w-3.5 text-primary-500 flex-shrink-0" />
         <span className="font-medium text-primary-600">{t.contextActive}:</span>
         <span>{t.pageLabels[pageContext.key] ?? pageContext.key}</span>
       </div>
 
-      <div className="flex-1 overflow-y-auto bg-gradient-to-b from-slate-50 to-white p-4 space-y-4">
+      <div className="flex-1 overflow-y-auto bg-gradient-to-b from-slate-50 to-white p-3.5 space-y-3 sm:p-4 sm:space-y-4">
         <div className="mb-2 flex items-center justify-center">
           <span className="inline-flex items-center gap-1.5 rounded-full bg-primary-50 px-3 py-1 text-xs font-medium text-primary-700">
             <Zap className="h-3 w-3" />
@@ -1158,7 +1179,7 @@ export default function ChatbotWidget({
         <div ref={messagesEndRef} />
       </div>
 
-      <div className="border-t border-slate-200 bg-white p-3 sm:rounded-b-2xl sm:p-4">
+      <div className="border-t border-slate-200 bg-white p-2.5 pb-[calc(0.65rem+env(safe-area-inset-bottom))] sm:rounded-b-2xl sm:p-4 sm:pb-4">
         <div className="flex gap-2">
           <input
             ref={inputRef}
@@ -1209,6 +1230,7 @@ export default function ChatbotWidget({
           )}
         </div>
       )}
-    </section>
+      </section>
+    </>
   );
 }
