@@ -317,7 +317,7 @@ export default function TaxOSContent() {
                 <MagneticButton strength={0.12}>
                   <Link
                     href="/pricing"
-                    className="btn-secondary text-lg !px-10 !py-5"
+                    className="btn-secondary-on-dark text-lg !px-10 !py-5"
                   >
                     {isDE ? 'Preise ansehen' : 'View pricing'}
                     <ChevronRight className="w-5 h-5 ml-1" />
