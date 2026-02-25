@@ -13,20 +13,64 @@ function normalizeRequestedLocale(locale: string | null | undefined) {
   if (!locale) return null;
   const trimmed = locale.trim();
   if (!trimmed) return null;
-  if (trimmed === 'de') return 'de-DE';
-  if (trimmed === 'fr') return 'fr';
-  if (trimmed === 'it') return 'it';
-  if (trimmed === 'es') return 'es';
-  if (trimmed === 'pl') return 'pl';
-  if (trimmed === 'ja') return 'ja';
-  if (trimmed === 'ko') return 'ko';
-  if (trimmed === 'ar') return 'ar';
-  if (trimmed === 'en') return 'en';
-  return trimmed;
+  const [rawLanguage, rawRegion] = trimmed.split('-');
+  const language = rawLanguage?.toLowerCase();
+  if (!language) return null;
+  if (!rawRegion) return language;
+  return `${language}-${rawRegion.toUpperCase()}`;
 }
 
 function isSupportedLocale(locale: string | null): locale is (typeof locales)[number] {
   return !!locale && locales.includes(locale as any);
+}
+
+function resolveSupportedLocale(
+  requestedLocale: string | null,
+  geoCountry: string | null
+): (typeof locales)[number] | null {
+  if (!requestedLocale) return null;
+
+  const [baseLanguage, rawRegion] = requestedLocale.split('-');
+  if (!baseLanguage) return null;
+
+  if (rawRegion && isSupportedLocale(requestedLocale)) return requestedLocale;
+
+  if (baseLanguage === 'de') {
+    if (geoCountry === 'AT' && isSupportedLocale('de-AT')) return 'de-AT';
+    if (geoCountry === 'CH' && isSupportedLocale('de-CH')) return 'de-CH';
+    if (isSupportedLocale('de-DE')) return 'de-DE';
+  }
+
+  if (baseLanguage === 'fr') {
+    if (geoCountry === 'CH' && isSupportedLocale('fr-CH')) return 'fr-CH';
+    if (isSupportedLocale('fr')) return 'fr';
+    if (isSupportedLocale('fr-FR')) return 'fr-FR';
+  }
+
+  if (baseLanguage === 'it') {
+    if (geoCountry === 'CH' && isSupportedLocale('it-CH')) return 'it-CH';
+    if (isSupportedLocale('it')) return 'it';
+    if (isSupportedLocale('it-IT')) return 'it-IT';
+  }
+
+  const direct = isSupportedLocale(baseLanguage) ? baseLanguage : null;
+  if (direct) return direct;
+
+  return null;
+}
+
+function resolveGeoAdjustedPathLocale(
+  pathLocale: (typeof locales)[number] | null,
+  geoCountry: string | null
+): (typeof locales)[number] | null {
+  if (!pathLocale) return null;
+  const [baseLanguage] = pathLocale.split('-');
+  if (!baseLanguage || !['de', 'fr', 'it'].includes(baseLanguage)) return null;
+
+  const geoPreferredLocale = resolveSupportedLocale(baseLanguage, geoCountry);
+  if (!geoPreferredLocale || geoPreferredLocale === pathLocale) return null;
+
+  return geoPreferredLocale;
 }
 
 function parseAcceptLanguage(headerValue: string | null) {
@@ -51,42 +95,28 @@ function resolveLocaleFromAcceptLanguage(
   const parsed = parseAcceptLanguage(acceptLanguage);
 
   for (const { tag } of parsed) {
-    const normalized = normalizeRequestedLocale(tag);
-    if (isSupportedLocale(normalized)) return normalized;
-
-    const base = normalizeRequestedLocale(tag.split('-')[0] ?? '');
-    if (!base) continue;
-
-    if (base === 'de') {
-      if (geoCountry === 'AT' && isSupportedLocale('de-AT')) return 'de-AT';
-      if (geoCountry === 'CH' && isSupportedLocale('de-CH')) return 'de-CH';
-      if (isSupportedLocale('de-DE')) return 'de-DE';
-    }
-    if (base === 'fr') {
-      if (geoCountry === 'CH' && isSupportedLocale('fr-CH')) return 'fr-CH';
-      if (isSupportedLocale('fr')) return 'fr';
-      if (isSupportedLocale('fr-FR')) return 'fr-FR';
-    }
-    if (base === 'it') {
-      if (geoCountry === 'CH' && isSupportedLocale('it-CH')) return 'it-CH';
-      if (isSupportedLocale('it')) return 'it';
-      if (isSupportedLocale('it-IT')) return 'it-IT';
-    }
-
-    const direct = isSupportedLocale(base) ? base : null;
-    if (direct) return direct;
+    const resolved = resolveSupportedLocale(normalizeRequestedLocale(tag), geoCountry);
+    if (resolved) return resolved;
   }
 
   return null;
 }
 
 function getGeoCountry(request: NextRequest) {
-  const raw =
-    request.headers.get('cf-ipcountry') ||
-    request.headers.get('x-vercel-ip-country') ||
-    request.headers.get('x-country');
-  const value = raw?.trim().toUpperCase() ?? '';
-  return value && /^[A-Z]{2}$/.test(value) ? value : null;
+  const candidates = [
+    request.headers.get('cf-ipcountry'),
+    request.headers.get('x-vercel-ip-country'),
+    request.headers.get('x-country'),
+  ];
+
+  for (const raw of candidates) {
+    const value = raw?.trim().toUpperCase() ?? '';
+    if (value && /^[A-Z]{2}$/.test(value)) {
+      return value;
+    }
+  }
+
+  return null;
 }
 
 function getPathLocale(pathname: string) {
@@ -125,9 +155,13 @@ function setLocaleCookie(response: NextResponse, locale: string) {
 
 export default function middleware(request: NextRequest) {
   const url = new URL(request.url);
+  const geoCountry = getGeoCountry(request);
 
   const queryLocaleRaw = url.searchParams.get('lang');
-  const queryLocale = normalizeRequestedLocale(queryLocaleRaw);
+  const queryLocale = resolveSupportedLocale(
+    normalizeRequestedLocale(queryLocaleRaw),
+    geoCountry
+  );
 
   if (url.pathname === '/workspace' || url.pathname.startsWith('/workspace/')) {
     url.pathname = '/';
@@ -146,14 +180,13 @@ export default function middleware(request: NextRequest) {
 
   if (url.pathname === '/de' || url.pathname.startsWith('/de/')) {
     const rest = url.pathname === '/de' ? '' : url.pathname.slice('/de'.length);
-    url.pathname = `/de-DE${rest}`;
+    const germanLocale = resolveSupportedLocale('de', geoCountry) ?? 'de-DE';
+    url.pathname = `/${germanLocale}${rest}`;
     return NextResponse.redirect(url, 308);
   }
-
-  const geoCountry = getGeoCountry(request);
   const pathLocale = getPathLocale(url.pathname);
 
-  if (isSupportedLocale(queryLocale) && queryLocale !== pathLocale) {
+  if (queryLocale && queryLocale !== pathLocale) {
     url.searchParams.delete('lang');
     const redirectUrl = buildRedirectUrl(request, queryLocale);
     redirectUrl.search = url.search;
@@ -162,13 +195,21 @@ export default function middleware(request: NextRequest) {
     return response;
   }
 
+  if (pathLocale && !queryLocale) {
+    const geoAdjustedPathLocale = resolveGeoAdjustedPathLocale(pathLocale, geoCountry);
+    if (geoAdjustedPathLocale) {
+      const redirectUrl = buildRedirectUrl(request, geoAdjustedPathLocale);
+      const response = NextResponse.redirect(redirectUrl, 308);
+      setLocaleCookie(response, geoAdjustedPathLocale);
+      return response;
+    }
+  }
+
   if (!pathLocale) {
-    const cookieLocale = normalizeRequestedLocale(
-      request.cookies.get(LOCALE_COOKIE_NAME)?.value
+    const resolvedCookieLocale = resolveSupportedLocale(
+      normalizeRequestedLocale(request.cookies.get(LOCALE_COOKIE_NAME)?.value),
+      geoCountry
     );
-    const resolvedCookieLocale = isSupportedLocale(cookieLocale)
-      ? cookieLocale
-      : null;
 
     const resolvedHeaderLocale = resolveLocaleFromAcceptLanguage(
       request.headers.get('accept-language'),
@@ -176,7 +217,7 @@ export default function middleware(request: NextRequest) {
     );
 
     const bestLocale =
-      resolvedCookieLocale || resolvedHeaderLocale || routing.defaultLocale;
+      resolvedHeaderLocale || resolvedCookieLocale || routing.defaultLocale;
 
     if (bestLocale !== routing.defaultLocale) {
       const redirectUrl = buildRedirectUrl(request, bestLocale);
