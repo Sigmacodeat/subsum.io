@@ -5,9 +5,8 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import Script from 'next/script';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
-import { compileMDX } from 'next-mdx-remote/rsc';
-import remarkGfm from 'remark-gfm';
 
+import { loadDocComponentBySlug } from '@/docs/content-loader';
 import { mdxComponents } from '@/docs/mdx-components';
 import {
   DOCS,
@@ -16,14 +15,23 @@ import {
   groupDocsBySection,
   slugToPath,
 } from '@/docs/registry';
+import { extractTocFromMdx } from '@/docs/toc';
 import PdfDownloadButton from '@/docs/ui/pdf-download-button';
 import PrintOnLoad from '@/docs/ui/print-on-load';
-import { extractTocFromMdx } from '@/docs/toc';
 import type { Locale } from '@/i18n/config';
 import { Link } from '@/i18n/routing';
 import { buildLocaleBreadcrumbs } from '@/utils/breadcrumb-labels';
 import { generatePageMetadata } from '@/utils/seo';
 import { buildBreadcrumbJsonLd } from '@/utils/seo-schema';
+
+async function readDocSourceSafe(filePath: string): Promise<string | null> {
+  try {
+    const absolute = path.join(process.cwd(), filePath);
+    return await fs.readFile(absolute, 'utf8');
+  } catch {
+    return null;
+  }
+}
 
 export async function generateStaticParams() {
   return DOCS.map(doc => ({ slug: doc.slug }));
@@ -46,11 +54,6 @@ export async function generateMetadata({
   });
 }
 
-async function readDocSource(filePath: string): Promise<string> {
-  const absolute = path.join(process.cwd(), filePath);
-  return fs.readFile(absolute, 'utf8');
-}
-
 export default async function DocsArticlePage({
   params,
   searchParams,
@@ -71,8 +74,11 @@ export default async function DocsArticlePage({
   const entry = findDocEntry(slug);
   if (!entry) notFound();
 
-  const source = await readDocSource(entry.filePath);
-  const toc = extractTocFromMdx(source);
+  const DocContent = await loadDocComponentBySlug(slug);
+  if (!DocContent) notFound();
+
+  const source = await readDocSourceSafe(entry.filePath);
+  const toc = source ? extractTocFromMdx(source) : [];
   const { prev, next } = getPrevNext(slug);
 
   const t = await getTranslations({ locale, namespace: 'docs' });
@@ -82,16 +88,6 @@ export default async function DocsArticlePage({
     { name: entry.title, path: `/docs/${slug.join('/')}` },
   ]);
 
-  const { content } = await compileMDX({
-    source,
-    options: {
-      mdxOptions: {
-        remarkPlugins: [remarkGfm],
-      },
-      parseFrontmatter: false,
-    },
-    components: mdxComponents as any,
-  });
   const groups = groupDocsBySection();
   const tocItemsExpanded =
     toc.length > 14 ? toc.filter(item => item.depth <= 2) : toc;
@@ -135,7 +131,10 @@ export default async function DocsArticlePage({
             </div>
             {!isPrintMode ? (
               <div className="flex items-center gap-2 print:hidden">
-                <PdfDownloadButton title={entry.title} className="btn-secondary !px-4 !py-2.5 !text-sm inline-flex items-center gap-2" />
+                <PdfDownloadButton
+                  title={entry.title}
+                  className="btn-secondary !px-4 !py-2.5 !text-sm inline-flex items-center gap-2"
+                />
               </div>
             ) : null}
           </div>
@@ -217,7 +216,7 @@ export default async function DocsArticlePage({
             {/* Article */}
             <article className="min-w-0">
               <div className="prose prose-slate max-w-none prose-headings:scroll-mt-28 prose-a:text-primary-700 prose-a:no-underline hover:prose-a:underline prose-code:font-mono">
-                {content}
+                <DocContent components={mdxComponents as any} />
               </div>
 
               <div className="mt-10 grid sm:grid-cols-2 gap-4">

@@ -18,8 +18,7 @@ export const header = style({
   gap: 8,
   padding: `8px ${layoutGutter}px`,
   borderBottom: `0.5px solid ${glassStroke}`,
-  background:
-    `linear-gradient(180deg, color-mix(in srgb, var(--affine-background-primary-color) 92%, transparent) 0%, color-mix(in srgb, var(--affine-background-primary-color) 78%, transparent) 100%), ${glassFill}`,
+  background: `linear-gradient(180deg, color-mix(in srgb, var(--affine-background-primary-color) 92%, transparent) 0%, color-mix(in srgb, var(--affine-background-primary-color) 78%, transparent) 100%), ${glassFill}`,
   backdropFilter: 'blur(18px) saturate(145%)',
   '@media': {
     '(max-width: 700px)': {
@@ -44,6 +43,15 @@ export const actions = style({
       justifyContent: 'flex-end',
       flexWrap: 'wrap',
       rowGap: 6,
+    },
+  },
+});
+
+export const selectModeButton = style({
+  minWidth: 96,
+  '@media': {
+    '(max-width: 700px)': {
+      minWidth: 88,
     },
   },
 });

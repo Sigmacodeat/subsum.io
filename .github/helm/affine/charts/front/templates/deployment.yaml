@@ -85,9 +85,17 @@ spec:
             - name: AFFINE_SERVER_SUB_PATH
               value: "{{ .Values.app.path }}"
             - name: AFFINE_SERVER_HOST
-              value: "{{ .Values.app.host }}"
+              value: "{{- if and .Values.global.ingress.enabled (gt (len .Values.global.ingress.hosts) 0) -}}{{ index .Values.global.ingress.hosts 0 }}{{- else -}}{{ .Values.app.host }}{{- end -}}"
             - name: AFFINE_SERVER_HTTPS
               value: "{{ .Values.app.https }}"
+            {{- if and .Values.global.ingress.enabled (gt (len .Values.global.ingress.hosts) 0) }}
+            - name: AFFINE_SERVER_EXTERNAL_URL
+              value: "{{ .Values.app.https | ternary \"https\" \"http\" }}://{{ index .Values.global.ingress.hosts 0 }}"
+            - name: AFFINE_SERVER_ALLOWED_ORIGINS
+              value: "{{ .Values.app.https | ternary \"https\" \"http\" }}://{{ index .Values.global.ingress.hosts 0 }}"
+            {{- end }}
+            - name: AFFINE_SERVER_TRUST_PROXY
+              value: "{{ .Values.global.ingress.enabled | ternary \"1\" \"0\" }}"
           ports:
             - name: http
               containerPort: {{ .Values.app.port }}

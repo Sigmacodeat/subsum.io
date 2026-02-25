@@ -13,13 +13,16 @@ import type {
 /**
  * See https://playwright.dev/docs/test-configuration.
  */
+const playwrightBaseUrl =
+  process.env.PLAYWRIGHT_BASE_URL ?? 'http://localhost:8080/';
+
 const config: PlaywrightTestConfig = {
   testDir: './e2e',
   fullyParallel: true,
   timeout: process.env.CI ? 50_000 : 30_000,
   outputDir: testResultDir,
   use: {
-    baseURL: 'http://localhost:8080/',
+    baseURL: playwrightBaseUrl,
     browserName:
       (process.env.BROWSER as PlaywrightWorkerOptions['browserName']) ??
       'chromium',
@@ -49,7 +52,7 @@ const config: PlaywrightTestConfig = {
       env: {
         COVERAGE: process.env.COVERAGE || 'false',
       },
-      url: 'http://localhost:8080',
+      url: new URL(playwrightBaseUrl).origin,
     },
   ],
 };

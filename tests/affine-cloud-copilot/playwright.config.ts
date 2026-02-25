@@ -4,6 +4,13 @@ import type {
   PlaywrightWorkerOptions,
 } from '@playwright/test';
 
+const playwrightBaseUrl =
+  process.env.PLAYWRIGHT_BASE_URL ?? 'http://localhost:8080/';
+const backendExternalUrl =
+  process.env.AFFINE_SERVER_EXTERNAL_URL ??
+  process.env.BACKEND_BASE_URL ??
+  'http://localhost:3010';
+
 const config: PlaywrightTestConfig = {
   testDir: './e2e',
   fullyParallel: true,
@@ -11,7 +18,7 @@ const config: PlaywrightTestConfig = {
   outputDir: testResultDir,
   globalSetup: './global-setup.ts',
   use: {
-    baseURL: 'http://localhost:8080/',
+    baseURL: playwrightBaseUrl,
     browserName:
       (process.env.BROWSER as PlaywrightWorkerOptions['browserName']) ??
       'chromium',
@@ -36,7 +43,7 @@ const config: PlaywrightTestConfig = {
       env: {
         COVERAGE: process.env.COVERAGE || 'false',
       },
-      url: 'http://localhost:8080',
+      url: new URL(playwrightBaseUrl).origin,
     },
     {
       command: 'yarn run -T affine dev -p @affine/server',
@@ -59,7 +66,7 @@ const config: PlaywrightTestConfig = {
         MAILER_USER: 'noreply@toeverything.info',
         MAILER_PASSWORD: 'affine',
       },
-      url: 'http://localhost:3010/graphql',
+      url: new URL(backendExternalUrl).origin + '/graphql',
     },
   ],
 };

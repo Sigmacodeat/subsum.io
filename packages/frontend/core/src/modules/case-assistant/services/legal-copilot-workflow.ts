@@ -30,9 +30,8 @@ import type { ContradictionDetectorService } from './contradiction-detector';
 import type { CreditGatewayService } from './credit-gateway';
 import { CREDIT_COSTS } from './credit-gateway';
 import type { DeadlineAutomationService } from './deadline-automation';
-import type { TerminAutomationService } from './termin-automation';
 import type { DocumentNormExtractorService } from './document-norm-extractor';
-import type { DocumentProcessingService} from './document-processing';
+import type { DocumentProcessingService } from './document-processing';
 import { normalizeText } from './document-processing';
 import type { CaseIngestionService } from './ingestion';
 import type { JudikaturResearchService } from './judikatur-research';
@@ -45,6 +44,7 @@ import type { CasePlatformOrchestrationService } from './platform-orchestration'
 import type { CaseProviderSettingsService } from './provider-settings';
 import type { CaseResidencyPolicyService } from './residency-policy';
 import { normalizeAuthorityReferences } from './stammdaten-normalization';
+import type { TerminAutomationService } from './termin-automation';
 
 function createId(prefix: string) {
   return `${prefix}:${Date.now().toString(36)}:${Math.random().toString(36).slice(2, 8)}`;
@@ -108,12 +108,26 @@ export type OnboardingDetectionResult = {
   suggestedExternalRef: string | null;
   suggestedAuthorityRefs: string[];
   suggestedCourt: string | null;
+  suggestedPolice: string | null;
+  suggestedProsecutor: string | null;
+  suggestedJudge: string | null;
+  suggestedCourtFileNumber: string | null;
+  suggestedProsecutorFileNumber: string | null;
+  suggestedPoliceFileNumber: string | null;
   confidence: number;
   confidenceLevel: 'high' | 'medium' | 'low';
   hasConflicts: boolean;
   autoApplyAllowed: boolean;
-  candidateExternalRefs: Array<{ value: string; score: number; occurrences: number }>;
-  candidateClientNames: Array<{ value: string; score: number; occurrences: number }>;
+  candidateExternalRefs: Array<{
+    value: string;
+    score: number;
+    occurrences: number;
+  }>;
+  candidateClientNames: Array<{
+    value: string;
+    score: number;
+    occurrences: number;
+  }>;
   evidence: string[];
   requiresManualClient: boolean;
 };
@@ -197,6 +211,74 @@ function extractAuthorityReferences(text: string) {
   return uniqueTrimmed(out).slice(0, 12);
 }
 
+type StructuredMatterMetadata = {
+  gericht: string | null;
+  polizei: string | null;
+  staatsanwaltschaft: string | null;
+  richter: string | null;
+  gerichtsaktenzeichen: string | null;
+  staatsanwaltschaftAktenzeichen: string | null;
+  polizeiAktenzeichen: string | null;
+};
+
+function cleanupEntityMatch(value: string | null | undefined) {
+  if (!value) return null;
+  const cleaned = normalizeWhitespace(value).replace(/[\s,;:.]+$/g, '');
+  return cleaned || null;
+}
+
+function firstMatchValue(
+  text: string,
+  pattern: RegExp,
+  normalizer?: (value: string) => string
+) {
+  const match = text.match(pattern);
+  const raw = cleanupEntityMatch(match?.[1] ?? null);
+  if (!raw) {
+    return null;
+  }
+  const normalized = normalizer ? normalizer(raw) : raw;
+  return cleanupEntityMatch(normalized);
+}
+
+function extractStructuredMatterMetadata(
+  text: string
+): StructuredMatterMetadata {
+  return {
+    gericht: firstMatchValue(
+      text,
+      /\b((?:Amtsgericht|Landgericht|Oberlandesgericht|Bezirksgericht|Landesgericht|Verwaltungsgericht|Bundesgerichtshof|Oberster Gerichtshof)[^,\n.;]{0,60})\b/i
+    ),
+    polizei: firstMatchValue(
+      text,
+      /\b((?:Polizei(?:inspektion)?|PI\s+[A-ZÄÖÜ][\p{L}A-Za-zÄÖÜäöüß\- ]+|LKA\s+[A-ZÄÖÜ][\p{L}A-Za-zÄÖÜäöüß\- ]+|BKA\s+[A-ZÄÖÜ][\p{L}A-Za-zÄÖÜäöüß\- ]+|Kripo\s+[A-ZÄÖÜ][\p{L}A-Za-zÄÖÜäöüß\- ]+|Landeskriminalamt\s+[A-ZÄÖÜ][\p{L}A-Za-zÄÖÜäöüß\- ]+))\b/iu
+    ),
+    staatsanwaltschaft: firstMatchValue(
+      text,
+      /\b((?:Staatsanwaltschaft|StA)\s+[A-ZÄÖÜ][\p{L}A-Za-zÄÖÜäöüß\- ]{1,50})\b/iu
+    ),
+    richter: firstMatchValue(
+      text,
+      /\b(?:Richter(?:in)?|Vorsitz(?:ende|ender)\s+Richter(?:in)?)\s*[:\-]?\s*([A-ZÄÖÜ][\p{L}A-Za-zÄÖÜäöüß'\-.]+(?:\s+[A-ZÄÖÜ][\p{L}A-Za-zÄÖÜäöüß'\-.]+){0,3})\b/iu
+    ),
+    gerichtsaktenzeichen: firstMatchValue(
+      text,
+      /\b(?:Gerichtsaktenzeichen|Gericht\s*(?:AZ|Aktenzeichen)|Gericht\.?\s*AZ)\s*[:#-]?\s*([A-Z0-9][A-Z0-9\-/.]{3,40})\b/i,
+      normalizeExternalReference
+    ),
+    staatsanwaltschaftAktenzeichen: firstMatchValue(
+      text,
+      /\b(?:(?:StA|Staatsanwaltschaft)\s*(?:AZ|Aktenzeichen)|StA[-\s]*Aktenzeichen)\s*[:#-]?\s*([A-Z0-9][A-Z0-9\-/.]{3,40})\b/i,
+      normalizeExternalReference
+    ),
+    polizeiAktenzeichen: firstMatchValue(
+      text,
+      /\b(?:Polizei(?:aktenzeichen)?|Polizei[-\s]*AZ|PI[-\s]*AZ)\s*[:#-]?\s*([A-Z0-9][A-Z0-9\-/.]{3,40})\b/i,
+      normalizeExternalReference
+    ),
+  };
+}
+
 function normalizeExternalReference(value: string) {
   return normalizeWhitespace(value)
     .replace(/[|]+/g, '/')
@@ -213,7 +295,12 @@ function rankCandidates(
       score: Number(data.score.toFixed(4)),
       occurrences: data.occurrences,
     }))
-    .sort((a, b) => b.score - a.score || b.occurrences - a.occurrences || b.value.length - a.value.length);
+    .sort(
+      (a, b) =>
+        b.score - a.score ||
+        b.occurrences - a.occurrences ||
+        b.value.length - a.value.length
+    );
 }
 
 function topCandidateMargin(
@@ -227,7 +314,10 @@ function topCandidateMargin(
   if (!second) {
     return 1;
   }
-  return Math.max(0, Math.min(1, (top.score - second.score) / Math.max(top.score, 0.0001)));
+  return Math.max(
+    0,
+    Math.min(1, (top.score - second.score) / Math.max(top.score, 0.0001))
+  );
 }
 
 function deriveConfidenceLevel(confidence: number): 'high' | 'medium' | 'low' {
@@ -243,7 +333,9 @@ function deriveConfidenceLevel(confidence: number): 'high' | 'medium' | 'low' {
 function collectExternalRefCandidates(text: string) {
   const candidates: string[] = [];
   const explicitRefs = [
-    ...text.matchAll(/\b(?:AZ|Aktenzeichen|Gesch\.?\s*Z\.?|GZ)\s*[:#-]?\s*([A-Z0-9][A-Z0-9\-/.]{3,40})\b/gi),
+    ...text.matchAll(
+      /\b(?:AZ|Aktenzeichen|Gesch\.?\s*Z\.?|GZ)\s*[:#-]?\s*([A-Z0-9][A-Z0-9\-/.]{3,40})\b/gi
+    ),
     ...text.matchAll(/\b([0-9]{1,4}\s*Js\s*[0-9]{1,7}\/[0-9]{2,4})\b/gi),
   ];
   for (const match of explicitRefs) {
@@ -265,15 +357,33 @@ function isLikelyValidExternalRef(value: string) {
   return /^[A-Z0-9][A-Z0-9\-/.]{3,40}$/.test(value);
 }
 
+function hasChangedOptionalValue(
+  current: string | undefined,
+  next: string | undefined
+) {
+  return (current ?? '').trim() !== (next ?? '').trim();
+}
+
 function isNationalJurisdiction(value: unknown): value is Jurisdiction {
-  return value === 'AT' || value === 'DE' || value === 'CH' || value === 'FR' || value === 'IT' || value === 'PT' || value === 'PL';
+  return (
+    value === 'AT' ||
+    value === 'DE' ||
+    value === 'CH' ||
+    value === 'FR' ||
+    value === 'IT' ||
+    value === 'PT' ||
+    value === 'PL'
+  );
 }
 
 function isBase64DataUrlPayload(value: string) {
   return typeof value === 'string' && /^data:[^;]+;base64,/.test(value);
 }
 
-function decodeBase64DataUrl(input: string): { mime: string; bytes: Uint8Array } {
+function decodeBase64DataUrl(input: string): {
+  mime: string;
+  bytes: Uint8Array;
+} {
   const match = input.match(/^data:([^;]+);base64,(.*)$/);
   if (!match) {
     throw new Error('base64-invalid');
@@ -303,18 +413,27 @@ async function sha256Hex(bytes: Uint8Array) {
         : new Uint8Array(bytes);
 
     const digest = await crypto.subtle.digest('SHA-256', normalizedBytes);
-    return [...new Uint8Array(digest)].map(b => b.toString(16).padStart(2, '0')).join('');
+    return [...new Uint8Array(digest)]
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join('');
   } catch {
     return '';
   }
 }
-async function withTimeout<T>(task: Promise<T>, timeoutMs: number, timeoutMessage: string): Promise<T> {
+async function withTimeout<T>(
+  task: Promise<T>,
+  timeoutMs: number,
+  timeoutMessage: string
+): Promise<T> {
   let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
   try {
     return await Promise.race([
       task,
       new Promise<T>((_, reject) => {
-        timeoutHandle = setTimeout(() => reject(new Error(timeoutMessage)), timeoutMs);
+        timeoutHandle = setTimeout(
+          () => reject(new Error(timeoutMessage)),
+          timeoutMs
+        );
       }),
     ]);
   } catch (error) {
@@ -362,10 +481,16 @@ function inferQualityScore(kind: LegalDocumentRecord['kind'], text: string) {
 }
 
 function isStrongOcrResult(result: OcrProviderResult) {
-  return (result.qualityScore ?? 0) >= 0.65 && (result.text?.trim().length ?? 0) >= 300;
+  return (
+    (result.qualityScore ?? 0) >= 0.65 &&
+    (result.text?.trim().length ?? 0) >= 300
+  );
 }
 
-function pickBetterOcrResult(a: OcrProviderResult | null, b: OcrProviderResult | null) {
+function pickBetterOcrResult(
+  a: OcrProviderResult | null,
+  b: OcrProviderResult | null
+) {
   if (!a) return b;
   if (!b) return a;
   const qa = a.qualityScore ?? 0;
@@ -383,7 +508,12 @@ function isOcrEligibleDocument(doc: IntakeDocumentInput) {
 }
 
 function isRetryableOcrDocument(doc: LegalDocumentRecord) {
-  return doc.status === 'failed' || doc.status === 'indexed' || doc.status === 'ocr_pending' || doc.status === 'ocr_running';
+  return (
+    doc.status === 'failed' ||
+    doc.status === 'indexed' ||
+    doc.status === 'ocr_pending' ||
+    doc.status === 'ocr_running'
+  );
 }
 
 function isNonOcrRecoverable(engineTag: string | undefined) {
@@ -393,10 +523,14 @@ function isNonOcrRecoverable(engineTag: string | undefined) {
 
 function deriveProcessingError(engineTag: string | undefined, title: string) {
   const tag = (engineTag ?? '').toLowerCase();
-  if (tag.includes('pdf-encrypted')) return `PDF ist verschlüsselt und kann nicht verarbeitet werden: ${title}`;
-  if (tag.includes('base64-invalid')) return `Dateiinhalt ist beschädigt (Base64 ungültig): ${title}`;
-  if (tag.includes('binary-cache-lost')) return `Binärdaten verloren. Bitte Dokument erneut hochladen: ${title}`;
-  if (tag.includes('crash-recovery')) return `Verarbeitung abgestürzt. Bitte erneut versuchen: ${title}`;
+  if (tag.includes('pdf-encrypted'))
+    return `PDF ist verschlüsselt und kann nicht verarbeitet werden: ${title}`;
+  if (tag.includes('base64-invalid'))
+    return `Dateiinhalt ist beschädigt (Base64 ungültig): ${title}`;
+  if (tag.includes('binary-cache-lost'))
+    return `Binärdaten verloren. Bitte Dokument erneut hochladen: ${title}`;
+  if (tag.includes('crash-recovery'))
+    return `Verarbeitung abgestürzt. Bitte erneut versuchen: ${title}`;
   return `Dokument konnte nicht verarbeitet werden: ${title}`;
 }
 
@@ -442,9 +576,16 @@ export class LegalCopilotWorkflowService extends Service {
     this._binaryCache.delete(documentId);
   }
 
-  private async persistOriginalBinary(input: { content: string; mimeType?: string }) {
+  private async persistOriginalBinary(input: {
+    content: string;
+    mimeType?: string;
+  }) {
     const decoded = decodeBase64DataUrl(input.content);
-    const mime = (input.mimeType ?? decoded.mime ?? 'application/octet-stream').toLowerCase();
+    const mime = (
+      input.mimeType ??
+      decoded.mime ??
+      'application/octet-stream'
+    ).toLowerCase();
     const sha256 = await sha256Hex(decoded.bytes);
     const blobId = `blob:${sha256 || createId('blob')}`;
     try {
@@ -464,14 +605,22 @@ export class LegalCopilotWorkflowService extends Service {
     if (cached && cached.trim()) {
       return cached;
     }
-    if (doc.rawText && doc.rawText !== BINARY_CACHE_PLACEHOLDER && doc.rawText.trim()) {
+    if (
+      doc.rawText &&
+      doc.rawText !== BINARY_CACHE_PLACEHOLDER &&
+      doc.rawText.trim()
+    ) {
       return doc.rawText;
     }
     if (doc.sourceBlobId) {
       try {
-        const blobRecord = await this.workspaceService.workspace.engine.blob.get(doc.sourceBlobId);
+        const blobRecord =
+          await this.workspaceService.workspace.engine.blob.get(
+            doc.sourceBlobId
+          );
         if (blobRecord?.data) {
-          const mime = doc.sourceMimeType || blobRecord.mime || 'application/octet-stream';
+          const mime =
+            doc.sourceMimeType || blobRecord.mime || 'application/octet-stream';
           return `data:${mime};base64,${bytesToBase64(blobRecord.data)}`;
         }
       } catch {
@@ -482,9 +631,17 @@ export class LegalCopilotWorkflowService extends Service {
   }
 
   private isLikelyVollmachtDocument(
-    doc: Pick<LegalDocumentRecord, 'title' | 'sourceRef' | 'tags' | 'normalizedText'>
+    doc: Pick<
+      LegalDocumentRecord,
+      'title' | 'sourceRef' | 'tags' | 'normalizedText'
+    >
   ) {
-    const haystack = [doc.title, doc.sourceRef, ...(doc.tags ?? []), doc.normalizedText]
+    const haystack = [
+      doc.title,
+      doc.sourceRef,
+      ...(doc.tags ?? []),
+      doc.normalizedText,
+    ]
       .filter(Boolean)
       .join(' ')
       .toLowerCase();
@@ -495,9 +652,17 @@ export class LegalCopilotWorkflowService extends Service {
   }
 
   private inferAutoDetectedVollmachtType(
-    doc: Pick<LegalDocumentRecord, 'title' | 'sourceRef' | 'tags' | 'normalizedText'>
+    doc: Pick<
+      LegalDocumentRecord,
+      'title' | 'sourceRef' | 'tags' | 'normalizedText'
+    >
   ): Vollmacht['type'] {
-    const haystack = [doc.title, doc.sourceRef, ...(doc.tags ?? []), doc.normalizedText]
+    const haystack = [
+      doc.title,
+      doc.sourceRef,
+      ...(doc.tags ?? []),
+      doc.normalizedText,
+    ]
       .filter(Boolean)
       .join(' ')
       .toLowerCase();
@@ -525,7 +690,9 @@ export class LegalCopilotWorkflowService extends Service {
       return;
     }
 
-    const graph = params.graph ?? ((await this.orchestration.getGraph()) as CaseGraphRecord);
+    const graph =
+      params.graph ??
+      ((await this.orchestration.getGraph()) as CaseGraphRecord);
     const caseFile = graph.cases?.[caseId];
     if (!caseFile?.matterId) {
       return;
@@ -541,7 +708,9 @@ export class LegalCopilotWorkflowService extends Service {
     );
     const targetClientIds = candidateClientIds.filter(clientId => {
       const client = graph.clients?.[clientId];
-      return Boolean(client && client.kind !== 'authority' && client.kind !== 'other');
+      return Boolean(
+        client && client.kind !== 'authority' && client.kind !== 'other'
+      );
     });
     if (targetClientIds.length === 0) {
       return;
@@ -553,7 +722,11 @@ export class LegalCopilotWorkflowService extends Service {
     const grantedTo = matter.assignedAnwaltId ?? 'system:auto-detected';
     const grantedToName = assignedAnwalt
       ? normalizeWhitespace(
-          [assignedAnwalt.title, assignedAnwalt.firstName, assignedAnwalt.lastName]
+          [
+            assignedAnwalt.title,
+            assignedAnwalt.firstName,
+            assignedAnwalt.lastName,
+          ]
             .filter(Boolean)
             .join(' ')
         )
@@ -631,13 +804,19 @@ export class LegalCopilotWorkflowService extends Service {
   > {
     const endpoint = await this.providerSettingsService.getEndpoint('ocr');
     if (!endpoint) {
-      return { ok: false, reason: 'Remote OCR Provider ist nicht konfiguriert (Endpoint fehlt).' };
+      return {
+        ok: false,
+        reason: 'Remote OCR Provider ist nicht konfiguriert (Endpoint fehlt).',
+      };
     }
-    const token = (await this.providerSettingsService.getToken('ocr')) ?? undefined;
+    const token =
+      (await this.providerSettingsService.getToken('ocr')) ?? undefined;
     return { ok: true, endpoint, token };
   }
 
-  private async runRemoteOcr(doc: LegalDocumentRecord): Promise<OcrProviderResult | null> {
+  private async runRemoteOcr(
+    doc: LegalDocumentRecord
+  ): Promise<OcrProviderResult | null> {
     const config = await this.getRemoteOcrConfig();
     if (!config.ok) {
       return null;
@@ -783,26 +962,33 @@ export class LegalCopilotWorkflowService extends Service {
         (doc.sourceMimeType?.toLowerCase().includes('pdf') ?? false);
       if (isPdf) {
         try {
-          const localPdfTextLayer = await this.documentProcessingService.processDocumentAsync({
-            documentId: doc.id,
-            caseId: doc.caseId,
-            workspaceId: doc.workspaceId,
-            title: doc.title,
-            kind: doc.kind,
-            rawContent: content,
-            mimeType: doc.sourceMimeType,
-            expectedPageCount: doc.pageCount,
-          });
+          const localPdfTextLayer =
+            await this.documentProcessingService.processDocumentAsync({
+              documentId: doc.id,
+              caseId: doc.caseId,
+              workspaceId: doc.workspaceId,
+              title: doc.title,
+              kind: doc.kind,
+              rawContent: content,
+              mimeType: doc.sourceMimeType,
+              expectedPageCount: doc.pageCount,
+            });
           if (hasViableOcrText(localPdfTextLayer.normalizedText)) {
             localCandidate = {
               text: localPdfTextLayer.normalizedText,
               language: localPdfTextLayer.language,
               qualityScore: Math.max(
                 0.1,
-                Math.min(1, (localPdfTextLayer.qualityReport.overallScore ?? 0) / 100)
+                Math.min(
+                  1,
+                  (localPdfTextLayer.qualityReport.overallScore ?? 0) / 100
+                )
               ),
-              pageCount: localPdfTextLayer.qualityReport.extractedPageCount ?? doc.pageCount,
-              engine: localPdfTextLayer.extractionEngine || 'pdf-text-layer-local',
+              pageCount:
+                localPdfTextLayer.qualityReport.extractedPageCount ??
+                doc.pageCount,
+              engine:
+                localPdfTextLayer.extractionEngine || 'pdf-text-layer-local',
             };
           }
         } catch {
@@ -830,18 +1016,21 @@ export class LegalCopilotWorkflowService extends Service {
             const m = local.metrics;
             console.log(
               `[workflow:ocr-metrics] doc="${doc.title}" ` +
-              `pages=${m.ocrPages}/${m.totalPages} ` +
-              `skipped=${m.skippedPages} retried=${m.retriedPages} failed=${m.failedPages} ` +
-              `conf=${m.avgConfidence}% (min=${m.minConfidence}%, max=${m.maxConfidence}%) ` +
-              `pp=${m.preProcessingMs}ms ocr=${m.ocrMs}ms post=${m.postProcessingMs}ms total=${m.totalMs}ms ` +
-              `engine=${m.engineVersion}`
+                `pages=${m.ocrPages}/${m.totalPages} ` +
+                `skipped=${m.skippedPages} retried=${m.retriedPages} failed=${m.failedPages} ` +
+                `conf=${m.avgConfidence}% (min=${m.minConfidence}%, max=${m.maxConfidence}%) ` +
+                `pp=${m.preProcessingMs}ms ocr=${m.ocrMs}ms post=${m.postProcessingMs}ms total=${m.totalMs}ms ` +
+                `engine=${m.engineVersion}`
             );
           }
 
           localCandidate = {
             text: local.text,
             language: doc.language,
-            qualityScore: Math.max(0, Math.min(1, (local.confidence ?? 0) / 100)),
+            qualityScore: Math.max(
+              0,
+              Math.min(1, (local.confidence ?? 0) / 100)
+            ),
             pageCount: local.pageCount || doc.pageCount,
             engine: local.engine,
           };
@@ -857,8 +1046,8 @@ export class LegalCopilotWorkflowService extends Service {
           const picked = chosen === remote ? 'remote' : 'local';
           console.log(
             `[workflow:ocr-arbitration] doc="${doc.title}" picked=${picked} ` +
-            `remoteQ=${(remote.qualityScore ?? 0).toFixed(3)} localQ=${(localCandidate.qualityScore ?? 0).toFixed(3)} ` +
-            `remoteLen=${remote.text.trim().length} localLen=${localCandidate.text.trim().length}`
+              `remoteQ=${(remote.qualityScore ?? 0).toFixed(3)} localQ=${(localCandidate.qualityScore ?? 0).toFixed(3)} ` +
+              `remoteLen=${remote.text.trim().length} localLen=${localCandidate.text.trim().length}`
           );
         }
         return chosen;
@@ -884,7 +1073,10 @@ export class LegalCopilotWorkflowService extends Service {
   }
 
   private findingHasCitation(finding: LegalFinding) {
-    return finding.citations.length > 0 && finding.citations.some(item => !!item.quote.trim());
+    return (
+      finding.citations.length > 0 &&
+      finding.citations.some(item => !!item.quote.trim())
+    );
   }
 
   private findingDedupeKey(finding: LegalFinding) {
@@ -899,7 +1091,9 @@ export class LegalCopilotWorkflowService extends Service {
     );
   }
 
-  private derivePreferredJurisdictions(docs: LegalDocumentRecord[]): Jurisdiction[] {
+  private derivePreferredJurisdictions(
+    docs: LegalDocumentRecord[]
+  ): Jurisdiction[] {
     const counts = new Map<Jurisdiction, number>();
     for (const doc of docs) {
       const jurisdiction = doc.detectedJurisdiction;
@@ -915,11 +1109,18 @@ export class LegalCopilotWorkflowService extends Service {
 
     if (national.length === 0 && docs.length > 0) {
       const textProbe = docs
-        .map(doc => doc.normalizedText ?? (doc.rawText === BINARY_CACHE_PLACEHOLDER ? '' : normalizeText(doc.rawText)))
+        .map(
+          doc =>
+            doc.normalizedText ??
+            (doc.rawText === BINARY_CACHE_PLACEHOLDER
+              ? ''
+              : normalizeText(doc.rawText))
+        )
         .filter(Boolean)
         .join('\n')
         .slice(0, 80_000);
-      const fallbackDetection = this.jurisdictionService.detectFromText(textProbe);
+      const fallbackDetection =
+        this.jurisdictionService.detectFromText(textProbe);
       if (isNationalJurisdiction(fallbackDetection.jurisdiction)) {
         national.push(fallbackDetection.jurisdiction);
       }
@@ -944,19 +1145,31 @@ export class LegalCopilotWorkflowService extends Service {
     caseId: string;
     workspaceId: string;
     corpusText: string;
-    candidateExternalRefs: Array<{ value: string; score: number; occurrences: number }>;
-    candidateClientNames: Array<{ value: string; score: number; occurrences: number }>;
+    candidateExternalRefs: Array<{
+      value: string;
+      score: number;
+      occurrences: number;
+    }>;
+    candidateClientNames: Array<{
+      value: string;
+      score: number;
+      occurrences: number;
+    }>;
     hasConflicts: boolean;
     confidence: number;
   }): Promise<LlmOnboardingResolution | null> {
-    const endpoint = await this.providerSettingsService.getEndpoint('legal-analysis');
+    const endpoint =
+      await this.providerSettingsService.getEndpoint('legal-analysis');
     if (!endpoint) {
       return null;
     }
 
     const token = await this.providerSettingsService.getToken('legal-analysis');
     const signalTimeout = new AbortController();
-    const timeoutHandle = setTimeout(() => signalTimeout.abort(), ONBOARDING_LLM_TIMEOUT_MS);
+    const timeoutHandle = setTimeout(
+      () => signalTimeout.abort(),
+      ONBOARDING_LLM_TIMEOUT_MS
+    );
     try {
       const response = await fetch(endpoint, {
         method: 'POST',
@@ -1009,6 +1222,12 @@ export class LegalCopilotWorkflowService extends Service {
         suggestedExternalRef: null,
         suggestedAuthorityRefs: [],
         suggestedCourt: null,
+        suggestedPolice: null,
+        suggestedProsecutor: null,
+        suggestedJudge: null,
+        suggestedCourtFileNumber: null,
+        suggestedProsecutorFileNumber: null,
+        suggestedPoliceFileNumber: null,
         confidence: 0,
         confidenceLevel: 'low',
         hasConflicts: false,
@@ -1021,8 +1240,11 @@ export class LegalCopilotWorkflowService extends Service {
     }
 
     const docTexts = docs.map((doc: LegalDocumentRecord) => {
-      const text = doc.normalizedText ??
-        (doc.rawText === BINARY_CACHE_PLACEHOLDER ? '' : normalizeText(doc.rawText));
+      const text =
+        doc.normalizedText ??
+        (doc.rawText === BINARY_CACHE_PLACEHOLDER
+          ? ''
+          : normalizeText(doc.rawText));
       const sourceWeight = Math.max(
         0.65,
         Math.min(
@@ -1030,7 +1252,9 @@ export class LegalCopilotWorkflowService extends Service {
           1 +
             (doc.qualityScore && doc.qualityScore >= 0.8 ? 0.12 : 0) +
             ((doc.overallQualityScore ?? 0) >= 70 ? 0.08 : 0) +
-            (/\b(urteil|beschluss|bescheid|anklage|gericht|staatsanwaltschaft|protokoll)\b/i.test(doc.title)
+            (/\b(urteil|beschluss|bescheid|anklage|gericht|staatsanwaltschaft|protokoll)\b/i.test(
+              doc.title
+            )
               ? 0.16
               : 0)
         )
@@ -1047,23 +1271,38 @@ export class LegalCopilotWorkflowService extends Service {
       return {
         suggestedClientName: null,
         suggestedClientKind: 'person',
-        suggestedMatterTitle: stripDocumentExtension(docs[0]?.title ?? '') || null,
+        suggestedMatterTitle:
+          stripDocumentExtension(docs[0]?.title ?? '') || null,
         suggestedExternalRef: null,
         suggestedAuthorityRefs: [],
         suggestedCourt: null,
+        suggestedPolice: null,
+        suggestedProsecutor: null,
+        suggestedJudge: null,
+        suggestedCourtFileNumber: null,
+        suggestedProsecutorFileNumber: null,
+        suggestedPoliceFileNumber: null,
         confidence: 0.1,
         confidenceLevel: 'low',
         hasConflicts: false,
         autoApplyAllowed: false,
         candidateExternalRefs: [],
         candidateClientNames: [],
-        evidence: ['Dokumente enthalten aktuell keinen auswertbaren Text. Bitte Mandant manuell anlegen.'],
+        evidence: [
+          'Dokumente enthalten aktuell keinen auswertbaren Text. Bitte Mandant manuell anlegen.',
+        ],
         requiresManualClient: true,
       };
     }
 
-    const externalRefScores = new Map<string, { score: number; occurrences: number }>();
-    const clientScores = new Map<string, { score: number; occurrences: number; kind: ClientKind }>();
+    const externalRefScores = new Map<
+      string,
+      { score: number; occurrences: number }
+    >();
+    const clientScores = new Map<
+      string,
+      { score: number; occurrences: number; kind: ClientKind }
+    >();
 
     for (const item of docTexts) {
       if (!item.text) {
@@ -1072,7 +1311,10 @@ export class LegalCopilotWorkflowService extends Service {
 
       const perDocExternalRefs = collectExternalRefCandidates(item.text);
       for (const ref of perDocExternalRefs) {
-        const current = externalRefScores.get(ref) ?? { score: 0, occurrences: 0 };
+        const current = externalRefScores.get(ref) ?? {
+          score: 0,
+          occurrences: 0,
+        };
         externalRefScores.set(ref, {
           score: current.score + item.sourceWeight,
           occurrences: current.occurrences + 1,
@@ -1134,15 +1376,23 @@ export class LegalCopilotWorkflowService extends Service {
         occurrences: data.occurrences,
         kind: data.kind,
       }))
-      .sort((a, b) => b.score - a.score || b.occurrences - a.occurrences || b.value.length - a.value.length)
+      .sort(
+        (a, b) =>
+          b.score - a.score ||
+          b.occurrences - a.occurrences ||
+          b.value.length - a.value.length
+      )
       .slice(0, 5);
 
     let suggestedExternalRef = candidateExternalRefs[0]?.value ?? null;
     let suggestedClientName = candidateClientNames[0]?.value ?? null;
-    let suggestedClientKind: ClientKind = candidateClientNames[0]?.kind ?? 'person';
+    let suggestedClientKind: ClientKind =
+      candidateClientNames[0]?.kind ?? 'person';
 
     if (suggestedClientName) {
-      evidence.push(`Mandant aus Dokumentinhalt erkannt: ${suggestedClientName}`);
+      evidence.push(
+        `Mandant aus Dokumentinhalt erkannt: ${suggestedClientName}`
+      );
     }
 
     const authorityRefs = extractAuthorityReferences(texts);
@@ -1151,13 +1401,41 @@ export class LegalCopilotWorkflowService extends Service {
       evidence.push(`Aktenzeichen erkannt: ${suggestedExternalRef}`);
     }
     if (authorityRefs.length > 0) {
-      evidence.push(`Behörden-Referenzen erkannt: ${authorityRefs.slice(0, 3).join(', ')}`);
+      evidence.push(
+        `Behörden-Referenzen erkannt: ${authorityRefs.slice(0, 3).join(', ')}`
+      );
     }
 
-    const courtMatch = texts.match(/\b((?:Amtsgericht|Landgericht|Oberlandesgericht|Bezirksgericht|Landesgericht|Verwaltungsgericht|Bundesgerichtshof|Oberster Gerichtshof)[^,\n.;]{0,60})\b/i);
-    const suggestedCourt = courtMatch?.[1]?.trim() ?? null;
+    const structuredMetadata = extractStructuredMatterMetadata(texts);
+    const suggestedCourt = structuredMetadata.gericht;
     if (suggestedCourt) {
       evidence.push(`Gericht erkannt: ${suggestedCourt}`);
+    }
+    if (structuredMetadata.polizei) {
+      evidence.push(`Polizei erkannt: ${structuredMetadata.polizei}`);
+    }
+    if (structuredMetadata.staatsanwaltschaft) {
+      evidence.push(
+        `Staatsanwaltschaft erkannt: ${structuredMetadata.staatsanwaltschaft}`
+      );
+    }
+    if (structuredMetadata.richter) {
+      evidence.push(`Richter erkannt: ${structuredMetadata.richter}`);
+    }
+    if (structuredMetadata.gerichtsaktenzeichen) {
+      evidence.push(
+        `Gerichts-Aktenzeichen erkannt: ${structuredMetadata.gerichtsaktenzeichen}`
+      );
+    }
+    if (structuredMetadata.staatsanwaltschaftAktenzeichen) {
+      evidence.push(
+        `Staatsanwaltschaft-Aktenzeichen erkannt: ${structuredMetadata.staatsanwaltschaftAktenzeichen}`
+      );
+    }
+    if (structuredMetadata.polizeiAktenzeichen) {
+      evidence.push(
+        `Polizei-Aktenzeichen erkannt: ${structuredMetadata.polizeiAktenzeichen}`
+      );
     }
 
     const firstDocTitle = stripDocumentExtension(docs[0]?.title ?? '');
@@ -1174,8 +1452,10 @@ export class LegalCopilotWorkflowService extends Service {
 
     const externalMargin = topCandidateMargin(candidateExternalRefs);
     const clientMargin = topCandidateMargin(candidateClientNames);
-    const hasExternalConflict = candidateExternalRefs.length > 1 && externalMargin < 0.22;
-    const hasClientConflict = candidateClientNames.length > 1 && clientMargin < 0.18;
+    const hasExternalConflict =
+      candidateExternalRefs.length > 1 && externalMargin < 0.22;
+    const hasClientConflict =
+      candidateClientNames.length > 1 && clientMargin < 0.18;
     let hasConflicts = hasExternalConflict || hasClientConflict;
 
     if (hasExternalConflict) {
@@ -1195,7 +1475,9 @@ export class LegalCopilotWorkflowService extends Service {
       );
     }
 
-    const readyDocs = docs.filter(doc => doc.processingStatus === 'ready').length;
+    const readyDocs = docs.filter(
+      doc => doc.processingStatus === 'ready'
+    ).length;
     const readyRatio = docs.length > 0 ? readyDocs / docs.length : 0;
     const confidenceRaw =
       (suggestedClientName ? 0.34 : 0) +
@@ -1223,17 +1505,31 @@ export class LegalCopilotWorkflowService extends Service {
       });
 
       if (llmResolution) {
-        const llmConfidence = Math.max(0, Math.min(1, llmResolution.confidence ?? 0.65));
-        const llmExternalRef = normalizeExternalReference(llmResolution.suggestedExternalRef ?? '');
-        const llmClientName = normalizeWhitespace(llmResolution.suggestedClientName ?? '');
-        const llmClientKind = llmResolution.suggestedClientKind === 'company' ? 'company' : 'person';
+        const llmConfidence = Math.max(
+          0,
+          Math.min(1, llmResolution.confidence ?? 0.65)
+        );
+        const llmExternalRef = normalizeExternalReference(
+          llmResolution.suggestedExternalRef ?? ''
+        );
+        const llmClientName = normalizeWhitespace(
+          llmResolution.suggestedClientName ?? ''
+        );
+        const llmClientKind =
+          llmResolution.suggestedClientKind === 'company'
+            ? 'company'
+            : 'person';
 
         const externalInCandidates =
           !!llmExternalRef &&
-          candidateExternalRefs.some(candidate => candidate.value === llmExternalRef);
+          candidateExternalRefs.some(
+            candidate => candidate.value === llmExternalRef
+          );
         const externalInAuthorityRefs =
           !!llmExternalRef &&
-          authorityRefs.some(item => normalizeExternalReference(item) === llmExternalRef);
+          authorityRefs.some(
+            item => normalizeExternalReference(item) === llmExternalRef
+          );
         const canUseLlmExternalRef =
           !!llmExternalRef &&
           isLikelyValidExternalRef(llmExternalRef) &&
@@ -1241,13 +1537,18 @@ export class LegalCopilotWorkflowService extends Service {
 
         const clientInCandidates =
           !!llmClientName &&
-          candidateClientNames.some(candidate => candidate.value.toLowerCase() === llmClientName.toLowerCase());
+          candidateClientNames.some(
+            candidate =>
+              candidate.value.toLowerCase() === llmClientName.toLowerCase()
+          );
         const clientAppearsInText =
           !!llmClientName &&
           texts.toLowerCase().includes(llmClientName.toLowerCase());
-        const canUseLlmClient = !!llmClientName && (clientInCandidates || clientAppearsInText);
+        const canUseLlmClient =
+          !!llmClientName && (clientInCandidates || clientAppearsInText);
 
-        const llmCanOverride = llmConfidence >= 0.78 && (canUseLlmExternalRef || canUseLlmClient);
+        const llmCanOverride =
+          llmConfidence >= 0.78 && (canUseLlmExternalRef || canUseLlmClient);
         if (llmCanOverride) {
           if (canUseLlmExternalRef) {
             suggestedExternalRef = llmExternalRef;
@@ -1257,7 +1558,10 @@ export class LegalCopilotWorkflowService extends Service {
             suggestedClientKind = llmClientKind;
           }
 
-          confidence = Math.max(confidence, Math.min(0.97, confidence + 0.08 + (llmConfidence - 0.75) * 0.2));
+          confidence = Math.max(
+            confidence,
+            Math.min(0.97, confidence + 0.08 + (llmConfidence - 0.75) * 0.2)
+          );
           confidenceLevel = deriveConfidenceLevel(confidence);
           hasConflicts = hasConflicts && llmConfidence < 0.9;
           autoApplyAllowed = confidenceLevel === 'high' && !hasConflicts;
@@ -1266,30 +1570,38 @@ export class LegalCopilotWorkflowService extends Service {
             `AI-Eskalation: Auflösung auf Basis Kandidaten bestätigt (${Math.round(llmConfidence * 100)}%).`
           );
           if (llmResolution.reason) {
-            evidence.push(`AI-Hinweis: ${normalizeWhitespace(llmResolution.reason).slice(0, 220)}`);
+            evidence.push(
+              `AI-Hinweis: ${normalizeWhitespace(llmResolution.reason).slice(0, 220)}`
+            );
           }
           await this.orchestration.appendAuditEntry({
             caseId: input.caseId,
             workspaceId: input.workspaceId,
             action: 'onboarding.metadata.llm_escalation.applied',
             severity: 'info',
-            details: 'LLM-Eskalation wurde zur Konfliktauflösung für Onboarding-Metadaten angewendet.',
+            details:
+              'LLM-Eskalation wurde zur Konfliktauflösung für Onboarding-Metadaten angewendet.',
             metadata: {
               confidenceBefore: String(Math.round(confidenceRaw * 100) / 100),
               confidenceAfter: String(Math.round(confidence * 100) / 100),
               llmConfidence: String(Math.round(llmConfidence * 100) / 100),
-              hasConflictsBefore: String(hasExternalConflict || hasClientConflict),
+              hasConflictsBefore: String(
+                hasExternalConflict || hasClientConflict
+              ),
               hasConflictsAfter: String(hasConflicts),
             },
           });
         } else {
-          evidence.push('AI-Eskalation ausgeführt, aber keine sichere Überschreibung der deterministischen Kandidaten.');
+          evidence.push(
+            'AI-Eskalation ausgeführt, aber keine sichere Überschreibung der deterministischen Kandidaten.'
+          );
           await this.orchestration.appendAuditEntry({
             caseId: input.caseId,
             workspaceId: input.workspaceId,
             action: 'onboarding.metadata.llm_escalation.skipped',
             severity: 'info',
-            details: 'LLM-Eskalation lieferte keine sicher verwertbare Überschreibung.',
+            details:
+              'LLM-Eskalation lieferte keine sicher verwertbare Überschreibung.',
             metadata: {
               llmConfidence: String(Math.round(llmConfidence * 100) / 100),
               canUseLlmExternalRef: String(canUseLlmExternalRef),
@@ -1329,6 +1641,13 @@ export class LegalCopilotWorkflowService extends Service {
       suggestedExternalRef,
       suggestedAuthorityRefs: authorityRefs,
       suggestedCourt,
+      suggestedPolice: structuredMetadata.polizei,
+      suggestedProsecutor: structuredMetadata.staatsanwaltschaft,
+      suggestedJudge: structuredMetadata.richter,
+      suggestedCourtFileNumber: structuredMetadata.gerichtsaktenzeichen,
+      suggestedProsecutorFileNumber:
+        structuredMetadata.staatsanwaltschaftAktenzeichen,
+      suggestedPoliceFileNumber: structuredMetadata.polizeiAktenzeichen,
       confidence,
       confidenceLevel,
       hasConflicts,
@@ -1340,7 +1659,9 @@ export class LegalCopilotWorkflowService extends Service {
     };
   }
 
-  async finalizeOnboarding(input: OnboardingFinalizeInput): Promise<OnboardingFinalizeResult> {
+  async finalizeOnboarding(
+    input: OnboardingFinalizeInput
+  ): Promise<OnboardingFinalizeResult> {
     if (!input.reviewConfirmed) {
       return {
         ok: false,
@@ -1375,7 +1696,8 @@ export class LegalCopilotWorkflowService extends Service {
     if (matter.workspaceId !== input.workspaceId) {
       return {
         ok: false,
-        message: 'Finalisierung blockiert: Akte gehört nicht zum aktuellen Workspace.',
+        message:
+          'Finalisierung blockiert: Akte gehört nicht zum aktuellen Workspace.',
       };
     }
 
@@ -1384,13 +1706,15 @@ export class LegalCopilotWorkflowService extends Service {
     if (!client) {
       return {
         ok: false,
-        message: 'Finalisierung blockiert: Mandant fehlt. Bitte Mandant anlegen/zuordnen.',
+        message:
+          'Finalisierung blockiert: Mandant fehlt. Bitte Mandant anlegen/zuordnen.',
       };
     }
     if (client.workspaceId !== input.workspaceId) {
       return {
         ok: false,
-        message: 'Finalisierung blockiert: Mandant gehört nicht zum aktuellen Workspace.',
+        message:
+          'Finalisierung blockiert: Mandant gehört nicht zum aktuellen Workspace.',
       };
     }
 
@@ -1446,16 +1770,19 @@ export class LegalCopilotWorkflowService extends Service {
       };
     }
 
-    const failedCount = docs.filter(doc => doc.processingStatus === 'failed').length;
+    const failedCount = docs.filter(
+      doc => doc.processingStatus === 'failed'
+    ).length;
     if (failedCount > 0) {
       return {
         ok: false,
-        message:
-          `Finalisierung blockiert: ${failedCount} Dokument(e) sind fehlgeschlagen. Bitte Fehler zuerst beheben.`,
+        message: `Finalisierung blockiert: ${failedCount} Dokument(e) sind fehlgeschlagen. Bitte Fehler zuerst beheben.`,
       };
     }
 
-    const needsReviewCount = docs.filter(doc => doc.processingStatus === 'needs_review').length;
+    const needsReviewCount = docs.filter(
+      doc => doc.processingStatus === 'needs_review'
+    ).length;
     const proofNote = input.proofNote?.trim() ?? '';
     if (needsReviewCount > 0 && proofNote.length < 16) {
       return {
@@ -1466,10 +1793,15 @@ export class LegalCopilotWorkflowService extends Service {
     }
 
     const chunkCount = (this.orchestration.semanticChunks$.value ?? []).filter(
-      chunk => chunk.caseId === input.caseId && chunk.workspaceId === input.workspaceId
+      chunk =>
+        chunk.caseId === input.caseId && chunk.workspaceId === input.workspaceId
     ).length;
-    const qualityReportCount = (this.orchestration.qualityReports$.value ?? []).filter(
-      report => report.caseId === input.caseId && report.workspaceId === input.workspaceId
+    const qualityReportCount = (
+      this.orchestration.qualityReports$.value ?? []
+    ).filter(
+      report =>
+        report.caseId === input.caseId &&
+        report.workspaceId === input.workspaceId
     ).length;
 
     if (chunkCount === 0) {
@@ -1490,22 +1822,96 @@ export class LegalCopilotWorkflowService extends Service {
       ),
     ]);
 
-    const normalizedAuthorityRefs = normalizeAuthorityReferences(mergedAuthorityRefs);
+    const normalizedAuthorityRefs =
+      normalizeAuthorityReferences(mergedAuthorityRefs);
     const effectiveAuthorityRefs = normalizedAuthorityRefs.values;
-    let effectiveMatter = matter;
-    if (effectiveAuthorityRefs.length > 0) {
+    const inferredStructuredMetadata = extractStructuredMatterMetadata(
+      docs
+        .map(doc => doc.normalizedText ?? normalizeText(doc.rawText))
+        .filter(Boolean)
+        .join('\n')
+    );
+
+    const nextMatterStructuredFields = {
+      gericht:
+        matter.gericht ?? inferredStructuredMetadata.gericht ?? undefined,
+      polizei:
+        matter.polizei ?? inferredStructuredMetadata.polizei ?? undefined,
+      staatsanwaltschaft:
+        matter.staatsanwaltschaft ??
+        inferredStructuredMetadata.staatsanwaltschaft ??
+        undefined,
+      richter:
+        matter.richter ?? inferredStructuredMetadata.richter ?? undefined,
+      gerichtsaktenzeichen:
+        matter.gerichtsaktenzeichen ??
+        inferredStructuredMetadata.gerichtsaktenzeichen ??
+        undefined,
+      staatsanwaltschaftAktenzeichen:
+        matter.staatsanwaltschaftAktenzeichen ??
+        inferredStructuredMetadata.staatsanwaltschaftAktenzeichen ??
+        undefined,
+      polizeiAktenzeichen:
+        matter.polizeiAktenzeichen ??
+        inferredStructuredMetadata.polizeiAktenzeichen ??
+        undefined,
+    };
+
+    const authorityChanged = (() => {
+      if (effectiveAuthorityRefs.length === 0) {
+        return false;
+      }
       const previousRefs = uniqueTrimmed(matter.authorityReferences ?? []);
-      const changed =
+      return (
         previousRefs.length !== effectiveAuthorityRefs.length ||
-        previousRefs.some((item, index) => item !== effectiveAuthorityRefs[index]);
-      if (changed) {
-        const updatedMatter = await this.orchestration.upsertMatter({
-          ...matter,
-          authorityReferences: effectiveAuthorityRefs,
-        });
-        if (updatedMatter) {
-          effectiveMatter = updatedMatter;
-        }
+        previousRefs.some(
+          (item, index) => item !== effectiveAuthorityRefs[index]
+        )
+      );
+    })();
+
+    const structuredChanged =
+      hasChangedOptionalValue(
+        matter.gericht,
+        nextMatterStructuredFields.gericht
+      ) ||
+      hasChangedOptionalValue(
+        matter.polizei,
+        nextMatterStructuredFields.polizei
+      ) ||
+      hasChangedOptionalValue(
+        matter.staatsanwaltschaft,
+        nextMatterStructuredFields.staatsanwaltschaft
+      ) ||
+      hasChangedOptionalValue(
+        matter.richter,
+        nextMatterStructuredFields.richter
+      ) ||
+      hasChangedOptionalValue(
+        matter.gerichtsaktenzeichen,
+        nextMatterStructuredFields.gerichtsaktenzeichen
+      ) ||
+      hasChangedOptionalValue(
+        matter.staatsanwaltschaftAktenzeichen,
+        nextMatterStructuredFields.staatsanwaltschaftAktenzeichen
+      ) ||
+      hasChangedOptionalValue(
+        matter.polizeiAktenzeichen,
+        nextMatterStructuredFields.polizeiAktenzeichen
+      );
+
+    let effectiveMatter = matter;
+    if (authorityChanged || structuredChanged) {
+      const updatedMatter = await this.orchestration.upsertMatter({
+        ...matter,
+        authorityReferences:
+          effectiveAuthorityRefs.length > 0
+            ? effectiveAuthorityRefs
+            : matter.authorityReferences,
+        ...nextMatterStructuredFields,
+      });
+      if (updatedMatter) {
+        effectiveMatter = updatedMatter;
       }
     }
 
@@ -1526,13 +1932,25 @@ export class LegalCopilotWorkflowService extends Service {
         needsReviewCount: String(needsReviewCount),
         reviewProofNote: proofNote || 'none',
         authorityRefCount: String(mergedAuthorityRefs.length),
-        authorityRefs: mergedAuthorityRefs.length > 0 ? mergedAuthorityRefs.join(', ') : 'none',
+        authorityRefs:
+          mergedAuthorityRefs.length > 0
+            ? mergedAuthorityRefs.join(', ')
+            : 'none',
+        gericht: effectiveMatter.gericht ?? 'none',
+        polizei: effectiveMatter.polizei ?? 'none',
+        staatsanwaltschaft: effectiveMatter.staatsanwaltschaft ?? 'none',
+        richter: effectiveMatter.richter ?? 'none',
+        gerichtsaktenzeichen: effectiveMatter.gerichtsaktenzeichen ?? 'none',
+        staatsanwaltschaftAktenzeichen:
+          effectiveMatter.staatsanwaltschaftAktenzeichen ?? 'none',
+        polizeiAktenzeichen: effectiveMatter.polizeiAktenzeichen ?? 'none',
       },
     });
 
     return {
       ok: true,
-      message: 'Akt-Onboarding wurde erfolgreich finalisiert und revisionssicher protokolliert.',
+      message:
+        'Akt-Onboarding wurde erfolgreich finalisiert und revisionssicher protokolliert.',
       metadata: {
         matterId: effectiveMatter.id,
         clientId: client.id,
@@ -1590,20 +2008,85 @@ export class LegalCopilotWorkflowService extends Service {
       ),
     ]);
 
-    const normalizedAuthorityRefs = normalizeAuthorityReferences(mergedAuthorityRefs);
+    const normalizedAuthorityRefs =
+      normalizeAuthorityReferences(mergedAuthorityRefs);
     const effectiveAuthorityRefs = normalizedAuthorityRefs.values;
+    const inferredStructuredMetadata = extractStructuredMatterMetadata(
+      docs
+        .map(doc => doc.normalizedText ?? normalizeText(doc.rawText))
+        .filter(Boolean)
+        .join('\n')
+    );
+
+    const nextMatterStructuredFields = {
+      gericht:
+        matter.gericht ?? inferredStructuredMetadata.gericht ?? undefined,
+      polizei:
+        matter.polizei ?? inferredStructuredMetadata.polizei ?? undefined,
+      staatsanwaltschaft:
+        matter.staatsanwaltschaft ??
+        inferredStructuredMetadata.staatsanwaltschaft ??
+        undefined,
+      richter:
+        matter.richter ?? inferredStructuredMetadata.richter ?? undefined,
+      gerichtsaktenzeichen:
+        matter.gerichtsaktenzeichen ??
+        inferredStructuredMetadata.gerichtsaktenzeichen ??
+        undefined,
+      staatsanwaltschaftAktenzeichen:
+        matter.staatsanwaltschaftAktenzeichen ??
+        inferredStructuredMetadata.staatsanwaltschaftAktenzeichen ??
+        undefined,
+      polizeiAktenzeichen:
+        matter.polizeiAktenzeichen ??
+        inferredStructuredMetadata.polizeiAktenzeichen ??
+        undefined,
+    };
 
     // Update matter with new authority refs if changed
     if (effectiveAuthorityRefs.length > 0) {
       const previousRefs = uniqueTrimmed(matter.authorityReferences ?? []);
       const changed =
         previousRefs.length !== effectiveAuthorityRefs.length ||
-        previousRefs.some((item, index) => item !== effectiveAuthorityRefs[index]);
+        previousRefs.some(
+          (item, index) => item !== effectiveAuthorityRefs[index]
+        );
 
-      if (changed) {
+      const structuredChanged =
+        hasChangedOptionalValue(
+          matter.gericht,
+          nextMatterStructuredFields.gericht
+        ) ||
+        hasChangedOptionalValue(
+          matter.polizei,
+          nextMatterStructuredFields.polizei
+        ) ||
+        hasChangedOptionalValue(
+          matter.staatsanwaltschaft,
+          nextMatterStructuredFields.staatsanwaltschaft
+        ) ||
+        hasChangedOptionalValue(
+          matter.richter,
+          nextMatterStructuredFields.richter
+        ) ||
+        hasChangedOptionalValue(
+          matter.gerichtsaktenzeichen,
+          nextMatterStructuredFields.gerichtsaktenzeichen
+        ) ||
+        hasChangedOptionalValue(
+          matter.staatsanwaltschaftAktenzeichen,
+          nextMatterStructuredFields.staatsanwaltschaftAktenzeichen
+        ) ||
+        hasChangedOptionalValue(
+          matter.polizeiAktenzeichen,
+          nextMatterStructuredFields.polizeiAktenzeichen
+        );
+
+      if (changed || structuredChanged) {
         await this.orchestration.upsertMatter({
           ...matter,
           authorityReferences: effectiveAuthorityRefs,
+          ...nextMatterStructuredFields,
         });
       }
     }
@@ -1651,7 +2134,8 @@ export class LegalCopilotWorkflowService extends Service {
     workspaceId: string;
     folderPath: string;
   }) {
-    const permission = await this.orchestration.evaluatePermission('folder.search');
+    const permission =
+      await this.orchestration.evaluatePermission('folder.search');
     if (!permission.ok) {
       await this.orchestration.appendAuditEntry({
         caseId: input.caseId,
@@ -1663,9 +2147,11 @@ export class LegalCopilotWorkflowService extends Service {
       return [] as LegalDocumentRecord[];
     }
 
-    const matches = this.listCaseDocuments(input.caseId, input.workspaceId).filter(
-      (item: LegalDocumentRecord) =>
-        this.folderMatches(item.folderPath, input.folderPath)
+    const matches = this.listCaseDocuments(
+      input.caseId,
+      input.workspaceId
+    ).filter((item: LegalDocumentRecord) =>
+      this.folderMatches(item.folderPath, input.folderPath)
     );
 
     await this.orchestration.appendAuditEntry({
@@ -1688,7 +2174,8 @@ export class LegalCopilotWorkflowService extends Service {
     workspaceId: string;
     folderPath: string;
   }): Promise<FolderSummaryResult | null> {
-    const permission = await this.orchestration.evaluatePermission('folder.summarize');
+    const permission =
+      await this.orchestration.evaluatePermission('folder.summarize');
     if (!permission.ok) {
       await this.orchestration.appendAuditEntry({
         caseId: input.caseId,
@@ -1776,7 +2263,10 @@ export class LegalCopilotWorkflowService extends Service {
     const doc = (this.legalDocuments$.value ?? []).find(
       (d: LegalDocumentRecord) => d.id === documentId
     );
-    if (!doc || (doc.status !== 'failed' && doc.processingStatus !== 'failed')) {
+    if (
+      !doc ||
+      (doc.status !== 'failed' && doc.processingStatus !== 'failed')
+    ) {
       return false;
     }
 
@@ -1794,16 +2284,17 @@ export class LegalCopilotWorkflowService extends Service {
     }
 
     try {
-      const processed = await this.documentProcessingService.processDocumentAsync({
-        documentId: doc.id,
-        caseId: doc.caseId,
-        workspaceId: doc.workspaceId,
-        title: doc.title,
-        kind: doc.kind,
-        rawContent: content,
-        mimeType: doc.sourceMimeType,
-        expectedPageCount: doc.pageCount,
-      });
+      const processed =
+        await this.documentProcessingService.processDocumentAsync({
+          documentId: doc.id,
+          caseId: doc.caseId,
+          workspaceId: doc.workspaceId,
+          title: doc.title,
+          kind: doc.kind,
+          rawContent: content,
+          mimeType: doc.sourceMimeType,
+          expectedPageCount: doc.pageCount,
+        });
 
       const now = new Date().toISOString();
       const hasText = (processed.extractedText ?? '').trim().length > 20;
@@ -1812,13 +2303,17 @@ export class LegalCopilotWorkflowService extends Service {
         ...doc,
         status: hasText ? 'indexed' : 'failed',
         processingStatus: hasText
-          ? (processed.qualityReport.overallScore < 40 ? 'needs_review' : 'ready')
+          ? processed.qualityReport.overallScore < 40
+            ? 'needs_review'
+            : 'ready'
           : 'failed',
         rawText: (processed.extractedText ?? '').slice(0, 256 * 1024),
         normalizedText: (processed.normalizedText ?? '').slice(0, 256 * 1024),
         extractionEngine: processed.extractionEngine ?? 'retry',
         overallQualityScore: processed.qualityReport.overallScore,
-        processingError: hasText ? undefined : 'Retry: Kein nutzbarer Text extrahierbar.',
+        processingError: hasText
+          ? undefined
+          : 'Retry: Kein nutzbarer Text extrahierbar.',
         updatedAt: now,
       });
 
@@ -1832,7 +2327,9 @@ export class LegalCopilotWorkflowService extends Service {
       await this.orchestration.appendAuditEntry({
         caseId: doc.caseId,
         workspaceId: doc.workspaceId,
-        action: hasText ? 'document.retry.success' : 'document.retry.still_failed',
+        action: hasText
+          ? 'document.retry.success'
+          : 'document.retry.still_failed',
         severity: hasText ? 'info' : 'warning',
         details: hasText
           ? `Retry erfolgreich: "${doc.title}" — ${processed.chunks.length} Chunks, Score ${processed.qualityReport.overallScore}%.`
@@ -1900,11 +2397,18 @@ export class LegalCopilotWorkflowService extends Service {
     commitId?: string;
   }) {
     const commitId = input.commitId ?? createId('commit');
-    console.log(`[intakeDocuments] START commitId=${commitId} caseId=${input.caseId} workspaceId=${input.workspaceId} docCount=${input.documents.length}`);
-    const permission = await this.orchestration.evaluatePermission('document.upload');
-    console.log(`[intakeDocuments] permission check: ok=${permission.ok} role=${permission.role} required=${permission.requiredRole} message=${permission.message}`);
+    console.log(
+      `[intakeDocuments] START commitId=${commitId} caseId=${input.caseId} workspaceId=${input.workspaceId} docCount=${input.documents.length}`
+    );
+    const permission =
+      await this.orchestration.evaluatePermission('document.upload');
+    console.log(
+      `[intakeDocuments] permission check: ok=${permission.ok} role=${permission.role} required=${permission.requiredRole} message=${permission.message}`
+    );
     if (!permission.ok) {
-      console.warn(`[intakeDocuments] BLOCKED by permission: role=${permission.role} required=${permission.requiredRole}`);
+      console.warn(
+        `[intakeDocuments] BLOCKED by permission: role=${permission.role} required=${permission.requiredRole}`
+      );
       await this.orchestration.appendAuditEntry({
         caseId: input.caseId,
         workspaceId: input.workspaceId,
@@ -1922,13 +2426,18 @@ export class LegalCopilotWorkflowService extends Service {
 
     // ── Page-Quota-Prüfung vor Verarbeitung ──
     const estimatedPages = input.documents.reduce((sum, doc) => {
-      if (typeof doc.pageCount === 'number' && Number.isFinite(doc.pageCount) && doc.pageCount > 0) {
+      if (
+        typeof doc.pageCount === 'number' &&
+        Number.isFinite(doc.pageCount) &&
+        doc.pageCount > 0
+      ) {
         return sum + doc.pageCount;
       }
 
       // Base64 payload size is not proportional to real page count.
       // Use conservative fallback to avoid noisy false over-limit warnings.
-      const isBase64 = doc.content.startsWith('data:') && doc.content.includes(';base64,');
+      const isBase64 =
+        doc.content.startsWith('data:') && doc.content.includes(';base64,');
       if (isBase64) {
         return sum + 1;
       }
@@ -1953,24 +2462,26 @@ export class LegalCopilotWorkflowService extends Service {
     }
 
     const now = new Date().toISOString();
-    const remoteOcrGate = await this.residencyPolicyService.assertCapabilityAllowed(
-      'remote_ocr'
-    );
+    const remoteOcrGate =
+      await this.residencyPolicyService.assertCapabilityAllowed('remote_ocr');
     const remoteOcrEndpoint = remoteOcrGate.ok
       ? await this.providerSettingsService.getEndpoint('ocr')
       : null;
     const remoteOcrAvailable = remoteOcrGate.ok && !!remoteOcrEndpoint;
     const records: LegalDocumentRecord[] = [];
-    const existingDocs: LegalDocumentRecord[] = this.legalDocuments$.value ?? [];
-    const graphSnapshot = (await this.orchestration.getGraph()) as CaseGraphRecord;
+    const existingDocs: LegalDocumentRecord[] =
+      this.legalDocuments$.value ?? [];
+    const graphSnapshot =
+      (await this.orchestration.getGraph()) as CaseGraphRecord;
 
     // ── OCR-Job Deduplication: track which docs already have active OCR jobs ──
     const activeOcrDocIds = new Set(
       (this.ocrJobs$.value ?? [])
-        .filter((j: OcrJob) =>
-          j.caseId === input.caseId &&
-          j.workspaceId === input.workspaceId &&
-          (j.status === 'queued' || j.status === 'running')
+        .filter(
+          (j: OcrJob) =>
+            j.caseId === input.caseId &&
+            j.workspaceId === input.workspaceId &&
+            (j.status === 'queued' || j.status === 'running')
         )
         .map((j: OcrJob) => j.documentId)
     );
@@ -1986,18 +2497,23 @@ export class LegalCopilotWorkflowService extends Service {
       }
       const doc = input.documents[docIndex];
       const documentId = doc.id ?? createId('legal-doc');
-      let persisted: { blobId: string; sha256: string; mimeType: string } | null = null;
+      let persisted: {
+        blobId: string;
+        sha256: string;
+        mimeType: string;
+      } | null = null;
 
       try {
         persisted = isBase64DataUrlPayload(doc.content)
           ? await this.persistOriginalBinary({
-            content: doc.content,
-            mimeType: doc.sourceMimeType,
-          })
+              content: doc.content,
+              mimeType: doc.sourceMimeType,
+            })
           : null;
 
         const normalizedMime = doc.sourceMimeType?.toLowerCase() ?? '';
-        const isBase64 = doc.content.startsWith('data:') && doc.content.includes(';base64,');
+        const isBase64 =
+          doc.content.startsWith('data:') && doc.content.includes(';base64,');
         const ocrEligible = isBase64 && isOcrEligibleDocument(doc);
         const preflightRoute = doc.preflight?.routeDecision;
         // Fast-path OCR only for images and explicitly marked scan-pdfs.
@@ -2011,11 +2527,15 @@ export class LegalCopilotWorkflowService extends Service {
 
         // ── Duplikat-Check via Fingerprint ──
         const fingerprint = this.documentProcessingService.computeFingerprint(
-          doc.title, doc.kind, doc.content, doc.sourceRef
+          doc.title,
+          doc.kind,
+          doc.content,
+          doc.sourceRef
         );
         const existingDocsInCase = existingDocs.filter(
           candidate =>
-            candidate.caseId === input.caseId && candidate.workspaceId === input.workspaceId
+            candidate.caseId === input.caseId &&
+            candidate.workspaceId === input.workspaceId
         );
         const duplicate = this.documentProcessingService.isDuplicate(
           fingerprint,
@@ -2050,7 +2570,8 @@ export class LegalCopilotWorkflowService extends Service {
             sourceMimeType: doc.sourceMimeType,
             sourceSizeBytes: doc.sourceSizeBytes,
             sourceLastModifiedAt:
-              doc.sourceLastModifiedAt !== undefined && doc.sourceLastModifiedAt !== null
+              doc.sourceLastModifiedAt !== undefined &&
+              doc.sourceLastModifiedAt !== null
                 ? String(doc.sourceLastModifiedAt)
                 : undefined,
             sourceBlobId: persisted?.blobId,
@@ -2058,7 +2579,8 @@ export class LegalCopilotWorkflowService extends Service {
             sourceRef: doc.sourceRef,
             folderPath: doc.folderPath,
             internalFileNumber:
-              doc.internalFileNumber !== undefined && doc.internalFileNumber !== null
+              doc.internalFileNumber !== undefined &&
+              doc.internalFileNumber !== null
                 ? String(doc.internalFileNumber)
                 : undefined,
             paragraphReferences: [...(doc.paragraphReferences ?? [])],
@@ -2114,7 +2636,8 @@ export class LegalCopilotWorkflowService extends Service {
               workspaceId: input.workspaceId,
               action: 'document.ocr.not_configured',
               severity: 'warning',
-              details: 'Remote OCR Provider ist nicht konfiguriert (Endpoint fehlt).',
+              details:
+                'Remote OCR Provider ist nicht konfiguriert (Endpoint fehlt).',
               metadata: {
                 documentId,
                 title: doc.title,
@@ -2176,7 +2699,8 @@ export class LegalCopilotWorkflowService extends Service {
             sourceMimeType: doc.sourceMimeType,
             sourceSizeBytes: doc.sourceSizeBytes,
             sourceLastModifiedAt:
-              doc.sourceLastModifiedAt !== undefined && doc.sourceLastModifiedAt !== null
+              doc.sourceLastModifiedAt !== undefined &&
+              doc.sourceLastModifiedAt !== null
                 ? String(doc.sourceLastModifiedAt)
                 : undefined,
             sourceBlobId: persisted?.blobId,
@@ -2184,14 +2708,17 @@ export class LegalCopilotWorkflowService extends Service {
             sourceRef: doc.sourceRef,
             folderPath: doc.folderPath,
             internalFileNumber:
-              doc.internalFileNumber !== undefined && doc.internalFileNumber !== null
+              doc.internalFileNumber !== undefined &&
+              doc.internalFileNumber !== null
                 ? String(doc.internalFileNumber)
                 : undefined,
             paragraphReferences: [...(doc.paragraphReferences ?? [])],
             documentRevision: 1,
             contentFingerprint: fingerprint,
             rawText: BINARY_CACHE_PLACEHOLDER,
-            pageCount: doc.pageCount ?? processingResult.qualityReport.extractedPageCount,
+            pageCount:
+              doc.pageCount ??
+              processingResult.qualityReport.extractedPageCount,
             ocrEngine: remoteOcrAvailable ? 'remote-ocr' : 'local-ocr',
             tags: doc.tags ?? [],
             createdAt: now,
@@ -2245,15 +2772,19 @@ export class LegalCopilotWorkflowService extends Service {
 
         const jurisdictionDetection: JurisdictionDetectionResult =
           this.jurisdictionService.detectFromText(
-            processingResult.normalizedText || processingResult.extractedText || ''
+            processingResult.normalizedText ||
+              processingResult.extractedText ||
+              ''
           );
 
         // ── Bestimme Status basierend auf Processing-Ergebnis ──
         // Non-recoverable failures (encrypted PDF, invalid base64) should never go to OCR queue.
-        const nonRecoverable = isNonOcrRecoverable(processingResult.extractionEngine);
+        const nonRecoverable = isNonOcrRecoverable(
+          processingResult.extractionEngine
+        );
         const status: LegalDocumentRecord['status'] =
           processingResult.processingStatus === 'failed'
-            ? (ocrEligible && !nonRecoverable && remoteOcrGate.ok)
+            ? ocrEligible && !nonRecoverable && remoteOcrGate.ok
               ? 'ocr_pending'
               : 'failed'
             : 'indexed';
@@ -2277,13 +2808,18 @@ export class LegalCopilotWorkflowService extends Service {
         if (isBase64) {
           rawTextForStorage = keepBinaryForOcrRetry
             ? BINARY_CACHE_PLACEHOLDER
-            : processingResult.normalizedText || `[Binary verworfen — ${processingResult.extractionEngine}]`;
+            : processingResult.normalizedText ||
+              `[Binary verworfen — ${processingResult.extractionEngine}]`;
         } else {
           rawTextForStorage = doc.content;
         }
         if (rawTextForStorage.length > MAX_RAW_TEXT) {
-          console.warn(`[intakeDocuments] rawText too large for "${doc.title}" (${rawTextForStorage.length} chars). Truncating to ${MAX_RAW_TEXT}.`);
-          rawTextForStorage = rawTextForStorage.slice(0, MAX_RAW_TEXT) + `\n[truncated at ${MAX_RAW_TEXT} chars]`;
+          console.warn(
+            `[intakeDocuments] rawText too large for "${doc.title}" (${rawTextForStorage.length} chars). Truncating to ${MAX_RAW_TEXT}.`
+          );
+          rawTextForStorage =
+            rawTextForStorage.slice(0, MAX_RAW_TEXT) +
+            `\n[truncated at ${MAX_RAW_TEXT} chars]`;
         }
 
         const record: LegalDocumentRecord = {
@@ -2299,7 +2835,8 @@ export class LegalCopilotWorkflowService extends Service {
           sourceMimeType: doc.sourceMimeType,
           sourceSizeBytes: doc.sourceSizeBytes,
           sourceLastModifiedAt:
-            doc.sourceLastModifiedAt !== undefined && doc.sourceLastModifiedAt !== null
+            doc.sourceLastModifiedAt !== undefined &&
+            doc.sourceLastModifiedAt !== null
               ? String(doc.sourceLastModifiedAt)
               : undefined,
           sourceBlobId: persisted?.blobId,
@@ -2307,7 +2844,8 @@ export class LegalCopilotWorkflowService extends Service {
           sourceRef: doc.sourceRef,
           folderPath: doc.folderPath,
           internalFileNumber:
-            doc.internalFileNumber !== undefined && doc.internalFileNumber !== null
+            doc.internalFileNumber !== undefined &&
+            doc.internalFileNumber !== null
               ? String(doc.internalFileNumber)
               : undefined,
           paragraphReferences: [
@@ -2320,23 +2858,30 @@ export class LegalCopilotWorkflowService extends Service {
           normalizedText: processingResult.normalizedText || undefined,
           language: processingResult.language,
           qualityScore: processingResult.qualityReport.overallScore / 100,
-          pageCount: doc.pageCount ?? processingResult.qualityReport.extractedPageCount,
+          pageCount:
+            doc.pageCount ?? processingResult.qualityReport.extractedPageCount,
           ocrEngine: processingResult.extractionEngine,
           tags: doc.tags ?? [],
           createdAt: now,
           updatedAt: now,
           processingStatus: processingResult.processingStatus,
           chunkCount: processingResult.chunks.length,
-          entityCount: processingResult.allEntities.persons.length +
+          entityCount:
+            processingResult.allEntities.persons.length +
             processingResult.allEntities.dates.length +
             processingResult.allEntities.legalRefs.length,
           overallQualityScore: processingResult.qualityReport.overallScore,
           processingDurationMs: processingResult.processingDurationMs,
           extractionEngine: processingResult.extractionEngine,
-          processingError: processingResult.processingStatus !== 'ready'
-            ? deriveProcessingError(processingResult.extractionEngine, doc.title)
-            : undefined,
-          discardedBinaryAt: isBase64 && !keepBinaryForOcrRetry ? now : undefined,
+          processingError:
+            processingResult.processingStatus !== 'ready'
+              ? deriveProcessingError(
+                  processingResult.extractionEngine,
+                  doc.title
+                )
+              : undefined,
+          discardedBinaryAt:
+            isBase64 && !keepBinaryForOcrRetry ? now : undefined,
           preflight: doc.preflight,
         };
 
@@ -2350,7 +2895,10 @@ export class LegalCopilotWorkflowService extends Service {
         try {
           await this.orchestration.upsertLegalDocument(record);
         } catch (storeErr) {
-          console.error(`[intakeDocuments] upsertLegalDocument failed for "${doc.title}":`, storeErr instanceof Error ? storeErr.message : storeErr);
+          console.error(
+            `[intakeDocuments] upsertLegalDocument failed for "${doc.title}":`,
+            storeErr instanceof Error ? storeErr.message : storeErr
+          );
           // Record is still valid — just not persisted to reactive store.
           // The wizard will still count it as ingested.
         }
@@ -2366,21 +2914,36 @@ export class LegalCopilotWorkflowService extends Service {
 
         // ── Persist Semantic Chunks ──
         if (processingResult.chunks.length > 0) {
-          console.log(`[workflow] Persisting ${processingResult.chunks.length} chunks for doc ${documentId}`);
+          console.log(
+            `[workflow] Persisting ${processingResult.chunks.length} chunks for doc ${documentId}`
+          );
           try {
-            await this.orchestration.upsertSemanticChunks(documentId, processingResult.chunks);
+            await this.orchestration.upsertSemanticChunks(
+              documentId,
+              processingResult.chunks
+            );
           } catch (chunkErr) {
-            console.error(`[intakeDocuments] upsertSemanticChunks failed for "${doc.title}":`, chunkErr instanceof Error ? chunkErr.message : chunkErr);
+            console.error(
+              `[intakeDocuments] upsertSemanticChunks failed for "${doc.title}":`,
+              chunkErr instanceof Error ? chunkErr.message : chunkErr
+            );
           }
         } else {
-          console.warn(`[workflow] No chunks to persist for doc ${documentId} (normalizedText.length=${processingResult.normalizedText.length})`);
+          console.warn(
+            `[workflow] No chunks to persist for doc ${documentId} (normalizedText.length=${processingResult.normalizedText.length})`
+          );
         }
 
         // ── Persist Quality Report ──
         try {
-          await this.orchestration.upsertQualityReport(processingResult.qualityReport);
+          await this.orchestration.upsertQualityReport(
+            processingResult.qualityReport
+          );
         } catch (qrErr) {
-          console.error(`[intakeDocuments] upsertQualityReport failed for "${doc.title}":`, qrErr instanceof Error ? qrErr.message : qrErr);
+          console.error(
+            `[intakeDocuments] upsertQualityReport failed for "${doc.title}":`,
+            qrErr instanceof Error ? qrErr.message : qrErr
+          );
         }
 
         // ── Legacy OCR-Job für Dokumente die remote OCR benötigen ──
@@ -2428,10 +2991,14 @@ export class LegalCopilotWorkflowService extends Service {
         }
       } catch (error) {
         crashedCount++;
-        const crashMessage = error instanceof Error ? error.message : 'unbekannter Intake-Fehler';
+        const crashMessage =
+          error instanceof Error ? error.message : 'unbekannter Intake-Fehler';
         // ── MEMORY: Release content even on crash ──
         (doc as { content: string }).content = '';
-        console.error(`[intakeDocuments] Document "${doc.title}" crashed during processing:`, error);
+        console.error(
+          `[intakeDocuments] Document "${doc.title}" crashed during processing:`,
+          error
+        );
 
         await this.orchestration.appendAuditEntry({
           caseId: input.caseId,
@@ -2461,7 +3028,8 @@ export class LegalCopilotWorkflowService extends Service {
             sourceMimeType: doc.sourceMimeType,
             sourceSizeBytes: doc.sourceSizeBytes,
             sourceLastModifiedAt:
-              doc.sourceLastModifiedAt !== undefined && doc.sourceLastModifiedAt !== null
+              doc.sourceLastModifiedAt !== undefined &&
+              doc.sourceLastModifiedAt !== null
                 ? String(doc.sourceLastModifiedAt)
                 : undefined,
             sourceBlobId: persisted?.blobId,
@@ -2469,7 +3037,8 @@ export class LegalCopilotWorkflowService extends Service {
             sourceRef: doc.sourceRef,
             folderPath: doc.folderPath,
             internalFileNumber:
-              doc.internalFileNumber !== undefined && doc.internalFileNumber !== null
+              doc.internalFileNumber !== undefined &&
+              doc.internalFileNumber !== null
                 ? String(doc.internalFileNumber)
                 : undefined,
             paragraphReferences: [...(doc.paragraphReferences ?? [])],
@@ -2493,7 +3062,9 @@ export class LegalCopilotWorkflowService extends Service {
           existingDocs.push(crashRecord);
         } catch {
           // Last resort — even crash-record creation failed. Log and move on.
-          console.error(`[intakeDocuments] Could not create crash-record for "${doc.title}"`);
+          console.error(
+            `[intakeDocuments] Could not create crash-record for "${doc.title}"`
+          );
         }
       }
     }
@@ -2503,7 +3074,11 @@ export class LegalCopilotWorkflowService extends Service {
       input.documents.length > 0 &&
       duplicateCount >= input.documents.length;
 
-    if (records.length === 0 && input.documents.length > 0 && !allInputsWereDuplicates) {
+    if (
+      records.length === 0 &&
+      input.documents.length > 0 &&
+      !allInputsWereDuplicates
+    ) {
       await this.orchestration.appendAuditEntry({
         caseId: input.caseId,
         workspaceId: input.workspaceId,
@@ -2521,7 +3096,8 @@ export class LegalCopilotWorkflowService extends Service {
       for (const doc of input.documents) {
         const fallbackId = doc.id ?? createId('legal-doc');
         const normalizedMime = doc.sourceMimeType?.toLowerCase() ?? '';
-        const isBase64 = doc.content.startsWith('data:') && doc.content.includes(';base64,');
+        const isBase64 =
+          doc.content.startsWith('data:') && doc.content.includes(';base64,');
         const ocrEligible = isBase64 && isOcrEligibleDocument(doc);
         const isBinaryOcrCandidate =
           isBase64 &&
@@ -2537,9 +3113,9 @@ export class LegalCopilotWorkflowService extends Service {
 
         const persisted = isBase64DataUrlPayload(doc.content)
           ? await this.persistOriginalBinary({
-            content: doc.content,
-            mimeType: doc.sourceMimeType,
-          })
+              content: doc.content,
+              mimeType: doc.sourceMimeType,
+            })
           : null;
 
         if (isBinaryOcrCandidate) {
@@ -2557,7 +3133,8 @@ export class LegalCopilotWorkflowService extends Service {
           sourceMimeType: doc.sourceMimeType,
           sourceSizeBytes: doc.sourceSizeBytes,
           sourceLastModifiedAt:
-            doc.sourceLastModifiedAt !== undefined && doc.sourceLastModifiedAt !== null
+            doc.sourceLastModifiedAt !== undefined &&
+            doc.sourceLastModifiedAt !== null
               ? String(doc.sourceLastModifiedAt)
               : undefined,
           sourceBlobId: persisted?.blobId,
@@ -2565,7 +3142,8 @@ export class LegalCopilotWorkflowService extends Service {
           sourceRef: doc.sourceRef,
           folderPath: doc.folderPath,
           internalFileNumber:
-            doc.internalFileNumber !== undefined && doc.internalFileNumber !== null
+            doc.internalFileNumber !== undefined &&
+            doc.internalFileNumber !== null
               ? String(doc.internalFileNumber)
               : undefined,
           paragraphReferences: [...(doc.paragraphReferences ?? [])],
@@ -2588,9 +3166,11 @@ export class LegalCopilotWorkflowService extends Service {
               : 'fallback-intake-zero',
           processingError: !isBinaryOcrCandidate
             ? (deriveProcessingError(
-              ocrEligible ? 'fallback-ocr-not-queued' : 'fallback-intake-zero',
-              doc.title
-            ) ??
+                ocrEligible
+                  ? 'fallback-ocr-not-queued'
+                  : 'fallback-intake-zero',
+                doc.title
+              ) ??
               'Dokument konnte nicht automatisch verarbeitet werden. Bitte Datei prüfen und erneut hochladen.')
             : undefined,
           preflight: doc.preflight,
@@ -2629,7 +3209,9 @@ export class LegalCopilotWorkflowService extends Service {
       }
     }
 
-    console.log(`[intakeDocuments] DONE loop: records=${records.length} duplicates=${duplicateCount} crashed=${crashedCount} input=${input.documents.length}`);
+    console.log(
+      `[intakeDocuments] DONE loop: records=${records.length} duplicates=${duplicateCount} crashed=${crashedCount} input=${input.documents.length}`
+    );
 
     // ── Record page usage against plan quota ──
     const actualPages = records.reduce((sum, r) => sum + (r.pageCount ?? 1), 0);
@@ -2637,8 +3219,12 @@ export class LegalCopilotWorkflowService extends Service {
       await this.creditGateway.recordPageUsage(actualPages, input.caseId);
     }
 
-    const needsReviewCount = records.filter(r => r.processingStatus === 'needs_review').length;
-    const failedCount = records.filter(r => r.processingStatus === 'failed').length;
+    const needsReviewCount = records.filter(
+      r => r.processingStatus === 'needs_review'
+    ).length;
+    const failedCount = records.filter(
+      r => r.processingStatus === 'failed'
+    ).length;
 
     if (records.length > 0) {
       await this.orchestration.appendAuditEntry({
@@ -2646,7 +3232,8 @@ export class LegalCopilotWorkflowService extends Service {
         workspaceId: input.workspaceId,
         action: 'document.uploaded.batch',
         severity: failedCount > 0 ? 'warning' : 'info',
-        details: `${records.length} Dokument(e) verarbeitet. ` +
+        details:
+          `${records.length} Dokument(e) verarbeitet. ` +
           `${records.length - failedCount} erfolgreich, ` +
           `${needsReviewCount} zur Prüfung, ` +
           `${failedCount} fehlgeschlagen` +
@@ -2668,9 +3255,14 @@ export class LegalCopilotWorkflowService extends Service {
     return records;
   }
 
-  async processPendingOcr(caseId: string, workspaceId: string, input?: { ocrRunId?: string }) {
+  async processPendingOcr(
+    caseId: string,
+    workspaceId: string,
+    input?: { ocrRunId?: string }
+  ) {
     const ocrRunId = input?.ocrRunId ?? createId('ocr-run');
-    const permission = await this.orchestration.evaluatePermission('document.ocr');
+    const permission =
+      await this.orchestration.evaluatePermission('document.ocr');
     if (!permission.ok) {
       await this.orchestration.appendAuditEntry({
         caseId,
@@ -2687,9 +3279,8 @@ export class LegalCopilotWorkflowService extends Service {
       return [] as OcrJob[];
     }
 
-    const remoteOcrGate = await this.residencyPolicyService.assertCapabilityAllowed(
-      'remote_ocr'
-    );
+    const remoteOcrGate =
+      await this.residencyPolicyService.assertCapabilityAllowed('remote_ocr');
     if (!remoteOcrGate.ok) {
       await this.orchestration.appendAuditEntry({
         caseId,
@@ -2706,7 +3297,8 @@ export class LegalCopilotWorkflowService extends Service {
       });
     }
 
-    const remoteOcrEndpoint = await this.providerSettingsService.getEndpoint('ocr');
+    const remoteOcrEndpoint =
+      await this.providerSettingsService.getEndpoint('ocr');
     if (!remoteOcrEndpoint) {
       await this.orchestration.appendAuditEntry({
         caseId,
@@ -2722,12 +3314,16 @@ export class LegalCopilotWorkflowService extends Service {
 
     const now = new Date().toISOString();
     const caseJobs = (this.ocrJobs$.value ?? []).filter(
-      (item: OcrJob) => item.caseId === caseId && item.workspaceId === workspaceId
+      (item: OcrJob) =>
+        item.caseId === caseId && item.workspaceId === workspaceId
     );
 
     const activeOcrDocIds = new Set(
       caseJobs
-        .filter((item: OcrJob) => item.status === 'queued' || item.status === 'running')
+        .filter(
+          (item: OcrJob) =>
+            item.status === 'queued' || item.status === 'running'
+        )
         .map(item => item.documentId)
     );
 
@@ -2774,7 +3370,8 @@ export class LegalCopilotWorkflowService extends Service {
     ];
 
     const completed: OcrJob[] = [];
-    const graphSnapshot = (await this.orchestration.getGraph()) as CaseGraphRecord;
+    const graphSnapshot =
+      (await this.orchestration.getGraph()) as CaseGraphRecord;
 
     let crashedJobs = 0;
 
@@ -2820,10 +3417,16 @@ export class LegalCopilotWorkflowService extends Service {
           // ── Self-heal: try to reload binary from BlobStore ──
           if (doc.sourceBlobId) {
             try {
-              const blobRecord = await this.workspaceService.workspace.engine.blob.get(doc.sourceBlobId);
+              const blobRecord =
+                await this.workspaceService.workspace.engine.blob.get(
+                  doc.sourceBlobId
+                );
               if (blobRecord && blobRecord.data) {
                 const bytes = blobRecord.data;
-                const mime = doc.sourceMimeType || blobRecord.mime || 'application/octet-stream';
+                const mime =
+                  doc.sourceMimeType ||
+                  blobRecord.mime ||
+                  'application/octet-stream';
                 const base64 = `data:${mime};base64,${bytesToBase64(bytes)}`;
                 this._binaryCache.set(doc.id, base64);
                 binaryCacheAvailable = true;
@@ -2833,18 +3436,31 @@ export class LegalCopilotWorkflowService extends Service {
                   action: 'document.ocr.binary_cache_restored',
                   severity: 'info',
                   details: `Binärdaten für "${doc.title}" aus BlobStore wiederhergestellt (Tab-Refresh Self-Heal).`,
-                  metadata: { ocrRunId, documentId: doc.id, title: doc.title, blobId: doc.sourceBlobId },
+                  metadata: {
+                    ocrRunId,
+                    documentId: doc.id,
+                    title: doc.title,
+                    blobId: doc.sourceBlobId,
+                  },
                 });
               }
             } catch (error) {
-              console.warn(`[processPendingOcr] Failed to reload binary from BlobStore for ${doc.title} (${doc.sourceBlobId})`, error);
+              console.warn(
+                `[processPendingOcr] Failed to reload binary from BlobStore for ${doc.title} (${doc.sourceBlobId})`,
+                error
+              );
               await this.orchestration.appendAuditEntry({
                 caseId,
                 workspaceId,
                 action: 'document.ocr.binary_cache_reload_failed',
                 severity: 'warning',
                 details: `Binärdaten für "${doc.title}" konnten nicht aus BlobStore wiederhergestellt. OCR wird fehlgeschlagen.`,
-                metadata: { ocrRunId, documentId: doc.id, title: doc.title, blobId: doc.sourceBlobId },
+                metadata: {
+                  ocrRunId,
+                  documentId: doc.id,
+                  title: doc.title,
+                  blobId: doc.sourceBlobId,
+                },
               });
             }
           }
@@ -2896,19 +3512,17 @@ export class LegalCopilotWorkflowService extends Service {
 
         const heartbeat = async (patch: OcrJobProgressPatch) => {
           const nowIso = new Date().toISOString();
-          await this.orchestration.upsertOcrJob(
-            {
-              ...queued,
-              status: 'running',
-              progress: patch.progress ?? lastProgress,
-              stage: patch.stage,
-              currentPage: patch.currentPage,
-              totalPages: patch.totalPages,
-              lastHeartbeatAt: nowIso,
-              startedAt: queued.startedAt ?? startedAt,
-              updatedAt: nowIso,
-            } as any
-          );
+          await this.orchestration.upsertOcrJob({
+            ...queued,
+            status: 'running',
+            progress: patch.progress ?? lastProgress,
+            stage: patch.stage,
+            currentPage: patch.currentPage,
+            totalPages: patch.totalPages,
+            lastHeartbeatAt: nowIso,
+            startedAt: queued.startedAt ?? startedAt,
+            updatedAt: nowIso,
+          } as any);
         };
 
         // Periodic heartbeat so UI/tests can see forward progress even during
@@ -2932,7 +3546,12 @@ export class LegalCopilotWorkflowService extends Service {
         };
 
         // Initial heartbeat + start periodic timer
-        await heartbeat({ progress: 30, stage: 'recognizing', currentPage: 0, totalPages: lastTotal });
+        await heartbeat({
+          progress: 30,
+          stage: 'recognizing',
+          currentPage: 0,
+          totalPages: lastTotal,
+        });
         startHeartbeatTimer();
 
         let ocrResult: OcrProviderResult;
@@ -2942,7 +3561,10 @@ export class LegalCopilotWorkflowService extends Service {
             const total = Math.max(1, update.totalPages);
             const current = Math.max(0, Math.min(update.currentPage, total));
             const p = 30 + Math.round((current / total) * 60);
-            const shouldEmit = current !== lastPage || total !== lastTotal || p - lastProgress >= 1;
+            const shouldEmit =
+              current !== lastPage ||
+              total !== lastTotal ||
+              p - lastProgress >= 1;
             if (!shouldEmit) return;
 
             lastPage = current;
@@ -2974,8 +3596,10 @@ export class LegalCopilotWorkflowService extends Service {
             processingStatus: 'failed',
             extractionEngine: ocrResult.engine ?? 'ocr-empty',
             processingError:
-              deriveProcessingError(ocrResult.engine ?? 'ocr-empty', doc.title) ??
-              fallbackErrorMessage,
+              deriveProcessingError(
+                ocrResult.engine ?? 'ocr-empty',
+                doc.title
+              ) ?? fallbackErrorMessage,
             overallQualityScore: 0,
             updatedAt: finishedAt,
           });
@@ -2993,25 +3617,30 @@ export class LegalCopilotWorkflowService extends Service {
             workspaceId,
             action: 'document.ocr.empty_result',
             severity: 'warning',
-            details:
-              `OCR lieferte keinen Text: "${doc.title}" — Engine=${ocrResult.engine ?? 'unknown'}.`,
+            details: `OCR lieferte keinen Text: "${doc.title}" — Engine=${ocrResult.engine ?? 'unknown'}.`,
             metadata: { ocrRunId, documentId: doc.id, title: doc.title },
           });
           continue;
         }
 
-        await heartbeat({ progress: 92, stage: 'postprocess', currentPage: lastPage, totalPages: lastTotal });
-        const finishedAt = new Date().toISOString();
-        const processed = await this.documentProcessingService.processDocumentAsync({
-          documentId: doc.id,
-          caseId,
-          workspaceId,
-          title: doc.title,
-          kind: doc.kind,
-          rawContent: ocrResult.text,
-          mimeType: doc.sourceMimeType,
-          expectedPageCount: doc.pageCount,
+        await heartbeat({
+          progress: 92,
+          stage: 'postprocess',
+          currentPage: lastPage,
+          totalPages: lastTotal,
         });
+        const finishedAt = new Date().toISOString();
+        const processed =
+          await this.documentProcessingService.processDocumentAsync({
+            documentId: doc.id,
+            caseId,
+            workspaceId,
+            title: doc.title,
+            kind: doc.kind,
+            rawContent: ocrResult.text,
+            mimeType: doc.sourceMimeType,
+            expectedPageCount: doc.pageCount,
+          });
 
         const nextStatus: LegalDocumentRecord['status'] =
           processed.processingStatus === 'failed' ? 'failed' : 'indexed';
@@ -3024,7 +3653,9 @@ export class LegalCopilotWorkflowService extends Service {
         let nextRawText: string;
         if (processed.processingStatus === 'failed' && sourceWasBinaryPayload) {
           // Keep placeholder — binary stays in cache for potential retry
-          nextRawText = hasBinaryInCache ? BINARY_CACHE_PLACEHOLDER : doc.rawText;
+          nextRawText = hasBinaryInCache
+            ? BINARY_CACHE_PLACEHOLDER
+            : doc.rawText;
         } else {
           // OCR succeeded — use extracted text, release binary from cache
           this.releaseBinary(doc.id);
@@ -3042,7 +3673,10 @@ export class LegalCopilotWorkflowService extends Service {
           normalizedText: processed.normalizedText || undefined,
           language: ocrResult.language ?? processed.language,
           qualityScore: processed.qualityReport.overallScore / 100,
-          pageCount: ocrResult.pageCount ?? doc.pageCount ?? processed.qualityReport.extractedPageCount,
+          pageCount:
+            ocrResult.pageCount ??
+            doc.pageCount ??
+            processed.qualityReport.extractedPageCount,
           paragraphReferences: mergedRefs,
           ocrEngine: ocrResult.engine ?? queued.engine,
           processingStatus: processed.processingStatus,
@@ -3056,8 +3690,10 @@ export class LegalCopilotWorkflowService extends Service {
           extractionEngine: ocrResult.engine ?? queued.engine,
           processingError:
             processed.processingStatus === 'failed'
-              ? (deriveProcessingError(ocrResult.engine ?? queued.engine ?? 'ocr-empty', doc.title) ??
-                'OCR verarbeitet, aber Nachanalyse fehlgeschlagen.')
+              ? (deriveProcessingError(
+                  ocrResult.engine ?? queued.engine ?? 'ocr-empty',
+                  doc.title
+                ) ?? 'OCR verarbeitet, aber Nachanalyse fehlgeschlagen.')
               : undefined,
           documentRevision: (doc.documentRevision ?? 1) + 1,
           contentFingerprint: this.documentProcessingService.computeFingerprint(
@@ -3083,7 +3719,12 @@ export class LegalCopilotWorkflowService extends Service {
         });
 
         await this.orchestration.upsertSemanticChunks(doc.id, processed.chunks);
-        await heartbeat({ progress: 97, stage: 'persist', currentPage: lastPage, totalPages: lastTotal });
+        await heartbeat({
+          progress: 97,
+          stage: 'persist',
+          currentPage: lastPage,
+          totalPages: lastTotal,
+        });
         await this.orchestration.upsertQualityReport({
           ...processed.qualityReport,
           ocrConfidence:
@@ -3128,7 +3769,8 @@ export class LegalCopilotWorkflowService extends Service {
 
         // ── OCR Pipeline Audit: Log detailed metrics for monitoring & QA ──
         const ocrDurationMs = queued.startedAt
-          ? new Date(finishedAt).getTime() - new Date(queued.startedAt).getTime()
+          ? new Date(finishedAt).getTime() -
+            new Date(queued.startedAt).getTime()
           : 0;
         await this.orchestration.appendAuditEntry({
           caseId,
@@ -3155,8 +3797,8 @@ export class LegalCopilotWorkflowService extends Service {
             chunkCount: String(processed.chunks.length),
             entityCount: String(
               processed.allEntities.persons.length +
-              processed.allEntities.dates.length +
-              processed.allEntities.legalRefs.length
+                processed.allEntities.dates.length +
+                processed.allEntities.legalRefs.length
             ),
             pageCount: String(ocrResult.pageCount ?? doc.pageCount ?? 0),
             durationMs: String(ocrDurationMs),
@@ -3167,7 +3809,10 @@ export class LegalCopilotWorkflowService extends Service {
         // Release binary from cache on crash to prevent memory leak
         this.releaseBinary(queued.documentId);
         const failedAt = new Date().toISOString();
-        const message = error instanceof Error ? error.message : 'OCR-Verarbeitung abgestürzt';
+        const message =
+          error instanceof Error
+            ? error.message
+            : 'OCR-Verarbeitung abgestürzt';
 
         await this.orchestration.upsertOcrJob({
           ...queued,
@@ -3219,7 +3864,9 @@ export class LegalCopilotWorkflowService extends Service {
     // (client names, external refs, authority refs) are surfaced to the wizard.
     if (completed.length > 0) {
       try {
-        const freshDocs: LegalDocumentRecord[] = (this.legalDocuments$.value ?? []).filter(
+        const freshDocs: LegalDocumentRecord[] = (
+          this.legalDocuments$.value ?? []
+        ).filter(
           (d: LegalDocumentRecord) =>
             d.caseId === caseId &&
             d.workspaceId === workspaceId &&
@@ -3270,7 +3917,7 @@ export class LegalCopilotWorkflowService extends Service {
       documentId: doc.id,
       quote,
       startOffset: 0,
-      endOffset: quote.length
+      endOffset: quote.length,
     };
   }
 
@@ -3288,7 +3935,11 @@ export class LegalCopilotWorkflowService extends Service {
         continue;
       }
 
-      if (/\b(amtshaftung|pflichtverletzung|verschulden|schadenersatz)\b/.test(text)) {
+      if (
+        /\b(amtshaftung|pflichtverletzung|verschulden|schadenersatz)\b/.test(
+          text
+        )
+      ) {
         findings.push({
           id: createId('finding'),
           caseId: params.caseId,
@@ -3306,7 +3957,9 @@ export class LegalCopilotWorkflowService extends Service {
         });
       }
 
-      if (/\b(widerspruch|abweichend|nicht vereinbar|inkonsistent)\b/.test(text)) {
+      if (
+        /\b(widerspruch|abweichend|nicht vereinbar|inkonsistent)\b/.test(text)
+      ) {
         findings.push({
           id: createId('finding'),
           caseId: params.caseId,
@@ -3349,7 +4002,8 @@ export class LegalCopilotWorkflowService extends Service {
           workspaceId: params.workspaceId,
           type: 'deadline_risk',
           title: `Fristenrisiko in ${doc.title}`,
-          description: 'Fristen-/Verjährungsbezug erkannt. Fristkalender gegenprüfen.',
+          description:
+            'Fristen-/Verjährungsbezug erkannt. Fristkalender gegenprüfen.',
           severity: 'critical',
           confidence: 0.8,
           sourceDocumentIds: [doc.id],
@@ -3371,10 +4025,14 @@ export class LegalCopilotWorkflowService extends Service {
           'Mehrere Dokumente enthalten thematisch überlappende Aussagen. Cross-Review empfohlen.',
         severity: 'medium',
         confidence: 0.67,
-        sourceDocumentIds: params.docs.map((item: LegalDocumentRecord) => item.id),
+        sourceDocumentIds: params.docs.map(
+          (item: LegalDocumentRecord) => item.id
+        ),
         citations: params.docs
           .slice(0, 3)
-          .map((item: LegalDocumentRecord) => this.buildFindingCitation(item, 140)),
+          .map((item: LegalDocumentRecord) =>
+            this.buildFindingCitation(item, 140)
+          ),
         createdAt: now,
         updatedAt: now,
       });
@@ -3388,7 +4046,8 @@ export class LegalCopilotWorkflowService extends Service {
     workspaceId: string;
     docs: LegalDocumentRecord[];
   }): Promise<LegalFinding[]> {
-    const llmFindings = await this.legalAnalysisProvider.analyzeFindings(params);
+    const llmFindings =
+      await this.legalAnalysisProvider.analyzeFindings(params);
     if (llmFindings && llmFindings.length > 0) {
       await this.orchestration.appendAuditEntry({
         caseId: params.caseId,
@@ -3418,7 +4077,9 @@ export class LegalCopilotWorkflowService extends Service {
     return 'low';
   }
 
-  private pickKollisionsSeverity(matchLevel: KollisionsTreffer['matchLevel']): CasePriority {
+  private pickKollisionsSeverity(
+    matchLevel: KollisionsTreffer['matchLevel']
+  ): CasePriority {
     if (matchLevel === 'exact') return 'critical';
     if (matchLevel === 'high') return 'high';
     if (matchLevel === 'medium') return 'medium';
@@ -3436,10 +4097,12 @@ export class LegalCopilotWorkflowService extends Service {
       return [];
     }
 
-    const matter = caseRecord.matterId ? graph.matters?.[caseRecord.matterId] : undefined;
+    const matter = caseRecord.matterId
+      ? graph.matters?.[caseRecord.matterId]
+      : undefined;
     const clientCandidates = [
       ...(matter?.clientId ? [matter.clientId] : []),
-      ...((matter?.clientIds ?? []).filter(Boolean)),
+      ...(matter?.clientIds ?? []).filter(Boolean),
     ];
     const clientNameCandidates = clientCandidates
       .map(clientId => graph.clients?.[clientId]?.displayName)
@@ -3464,7 +4127,10 @@ export class LegalCopilotWorkflowService extends Service {
 
     const trefferByKey = new Map<string, KollisionsTreffer>();
     for (const query of queryCandidates) {
-      const result = await this.kollisionsPruefungService.checkKollision(query, matter?.id);
+      const result = await this.kollisionsPruefungService.checkKollision(
+        query,
+        matter?.id
+      );
       for (const treffer of result.treffer) {
         const key = `${treffer.matchedName}::${treffer.matchedRolle}::${treffer.relatedMatterId ?? ''}`;
         const existing = trefferByKey.get(key);
@@ -3506,10 +4172,12 @@ export class LegalCopilotWorkflowService extends Service {
       confidence: Math.max(0.5, Math.min(0.99, hit.score / 100)),
       sourceDocumentIds: primaryDoc ? [primaryDoc.id] : [],
       citations: primaryDoc
-        ? [{
-            documentId: primaryDoc.id,
-            quote: `Auto-Kollisionsprüfung: ${hit.matchedName} (${hit.matchLevel}, Score ${hit.score})`,
-          }]
+        ? [
+            {
+              documentId: primaryDoc.id,
+              quote: `Auto-Kollisionsprüfung: ${hit.matchedName} (${hit.matchLevel}, Score ${hit.score})`,
+            },
+          ]
         : [],
       createdAt: now,
       updatedAt: now,
@@ -3531,7 +4199,9 @@ export class LegalCopilotWorkflowService extends Service {
   }
 
   async analyzeCase(caseId: string, workspaceId: string) {
-    const docs: LegalDocumentRecord[] = (this.legalDocuments$.value ?? []).filter(
+    const docs: LegalDocumentRecord[] = (
+      this.legalDocuments$.value ?? []
+    ).filter(
       (item: LegalDocumentRecord) =>
         item.caseId === caseId &&
         item.workspaceId === workspaceId &&
@@ -3556,14 +4226,17 @@ export class LegalCopilotWorkflowService extends Service {
     }
 
     // Credit check before analysis
-    const creditCheck = await this.creditGateway.checkAiCredits(CREDIT_COSTS.caseAnalysis);
+    const creditCheck = await this.creditGateway.checkAiCredits(
+      CREDIT_COSTS.caseAnalysis
+    );
     if (!creditCheck.allowed) {
       await this.orchestration.appendAuditEntry({
         caseId,
         workspaceId,
         action: 'copilot.execute.credit_insufficient',
         severity: 'warning',
-        details: creditCheck.message ?? 'Nicht genügend AI-Credits für Fallanalyse.',
+        details:
+          creditCheck.message ?? 'Nicht genügend AI-Credits für Fallanalyse.',
       });
       return {
         findings: [] as LegalFinding[],
@@ -3574,7 +4247,8 @@ export class LegalCopilotWorkflowService extends Service {
       };
     }
 
-    const permission = await this.orchestration.evaluatePermission('copilot.execute');
+    const permission =
+      await this.orchestration.evaluatePermission('copilot.execute');
     if (!permission.ok) {
       await this.orchestration.appendAuditEntry({
         caseId,
@@ -3613,7 +4287,8 @@ export class LegalCopilotWorkflowService extends Service {
         workspaceId,
         documents: docs,
       });
-      const contradictionFindings = this.contradictionDetector.contradictionsToFindings(matrix);
+      const contradictionFindings =
+        this.contradictionDetector.contradictionsToFindings(matrix);
       mergedFindings = [...mergedFindings, ...contradictionFindings];
     }
 
@@ -3654,11 +4329,16 @@ export class LegalCopilotWorkflowService extends Service {
         documents: docs,
       });
 
-      const auditFindings = this.normClassificationEngine.toFindings(caseAuditResult);
+      const auditFindings =
+        this.normClassificationEngine.toFindings(caseAuditResult);
       mergedFindings = [...mergedFindings, ...auditFindings];
 
-      const auditSeverity = caseAuditResult.riskLevel === 'critical' ? 'error'
-        : caseAuditResult.riskLevel === 'high' ? 'warning' : 'info';
+      const auditSeverity =
+        caseAuditResult.riskLevel === 'critical'
+          ? 'error'
+          : caseAuditResult.riskLevel === 'high'
+            ? 'warning'
+            : 'info';
 
       await this.orchestration.appendAuditEntry({
         caseId,
@@ -3670,8 +4350,12 @@ export class LegalCopilotWorkflowService extends Service {
           riskScore: String(caseAuditResult.overallRiskScore),
           riskLevel: caseAuditResult.riskLevel,
           normsDetected: String(caseAuditResult.stats.totalNormsDetected),
-          reclassifications: String(caseAuditResult.stats.totalReclassifications),
-          qualificationUpgrades: String(caseAuditResult.stats.totalQualificationUpgrades),
+          reclassifications: String(
+            caseAuditResult.stats.totalReclassifications
+          ),
+          qualificationUpgrades: String(
+            caseAuditResult.stats.totalQualificationUpgrades
+          ),
           beweislastGaps: String(caseAuditResult.stats.totalBeweislastGaps),
           auditDurationMs: String(caseAuditResult.auditDurationMs),
         },
@@ -3681,17 +4365,19 @@ export class LegalCopilotWorkflowService extends Service {
     // ═══ Auto-Deadline-Ableitung aus Dokumenten ═══
     let autoDeadlineCount = 0;
     if (docs.length > 0) {
-      const derivedDeadlines = this.deadlineAutomationService.deriveDeadlinesFromDocuments({
-        caseId,
-        workspaceId,
-        docs,
-      });
-      if (derivedDeadlines.length > 0) {
-        autoDeadlineCount = await this.deadlineAutomationService.upsertAutoDeadlines({
+      const derivedDeadlines =
+        this.deadlineAutomationService.deriveDeadlinesFromDocuments({
           caseId,
           workspaceId,
-          deadlines: derivedDeadlines,
+          docs,
         });
+      if (derivedDeadlines.length > 0) {
+        autoDeadlineCount =
+          await this.deadlineAutomationService.upsertAutoDeadlines({
+            caseId,
+            workspaceId,
+            deadlines: derivedDeadlines,
+          });
         await this.orchestration.appendAuditEntry({
           caseId,
           workspaceId,
@@ -3708,12 +4394,13 @@ export class LegalCopilotWorkflowService extends Service {
       const graph = (await this.orchestration.getGraph()) as CaseGraphRecord;
       const caseFile = graph.cases?.[caseId];
       const matterId = caseFile?.matterId ?? 'matter:unknown';
-      const derivedTermine = this.terminAutomationService.deriveTermineFromDocuments({
-        caseId,
-        workspaceId,
-        matterId,
-        docs,
-      });
+      const derivedTermine =
+        this.terminAutomationService.deriveTermineFromDocuments({
+          caseId,
+          workspaceId,
+          matterId,
+          docs,
+        });
 
       if (derivedTermine.length > 0) {
         autoTerminCount = await this.terminAutomationService.upsertAutoTermine({
@@ -3750,19 +4437,19 @@ export class LegalCopilotWorkflowService extends Service {
     const tasks: CopilotTask[] = citationBackedFindings
       .slice(0, 8)
       .map(finding => {
-      const now = new Date().toISOString();
-      return {
-        id: createId('copilot-task'),
-        caseId,
-        workspaceId,
-        title: `Prüfen: ${finding.title}`,
-        description: finding.description,
-        priority: this.findingToTaskPriority(finding.severity),
-        status: 'open',
-        linkedFindingIds: [finding.id],
-        createdAt: now,
-        updatedAt: now,
-      };
+        const now = new Date().toISOString();
+        return {
+          id: createId('copilot-task'),
+          caseId,
+          workspaceId,
+          title: `Prüfen: ${finding.title}`,
+          description: finding.description,
+          priority: this.findingToTaskPriority(finding.severity),
+          status: 'open',
+          linkedFindingIds: [finding.id],
+          createdAt: now,
+          updatedAt: now,
+        };
       });
 
     for (const task of tasks) {
@@ -3784,7 +4471,10 @@ export class LegalCopilotWorkflowService extends Service {
           content:
             'Dokumente auf Vollständigkeit prüfen, fehlende Unterlagen und Quellqualität bewerten.',
           linkedFindingIds: citationBackedFindings
-            .filter(item => item.type === 'evidence_gap' || item.type === 'cross_reference')
+            .filter(
+              item =>
+                item.type === 'evidence_gap' || item.type === 'cross_reference'
+            )
             .map(item => item.id),
         },
         {
@@ -3793,7 +4483,9 @@ export class LegalCopilotWorkflowService extends Service {
           content:
             'Haftungstatbestände, Pflichtverletzungen und Widersprüche mit Quellen gegenprüfen.',
           linkedFindingIds: citationBackedFindings
-            .filter(item => item.type === 'liability' || item.type === 'contradiction')
+            .filter(
+              item => item.type === 'liability' || item.type === 'contradiction'
+            )
             .map(item => item.id),
         },
         {
@@ -3802,7 +4494,11 @@ export class LegalCopilotWorkflowService extends Service {
           content:
             'Kritische Fristen in Tasks überführen und Prioritäten verbindlich zuordnen.',
           linkedFindingIds: citationBackedFindings
-            .filter(item => item.type === 'deadline_risk' || item.type === 'action_recommendation')
+            .filter(
+              item =>
+                item.type === 'deadline_risk' ||
+                item.type === 'action_recommendation'
+            )
             .map(item => item.id),
         },
       ],
@@ -3844,13 +4540,14 @@ export class LegalCopilotWorkflowService extends Service {
     }
 
     const preferredJurisdictions = this.derivePreferredJurisdictions(docs);
-    const judikaturSuggestions = await this.judikaturResearchService.suggestForFindings({
-      caseId,
-      workspaceId,
-      findings: citationBackedFindings,
-      preferredJurisdictions,
-      includeInternationalOverlay: true,
-    });
+    const judikaturSuggestions =
+      await this.judikaturResearchService.suggestForFindings({
+        caseId,
+        workspaceId,
+        findings: citationBackedFindings,
+        preferredJurisdictions,
+        includeInternationalOverlay: true,
+      });
 
     const updatedRun: CopilotRun = {
       ...completedRun,
@@ -3891,7 +4588,7 @@ export class LegalCopilotWorkflowService extends Service {
       tasks,
       blueprint,
       run: updatedRun,
-      blockedReason: null
+      blockedReason: null,
     };
   }
 
@@ -3907,7 +4604,8 @@ export class LegalCopilotWorkflowService extends Service {
       return null;
     }
 
-    const permission = await this.orchestration.evaluatePermission('task.manage');
+    const permission =
+      await this.orchestration.evaluatePermission('task.manage');
     if (!permission.ok) {
       await this.orchestration.appendAuditEntry({
         caseId: task.caseId,
@@ -3923,7 +4621,7 @@ export class LegalCopilotWorkflowService extends Service {
       ...task,
       status: input.status,
       assignee: input.assignee ?? task.assignee,
-      updatedAt: new Date().toISOString()
+      updatedAt: new Date().toISOString(),
     };
     await this.orchestration.upsertCopilotTask(next);
     return next;
@@ -3942,7 +4640,8 @@ export class LegalCopilotWorkflowService extends Service {
       return null;
     }
 
-    const permission = await this.orchestration.evaluatePermission('blueprint.manage');
+    const permission =
+      await this.orchestration.evaluatePermission('blueprint.manage');
     if (!permission.ok) {
       await this.orchestration.appendAuditEntry({
         caseId: blueprint.caseId,
@@ -3964,7 +4663,7 @@ export class LegalCopilotWorkflowService extends Service {
         input.reviewStatus && input.reviewStatus !== 'draft'
           ? now
           : blueprint.reviewedAt,
-      updatedAt: now
+      updatedAt: now,
     };
     await this.orchestration.upsertBlueprint(next);
     return next;
@@ -3987,40 +4686,51 @@ export class LegalCopilotWorkflowService extends Service {
     const caseFile = graph.cases?.[input.caseId];
 
     const docs = this.listCaseDocuments(input.caseId, input.workspaceId);
-    const indexedDocs = docs.filter((d: LegalDocumentRecord) => d.status === 'indexed');
-    const ocrPending = docs.filter((d: LegalDocumentRecord) =>
-      d.status === 'ocr_pending' || d.status === 'ocr_running'
+    const indexedDocs = docs.filter(
+      (d: LegalDocumentRecord) => d.status === 'indexed'
+    );
+    const ocrPending = docs.filter(
+      (d: LegalDocumentRecord) =>
+        d.status === 'ocr_pending' || d.status === 'ocr_running'
     );
 
     const allFindings = (this.findings$.value ?? []).filter(
-      (f: LegalFinding) => f.caseId === input.caseId && f.workspaceId === input.workspaceId
+      (f: LegalFinding) =>
+        f.caseId === input.caseId && f.workspaceId === input.workspaceId
     );
     const criticalFindings = allFindings.filter(
       (f: LegalFinding) => f.severity === 'critical' || f.severity === 'high'
     );
 
     const allTasks = (this.tasks$.value ?? []).filter(
-      (t: CopilotTask) => t.caseId === input.caseId && t.workspaceId === input.workspaceId
+      (t: CopilotTask) =>
+        t.caseId === input.caseId && t.workspaceId === input.workspaceId
     );
     const openTasks = allTasks.filter((t: CopilotTask) => t.status !== 'done');
 
-    const actors = caseFile?.actorIds
-      ?.map(id => graph.actors?.[id])
-      .filter(Boolean) as CaseActor[] ?? [];
+    const actors =
+      (caseFile?.actorIds
+        ?.map(id => graph.actors?.[id])
+        .filter(Boolean) as CaseActor[]) ?? [];
 
-    const deadlines = caseFile?.deadlineIds
-      ?.map(id => graph.deadlines?.[id])
-      .filter(Boolean) as CaseDeadline[] ?? [];
+    const deadlines =
+      (caseFile?.deadlineIds
+        ?.map(id => graph.deadlines?.[id])
+        .filter(Boolean) as CaseDeadline[]) ?? [];
     const openDeadlines = deadlines.filter(d => d.status === 'open');
 
-    const issues = caseFile?.issueIds
-      ?.map(id => graph.issues?.[id])
-      .filter(Boolean) as CaseIssue[] ?? [];
-    const criticalIssues = issues.filter(i => i.priority === 'critical' || i.priority === 'high');
+    const issues =
+      (caseFile?.issueIds
+        ?.map(id => graph.issues?.[id])
+        .filter(Boolean) as CaseIssue[]) ?? [];
+    const criticalIssues = issues.filter(
+      i => i.priority === 'critical' || i.priority === 'high'
+    );
 
-    const memoryEvents = caseFile?.memoryEventIds
-      ?.map(id => graph.memoryEvents?.[id])
-      .filter(Boolean) as CaseMemoryEvent[] ?? [];
+    const memoryEvents =
+      (caseFile?.memoryEventIds
+        ?.map(id => graph.memoryEvents?.[id])
+        .filter(Boolean) as CaseMemoryEvent[]) ?? [];
 
     const normRefs = new Set<string>();
     for (const doc of indexedDocs) {
@@ -4033,10 +4743,18 @@ export class LegalCopilotWorkflowService extends Service {
 
     // ── Semantic Chunks für bessere Q&A-Qualität ──
     const allChunks = (this.orchestration.semanticChunks$.value ?? []).filter(
-      (c: SemanticChunk) => c.caseId === input.caseId && c.workspaceId === input.workspaceId
+      (c: SemanticChunk) =>
+        c.caseId === input.caseId && c.workspaceId === input.workspaceId
     );
     // Priorisiere die wichtigsten Chunks: sachverhalt, rechtsausfuehrung, antrag, frist zuerst
-    const priorityCategories = new Set(['sachverhalt', 'rechtsausfuehrung', 'antrag', 'frist', 'begruendung', 'urteil']);
+    const priorityCategories = new Set([
+      'sachverhalt',
+      'rechtsausfuehrung',
+      'antrag',
+      'frist',
+      'begruendung',
+      'urteil',
+    ]);
     const sortedChunks = [...allChunks].sort((a, b) => {
       const aP = priorityCategories.has(a.category) ? 0 : 1;
       const bP = priorityCategories.has(b.category) ? 0 : 1;
@@ -4051,30 +4769,43 @@ export class LegalCopilotWorkflowService extends Service {
       chunkSummaryParts.push(`[${chunk.category}] ${chunk.text}`);
       charCount += chunk.text.length;
     }
-    const semanticChunksSummary = chunkSummaryParts.length > 0
-      ? chunkSummaryParts.join('\n---\n')
-      : undefined;
+    const semanticChunksSummary =
+      chunkSummaryParts.length > 0
+        ? chunkSummaryParts.join('\n---\n')
+        : undefined;
 
     const totalChunks = allChunks.length;
-    const totalEntities = allChunks.reduce((sum, c) =>
-      sum + c.extractedEntities.persons.length +
-      (c.extractedEntities.organizations?.length ?? 0) +
-      c.extractedEntities.dates.length +
-      c.extractedEntities.legalRefs.length +
-      c.extractedEntities.amounts.length +
-      c.extractedEntities.caseNumbers.length +
-      (c.extractedEntities.addresses?.length ?? 0) +
-      (c.extractedEntities.ibans?.length ?? 0), 0);
+    const totalEntities = allChunks.reduce(
+      (sum, c) =>
+        sum +
+        c.extractedEntities.persons.length +
+        (c.extractedEntities.organizations?.length ?? 0) +
+        c.extractedEntities.dates.length +
+        c.extractedEntities.legalRefs.length +
+        c.extractedEntities.amounts.length +
+        c.extractedEntities.caseNumbers.length +
+        (c.extractedEntities.addresses?.length ?? 0) +
+        (c.extractedEntities.ibans?.length ?? 0),
+      0
+    );
 
-    const findingsSummary = allFindings.length > 0
-      ? `${allFindings.length} Findings (${criticalFindings.length} kritisch/hoch): ` +
-        criticalFindings.slice(0, 5).map((f: LegalFinding) => f.title).join('; ')
-      : undefined;
+    const findingsSummary =
+      allFindings.length > 0
+        ? `${allFindings.length} Findings (${criticalFindings.length} kritisch/hoch): ` +
+          criticalFindings
+            .slice(0, 5)
+            .map((f: LegalFinding) => f.title)
+            .join('; ')
+        : undefined;
 
-    const tasksSummary = allTasks.length > 0
-      ? `${allTasks.length} Tasks (${openTasks.length} offen): ` +
-        openTasks.slice(0, 5).map((t: CopilotTask) => t.title).join('; ')
-      : undefined;
+    const tasksSummary =
+      allTasks.length > 0
+        ? `${allTasks.length} Tasks (${openTasks.length} offen): ` +
+          openTasks
+            .slice(0, 5)
+            .map((t: CopilotTask) => t.title)
+            .join('; ')
+        : undefined;
 
     return {
       caseId: input.caseId,
@@ -4098,7 +4829,7 @@ export class LegalCopilotWorkflowService extends Service {
       semanticChunksSummary,
       totalChunks,
       totalEntities,
-      generatedAt: new Date().toISOString()
+      generatedAt: new Date().toISOString(),
     };
   }
 
@@ -4128,7 +4859,7 @@ export class LegalCopilotWorkflowService extends Service {
         workspaceId: input.workspaceId,
         action: 'copilot.qa.llm',
         severity: 'info',
-        details: `Case-Q&A (LLM): "${question.slice(0, 80)}"`
+        details: `Case-Q&A (LLM): "${question.slice(0, 80)}"`,
       });
       return { answer: llmAnswer, contextPack };
     }
@@ -4141,7 +4872,7 @@ export class LegalCopilotWorkflowService extends Service {
       workspaceId: input.workspaceId,
       action: 'copilot.qa.local',
       severity: 'info',
-      details: `Case-Q&A (lokal): "${question.slice(0, 80)}"`
+      details: `Case-Q&A (lokal): "${question.slice(0, 80)}"`,
     });
 
     return { answer: localAnswer, contextPack };
@@ -4151,11 +4882,13 @@ export class LegalCopilotWorkflowService extends Service {
     question: string,
     context: ConversationContextPack
   ): Promise<string | null> {
-    const endpoint = await this.providerSettingsService.getEndpoint('legal-analysis');
+    const endpoint =
+      await this.providerSettingsService.getEndpoint('legal-analysis');
     if (!endpoint) return null;
 
     try {
-      const token = await this.providerSettingsService.getToken('legal-analysis');
+      const token =
+        await this.providerSettingsService.getToken('legal-analysis');
       const contextText = this.contextPackToText(context);
 
       const response = await fetch(endpoint, {
@@ -4192,7 +4925,9 @@ export class LegalCopilotWorkflowService extends Service {
     if (ctx.opposingPartyNames?.length) {
       lines.push(`Gegner: ${ctx.opposingPartyNames.join(', ')}`);
     }
-    lines.push(`Dokumente: ${ctx.documentCount} (${ctx.indexedDocumentCount} indexiert, ${ctx.ocrPendingCount} OCR ausstehend)`);
+    lines.push(
+      `Dokumente: ${ctx.documentCount} (${ctx.indexedDocumentCount} indexiert, ${ctx.ocrPendingCount} OCR ausstehend)`
+    );
 
     if (ctx.keyActors.length > 0) {
       lines.push(`\nBeteiligte Personen:`);
@@ -4222,7 +4957,9 @@ export class LegalCopilotWorkflowService extends Service {
     }
 
     if (ctx.totalChunks || ctx.totalEntities) {
-      lines.push(`\nSemantische Analyse: ${ctx.totalChunks ?? 0} Textabschnitte, ${ctx.totalEntities ?? 0} extrahierte Entitäten`);
+      lines.push(
+        `\nSemantische Analyse: ${ctx.totalChunks ?? 0} Textabschnitte, ${ctx.totalEntities ?? 0} extrahierte Entitäten`
+      );
     }
 
     if (ctx.semanticChunksSummary) {
@@ -4240,18 +4977,32 @@ export class LegalCopilotWorkflowService extends Service {
     return lines.join('\n');
   }
 
-  private buildLocalAnswer(question: string, ctx: ConversationContextPack): string {
+  private buildLocalAnswer(
+    question: string,
+    ctx: ConversationContextPack
+  ): string {
     const q = question.toLowerCase();
     const lines: string[] = [];
 
     // ── Party questions ──
-    if (q.includes('mandant') || q.includes('kläger') || q.includes('auftraggeber')) {
-      lines.push(`**Mandant:** ${ctx.clientName ?? 'Kein Mandant zugeordnet.'}`);
+    if (
+      q.includes('mandant') ||
+      q.includes('kläger') ||
+      q.includes('auftraggeber')
+    ) {
+      lines.push(
+        `**Mandant:** ${ctx.clientName ?? 'Kein Mandant zugeordnet.'}`
+      );
       if (ctx.matterTitle) lines.push(`**Akte:** ${ctx.matterTitle}`);
       if (ctx.aktenzeichen) lines.push(`**AZ:** ${ctx.aktenzeichen}`);
     }
 
-    if (q.includes('gegner') || q.includes('beklagt') || q.includes('gegenseite') || q.includes('beschuldigt')) {
+    if (
+      q.includes('gegner') ||
+      q.includes('beklagt') ||
+      q.includes('gegenseite') ||
+      q.includes('beschuldigt')
+    ) {
       if (ctx.opposingPartyNames?.length) {
         lines.push(`**Gegner/Beklagte:** ${ctx.opposingPartyNames.join(', ')}`);
       } else {
@@ -4260,19 +5011,33 @@ export class LegalCopilotWorkflowService extends Service {
     }
 
     if (q.includes('gericht') || q.includes('zuständig')) {
-      lines.push(`**Gericht:** ${ctx.gericht ?? 'Kein Gericht in der Akte hinterlegt.'}`);
+      lines.push(
+        `**Gericht:** ${ctx.gericht ?? 'Kein Gericht in der Akte hinterlegt.'}`
+      );
     }
 
-    if (q.includes('anwalt') || q.includes('bearbeiter') || q.includes('rechtsanwalt')) {
-      lines.push(`**Bearbeitender Anwalt:** ${ctx.anwaltName ?? 'Kein Anwalt zugeordnet.'}`);
+    if (
+      q.includes('anwalt') ||
+      q.includes('bearbeiter') ||
+      q.includes('rechtsanwalt')
+    ) {
+      lines.push(
+        `**Bearbeitender Anwalt:** ${ctx.anwaltName ?? 'Kein Anwalt zugeordnet.'}`
+      );
     }
 
     // ── Deadline questions ──
-    if (q.includes('frist') || q.includes('termin') || q.includes('deadline') || q.includes('verjährung')) {
+    if (
+      q.includes('frist') ||
+      q.includes('termin') ||
+      q.includes('deadline') ||
+      q.includes('verjährung')
+    ) {
       if (ctx.openDeadlines.length > 0) {
         lines.push(`**${ctx.openDeadlines.length} offene Frist(en):**`);
         for (const d of ctx.openDeadlines) {
-          const overdue = new Date(d.dueAt) < new Date() ? ' ⚠️ ÜBERFÄLLIG' : '';
+          const overdue =
+            new Date(d.dueAt) < new Date() ? ' ⚠️ ÜBERFÄLLIG' : '';
           lines.push(`  - ${d.title}: ${d.dueAt} (${d.priority})${overdue}`);
         }
       } else {
@@ -4281,26 +5046,46 @@ export class LegalCopilotWorkflowService extends Service {
     }
 
     // ── Findings / Analysis ──
-    if (q.includes('finding') || q.includes('widerspruch') || q.includes('problem') ||
-        q.includes('analyse') || q.includes('ergebnis') || q.includes('haftung')) {
+    if (
+      q.includes('finding') ||
+      q.includes('widerspruch') ||
+      q.includes('problem') ||
+      q.includes('analyse') ||
+      q.includes('ergebnis') ||
+      q.includes('haftung')
+    ) {
       if (ctx.findingsSummary) {
         lines.push(`**Analyse-Ergebnisse:** ${ctx.findingsSummary}`);
       } else {
-        lines.push('Keine Analyse-Ergebnisse vorhanden. Bitte zuerst eine Fallanalyse starten.');
+        lines.push(
+          'Keine Analyse-Ergebnisse vorhanden. Bitte zuerst eine Fallanalyse starten.'
+        );
       }
     }
 
     // ── Tasks ──
-    if (q.includes('aufgab') || q.includes('task') || q.includes('todo') || q.includes('zu tun')) {
+    if (
+      q.includes('aufgab') ||
+      q.includes('task') ||
+      q.includes('todo') ||
+      q.includes('zu tun')
+    ) {
       if (ctx.tasksSummary) {
         lines.push(`**Aufgaben:** ${ctx.tasksSummary}`);
       } else {
-        lines.push('Keine Aufgaben generiert. Starten Sie zuerst eine Fallanalyse.');
+        lines.push(
+          'Keine Aufgaben generiert. Starten Sie zuerst eine Fallanalyse.'
+        );
       }
     }
 
     // ── Persons ──
-    if (q.includes('person') || q.includes('beteiligte') || q.includes('wer') || q.includes('akteur')) {
+    if (
+      q.includes('person') ||
+      q.includes('beteiligte') ||
+      q.includes('wer') ||
+      q.includes('akteur')
+    ) {
       if (ctx.keyActors.length > 0) {
         lines.push(`**${ctx.keyActors.length} beteiligte Person(en):**`);
         for (const actor of ctx.keyActors.slice(0, 10)) {
@@ -4312,30 +5097,53 @@ export class LegalCopilotWorkflowService extends Service {
     }
 
     // ── Norms / Paragraphs ──
-    if (q.includes('paragraph') || q.includes('norm') || q.includes('gesetz') || q.includes('§')) {
+    if (
+      q.includes('paragraph') ||
+      q.includes('norm') ||
+      q.includes('gesetz') ||
+      q.includes('§')
+    ) {
       if (ctx.normReferences?.length) {
-        lines.push(`**Rechtliche Referenzen:** ${ctx.normReferences.join(', ')}`);
+        lines.push(
+          `**Rechtliche Referenzen:** ${ctx.normReferences.join(', ')}`
+        );
       } else {
         lines.push('Keine Paragraphen-Referenzen in den Dokumenten erkannt.');
       }
     }
 
     // ── Documents ──
-    if (q.includes('dokument') || q.includes('datei') || q.includes('unterlage') || q.includes('akte')) {
-      lines.push(`**Dokumente:** ${ctx.documentCount} gesamt (${ctx.indexedDocumentCount} indexiert, ${ctx.ocrPendingCount} OCR ausstehend)`);
+    if (
+      q.includes('dokument') ||
+      q.includes('datei') ||
+      q.includes('unterlage') ||
+      q.includes('akte')
+    ) {
+      lines.push(
+        `**Dokumente:** ${ctx.documentCount} gesamt (${ctx.indexedDocumentCount} indexiert, ${ctx.ocrPendingCount} OCR ausstehend)`
+      );
     }
 
     // ── Summary / Overview ──
-    if (q.includes('zusammenfassung') || q.includes('überblick') || q.includes('übersicht') || q.includes('status')) {
+    if (
+      q.includes('zusammenfassung') ||
+      q.includes('überblick') ||
+      q.includes('übersicht') ||
+      q.includes('status')
+    ) {
       lines.push('**Fallübersicht:**');
       lines.push(`  - Mandant: ${ctx.clientName ?? '—'}`);
-      lines.push(`  - Akte: ${ctx.matterTitle ?? '—'} (AZ: ${ctx.aktenzeichen ?? '—'})`);
+      lines.push(
+        `  - Akte: ${ctx.matterTitle ?? '—'} (AZ: ${ctx.aktenzeichen ?? '—'})`
+      );
       lines.push(`  - Gericht: ${ctx.gericht ?? '—'}`);
       lines.push(`  - Anwalt: ${ctx.anwaltName ?? '—'}`);
       if (ctx.opposingPartyNames?.length) {
         lines.push(`  - Gegner: ${ctx.opposingPartyNames.join(', ')}`);
       }
-      lines.push(`  - Dokumente: ${ctx.documentCount} (${ctx.indexedDocumentCount} indexiert)`);
+      lines.push(
+        `  - Dokumente: ${ctx.documentCount} (${ctx.indexedDocumentCount} indexiert)`
+      );
       lines.push(`  - Offene Fristen: ${ctx.openDeadlines?.length ?? 0}`);
       if (ctx.findingsSummary) lines.push(`  - ${ctx.findingsSummary}`);
       if (ctx.tasksSummary) lines.push(`  - ${ctx.tasksSummary}`);
@@ -4344,11 +5152,19 @@ export class LegalCopilotWorkflowService extends Service {
     // ── Fallback if no keywords matched ──
     if (lines.length === 0) {
       lines.push('**Fallübersicht:**');
-      lines.push(`Mandant: ${ctx.clientName ?? '—'} · Akte: ${ctx.matterTitle ?? '—'} · AZ: ${ctx.aktenzeichen ?? '—'}`);
-      lines.push(`Gericht: ${ctx.gericht ?? '—'} · Anwalt: ${ctx.anwaltName ?? '—'}`);
-      lines.push(`Dokumente: ${ctx.documentCount} · Fristen: ${ctx.openDeadlines?.length ?? 0} · Findings: ${ctx.findingsSummary ?? 'keine'}`);
+      lines.push(
+        `Mandant: ${ctx.clientName ?? '—'} · Akte: ${ctx.matterTitle ?? '—'} · AZ: ${ctx.aktenzeichen ?? '—'}`
+      );
+      lines.push(
+        `Gericht: ${ctx.gericht ?? '—'} · Anwalt: ${ctx.anwaltName ?? '—'}`
+      );
+      lines.push(
+        `Dokumente: ${ctx.documentCount} · Fristen: ${ctx.openDeadlines?.length ?? 0} · Findings: ${ctx.findingsSummary ?? 'keine'}`
+      );
       lines.push('');
-      lines.push('Für eine präzisere Antwort formulieren Sie Ihre Frage spezifischer oder konfigurieren Sie einen LLM-Provider unter Einstellungen.');
+      lines.push(
+        'Für eine präzisere Antwort formulieren Sie Ihre Frage spezifischer oder konfigurieren Sie einen LLM-Provider unter Einstellungen.'
+      );
     }
 
     return lines.join('\n');

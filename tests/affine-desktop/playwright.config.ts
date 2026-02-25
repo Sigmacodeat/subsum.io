@@ -13,6 +13,9 @@ import type { PlaywrightTestConfig } from '@playwright/test';
 /**
  * See https://playwright.dev/docs/test-configuration.
  */
+const playwrightBaseUrl =
+  process.env.PLAYWRIGHT_BASE_URL ?? 'http://localhost:8080/';
+
 const config: PlaywrightTestConfig = {
   testDir: './e2e',
   fullyParallel: true,
@@ -34,9 +37,10 @@ if (process.env.CI) {
 
 if (process.env.DEV_SERVER_URL) {
   const devServerUrl = new URL(process.env.DEV_SERVER_URL);
+  const expectedOrigin = new URL(playwrightBaseUrl).origin;
   assert(
-    devServerUrl.origin === 'http://localhost:8080',
-    'DEV_SERVER_URL must be http://localhost:8080'
+    devServerUrl.origin === expectedOrigin,
+    `DEV_SERVER_URL must be ${expectedOrigin}`
   );
   config.webServer = [
     {
@@ -46,7 +50,7 @@ if (process.env.DEV_SERVER_URL) {
       env: {
         COVERAGE: process.env.COVERAGE || 'false',
       },
-      url: 'http://localhost:8080',
+      url: expectedOrigin,
     },
   ];
 }

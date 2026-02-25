@@ -362,6 +362,33 @@ export const filterChip = style({
   lineHeight: '16px',
 });
 
+export const primaryActionChip = style({
+  ...filterChipStyle,
+  minHeight: 30,
+  padding: '5px 12px',
+  fontWeight: 700,
+  color: cssVarV2('button/pureWhiteText'),
+  borderColor: `color-mix(in srgb, ${cssVarV2('button/primary')} 34%, transparent)`,
+  background: cssVarV2('button/primary'),
+  boxShadow: `0 2px 10px color-mix(in srgb, ${cssVarV2('button/primary')} 34%, transparent)`,
+  selectors: {
+    '&:hover:not(:disabled)': {
+      background: `color-mix(in srgb, ${cssVarV2('button/primary')} 88%, var(--affine-background-primary-color))`,
+      borderColor: `color-mix(in srgb, ${cssVarV2('button/primary')} 42%, transparent)`,
+      transform: 'translateY(-0.5px)',
+      boxShadow: `0 4px 14px color-mix(in srgb, ${cssVarV2('button/primary')} 40%, transparent)`,
+    },
+    '&:focus-visible': {
+      outline: `2px solid ${cssVarV2('button/primary')}`,
+      outlineOffset: 2,
+    },
+    '&:disabled': {
+      opacity: 0.6,
+      cursor: 'not-allowed',
+    },
+  },
+});
+
 export const searchWrap = style({
   position: 'relative',
   display: 'flex',

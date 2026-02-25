@@ -34,6 +34,7 @@ import type {
   LegalNormRegistryRecord,
   MatterRecord,
   OcrJob,
+  OpposingParty,
   PortalRequestRecord,
   RechnungRecord,
   SemanticChunk,
@@ -162,6 +163,572 @@ export class CasePlatformOrchestrationService extends Service {
 
   private hasArchivedTag(client: ClientRecord) {
     return client.tags.includes('__archived');
+  }
+
+  private async postLegalApi<T = any>(
+    endpoint: string,
+    payload: unknown
+  ): Promise<T | null> {
+    if (typeof globalThis.fetch !== 'function') {
+      return null;
+    }
+    try {
+      const res = await globalThis.fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-affine-version': BUILD_CONFIG.appVersion,
+        },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        return null;
+      }
+      return (await res.json()) as T;
+    } catch {
+      return null;
+    }
+  }
+
+  private async deleteLegalApi(endpoint: string): Promise<boolean> {
+    if (typeof globalThis.fetch !== 'function') {
+      return false;
+    }
+    try {
+      const res = await globalThis.fetch(endpoint, {
+        method: 'DELETE',
+        headers: {
+          'x-affine-version': BUILD_CONFIG.appVersion,
+        },
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  }
+
+  private async getLegalApi<T = any>(endpoint: string): Promise<T | null> {
+    if (typeof globalThis.fetch !== 'function') {
+      return null;
+    }
+    try {
+      const res = await globalThis.fetch(endpoint, {
+        method: 'GET',
+        headers: {
+          'x-affine-version': BUILD_CONFIG.appVersion,
+        },
+      });
+      if (!res.ok) {
+        return null;
+      }
+      return (await res.json()) as T;
+    } catch {
+      return null;
+    }
+  }
+
+  async syncLegalDomainFromBackendBestEffort() {
+    const workspaceId = this.store.getWorkspaceId();
+    if (!workspaceId) {
+      return false;
+    }
+
+    const [clientsRes, mattersRes, deadlinesRes, timeEntriesRes, invoicesRes] =
+      await Promise.all([
+        this.getLegalApi<{ items?: any[] }>(
+          `/api/legal/workspaces/${encodeURIComponent(workspaceId)}/clients?limit=500`
+        ),
+        this.getLegalApi<{ items?: any[] }>(
+          `/api/legal/workspaces/${encodeURIComponent(workspaceId)}/matters?limit=500&includeTrashed=true`
+        ),
+        this.getLegalApi<{ items?: any[] }>(
+          `/api/legal/workspaces/${encodeURIComponent(workspaceId)}/deadlines?limit=1000`
+        ),
+        this.getLegalApi<{ items?: any[] }>(
+          `/api/legal/workspaces/${encodeURIComponent(workspaceId)}/time-entries?limit=1000`
+        ),
+        this.getLegalApi<{ items?: any[] }>(
+          `/api/legal/workspaces/${encodeURIComponent(workspaceId)}/invoices?limit=500`
+        ),
+      ]);
+
+    const remoteClients = clientsRes?.items ?? [];
+    const remoteMatters = mattersRes?.items ?? [];
+    const remoteDeadlines = deadlinesRes?.items ?? [];
+    const remoteTimeEntries = timeEntriesRes?.items ?? [];
+    const remoteInvoices = invoicesRes?.items ?? [];
+
+    // Early return if no data at all
+    if (
+      remoteClients.length === 0 &&
+      remoteMatters.length === 0 &&
+      remoteDeadlines.length === 0 &&
+      remoteTimeEntries.length === 0 &&
+      remoteInvoices.length === 0
+    ) {
+      return false;
+    }
+
+    const graph = await this.store.getGraph();
+    const nextGraph = {
+      ...graph,
+      clients: { ...(graph.clients ?? {}) },
+      matters: { ...(graph.matters ?? {}) },
+      deadlines: { ...(graph.deadlines ?? {}) },
+      cases: { ...(graph.cases ?? {}) },
+    };
+
+    let hasTimeEntryChanges = false;
+    let hasInvoiceChanges = false;
+
+    // Clients
+    let hasClientChanges = false;
+    for (const c of remoteClients) {
+      const kind =
+        c.kind === 'person' || c.kind === 'company' || c.kind === 'authority'
+          ? c.kind
+          : 'other';
+      const clientRecord = {
+        id: c.id,
+        workspaceId,
+        kind,
+        displayName: c.displayName ?? c.companyName ?? c.firstName ?? 'Mandant',
+        identifiers: Array.isArray(c.identifiers) ? c.identifiers : [],
+        primaryEmail: c.primaryEmail ?? undefined,
+        primaryPhone: c.primaryPhone ?? undefined,
+        address: c.address ?? undefined,
+        notes: c.notes ?? undefined,
+        tags: Array.isArray(c.tags) ? c.tags : [],
+        archived: Boolean(c.archived),
+        createdAt: new Date(c.createdAt ?? Date.now()).toISOString(),
+        updatedAt: new Date(c.updatedAt ?? Date.now()).toISOString(),
+      };
+
+      // Only update if the record has changed
+      const existing = nextGraph.clients[c.id];
+      if (
+        !existing ||
+        JSON.stringify(existing) !== JSON.stringify(clientRecord)
+      ) {
+        nextGraph.clients[c.id] = clientRecord;
+        hasClientChanges = true;
+      }
+    }
+
+    // Matters
+    let hasMatterChanges = false;
+    for (const m of remoteMatters) {
+      const matterId = String(m.id);
+      const existing = nextGraph.matters[matterId];
+      const authorities = (m.metadata?.structuredAuthorities ?? {}) as Record<
+        string,
+        string | null
+      >;
+      const matterRecord: MatterRecord = {
+        id: matterId,
+        workspaceId,
+        clientId: String(m.clientId),
+        clientIds: Array.isArray(m.clientIds)
+          ? m.clientIds.map(String)
+          : undefined,
+        jurisdiction: m.jurisdiction ?? undefined,
+        assignedAnwaltId:
+          typeof m.assignedAnwaltId === 'string'
+            ? m.assignedAnwaltId
+            : m.assignedAnwaltId != null
+              ? String(m.assignedAnwaltId)
+              : undefined,
+        assignedAnwaltIds: Array.isArray(m.assignedAnwaltIds)
+          ? m.assignedAnwaltIds.map(String)
+          : undefined,
+        title: m.title ?? existing?.title ?? 'Akte',
+        description: m.summary ?? existing?.description,
+        externalRef: m.externalRef ?? undefined,
+        authorityReferences: Array.isArray(m.metadata?.authorityReferences)
+          ? m.metadata.authorityReferences
+          : undefined,
+        gericht: m.gericht ?? undefined,
+        polizei: authorities.polizei ?? undefined,
+        staatsanwaltschaft: authorities.staatsanwaltschaft ?? undefined,
+        richter: authorities.richter ?? undefined,
+        gerichtsaktenzeichen:
+          authorities.gerichtsaktenzeichen ?? m.aktenzeichen ?? undefined,
+        staatsanwaltschaftAktenzeichen:
+          authorities.staatsanwaltschaftAktenzeichen ?? undefined,
+        polizeiAktenzeichen: authorities.polizeiAktenzeichen ?? undefined,
+        status:
+          m.status === 'closed' || m.status === 'archived' ? m.status : 'open',
+        opposingParties:
+          m.gegnerName || m.gegnerAnwalt
+            ? [
+                {
+                  id: `op-${String(m.id)}`,
+                  kind: 'person',
+                  displayName: String(m.gegnerName ?? 'Gegenseite'),
+                  lawFirm:
+                    m.gegnerAnwalt != null ? String(m.gegnerAnwalt) : undefined,
+                } satisfies OpposingParty,
+              ]
+            : existing?.opposingParties,
+        tags: Array.isArray(m.tags) ? m.tags : [],
+        archivedAt:
+          m.status === 'archived'
+            ? new Date(m.updatedAt ?? Date.now()).toISOString()
+            : undefined,
+        trashedAt: m.trashedAt
+          ? new Date(m.trashedAt).toISOString()
+          : undefined,
+        purgeAt: m.purgeAt ? new Date(m.purgeAt).toISOString() : undefined,
+        createdAt: new Date(m.createdAt ?? Date.now()).toISOString(),
+        updatedAt: new Date(m.updatedAt ?? Date.now()).toISOString(),
+      };
+
+      // Only update if the record has changed
+      if (
+        !existing ||
+        JSON.stringify(existing) !== JSON.stringify(matterRecord)
+      ) {
+        nextGraph.matters[matterId] = matterRecord;
+        hasMatterChanges = true;
+      }
+    }
+
+    // Deadlines + case linkage
+    let hasDeadlineChanges = false;
+    let hasCaseLinkageChanges = false;
+    for (const d of remoteDeadlines) {
+      const deadline: CaseDeadline = {
+        id: d.id,
+        title: d.title ?? 'Frist',
+        dueAt: new Date(d.dueAt ?? Date.now()).toISOString(),
+        derivedFrom: d.legalBasis ? 'manual' : undefined,
+        baseEventAt: undefined,
+        detectionConfidence:
+          typeof d.metadata?.detectionConfidence === 'number'
+            ? d.metadata.detectionConfidence
+            : undefined,
+        requiresReview: Boolean(d.metadata?.requiresReview),
+        evidenceSnippets: Array.isArray(d.metadata?.sourceDocIds)
+          ? d.metadata.sourceDocIds
+          : undefined,
+        reviewedAt: undefined,
+        reviewedBy: undefined,
+        sourceDocIds: Array.isArray(d.metadata?.sourceDocIds)
+          ? d.metadata.sourceDocIds
+          : [],
+        status:
+          d.status === 'alerted' ||
+          d.status === 'acknowledged' ||
+          d.status === 'completed' ||
+          d.status === 'expired'
+            ? d.status
+            : 'open',
+        priority:
+          d.priority === 'critical' ||
+          d.priority === 'high' ||
+          d.priority === 'medium' ||
+          d.priority === 'low'
+            ? d.priority
+            : 'medium',
+        reminderOffsetsInMinutes: Array.isArray(d.reminderOffsetsMinutes)
+          ? d.reminderOffsetsMinutes
+          : [1440, 60, 15],
+        alertedAt: undefined,
+        acknowledgedAt: d.acknowledgedAt
+          ? new Date(d.acknowledgedAt).toISOString()
+          : undefined,
+        completedAt: d.completedAt
+          ? new Date(d.completedAt).toISOString()
+          : undefined,
+        createdAt: new Date(d.createdAt ?? Date.now()).toISOString(),
+        updatedAt: new Date(d.updatedAt ?? Date.now()).toISOString(),
+      };
+
+      // Only update if the record has changed
+      const existing = nextGraph.deadlines[d.id];
+      if (!existing || JSON.stringify(existing) !== JSON.stringify(deadline)) {
+        nextGraph.deadlines[d.id] = deadline;
+        hasDeadlineChanges = true;
+      }
+
+      const caseId =
+        typeof d.caseFileId === 'string'
+          ? d.caseFileId
+          : (Object.values(nextGraph.cases).find(c => c.matterId === d.matterId)
+              ?.id ?? null);
+
+      if (caseId && nextGraph.cases[caseId]) {
+        const currentDeadlineIds = nextGraph.cases[caseId].deadlineIds ?? [];
+        if (!currentDeadlineIds.includes(d.id)) {
+          nextGraph.cases[caseId] = {
+            ...nextGraph.cases[caseId],
+            deadlineIds: [...currentDeadlineIds, d.id],
+            updatedAt: new Date().toISOString(),
+          };
+          hasCaseLinkageChanges = true;
+        }
+      }
+    }
+
+    const hasGraphChanges =
+      hasClientChanges ||
+      hasMatterChanges ||
+      hasDeadlineChanges ||
+      hasCaseLinkageChanges;
+
+    if (hasGraphChanges) {
+      nextGraph.updatedAt = new Date().toISOString();
+      await this.store.setGraph(nextGraph);
+    }
+
+    // Time entries
+    if (remoteTimeEntries.length > 0) {
+      const existingTimeEntries = await this.store.getTimeEntries();
+      const nextTimeEntries = new Map<string, TimeEntry>(
+        existingTimeEntries.map((item: TimeEntry) => [item.id, item])
+      );
+      for (const item of remoteTimeEntries) {
+        const caseId =
+          Object.values(nextGraph.cases).find(c => c.matterId === item.matterId)
+            ?.id ?? `case:${item.matterId}`;
+        const timeEntryRecord: TimeEntry = {
+          id: item.id,
+          workspaceId,
+          caseId,
+          matterId: item.matterId,
+          clientId: item.clientId,
+          anwaltId: item.anwaltId,
+          description: item.description ?? '',
+          activityType: item.activityType ?? 'sonstiges',
+          durationMinutes: Number(item.durationMinutes ?? 0),
+          hourlyRate: Number(item.hourlyRate ?? 0),
+          amount: Number(item.amount ?? 0),
+          date: new Date(item.date ?? Date.now()).toISOString().slice(0, 10),
+          status:
+            item.status === 'submitted' ||
+            item.status === 'approved' ||
+            item.status === 'invoiced' ||
+            item.status === 'rejected'
+              ? item.status
+              : 'draft',
+          invoiceId: item.invoiceId ?? undefined,
+          createdAt: new Date(item.createdAt ?? Date.now()).toISOString(),
+          updatedAt: new Date(item.updatedAt ?? Date.now()).toISOString(),
+        };
+
+        // Only update if the record has changed
+        const existing = nextTimeEntries.get(item.id);
+        if (
+          !existing ||
+          JSON.stringify(existing) !== JSON.stringify(timeEntryRecord)
+        ) {
+          nextTimeEntries.set(item.id, timeEntryRecord);
+          hasTimeEntryChanges = true;
+        }
+      }
+      if (hasTimeEntryChanges) {
+        await this.store.setTimeEntries(Array.from(nextTimeEntries.values()));
+      }
+    }
+
+    // Invoices
+    if (remoteInvoices.length > 0) {
+      const existingInvoices = await this.store.getRechnungen();
+      const nextInvoices = new Map<string, RechnungRecord>(
+        existingInvoices.map((item: RechnungRecord) => [item.id, item])
+      );
+      for (const item of remoteInvoices) {
+        const caseId =
+          Object.values(nextGraph.cases).find(c => c.matterId === item.matterId)
+            ?.id ?? `case:${item.matterId}`;
+        const lineItems = Array.isArray(item.lineItems) ? item.lineItems : [];
+        const invoiceRecord: RechnungRecord = {
+          id: item.id,
+          workspaceId,
+          matterId: item.matterId,
+          caseId,
+          clientId: item.clientId,
+          rechnungsnummer: item.invoiceNumber ?? `RE-${item.id.slice(0, 8)}`,
+          rechnungsdatum: item.issuedAt
+            ? new Date(item.issuedAt).toISOString().slice(0, 10)
+            : new Date(item.createdAt ?? Date.now()).toISOString().slice(0, 10),
+          faelligkeitsdatum: item.dueDate
+            ? new Date(item.dueDate).toISOString().slice(0, 10)
+            : new Date(item.createdAt ?? Date.now()).toISOString().slice(0, 10),
+          betreff: item.notes ?? 'Rechnung',
+          positionen: lineItems.map((li: any) => ({
+            bezeichnung: li.description ?? 'Leistung',
+            anzahl: Number(li.quantity ?? 1),
+            einheit: 'stück' as const,
+            einzelpreis: Number((li.unitPriceCents ?? 0) / 100),
+            gesamt: Number((li.totalCents ?? 0) / 100),
+            timeEntryId: li.timeEntryId ?? undefined,
+          })),
+          netto: Number((item.subtotalCents ?? 0) / 100),
+          ustProzent: Number((item.taxRateBps ?? 0) / 100),
+          ustBetrag: Number((item.taxAmountCents ?? 0) / 100),
+          brutto: Number((item.totalCents ?? 0) / 100),
+          status:
+            item.status === 'sent'
+              ? 'versendet'
+              : item.status === 'paid'
+                ? 'bezahlt'
+                : item.status === 'overdue'
+                  ? 'mahnung_1'
+                  : item.status === 'cancelled'
+                    ? 'storniert'
+                    : 'entwurf',
+          mahnungen: [],
+          createdAt: new Date(item.createdAt ?? Date.now()).toISOString(),
+          updatedAt: new Date(item.updatedAt ?? Date.now()).toISOString(),
+        };
+
+        // Only update if the record has changed
+        const existing = nextInvoices.get(item.id);
+        if (
+          !existing ||
+          JSON.stringify(existing) !== JSON.stringify(invoiceRecord)
+        ) {
+          nextInvoices.set(item.id, invoiceRecord);
+          hasInvoiceChanges = true;
+        }
+      }
+      if (hasInvoiceChanges) {
+        await this.store.setRechnungen(Array.from(nextInvoices.values()));
+      }
+    }
+
+    return hasGraphChanges || hasTimeEntryChanges || hasInvoiceChanges;
+  }
+
+  private toLegalClientPayload(record: ClientRecord) {
+    return {
+      id: record.id,
+      kind: record.kind === 'other' ? 'person' : record.kind,
+      displayName: record.displayName,
+      primaryEmail: record.primaryEmail,
+      primaryPhone: record.primaryPhone,
+      address: record.address,
+      notes: record.notes,
+      tags: record.tags,
+      archived: record.archived,
+      identifiers: record.identifiers,
+      createdAt: record.createdAt,
+      updatedAt: record.updatedAt,
+    };
+  }
+
+  private toLegalMatterPayload(record: MatterRecord) {
+    return {
+      id: record.id,
+      clientId: record.clientId,
+      title: record.title,
+      externalRef: record.externalRef,
+      status: record.status,
+      jurisdiction: record.jurisdiction,
+      gericht: record.gericht,
+      aktenzeichen: record.gerichtsaktenzeichen,
+      assignedAnwaltId: record.assignedAnwaltId,
+      assignedAnwaltIds: record.assignedAnwaltIds,
+      gegnerName: record.opposingParties?.[0]?.displayName,
+      gegnerAnwalt: record.opposingParties?.[0]?.lawFirm,
+      summary: record.description,
+      metadata: {
+        authorityReferences: record.authorityReferences ?? [],
+        structuredAuthorities: {
+          polizei: record.polizei ?? null,
+          staatsanwaltschaft: record.staatsanwaltschaft ?? null,
+          richter: record.richter ?? null,
+          gerichtsaktenzeichen: record.gerichtsaktenzeichen ?? null,
+          staatsanwaltschaftAktenzeichen:
+            record.staatsanwaltschaftAktenzeichen ?? null,
+          polizeiAktenzeichen: record.polizeiAktenzeichen ?? null,
+        },
+      },
+      tags: record.tags,
+      createdAt: record.createdAt,
+      updatedAt: record.updatedAt,
+    };
+  }
+
+  private resolveMatterIdForDeadline(
+    graph: Awaited<ReturnType<CaseAssistantStore['getGraph']>>,
+    deadlineId: string
+  ): string | undefined {
+    const caseFiles = Object.values(graph.cases ?? {}) as CaseFile[];
+    for (const c of caseFiles) {
+      if ((c.deadlineIds ?? []).includes(deadlineId) && c.matterId) {
+        return c.matterId;
+      }
+    }
+    return undefined;
+  }
+
+  private toLegalDeadlinePayload(
+    record: CaseDeadline,
+    matterId: string,
+    caseFileId?: string
+  ) {
+    return {
+      id: record.id,
+      matterId,
+      caseFileId,
+      title: record.title,
+      description: record.evidenceSnippets?.join('\n') ?? undefined,
+      category: 'frist',
+      priority: record.priority,
+      status: record.status,
+      dueAt: record.dueAt,
+      allDay: false,
+      reminderOffsetsMinutes: record.reminderOffsetsInMinutes,
+      legalBasis: record.derivedFrom,
+      metadata: {
+        sourceDocIds: record.sourceDocIds,
+        detectionConfidence: record.detectionConfidence,
+        requiresReview: record.requiresReview,
+      },
+      createdAt: record.createdAt,
+      updatedAt: record.updatedAt,
+    };
+  }
+
+  private toLegalTimeEntryPayload(entry: TimeEntry) {
+    return {
+      id: entry.id,
+      matterId: entry.matterId,
+      clientId: entry.clientId,
+      anwaltId: entry.anwaltId,
+      description: entry.description,
+      activityType: entry.activityType,
+      durationMinutes: entry.durationMinutes,
+      hourlyRate: entry.hourlyRate,
+      date: entry.date,
+      status: entry.status,
+      createdAt: entry.createdAt,
+      updatedAt: entry.updatedAt,
+    };
+  }
+
+  private mapRechnungStatusToLegalInvoice(
+    status: RechnungRecord['status']
+  ): 'draft' | 'sent' | 'paid' | 'overdue' | 'cancelled' | 'credited' {
+    switch (status) {
+      case 'entwurf':
+        return 'draft';
+      case 'versendet':
+        return 'sent';
+      case 'bezahlt':
+      case 'teilbezahlt':
+        return 'paid';
+      case 'storniert':
+        return 'cancelled';
+      case 'mahnung_1':
+      case 'mahnung_2':
+      case 'inkasso':
+        return 'overdue';
+      default:
+        return 'draft';
+    }
   }
 
   async canAccess(action: CaseAssistantAction) {
@@ -399,6 +966,38 @@ export class CasePlatformOrchestrationService extends Service {
     return true;
   }
 
+  async deleteMattersCascadeBulk(matterIds: string[]): Promise<{
+    total: number;
+    succeededIds: string[];
+    blockedIds: string[];
+    failedIds: string[];
+  }> {
+    const uniqueMatterIds = [...new Set(matterIds.filter(Boolean))];
+    const succeededIds: string[] = [];
+    const blockedIds: string[] = [];
+    const failedIds: string[] = [];
+
+    for (const matterId of uniqueMatterIds) {
+      try {
+        const deleted = await this.deleteMatterCascade(matterId);
+        if (deleted) {
+          succeededIds.push(matterId);
+        } else {
+          blockedIds.push(matterId);
+        }
+      } catch {
+        failedIds.push(matterId);
+      }
+    }
+
+    return {
+      total: uniqueMatterIds.length,
+      succeededIds,
+      blockedIds,
+      failedIds,
+    };
+  }
+
   async upsertClient(
     input: Omit<ClientRecord, 'createdAt' | 'updatedAt'> & {
       createdAt?: string;
@@ -431,6 +1030,11 @@ export class CasePlatformOrchestrationService extends Service {
       createdAt: input.createdAt ?? current?.createdAt ?? now,
       updatedAt: input.updatedAt ?? now,
     };
+
+    await this.postLegalApi(
+      `/api/legal/workspaces/${encodeURIComponent(record.workspaceId)}/clients`,
+      this.toLegalClientPayload(record)
+    );
 
     await this.store.upsertClient(record);
     await this.appendWorkflowEvent({
@@ -533,6 +1137,11 @@ export class CasePlatformOrchestrationService extends Service {
       createdAt: input.createdAt ?? current?.createdAt ?? now,
       updatedAt: input.updatedAt ?? now,
     };
+
+    await this.postLegalApi(
+      `/api/legal/workspaces/${encodeURIComponent(record.workspaceId)}/matters`,
+      this.toLegalMatterPayload(record)
+    );
 
     await this.store.upsertMatter(record);
     await this.appendWorkflowEvent({
@@ -663,6 +1272,18 @@ export class CasePlatformOrchestrationService extends Service {
       createdAt: current?.createdAt ?? now,
       updatedAt: input.updatedAt ?? now,
     };
+
+    const caseFiles = Object.values(graph.cases ?? {}) as CaseFile[];
+    const linkedCase = caseFiles.find(c =>
+      (c.deadlineIds ?? []).includes(record.id)
+    );
+    const matterId = this.resolveMatterIdForDeadline(graph, record.id);
+    if (matterId) {
+      await this.postLegalApi(
+        `/api/legal/workspaces/${encodeURIComponent(workspaceId)}/deadlines`,
+        this.toLegalDeadlinePayload(record, matterId, linkedCase?.id)
+      );
+    }
 
     await this.store.upsertDeadline(record);
 
@@ -831,6 +1452,38 @@ export class CasePlatformOrchestrationService extends Service {
     return updated;
   }
 
+  async restoreMattersBulk(matterIds: string[]): Promise<{
+    total: number;
+    succeededIds: string[];
+    blockedIds: string[];
+    failedIds: string[];
+  }> {
+    const uniqueMatterIds = [...new Set(matterIds.filter(Boolean))];
+    const succeededIds: string[] = [];
+    const blockedIds: string[] = [];
+    const failedIds: string[] = [];
+
+    for (const matterId of uniqueMatterIds) {
+      try {
+        const restored = await this.restoreMatter(matterId);
+        if (restored) {
+          succeededIds.push(matterId);
+        } else {
+          blockedIds.push(matterId);
+        }
+      } catch {
+        failedIds.push(matterId);
+      }
+    }
+
+    return {
+      total: uniqueMatterIds.length,
+      succeededIds,
+      blockedIds,
+      failedIds,
+    };
+  }
+
   async restoreMatter(matterId: string) {
     const graph = await this.store.getGraph();
     const matter = graph.matters?.[matterId];
@@ -864,6 +1517,11 @@ export class CasePlatformOrchestrationService extends Service {
       trashedAt: undefined,
       purgeAt: undefined,
     });
+
+    await this.postLegalApi(
+      `/api/legal/workspaces/${encodeURIComponent(matter.workspaceId)}/matters/${encodeURIComponent(matterId)}/restore`,
+      {}
+    );
 
     await this.appendAuditEntry({
       workspaceId: matter.workspaceId,
@@ -1002,6 +1660,11 @@ export class CasePlatformOrchestrationService extends Service {
     if (!deleted) {
       return false;
     }
+
+    await this.postLegalApi(
+      `/api/legal/workspaces/${encodeURIComponent(matter.workspaceId)}/matters/${encodeURIComponent(matterId)}/trash`,
+      {}
+    );
 
     await this.appendWorkflowEvent({
       type: 'matter.deleted',
@@ -1374,6 +2037,10 @@ export class CasePlatformOrchestrationService extends Service {
       return false;
     }
 
+    await this.deleteLegalApi(
+      `/api/legal/workspaces/${encodeURIComponent(client.workspaceId)}/clients/${encodeURIComponent(clientId)}`
+    );
+
     await this.appendWorkflowEvent({
       type: 'client.deleted',
       actor: 'user',
@@ -1421,6 +2088,239 @@ export class CasePlatformOrchestrationService extends Service {
 
     return {
       total: uniqueClientIds.length,
+      succeededIds,
+      blockedIds,
+      failedIds,
+    };
+  }
+
+  async deleteDocumentsCascade(documentIds: string[]): Promise<{
+    total: number;
+    succeededIds: string[];
+    blockedIds: string[];
+    failedIds: string[];
+  }> {
+    const uniqueDocumentIds = [...new Set(documentIds.filter(Boolean))];
+    const succeededIds: string[] = [];
+    const blockedIds: string[] = [];
+    const failedIds: string[] = [];
+
+    if (uniqueDocumentIds.length === 0) {
+      return {
+        total: 0,
+        succeededIds,
+        blockedIds,
+        failedIds,
+      };
+    }
+
+    const permission =
+      await this.accessControlService.evaluate('document.upload');
+    if (!permission.ok) {
+      for (const documentId of uniqueDocumentIds) {
+        blockedIds.push(documentId);
+      }
+      return {
+        total: uniqueDocumentIds.length,
+        succeededIds,
+        blockedIds,
+        failedIds,
+      };
+    }
+
+    const [legalDocs, trashedDocs, chunks, qualityReports, ocrJobs, findings] =
+      await Promise.all([
+        this.store.getLegalDocuments(),
+        this.store.getTrashedLegalDocuments(),
+        this.store.getSemanticChunks(),
+        this.store.getQualityReports(),
+        this.store.getOcrJobs(),
+        this.store.getLegalFindings(),
+      ]);
+
+    const docById = new Map(legalDocs.map(doc => [doc.id, doc] as const));
+    const trashedById = new Map(trashedDocs.map(doc => [doc.id, doc] as const));
+    const { trashedAt, purgeAt } = buildTrashTimestamps(
+      DOCUMENT_TRASH_RETENTION_DAYS
+    );
+    const movedDocs: LegalDocumentRecord[] = [];
+
+    for (const documentId of uniqueDocumentIds) {
+      const doc = docById.get(documentId);
+      if (!doc) {
+        blockedIds.push(documentId);
+        continue;
+      }
+
+      try {
+        const movedToTrash: LegalDocumentRecord = {
+          ...doc,
+          trashedAt,
+          purgeAt,
+          updatedAt: new Date().toISOString(),
+        };
+        docById.delete(documentId);
+        trashedById.set(documentId, movedToTrash);
+        movedDocs.push(movedToTrash);
+        succeededIds.push(documentId);
+      } catch {
+        failedIds.push(documentId);
+      }
+    }
+
+    if (succeededIds.length > 0) {
+      const succeededSet = new Set(succeededIds);
+      const nextFindings = findings.map(finding => {
+        if (!finding.sourceDocumentIds.some(id => succeededSet.has(id))) {
+          return finding;
+        }
+        return {
+          ...finding,
+          sourceDocumentIds: finding.sourceDocumentIds.filter(
+            docId => !succeededSet.has(docId)
+          ),
+          updatedAt: new Date().toISOString(),
+        };
+      });
+
+      await Promise.all([
+        this.store.setLegalDocuments([...docById.values()]),
+        this.store.setTrashedLegalDocuments([...trashedById.values()]),
+        this.store.setSemanticChunks(
+          chunks.filter(chunk => !succeededSet.has(chunk.documentId))
+        ),
+        this.store.setQualityReports(
+          qualityReports.filter(report => !succeededSet.has(report.documentId))
+        ),
+        this.store.setOcrJobs(
+          ocrJobs.filter(job => !succeededSet.has(job.documentId))
+        ),
+        this.store.setLegalFindings(nextFindings),
+      ]);
+
+      const auditGroups = new Map<
+        string,
+        {
+          workspaceId: string;
+          caseId: string | undefined;
+          documentIds: string[];
+        }
+      >();
+      for (const doc of movedDocs) {
+        const key = `${doc.workspaceId}::${doc.caseId}`;
+        const current = auditGroups.get(key);
+        if (current) {
+          current.documentIds.push(doc.id);
+          continue;
+        }
+        auditGroups.set(key, {
+          workspaceId: doc.workspaceId,
+          caseId: doc.caseId,
+          documentIds: [doc.id],
+        });
+      }
+
+      await Promise.all(
+        [...auditGroups.values()].map(group =>
+          this.appendAuditEntry({
+            caseId: group.caseId,
+            workspaceId: group.workspaceId,
+            action: 'document.trash.scheduled',
+            severity: 'info',
+            details:
+              `${group.documentIds.length} Dokument(e) in Papierkorb verschoben. ` +
+              `Automatische Löschung am ${new Date(purgeAt).toLocaleDateString('de-DE')}.`,
+            metadata: {
+              documentCount: String(group.documentIds.length),
+              retentionDays: String(DOCUMENT_TRASH_RETENTION_DAYS),
+              trashedAt,
+              purgeAt,
+              documentIds: group.documentIds.slice(0, 20).join(','),
+            },
+          })
+        )
+      );
+    }
+
+    return {
+      total: uniqueDocumentIds.length,
+      succeededIds,
+      blockedIds,
+      failedIds,
+    };
+  }
+
+  async restoreDocumentsBulk(documentIds: string[]): Promise<{
+    total: number;
+    succeededIds: string[];
+    blockedIds: string[];
+    failedIds: string[];
+  }> {
+    const uniqueDocumentIds = [...new Set(documentIds.filter(Boolean))];
+    const succeededIds: string[] = [];
+    const blockedIds: string[] = [];
+    const failedIds: string[] = [];
+
+    if (uniqueDocumentIds.length === 0) {
+      return {
+        total: 0,
+        succeededIds,
+        blockedIds,
+        failedIds,
+      };
+    }
+
+    const permission =
+      await this.accessControlService.evaluate('document.upload');
+    if (!permission.ok) {
+      blockedIds.push(...uniqueDocumentIds);
+      return {
+        total: uniqueDocumentIds.length,
+        succeededIds,
+        blockedIds,
+        failedIds,
+      };
+    }
+
+    const [activeDocs, trashedDocs] = await Promise.all([
+      this.store.getLegalDocuments(),
+      this.store.getTrashedLegalDocuments(),
+    ]);
+
+    const activeById = new Map(activeDocs.map(doc => [doc.id, doc] as const));
+    const trashedById = new Map(trashedDocs.map(doc => [doc.id, doc] as const));
+
+    for (const documentId of uniqueDocumentIds) {
+      const trashed = trashedById.get(documentId);
+      if (!trashed) {
+        blockedIds.push(documentId);
+        continue;
+      }
+
+      try {
+        const restored: LegalDocumentRecord = {
+          ...trashed,
+          trashedAt: undefined,
+          purgeAt: undefined,
+          updatedAt: new Date().toISOString(),
+        };
+        trashedById.delete(documentId);
+        activeById.set(documentId, restored);
+        succeededIds.push(documentId);
+      } catch {
+        failedIds.push(documentId);
+      }
+    }
+
+    if (succeededIds.length > 0) {
+      await Promise.all([
+        this.store.setLegalDocuments([...activeById.values()]),
+        this.store.setTrashedLegalDocuments([...trashedById.values()]),
+      ]);
+    }
+
+    return {
+      total: uniqueDocumentIds.length,
       succeededIds,
       blockedIds,
       failedIds,
@@ -2539,6 +3439,32 @@ export class CasePlatformOrchestrationService extends Service {
     const existing = (await this.store.getTimeEntries()).find(
       e => e.id === entry.id
     );
+
+    if (existing && existing.status !== entry.status) {
+      const actionByStatus: Partial<Record<TimeEntry['status'], string>> = {
+        submitted: 'submit',
+        approved: 'approve',
+        rejected: 'reject',
+      };
+      const action = actionByStatus[entry.status];
+      if (action) {
+        await this.postLegalApi(
+          `/api/legal/workspaces/${encodeURIComponent(entry.workspaceId)}/time-entries/${encodeURIComponent(entry.id)}/${action}`,
+          {}
+        );
+      } else {
+        await this.postLegalApi(
+          `/api/legal/workspaces/${encodeURIComponent(entry.workspaceId)}/time-entries`,
+          this.toLegalTimeEntryPayload(entry)
+        );
+      }
+    } else {
+      await this.postLegalApi(
+        `/api/legal/workspaces/${encodeURIComponent(entry.workspaceId)}/time-entries`,
+        this.toLegalTimeEntryPayload(entry)
+      );
+    }
+
     if (existing) {
       const updated = (await this.store.getTimeEntries()).map(e =>
         e.id === entry.id ? entry : e
@@ -2628,6 +3554,31 @@ export class CasePlatformOrchestrationService extends Service {
   }
 
   async upsertRechnung(entry: RechnungRecord) {
+    await this.postLegalApi(
+      `/api/legal/workspaces/${encodeURIComponent(entry.workspaceId)}/invoices`,
+      {
+        invoiceNumber: entry.rechnungsnummer,
+        matterId: entry.matterId,
+        clientId: entry.clientId,
+        status: this.mapRechnungStatusToLegalInvoice(entry.status),
+        subtotalCents: Math.round(entry.netto * 100),
+        taxRateBps: Math.round(entry.ustProzent * 100),
+        issuedAt: entry.rechnungsdatum,
+        dueDate: entry.faelligkeitsdatum,
+        notes: entry.betreff,
+        lineItems: entry.positionen.map(item => ({
+          description: item.bezeichnung,
+          quantity: item.anzahl,
+          unitPriceCents: Math.round(item.einzelpreis * 100),
+          totalCents: Math.round(item.gesamt * 100),
+          timeEntryId: item.timeEntryId,
+        })),
+        timeEntryIds: entry.positionen
+          .map(item => item.timeEntryId)
+          .filter((id): id is string => Boolean(id)),
+      }
+    );
+
     const existing = (await this.store.getRechnungen()).find(
       e => e.id === entry.id
     );

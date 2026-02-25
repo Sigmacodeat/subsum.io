@@ -4,9 +4,22 @@ import {
   ServerFeature,
 } from '@affine/graphql';
 
+import { getSubsumioCanonicalOrigin } from '../../utils/subsumio-domains';
 import type { ServerConfig, ServerMetadata } from './types';
 
-import { getSubsumioCanonicalOrigin } from '../../utils/subsumio-domains';
+function getDevServerOriginFallback(): string {
+  const origin = (globalThis as any)?.process?.env?.DEV_SERVER_URL;
+  if (typeof origin === 'string' && origin.trim().length > 0) {
+    try {
+      return new URL(origin).origin;
+    } catch {
+      // ignore
+    }
+  }
+  return typeof location !== 'undefined'
+    ? location.origin
+    : 'https://app.subsum.io';
+}
 
 export const OFFICIAL_CLOUD_SERVER_ID = 'affine-cloud';
 export const SUBSUMIO_CLOUD_NAME = 'Subsumio Cloud';
@@ -54,7 +67,7 @@ export const BUILD_IN_SERVERS: (ServerMetadata & { config: ServerConfig })[] =
           {
             id: OFFICIAL_CLOUD_SERVER_ID,
             baseUrl: BUILD_CONFIG.isElectron
-              ? 'http://localhost:8080'
+              ? getDevServerOriginFallback()
               : location.origin,
             config: {
               serverName: SUBSUMIO_CLOUD_NAME,
@@ -220,7 +233,7 @@ const OFFICIAL_TELEMETRY_ENDPOINTS: Record<TelemetryChannel, string> = {
   beta: getSubsumioCanonicalOrigin('app'),
   internal: getSubsumioCanonicalOrigin('app'),
   canary: getSubsumioCanonicalOrigin('app'),
-  local: 'http://localhost:8080',
+  local: getDevServerOriginFallback(),
 };
 
 export function getOfficialTelemetryEndpoint(

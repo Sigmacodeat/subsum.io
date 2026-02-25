@@ -13,10 +13,12 @@ declare global {
       https: boolean;
       host: string;
       hosts: ConfigItem<string[]>;
+      allowedOrigins: string;
       listenAddr: string;
       port: number;
       path: string;
       name?: string;
+      trustProxy: number;
     };
     flags: ServerFlags;
   }
@@ -59,6 +61,12 @@ Default to be \`[server.protocol]://[server.host][:server.port]\` if not specifi
     default: [],
     shape: z.array(z.string()),
   },
+  allowedOrigins: {
+    desc: 'Comma-separated list of allowed CORS origins. If set, it overrides derived allowed origins from server.host/hosts.',
+    default: '',
+    env: 'AFFINE_SERVER_ALLOWED_ORIGINS',
+    validate: val => z.string().safeParse(val),
+  },
   listenAddr: {
     desc: 'The address to listen on (e.g., 0.0.0.0 for IPv4, :: for IPv6).',
     default: '0.0.0.0',
@@ -73,6 +81,12 @@ Default to be \`[server.protocol]://[server.host][:server.port]\` if not specifi
     desc: 'Subpath where the server get deployed if there is one.(e.g. /subsumio)',
     default: '',
     env: 'AFFINE_SERVER_SUB_PATH',
+  },
+  trustProxy: {
+    desc: 'How many reverse-proxy hops to trust (Express `trust proxy`). Set to 1 for typical ingress setups.',
+    default: 0,
+    env: ['AFFINE_SERVER_TRUST_PROXY', 'integer'],
+    validate: val => z.number().int().min(0).safeParse(val),
   },
 });
 

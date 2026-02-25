@@ -18,15 +18,17 @@ npx ts-node scripts/seed-affiliate-test-data.ts
 ```
 
 **Admin-Zugangsdaten**
+
 - Email: `admin@subsumio.test`
 - Password: `admin1234!`
-- Dashboard: http://localhost:8080/admin/affiliates
+- Dashboard: `$PLAYWRIGHT_BASE_URL/admin/affiliates` (Default: `http://localhost:8080`)
 
 **Affiliate-Zugangsdaten**
+
 - Email: `affiliate@subsumio.test`
 - Password: `affiliate1234!`
 - Referral Code: `TESTCODE`
-- Settings: http://localhost:8080/settings?tab=affiliate
+- Settings: `$PLAYWRIGHT_BASE_URL/settings?tab=affiliate` (Default: `http://localhost:8080`)
 
 ## 3️⃣ Frontend starten
 
@@ -45,6 +47,7 @@ npx playwright test --config=tests/affiliate-compliance.playwright.config.ts
 ## Was getestet wird
 
 ✅ **Positivtests (6)**
+
 - Terms akzeptieren → UI + Event
 - Tax-Daten speichern → UI + Event
 - Referral gültig → Attribution
@@ -52,6 +55,7 @@ npx playwright test --config=tests/affiliate-compliance.playwright.config.ts
 - Admin Affiliate-Update → UI + Audit
 
 ⚠️ **Negativtests (4)**
+
 - Alias Self-Referral → Block + Event
 - Terms nicht akzeptiert → Payout Hold
 - Tax-Info unvollständig → Payout Hold
@@ -61,8 +65,8 @@ npx playwright test --config=tests/affiliate-compliance.playwright.config.ts
 
 ## Admin Dashboard Links
 
-- **Affiliate Overview**: http://localhost:8080/admin/affiliates
-- **Payout Settlement**: http://localhost:8080/admin/affiliates (Run payout settlement button)
+- **Affiliate Overview**: `$PLAYWRIGHT_BASE_URL/admin/affiliates` (Default: `http://localhost:8080`)
+- **Payout Settlement**: `$PLAYWRIGHT_BASE_URL/admin/affiliates` (Run payout settlement button)
 - **Audit Trail**: Sichtbar in Payout Detail (rechte Seite)
 
 ---

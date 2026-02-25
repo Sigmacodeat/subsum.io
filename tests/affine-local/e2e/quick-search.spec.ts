@@ -198,7 +198,7 @@ test('Create a new page and search this page', async ({ page }) => {
 test('Navigate to the 404 page and try to open quick search', async ({
   page,
 }) => {
-  await page.goto('http://localhost:8080/404');
+  await page.goto('/404');
   const notFoundTip = page.locator('button >> text=Back to My Content');
   await expect(notFoundTip).toBeVisible();
   await openQuickSearchByShortcut(page, false);

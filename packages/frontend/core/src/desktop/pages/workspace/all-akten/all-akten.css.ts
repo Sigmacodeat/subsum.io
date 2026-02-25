@@ -18,17 +18,17 @@ import {
   rowDividerColor,
   searchInputStyle,
   sortButtonStyle,
+  srOnlyLiveStyle,
   statusBadgeBaseStyle,
   statusToneArchivedStyle,
   statusToneClosedStyle,
   statusToneOpenStyle,
-  srOnlyLiveStyle,
+  stickyFilterBarStyle,
   surfaceEnter,
   toolbarControlStyle,
   toolbarLabelStyle,
   toolbarSelectStyle,
   toolbarSortDirectionButtonStyle,
-  stickyFilterBarStyle,
   workspaceAmbientBackground,
 } from '../layouts/workspace-list-shared-styles';
 
@@ -95,9 +95,13 @@ export const toolbarLabel = style(toolbarLabelStyle);
 
 export const toolbarSelect = style(toolbarSelectStyle);
 
-export const toolbarSortDirectionButton = style(toolbarSortDirectionButtonStyle);
+export const toolbarSortDirectionButton = style(
+  toolbarSortDirectionButtonStyle
+);
 
-export const filterChipLowPriority = style(filterChipLowPriorityStyle('akten-body'));
+export const filterChipLowPriority = style(
+  filterChipLowPriorityStyle('akten-body')
+);
 
 export const actionStatus = style({
   margin: `10px ${layoutGutter}px 0`,
@@ -137,15 +141,19 @@ export const quickstartCard = style({
   border: `0.5px solid ${glassStroke}`,
   background: glassFill,
   backdropFilter: 'blur(12px) saturate(130%)',
-  boxShadow: '0 1px 3px rgba(0,0,0,0.06), 0 0 0 0.5px rgba(255,255,255,0.04) inset',
+  boxShadow:
+    '0 1px 3px rgba(0,0,0,0.06), 0 0 0 0.5px rgba(255,255,255,0.04) inset',
   transition: 'border-color 0.2s ease, box-shadow 0.2s ease',
   selectors: {
     '&:hover': {
-      borderColor: 'color-mix(in srgb, var(--affine-border-color) 90%, var(--affine-primary-color))',
-      boxShadow: '0 2px 8px rgba(0,0,0,0.08), 0 0 0 0.5px rgba(255,255,255,0.06) inset',
+      borderColor:
+        'color-mix(in srgb, var(--affine-border-color) 90%, var(--affine-primary-color))',
+      boxShadow:
+        '0 2px 8px rgba(0,0,0,0.08), 0 0 0 0.5px rgba(255,255,255,0.06) inset',
     },
     '[data-theme="dark"] &': {
-      boxShadow: '0 1px 4px rgba(0,0,0,0.2), 0 0 0 0.5px rgba(255,255,255,0.04) inset',
+      boxShadow:
+        '0 1px 4px rgba(0,0,0,0.2), 0 0 0 0.5px rgba(255,255,255,0.04) inset',
     },
   },
 });
@@ -172,7 +180,8 @@ export const quickstartDescription = style({
   maxWidth: 720,
   selectors: {
     '[data-theme="dark"] &': {
-      color: 'color-mix(in srgb, var(--affine-text-primary-color) 78%, var(--affine-text-secondary-color))',
+      color:
+        'color-mix(in srgb, var(--affine-text-primary-color) 78%, var(--affine-text-secondary-color))',
     },
   },
 });
@@ -190,7 +199,8 @@ export const quickstartButton = style({
   background: cssVarV2('button/primary'),
   color: cssVarV2('button/pureWhiteText'),
   boxShadow: `0 2px 8px color-mix(in srgb, ${cssVarV2('button/primary')} 32%, transparent)`,
-  transition: 'transform 0.14s ease, opacity 0.14s ease, box-shadow 0.14s ease, background 0.15s ease',
+  transition:
+    'transform 0.14s ease, opacity 0.14s ease, box-shadow 0.14s ease, background 0.15s ease',
   selectors: {
     '&:hover:not(:disabled)': {
       background: `color-mix(in srgb, ${cssVarV2('button/primary')} 88%, var(--affine-background-primary-color))`,
@@ -263,7 +273,8 @@ export const akteRowSoon = style({
 
 export const akteRowTrashed = style({
   opacity: 0.65,
-  borderColor: 'color-mix(in srgb, var(--affine-border-color) 50%, transparent)',
+  borderColor:
+    'color-mix(in srgb, var(--affine-border-color) 50%, transparent)',
   selectors: {
     '&:hover, &:focus-visible': {
       opacity: 0.8,
@@ -307,6 +318,33 @@ export const filterGroupRight = style(filterGroupRightStyle('akten-body'));
 
 export const filterChip = style(filterChipStyle);
 
+export const primaryActionChip = style({
+  ...filterChipStyle,
+  minHeight: 30,
+  padding: '5px 12px',
+  fontWeight: 700,
+  color: cssVarV2('button/pureWhiteText'),
+  borderColor: `color-mix(in srgb, ${cssVarV2('button/primary')} 34%, transparent)`,
+  background: cssVarV2('button/primary'),
+  boxShadow: `0 2px 10px color-mix(in srgb, ${cssVarV2('button/primary')} 34%, transparent)`,
+  selectors: {
+    '&:hover:not(:disabled)': {
+      background: `color-mix(in srgb, ${cssVarV2('button/primary')} 88%, var(--affine-background-primary-color))`,
+      borderColor: `color-mix(in srgb, ${cssVarV2('button/primary')} 42%, transparent)`,
+      transform: 'translateY(-0.5px)',
+      boxShadow: `0 4px 14px color-mix(in srgb, ${cssVarV2('button/primary')} 40%, transparent)`,
+    },
+    '&:focus-visible': {
+      outline: `2px solid ${cssVarV2('button/primary')}`,
+      outlineOffset: 2,
+    },
+    '&:disabled': {
+      opacity: 0.6,
+      cursor: 'not-allowed',
+    },
+  },
+});
+
 export const akteRow = style({
   ...listRowBaseStyle,
   display: 'grid',
@@ -322,7 +360,8 @@ export const akteRow = style({
     },
     '&:hover': {
       background: 'var(--affine-hover-color)',
-      borderColor: 'color-mix(in srgb, var(--affine-border-color) 70%, transparent)',
+      borderColor:
+        'color-mix(in srgb, var(--affine-border-color) 70%, transparent)',
       borderBottomColor: rowDividerColor,
       borderRadius: 10,
     },
@@ -406,13 +445,16 @@ export const akteFolderMetaBadge = style({
   lineHeight: '14px',
   fontWeight: 600,
   color: cssVarV2('text/secondary'),
-  background: 'color-mix(in srgb, var(--affine-v2-highlight-secondary, rgba(6, 182, 212, 0.06)) 40%, color-mix(in srgb, var(--affine-background-primary-color) 76%, transparent))',
+  background:
+    'color-mix(in srgb, var(--affine-v2-highlight-secondary, rgba(6, 182, 212, 0.06)) 40%, color-mix(in srgb, var(--affine-background-primary-color) 76%, transparent))',
   border: `0.5px solid ${glassStroke}`,
   whiteSpace: 'nowrap',
   selectors: {
     '[data-theme="dark"] &': {
-      color: 'color-mix(in srgb, var(--affine-text-primary-color) 78%, var(--affine-text-secondary-color))',
-      borderColor: 'color-mix(in srgb, var(--affine-theme-secondary-soft, rgba(6, 182, 212, 0.14)) 50%, rgba(255, 255, 255, 0.12))',
+      color:
+        'color-mix(in srgb, var(--affine-text-primary-color) 78%, var(--affine-text-secondary-color))',
+      borderColor:
+        'color-mix(in srgb, var(--affine-theme-secondary-soft, rgba(6, 182, 212, 0.14)) 50%, rgba(255, 255, 255, 0.12))',
     },
     '&[data-alert="true"]': {
       color: 'var(--affine-v2-status-error, ' + cssVarV2('status/error') + ')',
@@ -437,7 +479,8 @@ export const akteSubtitle = style({
   whiteSpace: 'nowrap',
   selectors: {
     '[data-theme="dark"] &': {
-      color: 'color-mix(in srgb, var(--affine-text-primary-color) 80%, var(--affine-text-secondary-color))',
+      color:
+        'color-mix(in srgb, var(--affine-text-primary-color) 80%, var(--affine-text-secondary-color))',
     },
   },
 });
@@ -451,7 +494,8 @@ export const akteMeta = style({
   whiteSpace: 'nowrap',
   selectors: {
     '[data-theme="dark"] &': {
-      color: 'color-mix(in srgb, var(--affine-text-primary-color) 76%, var(--affine-text-secondary-color))',
+      color:
+        'color-mix(in srgb, var(--affine-text-primary-color) 76%, var(--affine-text-secondary-color))',
     },
   },
   '@container': {
@@ -470,7 +514,8 @@ export const akteMetaHideSm = style({
   whiteSpace: 'nowrap',
   selectors: {
     '[data-theme="dark"] &': {
-      color: 'color-mix(in srgb, var(--affine-text-primary-color) 76%, var(--affine-text-secondary-color))',
+      color:
+        'color-mix(in srgb, var(--affine-text-primary-color) 76%, var(--affine-text-secondary-color))',
     },
   },
   '@container': {
@@ -511,7 +556,8 @@ export const emptyDescription = style({
   lineHeight: '22px',
   selectors: {
     '[data-theme="dark"] &': {
-      color: 'color-mix(in srgb, var(--affine-text-primary-color) 74%, var(--affine-text-secondary-color))',
+      color:
+        'color-mix(in srgb, var(--affine-text-primary-color) 74%, var(--affine-text-secondary-color))',
     },
   },
 });

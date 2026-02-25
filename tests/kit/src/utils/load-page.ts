@@ -1,17 +1,17 @@
 import type { Page } from '@playwright/test';
 
-export let coreUrl = 'http://localhost:8080';
+export let coreUrl = '';
 
 export function setCoreUrl(url: string) {
   coreUrl = url;
 }
 
 export async function openHomePage(page: Page) {
-  await page.goto(coreUrl);
+  await page.goto(coreUrl || '/');
 }
 
 export async function open404Page(page: Page) {
-  await page.goto(`${coreUrl}/404`);
+  await page.goto(coreUrl ? `${coreUrl}/404` : '/404');
 }
 
 export async function confirmCreateJournal(page: Page) {

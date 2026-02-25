@@ -66,7 +66,7 @@ test.skip('migration', async ({ page, browser }) => {
     await enableCloudWorkspace(page);
     await clickNewPageButton(page);
     await waitForEditorLoad(page);
-    // http://localhost:8080/workspace/2bc0b6c8-f68d-4dd3-98a8-be746754f9e1/xxx
+    // format: {baseURL}/workspace/{workspaceId}/...
     workspaceId = page.url().split('/')[4];
     await runPrisma(async client => {
       const sqls = (

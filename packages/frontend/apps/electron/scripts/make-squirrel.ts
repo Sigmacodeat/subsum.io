@@ -45,7 +45,8 @@ async function make() {
     outputDirectory: outPath,
     iconUrl: iconUrl,
     setupIcon: icoPath,
-    loadingGif: path.resolve(ROOT, './resources/icons/affine_installing.gif'),
+    // loadingGif removed: AFFiNE branding asset deleted during Subsumio rebrand
+    loadingGif: undefined as unknown as string,
   };
 
   await createWindowsInstaller(winstallerConfig);

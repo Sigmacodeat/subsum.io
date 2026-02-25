@@ -43,7 +43,7 @@ test.skip('can collaborate with other user and name should display when editing'
   await enableCloudWorkspace(page);
   await clickNewPageButton(page);
   const currentUrl = page.url();
-  // format: http://localhost:8080/workspace/${workspaceId}/xxx
+  // format: {baseURL}/workspace/${workspaceId}/...
   const workspaceId = currentUrl.split('/')[4];
   const userB = await createRandomUser();
   const context = await browser.newContext();

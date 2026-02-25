@@ -20,6 +20,7 @@ export default defineConfig({
       'src/modules/case-assistant/__tests__/legal-copilot-workflow.spec.ts',
       'src/modules/case-assistant/__tests__/anwalts-reminder.spec.ts',
       'src/modules/case-assistant/__tests__/deadline-alert-bridge.spec.ts',
+      'src/modules/case-assistant/__tests__/platform-orchestration-sync.spec.ts',
     ],
     environment: 'node',
     globals: true,

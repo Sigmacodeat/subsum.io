@@ -1,6 +1,6 @@
 export const BRAND_NAME = 'Subsumio';
 
-export const BRAND_SITE_URL = 'https://subsumio.ai';
+export const BRAND_SITE_URL = 'https://subsumio.com';
 
 export const BRAND_COMPANY_NAME = 'Sigmacode GmbH';
 

@@ -14,7 +14,8 @@ runs:
       run: ${{ inputs.script }}
       env:
         COPILOT: true
-        DEV_SERVER_URL: http://localhost:8080
+        PLAYWRIGHT_BASE_URL: ${{ env.PLAYWRIGHT_BASE_URL || 'http://localhost:8080/' }}
+        DEV_SERVER_URL: ${{ env.PLAYWRIGHT_BASE_URL || 'http://localhost:8080/' }}
 
     - name: Upload test results
       if: ${{ failure() }}

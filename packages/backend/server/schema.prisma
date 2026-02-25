@@ -1551,3 +1551,357 @@ model CalendarEventInstance {
   @@index([calendarEventId, startAtUtc])
   @@map("calendar_event_instances")
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// LEGAL DOMAIN – Server-seitige Persistenz für Kanzlei-Daten
+// ═══════════════════════════════════════════════════════════════════════════
+
+enum LegalClientKind {
+  person
+  company
+  authority
+}
+
+// Mandanten (Clients)
+model LegalClient {
+  id             String          @id @default(uuid()) @db.VarChar
+  workspaceId    String          @map("workspace_id") @db.VarChar
+  organizationId String?         @map("organization_id") @db.VarChar
+  kind           LegalClientKind @default(person)
+  displayName    String          @map("display_name") @db.VarChar
+  firstName      String?         @map("first_name") @db.VarChar
+  lastName       String?         @map("last_name") @db.VarChar
+  companyName    String?         @map("company_name") @db.VarChar
+  primaryEmail   String?         @map("primary_email") @db.VarChar
+  primaryPhone   String?         @map("primary_phone") @db.VarChar
+  address        String?         @db.Text
+  taxId          String?         @map("tax_id") @db.VarChar
+  dateOfBirth    DateTime?       @map("date_of_birth") @db.Date
+  notes          String?         @db.Text
+  tags           String[]        @default([]) @db.VarChar
+  archived       Boolean         @default(false)
+  // GwG/KYC fields
+  kycStatus      String?         @map("kyc_status") @db.VarChar(20)
+  kycVerifiedAt  DateTime?       @map("kyc_verified_at") @db.Timestamptz(3)
+  kycVerifiedBy  String?         @map("kyc_verified_by") @db.VarChar
+  identifiers    Json?           @db.JsonB
+  metadata       Json?           @db.JsonB
+  createdAt      DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime        @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt      DateTime?       @map("deleted_at") @db.Timestamptz(3)
+
+  matters       LegalMatter[]      @relation("primary_client")
+  matterClients LegalMatterClient[]
+  timeEntries   LegalTimeEntry[]
+  invoices      LegalInvoice[]
+  auditLogs     LegalAuditLog[]    @relation("audit_client")
+  conflictChecks LegalConflictCheck[]
+
+  @@index([workspaceId, archived])
+  @@index([workspaceId, displayName])
+  @@index([organizationId])
+  @@index([primaryEmail])
+  @@map("legal_clients")
+}
+
+enum LegalMatterStatus {
+  open
+  closed
+  archived
+}
+
+// Akten (Matters)
+model LegalMatter {
+  id                 String            @id @default(uuid()) @db.VarChar
+  workspaceId        String            @map("workspace_id") @db.VarChar
+  organizationId     String?           @map("organization_id") @db.VarChar
+  clientId           String            @map("client_id") @db.VarChar
+  title              String            @db.VarChar
+  externalRef        String?           @map("external_ref") @db.VarChar
+  status             LegalMatterStatus @default(open)
+  jurisdiction       String?           @db.VarChar(10)
+  rechtsgebiet       String?           @db.VarChar(100)
+  gericht            String?           @db.VarChar
+  aktenzeichen       String?           @db.VarChar
+  streitwert         Decimal?          @db.Decimal(14, 2)
+  assignedAnwaltId   String?           @map("assigned_anwalt_id") @db.VarChar
+  assignedAnwaltIds  String[]          @default([]) @map("assigned_anwalt_ids") @db.VarChar
+  gegnerName         String?           @map("gegner_name") @db.VarChar
+  gegnerAnwalt       String?           @map("gegner_anwalt") @db.VarChar
+  summary            String?           @db.Text
+  tags               String[]          @default([]) @db.VarChar
+  metadata           Json?             @db.JsonB
+  trashedAt          DateTime?         @map("trashed_at") @db.Timestamptz(3)
+  purgeAt            DateTime?         @map("purge_at") @db.Timestamptz(3)
+  createdAt          DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  client          LegalClient          @relation("primary_client", fields: [clientId], references: [id], onDelete: Cascade)
+  matterClients   LegalMatterClient[]
+  caseFiles       LegalCaseFile[]
+  deadlines       LegalDeadline[]
+  timeEntries     LegalTimeEntry[]
+  invoices        LegalInvoice[]
+  auditLogs       LegalAuditLog[]      @relation("audit_matter")
+  conflictChecks  LegalConflictCheck[]
+
+  @@index([workspaceId, status])
+  @@index([workspaceId, clientId])
+  @@index([organizationId, status])
+  @@index([externalRef])
+  @@index([aktenzeichen])
+  @@map("legal_matters")
+}
+
+// Multi-Mandant pro Akte (Streitgenossenschaft, Erbengemeinschaft)
+model LegalMatterClient {
+  matterId  String   @map("matter_id") @db.VarChar
+  clientId  String   @map("client_id") @db.VarChar
+  role      String?  @db.VarChar(50)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  matter LegalMatter @relation(fields: [matterId], references: [id], onDelete: Cascade)
+  client LegalClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@id([matterId, clientId])
+  @@map("legal_matter_clients")
+}
+
+// Fallakten (Case Files) – einzelne Verfahrensschritte innerhalb einer Akte
+model LegalCaseFile {
+  id          String   @id @default(uuid()) @db.VarChar
+  workspaceId String   @map("workspace_id") @db.VarChar
+  matterId    String   @map("matter_id") @db.VarChar
+  title       String?  @db.VarChar
+  summary     String?  @db.Text
+  priority    String   @default("medium") @db.VarChar(20)
+  docIds      String[] @default([]) @map("doc_ids") @db.VarChar
+  deadlineIds String[] @default([]) @map("deadline_ids") @db.VarChar
+  metadata    Json?    @db.JsonB
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  matter LegalMatter @relation(fields: [matterId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@index([matterId])
+  @@map("legal_case_files")
+}
+
+enum LegalDeadlineStatus {
+  open
+  alerted
+  acknowledged
+  completed
+  expired
+}
+
+enum LegalDeadlinePriority {
+  critical
+  high
+  medium
+  low
+}
+
+enum LegalDeadlineCategory {
+  frist
+  wiedervorlage
+  termin
+  custom
+}
+
+// Fristen & Termine
+model LegalDeadline {
+  id                      String                @id @default(uuid()) @db.VarChar
+  workspaceId             String                @map("workspace_id") @db.VarChar
+  matterId                String                @map("matter_id") @db.VarChar
+  caseFileId              String?               @map("case_file_id") @db.VarChar
+  title                   String                @db.VarChar
+  description             String?               @db.Text
+  category                LegalDeadlineCategory @default(frist)
+  priority                LegalDeadlinePriority @default(medium)
+  status                  LegalDeadlineStatus   @default(open)
+  dueAt                   DateTime              @map("due_at") @db.Timestamptz(3)
+  allDay                  Boolean               @default(false) @map("all_day")
+  reminderOffsetsMinutes  Int[]                 @default([1440, 60, 15]) @map("reminder_offsets_minutes")
+  legalBasis              String?               @map("legal_basis") @db.VarChar
+  // 4-Augen-Prinzip
+  confirmedByUserId       String?               @map("confirmed_by_user_id") @db.VarChar
+  confirmedAt             DateTime?             @map("confirmed_at") @db.Timestamptz(3)
+  secondConfirmedByUserId String?               @map("second_confirmed_by_user_id") @db.VarChar
+  secondConfirmedAt       DateTime?             @map("second_confirmed_at") @db.Timestamptz(3)
+  acknowledgedAt          DateTime?             @map("acknowledged_at") @db.Timestamptz(3)
+  completedAt             DateTime?             @map("completed_at") @db.Timestamptz(3)
+  metadata                Json?                 @db.JsonB
+  createdAt               DateTime              @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt               DateTime              @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  matter LegalMatter @relation(fields: [matterId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, status, dueAt])
+  @@index([matterId, status])
+  @@index([dueAt, status])
+  @@map("legal_deadlines")
+}
+
+enum LegalTimeEntryStatus {
+  draft
+  submitted
+  approved
+  rejected
+  invoiced
+}
+
+enum LegalActivityType {
+  beratung
+  schriftsatz
+  recherche
+  korrespondenz
+  termin
+  akteneinsicht
+  sonstiges
+}
+
+// Zeiterfassung
+model LegalTimeEntry {
+  id              String               @id @default(uuid()) @db.VarChar
+  workspaceId     String               @map("workspace_id") @db.VarChar
+  matterId        String               @map("matter_id") @db.VarChar
+  clientId        String               @map("client_id") @db.VarChar
+  anwaltId        String               @map("anwalt_id") @db.VarChar
+  anwaltUserId    String?              @map("anwalt_user_id") @db.VarChar
+  description     String               @db.Text
+  activityType    LegalActivityType    @default(sonstiges) @map("activity_type")
+  durationMinutes Int                  @map("duration_minutes")
+  hourlyRate      Decimal              @map("hourly_rate") @db.Decimal(10, 2)
+  amount          Decimal              @db.Decimal(10, 2)
+  date            DateTime             @db.Date
+  status          LegalTimeEntryStatus @default(draft)
+  invoiceId       String?              @map("invoice_id") @db.VarChar
+  metadata        Json?                @db.JsonB
+  createdAt       DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime             @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  matter  LegalMatter  @relation(fields: [matterId], references: [id], onDelete: Cascade)
+  client  LegalClient  @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  invoice LegalInvoice? @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, status])
+  @@index([matterId, status])
+  @@index([clientId])
+  @@index([anwaltUserId, date])
+  @@index([invoiceId])
+  @@map("legal_time_entries")
+}
+
+enum LegalInvoiceStatus {
+  draft
+  sent
+  paid
+  overdue
+  cancelled
+  credited
+}
+
+// Rechnungen
+model LegalInvoice {
+  id              String             @id @default(uuid()) @db.VarChar
+  workspaceId     String             @map("workspace_id") @db.VarChar
+  matterId        String             @map("matter_id") @db.VarChar
+  clientId        String             @map("client_id") @db.VarChar
+  invoiceNumber   String             @map("invoice_number") @db.VarChar
+  status          LegalInvoiceStatus @default(draft)
+  currency        String             @default("EUR") @db.VarChar(3)
+  subtotalCents   Int                @map("subtotal_cents") @db.Integer
+  taxRateBps      Int                @default(1900) @map("tax_rate_bps") @db.Integer
+  taxAmountCents  Int                @map("tax_amount_cents") @db.Integer
+  totalCents      Int                @map("total_cents") @db.Integer
+  issuedAt        DateTime?          @map("issued_at") @db.Timestamptz(3)
+  dueDate         DateTime?          @map("due_date") @db.Date
+  paidAt          DateTime?          @map("paid_at") @db.Timestamptz(3)
+  notes           String?            @db.Text
+  lineItems       Json               @default("[]") @map("line_items") @db.JsonB
+  metadata        Json?              @db.JsonB
+  createdAt       DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime           @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  matter      LegalMatter      @relation(fields: [matterId], references: [id], onDelete: Cascade)
+  client      LegalClient      @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  timeEntries LegalTimeEntry[]
+
+  @@unique([workspaceId, invoiceNumber])
+  @@index([workspaceId, status])
+  @@index([matterId])
+  @@index([clientId])
+  @@map("legal_invoices")
+}
+
+enum LegalAuditSeverity {
+  info
+  warning
+  error
+  critical
+}
+
+// Server-seitiges Audit-Trail (unveränderlich, DSGVO-konform)
+model LegalAuditLog {
+  id             String             @id @default(uuid()) @db.VarChar
+  workspaceId    String             @map("workspace_id") @db.VarChar
+  organizationId String?            @map("organization_id") @db.VarChar
+  userId         String?            @map("user_id") @db.VarChar
+  clientId       String?            @map("client_id") @db.VarChar
+  matterId       String?            @map("matter_id") @db.VarChar
+  action         String             @db.VarChar(100)
+  severity       LegalAuditSeverity @default(info)
+  details        String             @db.Text
+  ipAddress      String?            @map("ip_address") @db.VarChar(45)
+  userAgent      String?            @map("user_agent") @db.VarChar
+  metadata       Json?              @db.JsonB
+  createdAt      DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  client LegalClient? @relation("audit_client", fields: [clientId], references: [id], onDelete: SetNull)
+  matter LegalMatter? @relation("audit_matter", fields: [matterId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, createdAt(sort: Desc)])
+  @@index([workspaceId, action, createdAt(sort: Desc)])
+  @@index([matterId, createdAt(sort: Desc)])
+  @@index([clientId, createdAt(sort: Desc)])
+  @@index([userId, createdAt(sort: Desc)])
+  @@map("legal_audit_logs")
+}
+
+enum LegalConflictStatus {
+  clear
+  potential_conflict
+  confirmed_conflict
+  waived
+}
+
+// Kollisionsprüfung (Conflict of Interest Check)
+model LegalConflictCheck {
+  id               String              @id @default(uuid()) @db.VarChar
+  workspaceId      String              @map("workspace_id") @db.VarChar
+  organizationId   String?             @map("organization_id") @db.VarChar
+  clientId         String              @map("client_id") @db.VarChar
+  matterId         String?             @map("matter_id") @db.VarChar
+  checkedByUserId  String              @map("checked_by_user_id") @db.VarChar
+  status           LegalConflictStatus @default(clear)
+  opposingParties  String[]            @default([]) @map("opposing_parties") @db.VarChar
+  matchedClientIds String[]            @default([]) @map("matched_client_ids") @db.VarChar
+  matchedMatterIds String[]            @default([]) @map("matched_matter_ids") @db.VarChar
+  waivedByUserId   String?             @map("waived_by_user_id") @db.VarChar
+  waivedAt         DateTime?           @map("waived_at") @db.Timestamptz(3)
+  waiverReason     String?             @map("waiver_reason") @db.Text
+  details          String?             @db.Text
+  createdAt        DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime            @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  client LegalClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  matter LegalMatter? @relation(fields: [matterId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, createdAt(sort: Desc)])
+  @@index([organizationId, status])
+  @@index([clientId])
+  @@index([matterId])
+  @@map("legal_conflict_checks")
+}

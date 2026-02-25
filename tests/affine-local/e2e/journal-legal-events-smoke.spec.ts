@@ -25,7 +25,9 @@ async function openPagePropertiesAndAddJournal(page: Page) {
   if ((await getJournalRow(page).count()) === 0) {
     const addPropertyButton = page.getByTestId('add-property-button');
     if (!(await addPropertyButton.isVisible())) {
-      await page.getByTestId('property-collapsible-button').click({ force: true });
+      await page
+        .getByTestId('property-collapsible-button')
+        .click({ force: true });
     }
     await addPropertyButton.click({ force: true });
     await page
@@ -33,7 +35,9 @@ async function openPagePropertiesAndAddJournal(page: Page) {
       .click({ force: true });
     await page.keyboard.press('Escape');
   } else if (!(await getJournalRow(page).isVisible())) {
-    await page.getByTestId('property-collapsible-button').click({ force: true });
+    await page
+      .getByTestId('property-collapsible-button')
+      .click({ force: true });
   }
 
   const journalRow = getJournalRow(page);
@@ -55,7 +59,10 @@ async function seedLegalDeadlineScenario(page: Page, title: string) {
 
   await page.waitForFunction(() => {
     try {
-      return !!((window as any).currentWorkspace?.meta?.id || (window as any).currentWorkspace?.id);
+      return !!(
+        (window as any).currentWorkspace?.meta?.id ||
+        (window as any).currentWorkspace?.id
+      );
     } catch {
       return false;
     }
@@ -120,8 +127,18 @@ test('journal sidebar renders legal calendar events block (empty-state smoke)', 
   // If seeded data exists, block is still visible and test remains valid.
   const empty = page.getByTestId('legal-calendar-events-empty');
   if (await empty.isVisible()) {
-    await expect(empty).toContainText('Keine juristischen Termine oder Fristen');
+    await expect(empty).toContainText(
+      'Keine juristischen Termine oder Fristen'
+    );
   }
+
+  // Regression: sidebar should no longer render the old document activity block.
+  await expect(
+    journalPanel.getByRole('button', { name: 'Created' })
+  ).toHaveCount(0);
+  await expect(
+    journalPanel.getByRole('button', { name: 'Updated' })
+  ).toHaveCount(0);
 });
 
 test('journal sidebar renders seeded legal deadline section and items', async ({
@@ -145,7 +162,9 @@ test('journal sidebar renders seeded legal deadline section and items', async ({
   await expect(
     page.locator('[data-testid^="legal-calendar-events-section-"]').first()
   ).toBeVisible();
-  await expect(page.getByTestId('legal-calendar-events-item').first()).toBeVisible();
+  await expect(
+    page.getByTestId('legal-calendar-events-item').first()
+  ).toBeVisible();
 });
 
 test('journal legal section supports collapse/expand via click and keyboard', async ({
@@ -165,7 +184,9 @@ test('journal legal section supports collapse/expand via click and keyboard', as
   const panel = page.locator(`#${panelId}`);
 
   await expect(sectionButton).toHaveAttribute('aria-expanded', 'true');
-  await expect(panel.getByTestId('legal-calendar-events-item').first()).toBeVisible();
+  await expect(
+    panel.getByTestId('legal-calendar-events-item').first()
+  ).toBeVisible();
 
   // Mouse/click collapse
   await sectionButton.click({ force: true });
@@ -177,5 +198,7 @@ test('journal legal section supports collapse/expand via click and keyboard', as
   await expect(sectionButton).toBeFocused();
   await page.keyboard.press('Enter');
   await expect(sectionButton).toHaveAttribute('aria-expanded', 'true');
-  await expect(panel.getByTestId('legal-calendar-events-item').first()).toBeVisible();
+  await expect(
+    panel.getByTestId('legal-calendar-events-item').first()
+  ).toBeVisible();
 });

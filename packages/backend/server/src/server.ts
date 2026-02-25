@@ -35,6 +35,10 @@ export async function run() {
   const config = app.get(Config);
   const url = app.get(URLHelper);
 
+  if (config.server.trustProxy > 0) {
+    app.set('trust proxy', config.server.trustProxy);
+  }
+
   app.enableCors({
     credentials: true,
     origin: (origin, callback) => {

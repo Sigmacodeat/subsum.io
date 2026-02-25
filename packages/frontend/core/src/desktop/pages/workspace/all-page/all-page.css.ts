@@ -36,6 +36,48 @@ export const topControls = style({
   },
 });
 
+export const scopeToggle = style({
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 6,
+  padding: `0 ${layoutGutter}px`,
+  '@container': {
+    'docs-body (width <= 500px)': {
+      padding: `0 ${layoutGutterMd}px`,
+    },
+    'docs-body (width <= 393px)': {
+      padding: `0 ${layoutGutterSm}px`,
+    },
+  },
+});
+
+export const scopeToggleButton = style({
+  border: '1px solid var(--affine-border-color)',
+  background: 'var(--affine-background-primary-color)',
+  color: 'var(--affine-text-primary-color)',
+  borderRadius: 999,
+  padding: '6px 12px',
+  fontSize: 12,
+  lineHeight: '16px',
+  fontWeight: 600,
+  cursor: 'pointer',
+  transition: interactionTransition,
+  selectors: {
+    '&[data-active="true"]': {
+      background: 'var(--affine-primary-color)',
+      borderColor: 'var(--affine-primary-color)',
+      color: 'var(--affine-white)',
+    },
+    '&:hover': {
+      borderColor: 'var(--affine-primary-color)',
+    },
+    '&:focus-visible': {
+      outline: '2px solid var(--affine-primary-color)',
+      outlineOffset: 1,
+    },
+  },
+});
+
 export const scrollArea = style({
   height: 0,
   flex: 1,

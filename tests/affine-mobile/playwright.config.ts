@@ -1,6 +1,9 @@
 import { testResultDir } from '@affine-test/kit/playwright';
 import { devices, type PlaywrightTestConfig } from '@playwright/test';
 
+const playwrightBaseUrl =
+  process.env.PLAYWRIGHT_BASE_URL ?? 'http://localhost:8080/';
+
 /**
  * See https://playwright.dev/docs/test-configuration.
  */
@@ -29,7 +32,7 @@ const config: PlaywrightTestConfig = {
     timeout: process.env.CI ? 15_000 : 5_000,
   },
   use: {
-    baseURL: 'http://localhost:8080/',
+    baseURL: playwrightBaseUrl,
     locale: 'en-US',
     // Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer
     // You can open traces locally(`npx playwright show-trace trace.zip`)
@@ -55,7 +58,7 @@ const config: PlaywrightTestConfig = {
       env: {
         COVERAGE: process.env.COVERAGE || 'false',
       },
-      url: 'http://localhost:8080',
+      url: new URL(playwrightBaseUrl).origin,
     },
   ],
 };

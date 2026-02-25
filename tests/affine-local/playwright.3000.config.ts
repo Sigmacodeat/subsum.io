@@ -4,13 +4,16 @@ import type {
   PlaywrightWorkerOptions,
 } from '@playwright/test';
 
+const playwrightBaseUrl =
+  process.env.PLAYWRIGHT_BASE_URL ?? 'http://localhost:3000/';
+
 const config: PlaywrightTestConfig = {
   testDir: './e2e',
   fullyParallel: false,
-  timeout: process.env.CI ? 180_000 : 180_000,
+  timeout: 180_000,
   outputDir: testResultDir,
   use: {
-    baseURL: 'http://localhost:3000/',
+    baseURL: playwrightBaseUrl,
     browserName:
       (process.env.BROWSER as PlaywrightWorkerOptions['browserName']) ??
       'chromium',

@@ -1,4 +1,4 @@
-import { type MenuProps } from '@affine/component';
+import { Button, type MenuProps } from '@affine/component';
 import { usePageHelper } from '@affine/core/blocksuite/block-suite-page-list/utils';
 import { ExplorerDisplayMenuButton } from '@affine/core/components/explorer/display-menu';
 import { ViewToggle } from '@affine/core/components/explorer/display-menu/view-toggle';
@@ -29,6 +29,11 @@ export const AllDocsHeader = ({
   onDisplayPreferenceChange,
   view,
   onViewChange,
+  selectMode,
+  selectedCount,
+  totalCount,
+  onToggleSelectMode,
+  onSelectAll,
 }: {
   displayPreference: ExplorerDisplayPreference;
   onDisplayPreferenceChange: (
@@ -36,6 +41,11 @@ export const AllDocsHeader = ({
   ) => void;
   view: DocListItemView;
   onViewChange: (view: DocListItemView) => void;
+  selectMode: boolean;
+  selectedCount: number;
+  totalCount: number;
+  onToggleSelectMode: () => void;
+  onSelectAll: () => void;
 }) => {
   const t = useI18n();
   const workspaceService = useService(WorkspaceService);
@@ -89,6 +99,37 @@ export const AllDocsHeader = ({
           displayPreference={displayPreference}
           onDisplayPreferenceChange={onDisplayPreferenceChange}
         />
+        {selectMode ? (
+          <>
+            <Button
+              variant="plain"
+              onClick={onSelectAll}
+              className={styles.selectModeButton}
+              data-testid="all-docs-select-all"
+            >
+              {selectedCount === totalCount && totalCount > 0
+                ? t['com.affine.page.group-header.clear']()
+                : `${t['com.affine.page.group-header.select-all']()} (${totalCount})`}
+            </Button>
+            <Button
+              variant="primary"
+              onClick={onToggleSelectMode}
+              className={styles.selectModeButton}
+              data-testid="all-docs-toggle-select-mode"
+            >
+              {`${t['Cancel']()}${selectedCount > 0 ? ` (${selectedCount})` : ''}`}
+            </Button>
+          </>
+        ) : (
+          <Button
+            variant="plain"
+            onClick={onToggleSelectMode}
+            className={styles.selectModeButton}
+            data-testid="all-docs-toggle-select-mode"
+          >
+            {t.t('com.affine.all-docs.quick-action.select')}
+          </Button>
+        )}
         <PageListNewPageButton
           size="small"
           onCreateEdgeless={e => createEdgeless({ at: inferOpenMode(e) })}

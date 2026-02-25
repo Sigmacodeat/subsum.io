@@ -1,31 +1,32 @@
+import {
+  IconButton,
+  Menu,
+  MenuItem,
+  useConfirmModal,
+  usePromptModal,
+} from '@affine/component';
+import { useI18n } from '@affine/i18n';
+import { MoreVerticalIcon } from '@blocksuite/icons/rc';
 import { useLiveData, useService } from '@toeverything/infra';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { IconButton, Menu, MenuItem, useConfirmModal, usePromptModal } from '@affine/component';
-import { useI18n } from '@affine/i18n';
-import { MoreVerticalIcon } from '@blocksuite/icons/rc';
-
-import {
-  ViewBody,
-  ViewIcon,
-  ViewTitle,
-} from '../../../../modules/workbench';
-import { WorkbenchService } from '../../../../modules/workbench';
-import { DocsService } from '../../../../modules/doc';
+import { CaseAssistantService } from '../../../../modules/case-assistant/services/case-assistant';
 import { LegalCopilotWorkflowService } from '../../../../modules/case-assistant/services/legal-copilot-workflow';
 import { CasePlatformOrchestrationService } from '../../../../modules/case-assistant/services/platform-orchestration';
-import { CaseAssistantService } from '../../../../modules/case-assistant/services/case-assistant';
 import { CaseAssistantStore } from '../../../../modules/case-assistant/stores/case-assistant';
-import { WorkspaceService } from '../../../../modules/workspace';
 import type {
+  AnwaltProfile,
+  CaseDeadline,
+  ClientRecord,
   MatterRecord,
   MatterStatus,
-  ClientRecord,
-  CaseDeadline,
-  AnwaltProfile,
 } from '../../../../modules/case-assistant/types';
-import { AllDocSidebarTabs } from '../layouts/all-doc-sidebar-tabs';
+import { DocsService } from '../../../../modules/doc';
+import { ViewBody, ViewIcon, ViewTitle } from '../../../../modules/workbench';
+import { WorkbenchService } from '../../../../modules/workbench';
+import { WorkspaceService } from '../../../../modules/workspace';
 import { createLocalRecordId } from '../detail-page/tabs/case-assistant/utils';
+import { AllDocSidebarTabs } from '../layouts/all-doc-sidebar-tabs';
 import { BulkActionBar } from '../layouts/bulk-action-bar';
 import { useBulkSelection } from '../layouts/use-bulk-selection';
 import * as styles from './all-akten.css';
@@ -152,7 +153,9 @@ export const AllAktenPage = () => {
   const docsService = useService(DocsService);
   const caseAssistantService = useService(CaseAssistantService);
   const legalCopilotWorkflowService = useService(LegalCopilotWorkflowService);
-  const casePlatformOrchestrationService = useService(CasePlatformOrchestrationService);
+  const casePlatformOrchestrationService = useService(
+    CasePlatformOrchestrationService
+  );
 
   const { openConfirmModal } = useConfirmModal();
   const { openPromptModal } = usePromptModal();
@@ -171,6 +174,7 @@ export const AllAktenPage = () => {
   const [focusedIndex, setFocusedIndex] = useState<number>(-1);
 
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const createMatterButtonRef = useRef<HTMLButtonElement>(null);
   const actionStatusTimerRef = useRef<number | null>(null);
   const language = t.language || 'en';
 
@@ -193,12 +197,19 @@ export const AllAktenPage = () => {
     [t]
   );
 
-  const matters = useMemo(() => Object.values(graph.matters ?? {}), [graph.matters]);
+  const matters = useMemo(
+    () => Object.values(graph.matters ?? {}),
+    [graph.matters]
+  );
   const clients = useMemo(() => graph.clients ?? {}, [graph.clients]);
   const deadlines = useMemo(() => graph.deadlines ?? {}, [graph.deadlines]);
   const anwaelte = useMemo(() => (graph as any).anwaelte ?? {}, [graph]);
-  const caseFiles = useMemo(() => Object.values(graph.cases ?? {}), [graph.cases]);
-  const legalDocs = useLiveData(legalCopilotWorkflowService.legalDocuments$) ?? [];
+  const caseFiles = useMemo(
+    () => Object.values(graph.cases ?? {}),
+    [graph.cases]
+  );
+  const legalDocs =
+    useLiveData(legalCopilotWorkflowService.legalDocuments$) ?? [];
 
   const caseToMatterMap = useMemo(() => {
     const map = new Map<string, string>();
@@ -237,114 +248,133 @@ export const AllAktenPage = () => {
   // Auto-clear actionStatus after 4 s
   const showActionStatus = useCallback((msg: string) => {
     setActionStatus(msg);
-    if (actionStatusTimerRef.current) window.clearTimeout(actionStatusTimerRef.current);
-    actionStatusTimerRef.current = window.setTimeout(() => setActionStatus(null), 4000);
+    if (actionStatusTimerRef.current)
+      window.clearTimeout(actionStatusTimerRef.current);
+    actionStatusTimerRef.current = window.setTimeout(
+      () => setActionStatus(null),
+      4000
+    );
   }, []);
 
-  useEffect(() => () => {
-    if (actionStatusTimerRef.current) window.clearTimeout(actionStatusTimerRef.current);
-  }, []);
+  useEffect(
+    () => () => {
+      if (actionStatusTimerRef.current)
+        window.clearTimeout(actionStatusTimerRef.current);
+    },
+    []
+  );
 
-  // "/" focuses search; Escape closes context menu
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      const tag = (document.activeElement as HTMLElement)?.tagName;
-      if (e.key === '/' && tag !== 'INPUT' && tag !== 'TEXTAREA') {
-        e.preventDefault();
-        searchInputRef.current?.focus();
-        searchInputRef.current?.select();
-      }
-    };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, []);
+    const params = new URLSearchParams(window.location.search);
+    const focusTarget = params.get('caFocus');
+    if (focusTarget !== 'create-matter') {
+      return;
+    }
+
+    window.requestAnimationFrame(() => {
+      createMatterButtonRef.current?.focus();
+    });
+    showActionStatus(
+      'Bitte hier die Akte anlegen, danach kannst du Dokumente hochladen.'
+    );
+
+    params.delete('caFocus');
+    const nextSearch = params.toString();
+    window.history.replaceState(
+      window.history.state,
+      '',
+      `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ''}${window.location.hash}`
+    );
+  }, [showActionStatus]);
 
   const statusCounts = useMemo(() => {
-    const nonTrashed = matters.filter(m => !m.trashedAt);
-    const nonArchived = nonTrashed.filter(m => m.status !== 'archived');
-    const trashed = matters.filter(m => m.trashedAt);
+    let open = 0;
+    let closed = 0;
+    let archived = 0;
+    let trashed = 0;
+    for (const matter of matters) {
+      if (matter.trashedAt) {
+        trashed += 1;
+        continue;
+      }
+      if (matter.status === 'open') open += 1;
+      else if (matter.status === 'closed') closed += 1;
+      else archived += 1;
+    }
     return {
-      all: nonArchived.length,
-      open: nonTrashed.filter(m => m.status === 'open').length,
-      closed: nonTrashed.filter(m => m.status === 'closed').length,
-      archived: nonTrashed.filter(m => m.status === 'archived').length,
-      trashed: trashed.length,
+      all: matters.length,
+      open,
+      closed,
+      archived,
+      trashed,
     };
   }, [matters]);
 
-  // Filtering
-  const filtered = useMemo(() => {
-    let result = matters;
+  const isTrashView = statusFilter === 'trashed' || savedView === 'trash';
 
-    const effectiveStatusFilter =
-      savedView === 'focus'
-        ? 'open'
-        : savedView === 'review'
-          ? 'closed'
-          : savedView === 'archive'
-            ? 'archived'
-            : savedView === 'trash'
-              ? 'trashed'
-            : statusFilter;
-
-    if (effectiveStatusFilter === 'trashed') {
-      result = result.filter(m => Boolean(m.trashedAt));
-    } else if (effectiveStatusFilter !== 'all') {
-      result = result.filter(m => m.status === effectiveStatusFilter && !m.trashedAt);
-    } else {
-      // Default "all" view should focus productive Akten (open + closed).
-      // Archived and trashed matters stay available via dedicated filters.
-      result = result.filter(m => m.status !== 'archived' && !m.trashedAt);
-    }
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase().trim();
-      result = result.filter(m => {
-        const client = clients[m.clientId];
-        return (
-          m.title.toLowerCase().includes(q) ||
-          (m.externalRef ?? '').toLowerCase().includes(q) ||
-          (m.description ?? '').toLowerCase().includes(q) ||
-          (client?.displayName ?? '').toLowerCase().includes(q) ||
-          (client?.primaryEmail ?? '').toLowerCase().includes(q) ||
-          (m.gericht ?? '').toLowerCase().includes(q)
-        );
-      });
-    }
-    return result;
-  }, [clients, matters, savedView, searchQuery, statusFilter, t]);
-
-  const isTrashView = useMemo(
-    () => savedView === 'trash' || (savedView === 'custom' && statusFilter === 'trashed'),
-    [savedView, statusFilter]
-  );
-
-  // Sorting
   const sorted = useMemo(() => {
-    const arr = [...filtered];
-    arr.sort((a, b) => {
-      let cmp = 0;
-      switch (sortKey) {
-        case 'title':
-          cmp = a.title.localeCompare(b.title, language);
-          break;
-        case 'status':
-          cmp = STATUS_ORDER[a.status] - STATUS_ORDER[b.status];
-          break;
-        case 'createdAt':
-          cmp = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
-          break;
-        case 'updatedAt':
-        default:
-          cmp = new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime();
-          break;
+    const query = searchQuery.trim().toLowerCase();
+
+    const filtered = matters.filter(matter => {
+      if (isTrashView) {
+        if (!matter.trashedAt) {
+          return false;
+        }
+      } else {
+        if (matter.trashedAt) {
+          return false;
+        }
+        if (statusFilter !== 'all' && matter.status !== statusFilter) {
+          return false;
+        }
       }
-      return sortDir === 'desc' ? -cmp : cmp;
+
+      if (!query) {
+        return true;
+      }
+
+      const clientName = clients[matter.clientId]?.displayName ?? '';
+      const haystack =
+        `${matter.title} ${matter.externalRef ?? ''} ${matter.gericht ?? ''} ${clientName}`.toLowerCase();
+      return haystack.includes(query);
     });
-    return arr;
-  }, [filtered, language, sortKey, sortDir]);
+
+    const sortedMatters = [...filtered].sort((a, b) => {
+      if (sortKey === 'updatedAt') {
+        return (
+          new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime()
+        );
+      }
+      if (sortKey === 'createdAt') {
+        return (
+          new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+        );
+      }
+      if (sortKey === 'title') {
+        return a.title.localeCompare(b.title, language, {
+          sensitivity: 'base',
+        });
+      }
+      return STATUS_ORDER[a.status] - STATUS_ORDER[b.status];
+    });
+
+    if (sortDir === 'desc') {
+      sortedMatters.reverse();
+    }
+    return sortedMatters;
+  }, [
+    clients,
+    isTrashView,
+    language,
+    matters,
+    searchQuery,
+    sortDir,
+    sortKey,
+    statusFilter,
+  ]);
 
   const bulkSelection = useBulkSelection({
-    itemIds: useMemo(() => sorted.map(m => m.id), [sorted]),
+    itemIds: sorted.map(item => item.id),
   });
 
   const handleBulkStatus = useCallback(
@@ -384,14 +414,21 @@ export const AllAktenPage = () => {
 
   const handleScheduleDeletion = useCallback(
     async (matter: MatterRecord) => {
-      const result = await casePlatformOrchestrationService.scheduleMatterDeletion(matter.id);
+      const result =
+        await casePlatformOrchestrationService.scheduleMatterDeletion(
+          matter.id
+        );
       if (result) {
-        const purgeDate = result.purgeAt ? new Date(result.purgeAt).toLocaleDateString('de-DE') : 'unbekannt';
+        const purgeDate = result.purgeAt
+          ? new Date(result.purgeAt).toLocaleDateString('de-DE')
+          : 'unbekannt';
         showActionStatus(
           `Akte "${matter.title}" zur Löschung markiert. Wird automatisch gelöscht am ${purgeDate}.`
         );
       } else {
-        showActionStatus(`Akte "${matter.title}" konnte nicht zur Löschung markiert werden.`);
+        showActionStatus(
+          `Akte "${matter.title}" konnte nicht zur Löschung markiert werden.`
+        );
       }
     },
     [casePlatformOrchestrationService, showActionStatus]
@@ -399,23 +436,30 @@ export const AllAktenPage = () => {
 
   const handleRestore = useCallback(
     async (matter: MatterRecord) => {
-      const result = await casePlatformOrchestrationService.restoreMatter(matter.id);
+      const result = await casePlatformOrchestrationService.restoreMatter(
+        matter.id
+      );
       if (result) {
         showActionStatus(`Akte "${matter.title}" wiederhergestellt.`);
       } else {
-        showActionStatus(`Akte "${matter.title}" konnte nicht wiederhergestellt werden.`);
+        showActionStatus(
+          `Akte "${matter.title}" konnte nicht wiederhergestellt werden.`
+        );
       }
     },
     [casePlatformOrchestrationService, showActionStatus]
   );
 
-
   const handleArchive = useCallback(
     async (matter: MatterRecord) => {
-      const result = await casePlatformOrchestrationService.archiveMatter(matter.id);
+      const result = await casePlatformOrchestrationService.archiveMatter(
+        matter.id
+      );
       showActionStatus(
         result
-          ? t.t('com.affine.caseAssistant.allAkten.archive.success', { title: matter.title })
+          ? t.t('com.affine.caseAssistant.allAkten.archive.success', {
+              title: matter.title,
+            })
           : t['com.affine.caseAssistant.allAkten.archive.failed']()
       );
     },
@@ -430,8 +474,10 @@ export const AllAktenPage = () => {
 
     const availableClients = Object.values(clients);
     if (availableClients.length === 0) {
-      showActionStatus('Bitte zuerst einen Mandanten anlegen, bevor du eine Akte erstellst.');
-      workbench.open('/all-mandanten');
+      showActionStatus(
+        'Bitte zuerst einen Mandanten anlegen, bevor du eine Akte erstellst.'
+      );
+      workbench.open('/mandanten');
       return;
     }
 
@@ -451,7 +497,7 @@ export const AllAktenPage = () => {
         .find(matter => Boolean(matter.jurisdiction))?.jurisdiction ?? 'AT';
 
     openPromptModal({
-      title: 'Neu+ Akte',
+      title: 'Akte anlegen',
       label: 'Titel',
       inputOptions: {
         placeholder: 'z. B. Kündigungsschutz 2026',
@@ -512,9 +558,12 @@ export const AllAktenPage = () => {
         description:
           `Die Akte wird archiviert und nach 90 Tagen automatisch endgültig gelöscht.` +
           (linkedCaseCount > 0
-            ? ` ${t.t('com.affine.caseAssistant.allAkten.confirmDelete.description.linkedCases', {
-                count: linkedCaseCount,
-              })}`
+            ? ` ${t.t(
+                'com.affine.caseAssistant.allAkten.confirmDelete.description.linkedCases',
+                {
+                  count: linkedCaseCount,
+                }
+              )}`
             : ''),
         cancelText: t['com.affine.auth.sign-out.confirm-modal.cancel'](),
         confirmText: 'Zur Löschung markieren',
@@ -526,14 +575,37 @@ export const AllAktenPage = () => {
         },
       });
     },
-    [
-      handleScheduleDeletion,
-      openConfirmModal,
-      t,
-    ]
+    [handleScheduleDeletion, openConfirmModal, t]
   );
 
   const [isBulkDeletingMatters, setIsBulkDeletingMatters] = useState(false);
+  const [lastBulkScheduledDeletionIds, setLastBulkScheduledDeletionIds] =
+    useState<string[]>([]);
+
+  const handleUndoBulkScheduleDeletion = useCallback(async () => {
+    if (lastBulkScheduledDeletionIds.length === 0) {
+      return;
+    }
+    const result = await casePlatformOrchestrationService.restoreMattersBulk(
+      lastBulkScheduledDeletionIds
+    );
+    const blockedSuffix =
+      result.blockedIds.length > 0
+        ? ` · ${result.blockedIds.length} blockiert`
+        : '';
+    const failedSuffix =
+      result.failedIds.length > 0
+        ? ` · ${result.failedIds.length} fehlgeschlagen`
+        : '';
+    showActionStatus(
+      `${result.succeededIds.length}/${result.total} Akte(n) wiederhergestellt${blockedSuffix}${failedSuffix}.`
+    );
+    setLastBulkScheduledDeletionIds([]);
+  }, [
+    casePlatformOrchestrationService,
+    lastBulkScheduledDeletionIds,
+    showActionStatus,
+  ]);
 
   const handleBulkDeleteMatters = useCallback(() => {
     const targets = sorted.filter(m => bulkSelection.selectedIds.has(m.id));
@@ -543,14 +615,11 @@ export const AllAktenPage = () => {
     }
 
     openConfirmModal({
-      title: t.t('com.affine.caseAssistant.allAkten.confirmDelete.title', {
-        title: `${targets.length} Akte(n)`,
-      }),
+      title: `${targets.length} Akte(n) zur Löschung markieren?`,
       description:
-        t['com.affine.caseAssistant.allAkten.confirmDelete.description.base']() +
-        ` ${t['com.affine.caseAssistant.allAkten.bulk.delete.confirm.description.suffix']()}`,
+        'Die Akten werden in den Papierkorb verschoben und nach 90 Tagen automatisch endgültig gelöscht.',
       cancelText: t['com.affine.auth.sign-out.confirm-modal.cancel'](),
-      confirmText: t['com.affine.caseAssistant.allAkten.confirmDelete.confirm'](),
+      confirmText: 'Zur Löschung markieren',
       confirmButtonOptions: {
         variant: 'error',
       },
@@ -558,29 +627,20 @@ export const AllAktenPage = () => {
         if (isBulkDeletingMatters) return;
         setIsBulkDeletingMatters(true);
         try {
-          const result = await casePlatformOrchestrationService.deleteMattersCascadeBulk(
-            targets.map(m => m.id)
+          const scheduled = await Promise.all(
+            targets.map(target =>
+              casePlatformOrchestrationService.scheduleMatterDeletion(target.id)
+            )
           );
-          const blockedSuffix =
-            result.blockedIds.length > 0
-              ? t.t('com.affine.caseAssistant.allAkten.bulk.delete.result.blockedSuffix', {
-                  count: result.blockedIds.length,
-                })
-              : '';
-          const failedSuffix =
-            result.failedIds.length > 0
-              ? t.t('com.affine.caseAssistant.allAkten.bulk.delete.result.failedSuffix', {
-                  count: result.failedIds.length,
-                })
-              : '';
+          const succeededIds = targets
+            .filter((_, index) => Boolean(scheduled[index]))
+            .map(target => target.id);
+          const failed = targets.length - succeededIds.length;
+          setLastBulkScheduledDeletionIds(succeededIds);
+          const blockedSuffix = failed > 0 ? ` · ${failed} nicht markiert` : '';
 
           showActionStatus(
-            t.t('com.affine.caseAssistant.allAkten.bulk.delete.result', {
-              succeeded: result.succeededIds.length,
-              total: result.total,
-              blockedSuffix,
-              failedSuffix,
-            })
+            `${succeededIds.length}/${targets.length} Akte(n) im Papierkorb (Auto-Löschung 90 Tage).${blockedSuffix}`
           );
 
           bulkSelection.clear();
@@ -589,7 +649,15 @@ export const AllAktenPage = () => {
         }
       },
     });
-  }, [bulkSelection, casePlatformOrchestrationService, isBulkDeletingMatters, openConfirmModal, showActionStatus, sorted, t]);
+  }, [
+    bulkSelection,
+    casePlatformOrchestrationService,
+    isBulkDeletingMatters,
+    openConfirmModal,
+    showActionStatus,
+    sorted,
+    t,
+  ]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -629,7 +697,9 @@ export const AllAktenPage = () => {
         e.preventDefault();
         setFocusedIndex(prev => {
           const next = Math.min(prev + 1, items.length - 1);
-          const el = document.querySelector<HTMLElement>(`[data-row-index="${next}"]`);
+          const el = document.querySelector<HTMLElement>(
+            `[data-row-index="${next}"]`
+          );
           el?.focus();
           return next;
         });
@@ -637,7 +707,9 @@ export const AllAktenPage = () => {
         e.preventDefault();
         setFocusedIndex(prev => {
           const next = Math.max(prev - 1, 0);
-          const el = document.querySelector<HTMLElement>(`[data-row-index="${next}"]`);
+          const el = document.querySelector<HTMLElement>(
+            `[data-row-index="${next}"]`
+          );
           el?.focus();
           return next;
         });
@@ -649,7 +721,9 @@ export const AllAktenPage = () => {
         e.preventDefault();
         const last = items.length - 1;
         setFocusedIndex(last);
-        document.querySelector<HTMLElement>(`[data-row-index="${last}"]`)?.focus();
+        document
+          .querySelector<HTMLElement>(`[data-row-index="${last}"]`)
+          ?.focus();
       }
     },
     []
@@ -669,7 +743,10 @@ export const AllAktenPage = () => {
       });
       const relatedCase = [...caseFiles]
         .filter(caseFile => caseFile.matterId === matter.id)
-        .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())[0];
+        .sort(
+          (a, b) =>
+            new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+        )[0];
       if (relatedCase?.id) {
         params.set('caCaseId', relatedCase.id);
       }
@@ -684,9 +761,11 @@ export const AllAktenPage = () => {
   const handleOpenAkteDetail = useCallback(
     (matter: MatterRecord) => {
       setOpeningMatterId(matter.id);
-      showActionStatus(t.t('com.affine.caseAssistant.allAkten.openDetail.status', {
-        title: matter.title,
-      }));
+      showActionStatus(
+        t.t('com.affine.caseAssistant.allAkten.openDetail.status', {
+          title: matter.title,
+        })
+      );
       workbench.openAkte(matter.id);
       window.setTimeout(() => {
         setOpeningMatterId(null);
@@ -695,16 +774,19 @@ export const AllAktenPage = () => {
     [showActionStatus, t, workbench]
   );
 
-  const shouldSkipRowOpen = useCallback((target: EventTarget | null): boolean => {
-    if (!(target instanceof Element)) {
-      return false;
-    }
-    return Boolean(
-      target.closest(
-        'button, a, input, select, textarea, [role="menuitem"], [role="menu"], [data-no-row-open="true"]'
-      )
-    );
-  }, []);
+  const shouldSkipRowOpen = useCallback(
+    (target: EventTarget | null): boolean => {
+      if (!(target instanceof Element)) {
+        return false;
+      }
+      return Boolean(
+        target.closest(
+          'button, a, input, select, textarea, [role="menuitem"], [role="menu"], [data-no-row-open="true"]'
+        )
+      );
+    },
+    []
+  );
 
   const handleStartDocumentsFirstOnboarding = useCallback(async () => {
     if (isStartingOnboarding) {
@@ -713,16 +795,21 @@ export const AllAktenPage = () => {
     setIsStartingOnboarding(true);
     try {
       if (!workspace) {
-        showActionStatus(t['com.affine.caseAssistant.allAkten.quickstart.workspaceNotReady']());
+        showActionStatus(
+          t['com.affine.caseAssistant.allAkten.quickstart.workspaceNotReady']()
+        );
         return;
       }
 
-      showActionStatus(t['com.affine.caseAssistant.allAkten.quickstart.creatingImportCase']());
+      showActionStatus(
+        t['com.affine.caseAssistant.allAkten.quickstart.creatingImportCase']()
+      );
       const docRecord = docsService.createDoc();
       await caseAssistantService.upsertCaseFile({
         id: docRecord.id,
         workspaceId: workspace.id,
-        title: t['com.affine.caseAssistant.allAkten.quickstart.importCaseTitle'](),
+        title:
+          t['com.affine.caseAssistant.allAkten.quickstart.importCaseTitle'](),
         actorIds: [],
         issueIds: [],
         deadlineIds: [],
@@ -732,10 +819,14 @@ export const AllAktenPage = () => {
 
       workbench.openSidebar();
       workbench.open(`/${docRecord.id}?caOnboarding=documents-first`);
-      showActionStatus(t['com.affine.caseAssistant.allAkten.quickstart.openedWizard']());
+      showActionStatus(
+        t['com.affine.caseAssistant.allAkten.quickstart.openedWizard']()
+      );
     } catch (error) {
       console.error('[all-akten] start onboarding failed', error);
-      showActionStatus(t['com.affine.caseAssistant.allAkten.quickstart.failed']());
+      showActionStatus(
+        t['com.affine.caseAssistant.allAkten.quickstart.failed']()
+      );
     } finally {
       setIsStartingOnboarding(false);
     }
@@ -752,16 +843,23 @@ export const AllAktenPage = () => {
   const getClientName = useCallback(
     (matter: MatterRecord): string => {
       const client = clients[matter.clientId] as ClientRecord | undefined;
-      return client?.displayName ?? t['com.affine.caseAssistant.allAkten.fallback.none']();
+      return (
+        client?.displayName ??
+        t['com.affine.caseAssistant.allAkten.fallback.none']()
+      );
     },
     [clients, t]
   );
 
   const getAnwaltName = useCallback(
     (matter: MatterRecord): string => {
-      if (!matter.assignedAnwaltId) return t['com.affine.caseAssistant.allAkten.fallback.none']();
-      const anwalt = anwaelte[matter.assignedAnwaltId] as AnwaltProfile | undefined;
-      if (!anwalt) return t['com.affine.caseAssistant.allAkten.fallback.none']();
+      if (!matter.assignedAnwaltId)
+        return t['com.affine.caseAssistant.allAkten.fallback.none']();
+      const anwalt = anwaelte[matter.assignedAnwaltId] as
+        | AnwaltProfile
+        | undefined;
+      if (!anwalt)
+        return t['com.affine.caseAssistant.allAkten.fallback.none']();
       return `${anwalt.title ? anwalt.title + ' ' : ''}${anwalt.firstName} ${anwalt.lastName}`;
     },
     [anwaelte, t]
@@ -770,13 +868,11 @@ export const AllAktenPage = () => {
   const getNextDeadline = useCallback(
     (
       matter: MatterRecord
-    ):
-      | {
-          label: string;
-          urgent: boolean;
-          severity: 'overdue' | 'critical' | 'today' | 'soon' | 'normal';
-        }
-      | null => {
+    ): {
+      label: string;
+      urgent: boolean;
+      severity: 'overdue' | 'critical' | 'today' | 'soon' | 'normal';
+    } | null => {
       const allCases = caseFiles;
 
       // Find all cases belonging to this matter and collect their deadline IDs
@@ -787,13 +883,16 @@ export const AllAktenPage = () => {
       // Get the actual deadlines and filter by status
       const matterDeadlines = matterDeadlineIds
         .map(deadlineId => deadlines[deadlineId])
-        .filter((deadline): deadline is CaseDeadline =>
-          Boolean(deadline) &&
-          deadline.status !== 'completed' &&
-          deadline.status !== 'expired' &&
-          Boolean(deadline.dueAt)
+        .filter(
+          (deadline): deadline is CaseDeadline =>
+            Boolean(deadline) &&
+            deadline.status !== 'completed' &&
+            deadline.status !== 'expired' &&
+            Boolean(deadline.dueAt)
         )
-        .sort((a, b) => new Date(a.dueAt).getTime() - new Date(b.dueAt).getTime());
+        .sort(
+          (a, b) => new Date(a.dueAt).getTime() - new Date(b.dueAt).getTime()
+        );
 
       if (matterDeadlines.length === 0) return null;
       const next = matterDeadlines[0];
@@ -816,12 +915,22 @@ export const AllAktenPage = () => {
           severity: 'critical',
         };
       }
-      if (days === 0) return { label: t['com.affine.caseAssistant.allAkten.deadline.today'](), urgent: true, severity: 'today' };
-      const futureLabel = t.t('com.affine.caseAssistant.allAkten.deadline.inDays', {
-        count: days,
-      });
-      if (days <= 3) return { label: futureLabel, urgent: true, severity: 'soon' };
-      if (days <= 7) return { label: futureLabel, urgent: false, severity: 'normal' };
+      if (days === 0)
+        return {
+          label: t['com.affine.caseAssistant.allAkten.deadline.today'](),
+          urgent: true,
+          severity: 'today',
+        };
+      const futureLabel = t.t(
+        'com.affine.caseAssistant.allAkten.deadline.inDays',
+        {
+          count: days,
+        }
+      );
+      if (days <= 3)
+        return { label: futureLabel, urgent: true, severity: 'soon' };
+      if (days <= 7)
+        return { label: futureLabel, urgent: false, severity: 'normal' };
       return { label: futureLabel, urgent: false, severity: 'normal' };
     },
     [caseFiles, deadlines, t]
@@ -833,12 +942,99 @@ export const AllAktenPage = () => {
     Object.keys(clients).length === 0 &&
     caseFiles.length === 0;
 
-  const showQuickstartUpload = !isInitialLoading && matters.length > 0;
+  const hasClients = Object.keys(clients).length > 0;
+  const hasMatters = matters.length > 0;
+  const showQuickstartUpload = !isInitialLoading;
+  const quickstartMode: 'create-client' | 'create-matter' | 'upload-documents' =
+    !hasClients
+      ? 'create-client'
+      : !hasMatters
+        ? 'create-matter'
+        : 'upload-documents';
+
+  const quickstartTitle =
+    quickstartMode === 'create-client'
+      ? t['com.affine.caseAssistant.allAkten.quickstart.title.createClient']()
+      : quickstartMode === 'create-matter'
+        ? t['com.affine.caseAssistant.allAkten.quickstart.title.createMatter']()
+        : t['com.affine.caseAssistant.allAkten.quickstart.title']();
+  const quickstartDescription =
+    quickstartMode === 'create-client'
+      ? t[
+          'com.affine.caseAssistant.allAkten.quickstart.description.createClient'
+        ]()
+      : quickstartMode === 'create-matter'
+        ? t[
+            'com.affine.caseAssistant.allAkten.quickstart.description.createMatter'
+          ]()
+        : t['com.affine.caseAssistant.allAkten.quickstart.description']();
+  const quickstartButtonLabel =
+    quickstartMode === 'create-client'
+      ? t['com.affine.caseAssistant.allAkten.quickstart.button.createClient']()
+      : quickstartMode === 'create-matter'
+        ? t[
+            'com.affine.caseAssistant.allAkten.quickstart.button.createMatter'
+          ]()
+        : t['com.affine.caseAssistant.allAkten.quickstart.button.default']();
+  const quickstartButtonAria =
+    quickstartMode === 'create-client'
+      ? t[
+          'com.affine.caseAssistant.allAkten.quickstart.button.aria.createClient'
+        ]()
+      : quickstartMode === 'create-matter'
+        ? t[
+            'com.affine.caseAssistant.allAkten.quickstart.button.aria.createMatter'
+          ]()
+        : t['com.affine.caseAssistant.allAkten.quickstart.button.aria']();
+  const quickstartRegionAria =
+    quickstartMode === 'create-client'
+      ? t[
+          'com.affine.caseAssistant.allAkten.quickstart.regionAria.createClient'
+        ]()
+      : quickstartMode === 'create-matter'
+        ? t[
+            'com.affine.caseAssistant.allAkten.quickstart.regionAria.createMatter'
+          ]()
+        : t['com.affine.caseAssistant.allAkten.quickstart.regionAria']();
+
+  const handleQuickstartPrimaryAction = useCallback(() => {
+    if (quickstartMode === 'create-client') {
+      workbench.open('/mandanten?caFocus=create-client');
+      showActionStatus('Bitte zuerst einen Mandanten anlegen.');
+      return;
+    }
+
+    if (quickstartMode === 'create-matter') {
+      handleCreateMatter();
+      return;
+    }
+
+    handleStartDocumentsFirstOnboarding().catch(() => {
+      showActionStatus(
+        'Onboarding konnte nicht gestartet werden. Bitte erneut versuchen.'
+      );
+    });
+  }, [
+    handleCreateMatter,
+    handleStartDocumentsFirstOnboarding,
+    quickstartMode,
+    showActionStatus,
+    workbench,
+  ]);
 
   const savedViewOptions: Array<{ key: AktenSavedView; label: string }> = [
-    { key: 'focus', label: t['com.affine.caseAssistant.allAkten.view.focus']() },
-    { key: 'review', label: t['com.affine.caseAssistant.allAkten.view.review']() },
-    { key: 'archive', label: t['com.affine.caseAssistant.allAkten.view.archive']() },
+    {
+      key: 'focus',
+      label: t['com.affine.caseAssistant.allAkten.view.focus'](),
+    },
+    {
+      key: 'review',
+      label: t['com.affine.caseAssistant.allAkten.view.review'](),
+    },
+    {
+      key: 'archive',
+      label: t['com.affine.caseAssistant.allAkten.view.archive'](),
+    },
     { key: 'trash', label: `Papierkorb (${statusCounts.trashed})` },
     {
       key: 'custom',
@@ -855,7 +1051,11 @@ export const AllAktenPage = () => {
       <ViewBody>
         <div className={styles.body}>
           {/* SR live region */}
-          <div className={styles.srOnlyLive} aria-live="polite" aria-atomic="true">
+          <div
+            className={styles.srOnlyLive}
+            aria-live="polite"
+            aria-atomic="true"
+          >
             {actionStatus ?? ''}
           </div>
 
@@ -882,7 +1082,9 @@ export const AllAktenPage = () => {
                       setStatusFilter('all');
                     }
                   }}
-                  aria-label={t['com.affine.caseAssistant.allAkten.aria.statusFilter']()}
+                  aria-label={t[
+                    'com.affine.caseAssistant.allAkten.aria.statusFilter'
+                  ]()}
                 >
                   {savedViewOptions.map(option => (
                     <option key={option.key} value={option.key}>
@@ -912,14 +1114,17 @@ export const AllAktenPage = () => {
 
               <div className={styles.filterGroupRight}>
                 <button
-                  className={styles.filterChip}
+                  ref={createMatterButtonRef}
+                  className={styles.primaryActionChip}
                   onClick={handleCreateMatter}
-                  aria-label="Neue Akte anlegen"
+                  aria-label="Akte anlegen"
                 >
-                  Neu+ Akte
+                  Akte anlegen
                 </button>
                 <label className={styles.toolbarControl}>
-                  <span className={styles.toolbarLabel}>{t['com.affine.caseAssistant.allAkten.toolbar.status']()}</span>
+                  <span className={styles.toolbarLabel}>
+                    {t['com.affine.caseAssistant.allAkten.toolbar.status']()}
+                  </span>
                   <select
                     className={styles.toolbarSelect}
                     value={statusFilter}
@@ -927,22 +1132,52 @@ export const AllAktenPage = () => {
                       setSavedView('custom');
                       setStatusFilter(event.target.value as MatterStatusFilter);
                     }}
-                    aria-label={t['com.affine.caseAssistant.allAkten.aria.statusFilter']()}
+                    aria-label={t[
+                      'com.affine.caseAssistant.allAkten.aria.statusFilter'
+                    ]()}
                   >
-                    <option value="all">{t.t('com.affine.caseAssistant.allAkten.status.allCount', { count: statusCounts.all })}</option>
-                    <option value="open">{t.t('com.affine.caseAssistant.allAkten.status.openCount', { count: statusCounts.open })}</option>
-                    <option value="closed">{t.t('com.affine.caseAssistant.allAkten.status.closedCount', { count: statusCounts.closed })}</option>
-                    <option value="archived">{t.t('com.affine.caseAssistant.allAkten.status.archivedCount', { count: statusCounts.archived })}</option>
-                    <option value="trashed">Papierkorb ({statusCounts.trashed})</option>
+                    <option value="all">
+                      {t.t(
+                        'com.affine.caseAssistant.allAkten.status.allCount',
+                        { count: statusCounts.all }
+                      )}
+                    </option>
+                    <option value="open">
+                      {t.t(
+                        'com.affine.caseAssistant.allAkten.status.openCount',
+                        { count: statusCounts.open }
+                      )}
+                    </option>
+                    <option value="closed">
+                      {t.t(
+                        'com.affine.caseAssistant.allAkten.status.closedCount',
+                        { count: statusCounts.closed }
+                      )}
+                    </option>
+                    <option value="archived">
+                      {t.t(
+                        'com.affine.caseAssistant.allAkten.status.archivedCount',
+                        { count: statusCounts.archived }
+                      )}
+                    </option>
+                    <option value="trashed">
+                      Papierkorb ({statusCounts.trashed})
+                    </option>
                   </select>
                 </label>
                 <label className={styles.toolbarControl}>
-                  <span className={styles.toolbarLabel}>{t['com.affine.caseAssistant.allAkten.toolbar.sort']()}</span>
+                  <span className={styles.toolbarLabel}>
+                    {t['com.affine.caseAssistant.allAkten.toolbar.sort']()}
+                  </span>
                   <select
                     className={styles.toolbarSelect}
                     value={sortKey}
-                    onChange={event => setSortKey(event.target.value as SortKey)}
-                    aria-label={t['com.affine.caseAssistant.allAkten.aria.sortField']()}
+                    onChange={event =>
+                      setSortKey(event.target.value as SortKey)
+                    }
+                    aria-label={t[
+                      'com.affine.caseAssistant.allAkten.aria.sortField'
+                    ]()}
                   >
                     <option value="updatedAt">{sortKeyLabel.updatedAt}</option>
                     <option value="title">{sortKeyLabel.title}</option>
@@ -953,12 +1188,18 @@ export const AllAktenPage = () => {
                 <button
                   type="button"
                   className={styles.toolbarSortDirectionButton}
-                  onClick={() => setSortDir(current => (current === 'desc' ? 'asc' : 'desc'))}
+                  onClick={() =>
+                    setSortDir(current => (current === 'desc' ? 'asc' : 'desc'))
+                  }
                   data-dir={sortDir}
                   aria-label={
                     sortDir === 'desc'
-                      ? t['com.affine.caseAssistant.allAkten.aria.sortDirection.descToAsc']()
-                      : t['com.affine.caseAssistant.allAkten.aria.sortDirection.ascToDesc']()
+                      ? t[
+                          'com.affine.caseAssistant.allAkten.aria.sortDirection.descToAsc'
+                        ]()
+                      : t[
+                          'com.affine.caseAssistant.allAkten.aria.sortDirection.ascToDesc'
+                        ]()
                   }
                 >
                   {sortDir === 'desc' ? '↓' : '↑'}
@@ -972,31 +1213,47 @@ export const AllAktenPage = () => {
                             className={`${styles.filterChip} ${styles.filterChipLowPriority}`}
                             onClick={() => void handleBulkStatus('open')}
                           >
-                            {t['com.affine.caseAssistant.allAkten.bulk.toOpen']()}
+                            {t[
+                              'com.affine.caseAssistant.allAkten.bulk.toOpen'
+                            ]()}
                           </button>
                           <button
                             className={`${styles.filterChip} ${styles.filterChipLowPriority}`}
                             onClick={() => void handleBulkStatus('archived')}
                           >
-                            {t['com.affine.caseAssistant.allAkten.bulk.toArchived']()}
+                            {t[
+                              'com.affine.caseAssistant.allAkten.bulk.toArchived'
+                            ]()}
                           </button>
                         </>
                       ) : (
                         <button
                           className={`${styles.filterChip} ${styles.filterChipLowPriority}`}
-                          onClick={async () => {
-                            const targets = sorted.filter(m => bulkSelection.selectedIds.has(m.id) && m.trashedAt);
+                          onClick={() => {
+                            const targets = sorted.filter(
+                              m =>
+                                bulkSelection.selectedIds.has(m.id) &&
+                                m.trashedAt
+                            );
                             if (targets.length === 0) {
-                              showActionStatus('Keine zur Löschung markierten Akten ausgewählt.');
+                              showActionStatus(
+                                'Keine zur Löschung markierten Akten ausgewählt.'
+                              );
                               return;
                             }
-                            const result = await casePlatformOrchestrationService.restoreMattersBulk(
-                              targets.map(m => m.id)
-                            );
-                            showActionStatus(
-                              `${result.succeededIds.length} von ${result.total} Akte(n) wiederhergestellt.`
-                            );
-                            bulkSelection.clear();
+                            casePlatformOrchestrationService
+                              .restoreMattersBulk(targets.map(m => m.id))
+                              .then(result => {
+                                showActionStatus(
+                                  `${result.succeededIds.length} von ${result.total} Akte(n) wiederhergestellt.`
+                                );
+                                bulkSelection.clear();
+                              })
+                              .catch(() => {
+                                showActionStatus(
+                                  'Wiederherstellen fehlgeschlagen. Bitte erneut versuchen.'
+                                );
+                              });
                           }}
                         >
                           Wiederherstellen
@@ -1008,8 +1265,22 @@ export const AllAktenPage = () => {
                         disabled={isBulkDeletingMatters}
                         aria-disabled={isBulkDeletingMatters}
                       >
-                        {t['com.affine.caseAssistant.allAkten.bulk.deletePermanent']()}
+                        Zur Löschung markieren
                       </button>
+                      {lastBulkScheduledDeletionIds.length > 0 ? (
+                        <button
+                          className={`${styles.filterChip} ${styles.filterChipLowPriority}`}
+                          onClick={() => {
+                            handleUndoBulkScheduleDeletion().catch(() => {
+                              showActionStatus(
+                                'Undo fehlgeschlagen. Bitte erneut versuchen.'
+                              );
+                            });
+                          }}
+                        >
+                          Rückgängig ({lastBulkScheduledDeletionIds.length})
+                        </button>
+                      ) : null}
                     </>
                   ) : null
                 ) : null}
@@ -1018,10 +1289,14 @@ export const AllAktenPage = () => {
                     ref={searchInputRef}
                     className={styles.searchInput}
                     type="text"
-                    placeholder={t['com.affine.caseAssistant.allAkten.search.placeholder']()}
+                    placeholder={t[
+                      'com.affine.caseAssistant.allAkten.search.placeholder'
+                    ]()}
                     value={searchQuery}
                     onChange={e => setSearchQuery(e.target.value)}
-                    aria-label={t['com.affine.caseAssistant.allAkten.aria.search']()}
+                    aria-label={t[
+                      'com.affine.caseAssistant.allAkten.aria.search'
+                    ]()}
                   />
                   {searchQuery ? (
                     <button
@@ -1031,7 +1306,9 @@ export const AllAktenPage = () => {
                         setSearchQuery('');
                         searchInputRef.current?.focus();
                       }}
-                      aria-label={t['com.affine.caseAssistant.allAkten.aria.clearSearch']()}
+                      aria-label={t[
+                        'com.affine.caseAssistant.allAkten.aria.clearSearch'
+                      ]()}
                     >
                       ×
                     </button>
@@ -1043,25 +1320,34 @@ export const AllAktenPage = () => {
 
           {showQuickstartUpload ? (
             <div className={styles.quickstartRow}>
-              <div className={styles.quickstartCard} role="region" aria-label={t['com.affine.caseAssistant.allAkten.quickstart.regionAria']()}>
+              <div
+                className={styles.quickstartCard}
+                role="region"
+                aria-label={quickstartRegionAria}
+              >
                 <div className={styles.quickstartText}>
-                  <div className={styles.quickstartTitle}>{t['com.affine.caseAssistant.allAkten.quickstart.title']()}</div>
+                  <div className={styles.quickstartTitle}>
+                    {quickstartTitle}
+                  </div>
                   <div className={styles.quickstartDescription}>
-                    {t['com.affine.caseAssistant.allAkten.quickstart.description']()}
+                    {quickstartDescription}
                   </div>
                 </div>
                 <button
                   type="button"
                   className={styles.quickstartButton}
-                  onClick={() => {
-                    void handleStartDocumentsFirstOnboarding();
-                  }}
-                  disabled={isStartingOnboarding}
-                  aria-label={t['com.affine.caseAssistant.allAkten.quickstart.button.aria']()}
+                  onClick={handleQuickstartPrimaryAction}
+                  disabled={
+                    quickstartMode === 'upload-documents' &&
+                    isStartingOnboarding
+                  }
+                  aria-label={quickstartButtonAria}
                 >
-                  {isStartingOnboarding
-                    ? t['com.affine.caseAssistant.allAkten.quickstart.button.starting']()
-                    : t['com.affine.caseAssistant.allAkten.quickstart.button.default']()}
+                  {quickstartMode === 'upload-documents' && isStartingOnboarding
+                    ? t[
+                        'com.affine.caseAssistant.allAkten.quickstart.button.starting'
+                      ]()
+                    : quickstartButtonLabel}
                 </button>
               </div>
             </div>
@@ -1069,9 +1355,7 @@ export const AllAktenPage = () => {
 
           {/* Action status toast */}
           {actionStatus ? (
-            <div className={styles.actionStatus}>
-              {actionStatus}
-            </div>
+            <div className={styles.actionStatus}>{actionStatus}</div>
           ) : null}
 
           {/* Table */}
@@ -1091,50 +1375,79 @@ export const AllAktenPage = () => {
                     checked={bulkSelection.headerState.checked}
                     ref={el => {
                       if (el) {
-                        el.indeterminate = bulkSelection.headerState.indeterminate;
+                        el.indeterminate =
+                          bulkSelection.headerState.indeterminate;
                       }
                     }}
-                    onChange={e => bulkSelection.selectAllVisible(e.target.checked)}
+                    onChange={e =>
+                      bulkSelection.selectAllVisible(e.target.checked)
+                    }
                     aria-label="Alle sichtbaren Akten auswählen"
                   />
                 </span>
                 <span className={styles.sortButton} role="columnheader">
-                  {t['com.affine.caseAssistant.allAkten.header.caseAndClient']()}
+                  {t[
+                    'com.affine.caseAssistant.allAkten.header.caseAndClient'
+                  ]()}
                 </span>
-                <span className={`${styles.sortButton} ${styles.akteMeta}`} role="columnheader">
+                <span
+                  className={`${styles.sortButton} ${styles.akteMeta}`}
+                  role="columnheader"
+                >
                   {t['com.affine.caseAssistant.allAkten.header.updatedAt']()}
                 </span>
-                <span className={styles.akteMeta} role="columnheader">{t['com.affine.caseAssistant.allAkten.header.lawyer']()}</span>
-                <span className={styles.akteMetaHideSm} role="columnheader">{t['com.affine.caseAssistant.allAkten.header.deadline']()}</span>
+                <span className={styles.akteMeta} role="columnheader">
+                  {t['com.affine.caseAssistant.allAkten.header.lawyer']()}
+                </span>
+                <span className={styles.akteMetaHideSm} role="columnheader">
+                  {t['com.affine.caseAssistant.allAkten.header.deadline']()}
+                </span>
                 <span className={styles.sortButton} role="columnheader">
                   {t['com.affine.caseAssistant.allAkten.header.status']()}
                 </span>
-                <span className={styles.akteMeta} role="columnheader" aria-hidden="true" />
+                <span
+                  className={styles.akteMeta}
+                  role="columnheader"
+                  aria-hidden="true"
+                />
               </div>
 
               {isInitialLoading ? (
                 Array.from({ length: 8 }).map((_, index) => (
-                  <div key={`akten-skeleton-${index}`} className={styles.skeletonRow} role="row" aria-hidden="true" />
+                  <div
+                    key={`akten-skeleton-${index}`}
+                    className={styles.skeletonRow}
+                    role="row"
+                    aria-hidden="true"
+                  />
                 ))
               ) : sorted.length === 0 ? (
                 <div className={styles.emptyState} role="row">
                   <div className={styles.emptyTitle}>
                     {searchQuery || statusFilter !== 'all'
-                      ? t['com.affine.caseAssistant.allAkten.empty.filtered.title']()
-                      : t['com.affine.caseAssistant.allAkten.empty.initial.title']()}
+                      ? t[
+                          'com.affine.caseAssistant.allAkten.empty.filtered.title'
+                        ]()
+                      : t[
+                          'com.affine.caseAssistant.allAkten.empty.initial.title'
+                        ]()}
                   </div>
                   <div className={styles.emptyDescription}>
                     {searchQuery || statusFilter !== 'all'
-                      ? t['com.affine.caseAssistant.allAkten.empty.filtered.description']()
-                      : t['com.affine.caseAssistant.allAkten.empty.initial.description']()}
+                      ? t[
+                          'com.affine.caseAssistant.allAkten.empty.filtered.description'
+                        ]()
+                      : t[
+                          'com.affine.caseAssistant.allAkten.empty.initial.description'
+                        ]()}
                   </div>
                   <button
                     type="button"
-                    className={styles.filterChip}
+                    className={styles.primaryActionChip}
                     onClick={handleCreateMatter}
-                    aria-label="Neue Akte anlegen"
+                    aria-label="Akte anlegen"
                   >
-                    Neu+ Akte
+                    Akte anlegen
                   </button>
                 </div>
               ) : (
@@ -1149,18 +1462,20 @@ export const AllAktenPage = () => {
                       data-row-index={index}
                       className={[
                         styles.akteRow,
-                        openingMatterId === matter.id ? styles.akteRowOpening : '',
+                        openingMatterId === matter.id
+                          ? styles.akteRowOpening
+                          : '',
                         matter.trashedAt
                           ? styles.akteRowTrashed
                           : deadline?.severity === 'overdue'
                             ? styles.akteRowOverdue
                             : deadline?.severity === 'critical'
                               ? styles.akteRowCritical
-                            : deadline?.severity === 'today'
-                              ? styles.akteRowToday
-                              : deadline?.severity === 'soon'
-                                ? styles.akteRowSoon
-                                : '',
+                              : deadline?.severity === 'today'
+                                ? styles.akteRowToday
+                                : deadline?.severity === 'soon'
+                                  ? styles.akteRowSoon
+                                  : '',
                       ]
                         .filter(Boolean)
                         .join(' ')}
@@ -1170,7 +1485,9 @@ export const AllAktenPage = () => {
                           return;
                         }
                         if (bulkSelection.isSelectionMode) {
-                          bulkSelection.toggleWithRange(matter.id, { shiftKey: (event as any).shiftKey });
+                          bulkSelection.toggleWithRange(matter.id, {
+                            shiftKey: (event as any).shiftKey,
+                          });
                           return;
                         }
                         handleOpenAkteDetail(matter);
@@ -1191,12 +1508,18 @@ export const AllAktenPage = () => {
                         }
                       }}
                       aria-busy={openingMatterId === matter.id}
-                      aria-label={t.t('com.affine.caseAssistant.allAkten.aria.row', {
-                        title: matter.title,
-                        status: statusLabel[matter.status],
-                      })}
+                      aria-label={t.t(
+                        'com.affine.caseAssistant.allAkten.aria.row',
+                        {
+                          title: matter.title,
+                          status: statusLabel[matter.status],
+                        }
+                      )}
                     >
-                      <div className={styles.selectionCell} data-no-row-open="true">
+                      <div
+                        className={styles.selectionCell}
+                        data-no-row-open="true"
+                      >
                         <input
                           type="checkbox"
                           className={styles.selectionCheckbox}
@@ -1223,14 +1546,20 @@ export const AllAktenPage = () => {
                         </div>
                         <div className={styles.akteFolderMeta}>
                           <span className={styles.akteFolderMetaBadge}>
-                            {t.t('com.affine.caseAssistant.allAkten.meta.caseFiles', {
-                              count: caseCount,
-                            })}
+                            {t.t(
+                              'com.affine.caseAssistant.allAkten.meta.caseFiles',
+                              {
+                                count: caseCount,
+                              }
+                            )}
                           </span>
                           <span className={styles.akteFolderMetaBadge}>
-                            {t.t('com.affine.caseAssistant.allAkten.meta.documents', {
-                              count: docCount,
-                            })}
+                            {t.t(
+                              'com.affine.caseAssistant.allAkten.meta.documents',
+                              {
+                                count: docCount,
+                              }
+                            )}
                           </span>
                           {matter.trashedAt && matter.purgeAt ? (
                             <span
@@ -1238,21 +1567,30 @@ export const AllAktenPage = () => {
                               data-alert="true"
                               title={`Wird gelöscht am ${new Date(matter.purgeAt).toLocaleDateString('de-DE')}`}
                             >
-                              🗑️ Löschen am {new Date(matter.purgeAt).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })}
+                              🗑️ Löschen am{' '}
+                              {new Date(matter.purgeAt).toLocaleDateString(
+                                'de-DE',
+                                { day: '2-digit', month: '2-digit' }
+                              )}
                             </span>
                           ) : deadline ? (
                             <span
                               className={styles.akteFolderMetaBadge}
                               data-alert={deadline.urgent ? 'true' : undefined}
                               data-critical={
-                                deadline.severity === 'critical' || deadline.severity === 'overdue'
+                                deadline.severity === 'critical' ||
+                                deadline.severity === 'overdue'
                                   ? 'true'
                                   : undefined
                               }
                             >
                               {deadline.urgent
-                                ? t['com.affine.caseAssistant.allAkten.meta.alertPrefix']()
-                                : t['com.affine.caseAssistant.allAkten.meta.deadlinePrefix']()}
+                                ? t[
+                                    'com.affine.caseAssistant.allAkten.meta.alertPrefix'
+                                  ]()
+                                : t[
+                                    'com.affine.caseAssistant.allAkten.meta.deadlinePrefix'
+                                  ]()}
                               {deadline.label}
                             </span>
                           ) : null}
@@ -1269,7 +1607,8 @@ export const AllAktenPage = () => {
                           <span
                             className={[
                               deadline.urgent ? styles.deadlineBadge : '',
-                              deadline.severity === 'critical' || deadline.severity === 'overdue'
+                              deadline.severity === 'critical' ||
+                              deadline.severity === 'overdue'
                                 ? styles.deadlineBadgeCritical
                                 : '',
                             ]
@@ -1289,14 +1628,19 @@ export const AllAktenPage = () => {
                           {statusLabel[matter.status]}
                         </span>
                       </span>
-                      <div className={styles.actionsCell} data-no-row-open="true">
+                      <div
+                        className={styles.actionsCell}
+                        data-no-row-open="true"
+                      >
                         <Menu
                           items={
                             <>
                               <MenuItem
                                 onClick={() => handleOpenMainChat(matter)}
                               >
-                                {t['com.affine.caseAssistant.allAkten.menu.openMainChat']()}
+                                {t[
+                                  'com.affine.caseAssistant.allAkten.menu.openMainChat'
+                                ]()}
                               </MenuItem>
                               {matter.trashedAt ? (
                                 <MenuItem
@@ -1310,11 +1654,18 @@ export const AllAktenPage = () => {
                                     onClick={() => void handleArchive(matter)}
                                     disabled={matter.status === 'archived'}
                                   >
-                                    {t['com.affine.caseAssistant.allAkten.menu.archive']()}
+                                    {t[
+                                      'com.affine.caseAssistant.allAkten.menu.archive'
+                                    ]()}
                                   </MenuItem>
                                   <MenuItem
                                     type="danger"
-                                    onClick={() => handleConfirmScheduleDeletion(matter, caseCount)}
+                                    onClick={() =>
+                                      handleConfirmScheduleDeletion(
+                                        matter,
+                                        caseCount
+                                      )
+                                    }
                                   >
                                     Zur Löschung markieren
                                   </MenuItem>
@@ -1327,9 +1678,12 @@ export const AllAktenPage = () => {
                           }}
                         >
                           <IconButton
-                            aria-label={t.t('com.affine.caseAssistant.allAkten.aria.actions', {
-                              title: matter.title,
-                            })}
+                            aria-label={t.t(
+                              'com.affine.caseAssistant.allAkten.aria.actions',
+                              {
+                                title: matter.title,
+                              }
+                            )}
                             onClick={e => {
                               e.stopPropagation();
                             }}

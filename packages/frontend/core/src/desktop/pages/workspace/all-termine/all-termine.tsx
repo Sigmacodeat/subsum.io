@@ -569,7 +569,7 @@ export const AllTerminePage = () => {
     const allCases = Object.values(caseFiles);
     if (allCases.length === 0) {
       showActionStatus('Bitte zuerst eine Akte/Case anlegen.');
-      workbench.open('/akten');
+      workbench.open('/akten?caFocus=create-matter');
       return;
     }
 
@@ -589,7 +589,7 @@ export const AllTerminePage = () => {
     const targetMatterId = targetCase.matterId;
 
     openPromptModal({
-      title: 'Neu+ Termin',
+      title: 'Termin anlegen',
       label: 'Gericht + Datum / Uhrzeit',
       inputOptions: {
         placeholder: 'z. B. LG Wien @2026-03-10 09:30',
@@ -1297,10 +1297,11 @@ export const AllTerminePage = () => {
               <div className={styles.filterGroupRight}>
                 <button
                   type="button"
-                  className={styles.filterChip}
+                  className={styles.primaryActionChip}
                   onClick={() => void handleCreateTermin()}
+                  aria-label="Termin anlegen"
                 >
-                  Neu+ Termin
+                  Termin anlegen
                 </button>
                 <label className={styles.toolbarControl}>
                   <span className={styles.toolbarLabel}>Sortierung</span>
@@ -1422,6 +1423,20 @@ export const AllTerminePage = () => {
                       ? 'Für den ausgewählten Kalendertag wurden keine Termine gefunden.'
                       : 'Passe Filter an oder lege einen neuen Termin an.'}
                   </div>
+                  <button
+                    type="button"
+                    className={styles.primaryActionChip}
+                    onClick={() => {
+                      handleCreateTermin().catch(() => {
+                        showActionStatus(
+                          'Termin konnte nicht angelegt werden. Bitte erneut versuchen.'
+                        );
+                      });
+                    }}
+                    aria-label="Termin anlegen"
+                  >
+                    Termin anlegen
+                  </button>
                 </div>
               ) : (
                 sorted.map(item => {

@@ -6,8 +6,8 @@ import {
   filterChipStyle,
   filterGroupRightStyle,
   filterGroupStyle,
-  filterSegmentStyle,
   filterRowStyle,
+  filterSegmentStyle,
   glassStroke,
   interactionTransition,
   layoutGutter,
@@ -18,6 +18,7 @@ import {
   rowDividerColor,
   searchInputStyle,
   sortButtonStyle,
+  srOnlyLiveStyle,
   statusBadgeCompactStyle,
   statusToneArchivedStyle,
   statusToneClosedStyle,
@@ -25,13 +26,12 @@ import {
   statusToneIdleStyle,
   statusToneOpenStyle,
   statusToneWarningStyle,
-  srOnlyLiveStyle,
+  stickyFilterBarStyle,
   surfaceEnter,
   toolbarControlStyle,
   toolbarLabelStyle,
   toolbarSelectStyle,
   toolbarSortDirectionButtonStyle,
-  stickyFilterBarStyle,
   workspaceAmbientBackground,
 } from '../layouts/workspace-list-shared-styles';
 
@@ -117,9 +117,13 @@ export const toolbarLabel = style(toolbarLabelStyle);
 
 export const toolbarSelect = style(toolbarSelectStyle);
 
-export const toolbarSortDirectionButton = style(toolbarSortDirectionButtonStyle);
+export const toolbarSortDirectionButton = style(
+  toolbarSortDirectionButtonStyle
+);
 
-export const filterChipLowPriority = style(filterChipLowPriorityStyle('mandanten-body'));
+export const filterChipLowPriority = style(
+  filterChipLowPriorityStyle('mandanten-body')
+);
 
 export const rowEditTriggerIcon = style({
   width: 14,
@@ -177,7 +181,8 @@ export const editInput = style({
   selectors: {
     '&:focus': {
       borderColor: cssVarV2('button/primary'),
-      boxShadow: '0 0 0 2px color-mix(in srgb, var(--affine-primary-color) 22%, transparent)',
+      boxShadow:
+        '0 0 0 2px color-mix(in srgb, var(--affine-primary-color) 22%, transparent)',
     },
   },
 });
@@ -317,6 +322,33 @@ export const filterGroupRight = style(filterGroupRightStyle('mandanten-body'));
 
 export const filterChip = style(filterChipStyle);
 
+export const primaryActionChip = style({
+  ...filterChipStyle,
+  minHeight: 30,
+  padding: '5px 12px',
+  fontWeight: 700,
+  color: cssVarV2('button/pureWhiteText'),
+  borderColor: `color-mix(in srgb, ${cssVarV2('button/primary')} 34%, transparent)`,
+  background: cssVarV2('button/primary'),
+  boxShadow: `0 2px 10px color-mix(in srgb, ${cssVarV2('button/primary')} 34%, transparent)`,
+  selectors: {
+    '&:hover:not(:disabled)': {
+      background: `color-mix(in srgb, ${cssVarV2('button/primary')} 88%, var(--affine-background-primary-color))`,
+      borderColor: `color-mix(in srgb, ${cssVarV2('button/primary')} 42%, transparent)`,
+      transform: 'translateY(-0.5px)',
+      boxShadow: `0 4px 14px color-mix(in srgb, ${cssVarV2('button/primary')} 40%, transparent)`,
+    },
+    '&:focus-visible': {
+      outline: `2px solid ${cssVarV2('button/primary')}`,
+      outlineOffset: 2,
+    },
+    '&:disabled': {
+      opacity: 0.6,
+      cursor: 'not-allowed',
+    },
+  },
+});
+
 export const topActionRow = style({
   display: 'inline-flex',
   alignItems: 'center',
@@ -439,7 +471,8 @@ export const mandantRow = style({
     },
     '&:hover': {
       background: 'var(--affine-hover-color)',
-      borderColor: 'color-mix(in srgb, var(--affine-border-color) 70%, transparent)',
+      borderColor:
+        'color-mix(in srgb, var(--affine-border-color) 70%, transparent)',
       borderBottomColor: rowDividerColor,
       borderRadius: 10,
     },
@@ -547,7 +580,8 @@ export const mandantSubtitle = style({
   whiteSpace: 'nowrap',
   selectors: {
     '[data-theme="dark"] &': {
-      color: 'color-mix(in srgb, var(--affine-text-primary-color) 80%, var(--affine-text-secondary-color))',
+      color:
+        'color-mix(in srgb, var(--affine-text-primary-color) 80%, var(--affine-text-secondary-color))',
     },
   },
 });
@@ -560,7 +594,8 @@ export const mandantMeta = style({
   whiteSpace: 'normal',
   selectors: {
     '[data-theme="dark"] &': {
-      color: 'color-mix(in srgb, var(--affine-text-primary-color) 76%, var(--affine-text-secondary-color))',
+      color:
+        'color-mix(in srgb, var(--affine-text-primary-color) 76%, var(--affine-text-secondary-color))',
     },
   },
   '@container': {
@@ -579,7 +614,8 @@ export const mandantMetaHideSm = style({
   whiteSpace: 'nowrap',
   selectors: {
     '[data-theme="dark"] &': {
-      color: 'color-mix(in srgb, var(--affine-text-primary-color) 76%, var(--affine-text-secondary-color))',
+      color:
+        'color-mix(in srgb, var(--affine-text-primary-color) 76%, var(--affine-text-secondary-color))',
     },
   },
   '@container': {
@@ -631,8 +667,10 @@ export const rowEditTrigger = style({
   transition: 'all 0.12s ease',
   selectors: {
     '[data-theme="dark"] &': {
-      color: 'color-mix(in srgb, var(--affine-text-primary-color) 82%, var(--affine-text-secondary-color))',
-      borderColor: 'color-mix(in srgb, var(--affine-theme-secondary-soft, rgba(6, 182, 212, 0.14)) 50%, rgba(255, 255, 255, 0.12))',
+      color:
+        'color-mix(in srgb, var(--affine-text-primary-color) 82%, var(--affine-text-secondary-color))',
+      borderColor:
+        'color-mix(in srgb, var(--affine-theme-secondary-soft, rgba(6, 182, 212, 0.14)) 50%, rgba(255, 255, 255, 0.12))',
     },
     '&:hover': {
       color: cssVarV2('text/primary'),
@@ -674,7 +712,8 @@ export const docCountText = style({
   color: cssVarV2('text/secondary'),
   selectors: {
     '[data-theme="dark"] &': {
-      color: 'color-mix(in srgb, var(--affine-text-primary-color) 74%, var(--affine-text-secondary-color))',
+      color:
+        'color-mix(in srgb, var(--affine-text-primary-color) 74%, var(--affine-text-secondary-color))',
     },
   },
 });
@@ -733,7 +772,8 @@ export const emptyDescription = style({
   lineHeight: '22px',
   selectors: {
     '[data-theme="dark"] &': {
-      color: 'color-mix(in srgb, var(--affine-text-primary-color) 74%, var(--affine-text-secondary-color))',
+      color:
+        'color-mix(in srgb, var(--affine-text-primary-color) 74%, var(--affine-text-secondary-color))',
     },
   },
 });

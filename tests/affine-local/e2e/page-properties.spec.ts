@@ -281,7 +281,7 @@ test('delete property via property popup', async ({ page }) => {
     .click();
   // check if the property is removed
   await expect(
-    page.locator('[data-testid="http://localhost:8080/"]:has-text("Text")')
+    page.locator('[data-testid^="http"]:has-text("Text")')
   ).not.toBeVisible();
 });
 

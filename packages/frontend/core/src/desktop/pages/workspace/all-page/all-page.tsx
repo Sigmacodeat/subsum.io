@@ -6,6 +6,7 @@ import {
 import { DocsExplorer } from '@affine/core/components/explorer/docs-view/docs-list';
 import type { ExplorerDisplayPreference } from '@affine/core/components/explorer/types';
 import { Filters } from '@affine/core/components/filter';
+import { CaseAssistantStore } from '@affine/core/modules/case-assistant/stores/case-assistant';
 import {
   CollectionService,
   PinnedCollectionService,
@@ -15,7 +16,7 @@ import type { FilterParams } from '@affine/core/modules/collection-rules/types';
 import { WorkspaceLocalState } from '@affine/core/modules/workspace';
 import { useI18n } from '@affine/i18n';
 import { useLiveData, useService } from '@toeverything/infra';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import {
   ViewBody,
@@ -98,12 +99,14 @@ const DefaultDisplayPreference: {
 };
 
 type ViewMode = NonNullable<ExplorerDisplayPreference['view']>;
+type AllDocsScope = 'all' | 'legal';
 
 export const AllPage = () => {
   const t = useI18n();
 
   const collectionService = useService(CollectionService);
   const pinnedCollectionService = useService(PinnedCollectionService);
+  const caseAssistantStore = useService(CaseAssistantStore);
   const {
     viewMode,
     setViewMode,
@@ -111,7 +114,20 @@ export const AllPage = () => {
     setSelectedCollectionId,
     displayPreference,
     setDisplayPreference,
+    docsScope,
+    setDocsScope,
   } = useAllDocsOptions();
+
+  const caseGraph = useLiveData(caseAssistantStore.watchGraph());
+  const legalLinkedPageIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const matter of Object.values(caseGraph?.matters ?? {})) {
+      for (const pageId of matter.linkedPageIds ?? []) {
+        ids.add(pageId);
+      }
+    }
+    return Array.from(ids);
+  }, [caseGraph?.matters]);
 
   const isCollectionDataReady = useLiveData(
     collectionService.collectionDataReady$
@@ -167,9 +183,22 @@ export const AllPage = () => {
   const [tempFiltersInitial, setTempFiltersInitial] =
     useState<FilterParams | null>(null);
 
+  useEffect(() => {
+    if (docsScope === 'legal' && selectedCollectionId) {
+      setSelectedCollectionId(null);
+    }
+    if (docsScope === 'legal' && tempFilters !== null) {
+      setTempFilters(null);
+    }
+  }, [docsScope, selectedCollectionId, setSelectedCollectionId, tempFilters]);
+
   const [explorerContextValue] = useState(() =>
     createDocExplorerContext(displayPreference)
   );
+  const selectMode = useLiveData(explorerContextValue.selectMode$);
+  const selectedDocIds = useLiveData(explorerContextValue.selectedDocIds$);
+  const groups = useLiveData(explorerContextValue.groups$);
+  const allDocIds = useMemo(() => groups.flatMap(g => g.items), [groups]);
 
   useEffect(() => {
     explorerContextValue.displayPreference$.next(displayPreference);
@@ -182,60 +211,45 @@ export const AllPage = () => {
 
   const collectionRulesService = useService(CollectionRulesService);
   useEffect(() => {
+    const defaultNonTrashFilters: FilterParams[] = [
+      {
+        type: 'system',
+        key: 'trash',
+        method: 'is',
+        value: 'false',
+      },
+    ];
+    const baseFilters = selectedCollectionInfo
+      ? selectedCollectionInfo.rules.filters
+      : tempFilters && tempFilters.length > 0
+        ? tempFilters
+        : defaultNonTrashFilters;
+
     const subscription = collectionRulesService
-      .watch(
-        selectedCollectionInfo
-          ? {
-              filters: selectedCollectionInfo.rules.filters,
-              groupBy,
-              orderBy,
-              extraAllowList: selectedCollectionInfo.allowList,
-              extraFilters: [
-                {
-                  type: 'system',
-                  key: 'empty-journal',
-                  method: 'is',
-                  value: 'false',
-                },
-                {
-                  type: 'system',
-                  key: 'trash',
-                  method: 'is',
-                  value: 'false',
-                },
-              ],
-            }
-          : {
-              filters:
-                tempFilters && tempFilters.length > 0
-                  ? tempFilters
-                  : [
-                      // if no filters are present, match all non-trash documents
-                      {
-                        type: 'system',
-                        key: 'trash',
-                        method: 'is',
-                        value: 'false',
-                      },
-                    ],
-              groupBy,
-              orderBy,
-              extraFilters: [
-                {
-                  type: 'system',
-                  key: 'empty-journal',
-                  method: 'is',
-                  value: 'false',
-                },
-                {
-                  type: 'system',
-                  key: 'trash',
-                  method: 'is',
-                  value: 'false',
-                },
-              ],
-            }
-      )
+      .watch({
+        // In legal scope we rely on extraAllowList (= linked Akte pages) as source set.
+        filters: docsScope === 'legal' ? [] : baseFilters,
+        groupBy,
+        orderBy,
+        extraAllowList:
+          docsScope === 'legal'
+            ? legalLinkedPageIds
+            : selectedCollectionInfo?.allowList,
+        extraFilters: [
+          {
+            type: 'system',
+            key: 'empty-journal',
+            method: 'is',
+            value: 'false',
+          },
+          {
+            type: 'system',
+            key: 'trash',
+            method: 'is',
+            value: 'false',
+          },
+        ],
+      })
       .subscribe({
         next: result => {
           explorerContextValue.groups$.next(result.groups);
@@ -255,6 +269,8 @@ export const AllPage = () => {
     selectedCollection,
     selectedCollectionInfo,
     tempFilters,
+    docsScope,
+    legalLinkedPageIds,
   ]);
 
   useEffect(() => {
@@ -351,6 +367,28 @@ export const AllPage = () => {
     [setDisplayPreference]
   );
 
+  const handleToggleSelectMode = useCallback(() => {
+    if (explorerContextValue.selectMode$.value) {
+      explorerContextValue.selectMode$.next(false);
+      explorerContextValue.selectedDocIds$.next([]);
+      explorerContextValue.prevCheckAnchorId$.next(null);
+      return;
+    }
+    explorerContextValue.selectMode$.next(true);
+  }, [explorerContextValue]);
+
+  const handleSelectAllDocs = useCallback(() => {
+    const currentSelected = explorerContextValue.selectedDocIds$.value;
+    if (currentSelected.length === allDocIds.length && allDocIds.length > 0) {
+      explorerContextValue.selectedDocIds$.next([]);
+    } else {
+      explorerContextValue.selectedDocIds$.next([...allDocIds]);
+      if (!explorerContextValue.selectMode$.value) {
+        explorerContextValue.selectMode$.next(true);
+      }
+    }
+  }, [explorerContextValue, allDocIds]);
+
   return (
     <DocExplorerContext.Provider value={explorerContextValue}>
       <ViewTitle title={t['All pages']()} />
@@ -361,19 +399,50 @@ export const AllPage = () => {
           onDisplayPreferenceChange={handleDisplayPreferenceChange}
           view={viewMode}
           onViewChange={setViewMode}
+          selectMode={!!selectMode}
+          selectedCount={selectedDocIds.length}
+          totalCount={allDocIds.length}
+          onToggleSelectMode={handleToggleSelectMode}
+          onSelectAll={handleSelectAllDocs}
         />
       </ViewHeader>
       <ViewBody>
         <div className={styles.body}>
           <MigrationAllDocsDataNotification />
           <div className={styles.topControls}>
+            <div
+              className={styles.scopeToggle}
+              role="tablist"
+              aria-label="Dokumentumfang"
+            >
+              <button
+                type="button"
+                className={styles.scopeToggleButton}
+                data-active={docsScope === 'all'}
+                role="tab"
+                aria-selected={docsScope === 'all'}
+                onClick={() => setDocsScope('all')}
+              >
+                Alle Dokumente
+              </button>
+              <button
+                type="button"
+                className={styles.scopeToggleButton}
+                data-active={docsScope === 'legal'}
+                role="tab"
+                aria-selected={docsScope === 'legal'}
+                onClick={() => setDocsScope('legal')}
+              >
+                Schriftstücke
+              </button>
+            </div>
             <div className={styles.pinnedCollection}>
               <PinnedCollections
                 activeCollectionId={selectedCollectionId}
                 onActiveAll={handleSelectAll}
                 onActiveCollection={handleSelectCollection}
                 onAddFilter={handleNewTempFilter}
-                hiddenAdd={tempFilters !== null}
+                hiddenAdd={tempFilters !== null || docsScope === 'legal'}
               />
             </div>
             <div className={styles.filterArea}>
@@ -451,6 +520,9 @@ const useAllDocsOptions = () => {
       workspaceLocalState.get<string | null>('allDocsSelectedCollectionId') ??
       null
   );
+  const [docsScope, setDocsScope] = useState<AllDocsScope>(
+    () => workspaceLocalState.get<AllDocsScope>('allDocsScope') ?? 'all'
+  );
 
   const handleViewModeChange = useCallback(
     (mode: ViewMode) => {
@@ -480,6 +552,14 @@ const useAllDocsOptions = () => {
     [workspaceLocalState]
   );
 
+  const handleDocsScopeChange = useCallback(
+    (scope: AllDocsScope) => {
+      workspaceLocalState.set('allDocsScope', scope);
+      setDocsScope(scope);
+    },
+    [workspaceLocalState]
+  );
+
   return {
     viewMode,
     setViewMode: handleViewModeChange,
@@ -487,5 +567,7 @@ const useAllDocsOptions = () => {
     setDisplayPreference: handleDisplayPreferenceChange,
     selectedCollectionId,
     setSelectedCollectionId: handleSelectedCollectionIdChange,
+    docsScope,
+    setDocsScope: handleDocsScopeChange,
   };
 };

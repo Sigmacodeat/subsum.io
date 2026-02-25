@@ -44,11 +44,11 @@ const sortKeyLabelKey: Record<SortKey, string> = {
   dueAt: 'com.affine.caseAssistant.allFristen.sort.dueAt',
   title: 'com.affine.caseAssistant.allFristen.sort.title',
   status: 'com.affine.caseAssistant.allFristen.sort.status',
-  confidence: 'Erkennungsqualität (KI)',
+  confidence: 'com.affine.caseAssistant.allFristen.sort.confidence',
 };
 
-const DETECTION_QUALITY_EXPLANATION =
-  'Wie verlässlich die automatische Fristerkennung aus Dokumenten ist. 100% = sehr sicher, niedriger Wert = bitte prüfen.';
+const DETECTION_QUALITY_EXPLANATION_KEY =
+  'com.affine.caseAssistant.allFristen.detectionQuality.explanation';
 
 function daysUntil(dateStr: string): number {
   const now = new Date();
@@ -225,7 +225,7 @@ export const AllFristenPage = () => {
       dueAt: t[sortKeyLabelKey.dueAt](),
       title: t[sortKeyLabelKey.title](),
       status: t[sortKeyLabelKey.status](),
-      confidence: sortKeyLabelKey.confidence,
+      confidence: t[sortKeyLabelKey.confidence](),
     }),
     [t]
   );
@@ -233,8 +233,9 @@ export const AllFristenPage = () => {
   const statusLabel = useMemo<Record<DeadlineStatus, string>>(
     () => ({
       open: t['com.affine.caseAssistant.allFristen.status.open'](),
-      alerted: 'Angemahnt',
-      acknowledged: 'Bestätigt',
+      alerted: t['com.affine.caseAssistant.allFristen.status.alerted'](),
+      acknowledged:
+        t['com.affine.caseAssistant.allFristen.status.acknowledged'](),
       completed: t['com.affine.caseAssistant.allFristen.status.completed'](),
       expired: t['com.affine.caseAssistant.allFristen.status.expired'](),
     }),
@@ -434,7 +435,11 @@ export const AllFristenPage = () => {
           }
         }
         if (removed > 0) {
-          showActionStatus(`Verwaiste Fristen bereinigt: ${removed}`);
+          showActionStatus(
+            t.t('com.affine.caseAssistant.allFristen.feedback.orphanCleanup', {
+              count: removed,
+            })
+          );
         }
       } finally {
         orphanCleanupInFlightRef.current = false;
@@ -753,10 +758,17 @@ export const AllFristenPage = () => {
     }
 
     openConfirmModal({
-      title: 'Fristen als erledigt markieren?',
-      description: `Du markierst ${targets.length} Frist(en) als erledigt.`,
+      title:
+        t['com.affine.caseAssistant.allFristen.modal.bulkCompleted.title'](),
+      description: t.t(
+        'com.affine.caseAssistant.allFristen.modal.bulkCompleted.description',
+        {
+          count: targets.length,
+        }
+      ),
       cancelText: t['com.affine.auth.sign-out.confirm-modal.cancel'](),
-      confirmText: 'Erledigt markieren',
+      confirmText:
+        t['com.affine.caseAssistant.allFristen.modal.bulkCompleted.confirm'](),
       confirmButtonOptions: {
         variant: 'primary',
       },
@@ -803,13 +815,24 @@ export const AllFristenPage = () => {
   const handleMarkDeadlineCompleted = useCallback(
     async (deadline: EnrichedDeadline) => {
       openPromptModal({
-        title: 'Extern erledigt',
-        label: 'Notiz / Beleg (optional)',
+        title:
+          t[
+            'com.affine.caseAssistant.allFristen.modal.externalCompleted.title'
+          ](),
+        label:
+          t[
+            'com.affine.caseAssistant.allFristen.modal.externalCompleted.label'
+          ](),
         inputOptions: {
           placeholder:
-            'z.B. Schriftsatz eingereicht, Fax bestätigt, Zahlung erledigt…',
+            t[
+              'com.affine.caseAssistant.allFristen.modal.externalCompleted.placeholder'
+            ](),
         },
-        confirmText: 'Als erledigt markieren',
+        confirmText:
+          t[
+            'com.affine.caseAssistant.allFristen.modal.externalCompleted.confirm'
+          ](),
         cancelText: t['com.affine.auth.sign-out.confirm-modal.cancel'](),
         confirmButtonOptions: {
           variant: 'primary',
@@ -822,8 +845,15 @@ export const AllFristenPage = () => {
             );
           showActionStatus(
             updated
-              ? `Frist als erledigt markiert: ${deadline.title}`
-              : `Frist konnte nicht als erledigt markiert werden: ${deadline.title}`
+              ? t.t('com.affine.caseAssistant.allFristen.feedback.completed', {
+                  title: deadline.title,
+                })
+              : t.t(
+                  'com.affine.caseAssistant.allFristen.feedback.completedFailed',
+                  {
+                    title: deadline.title,
+                  }
+                )
           );
         },
       });
@@ -838,8 +868,12 @@ export const AllFristenPage = () => {
       );
       showActionStatus(
         updated
-          ? `Frist wieder geöffnet: ${deadline.title}`
-          : `Frist konnte nicht wieder geöffnet werden: ${deadline.title}`
+          ? t.t('com.affine.caseAssistant.allFristen.feedback.reopened', {
+              title: deadline.title,
+            })
+          : t.t('com.affine.caseAssistant.allFristen.feedback.reopenFailed', {
+              title: deadline.title,
+            })
       );
     },
     [casePlatformOrchestrationService, showActionStatus]
@@ -854,15 +888,26 @@ export const AllFristenPage = () => {
         Boolean(deadline.requiresReview)
     );
     if (!targets.length) {
-      showActionStatus('Keine Review-Fristen in der Auswahl.');
+      showActionStatus(
+        t['com.affine.caseAssistant.allFristen.feedback.noReviewDeadlines']()
+      );
       return;
     }
 
     openConfirmModal({
-      title: 'Review-Fristen als geprüft bestätigen?',
-      description: `Du bestätigst ${targets.length} Frist(en) als geprüft.`,
+      title:
+        t['com.affine.caseAssistant.allFristen.modal.reviewConfirmed.title'](),
+      description: t.t(
+        'com.affine.caseAssistant.allFristen.modal.reviewConfirmed.description',
+        {
+          count: targets.length,
+        }
+      ),
       cancelText: t['com.affine.auth.sign-out.confirm-modal.cancel'](),
-      confirmText: 'Als geprüft bestätigen',
+      confirmText:
+        t[
+          'com.affine.caseAssistant.allFristen.modal.reviewConfirmed.confirm'
+        ](),
       confirmButtonOptions: {
         variant: 'primary',
       },
@@ -913,8 +958,19 @@ export const AllFristenPage = () => {
           const failed = targets.length - succeeded;
           showActionStatus(
             failed > 0
-              ? `Review bestätigt: ${succeeded} erfolgreich, ${failed} fehlgeschlagen.`
-              : `Review bestätigt: ${targets.length} Frist(en) aktualisiert.`
+              ? t.t(
+                  'com.affine.caseAssistant.allFristen.feedback.reviewConfirmedPartial',
+                  {
+                    succeeded,
+                    failed,
+                  }
+                )
+              : t.t(
+                  'com.affine.caseAssistant.allFristen.feedback.reviewConfirmed',
+                  {
+                    count: targets.length,
+                  }
+                )
           );
           bulkSelection.clear();
         } finally {
@@ -977,9 +1033,9 @@ export const AllFristenPage = () => {
     );
     if (availableCases.length === 0) {
       showActionStatus(
-        'Bitte zuerst eine Akte bzw. einen Case anlegen, bevor du eine Frist erstellst.'
+        t['com.affine.caseAssistant.allFristen.feedback.createCaseFirst']()
       );
-      workbench.open('/all-akten');
+      workbench.open('/akten?caFocus=create-matter');
       return;
     }
 
@@ -991,12 +1047,14 @@ export const AllFristenPage = () => {
         : undefined) ?? availableCases[0];
 
     openPromptModal({
-      title: 'Neu+ Frist',
-      label: 'Titel',
+      title: t['com.affine.caseAssistant.allFristen.modal.create.title'](),
+      label: t['com.affine.caseAssistant.allFristen.modal.create.label'](),
       inputOptions: {
-        placeholder: 'z. B. Berufung einreichen @2026-03-10',
+        placeholder:
+          t['com.affine.caseAssistant.allFristen.modal.create.placeholder'](),
       },
-      confirmText: 'Frist anlegen',
+      confirmText:
+        t['com.affine.caseAssistant.allFristen.modal.create.confirm'](),
       cancelText: t['com.affine.auth.sign-out.confirm-modal.cancel'](),
       confirmButtonOptions: {
         variant: 'primary',
@@ -1004,7 +1062,9 @@ export const AllFristenPage = () => {
       onConfirm: async rawInput => {
         const input = rawInput.trim();
         if (!input) {
-          showActionStatus('Bitte einen Fristtitel angeben.');
+          showActionStatus(
+            t['com.affine.caseAssistant.allFristen.feedback.titleRequired']()
+          );
           return;
         }
 
@@ -1012,7 +1072,9 @@ export const AllFristenPage = () => {
         const title = (parsed?.[1] ?? '').trim();
         const dueDateToken = parsed?.[2]?.trim();
         if (!title) {
-          showActionStatus('Bitte einen Fristtitel angeben.');
+          showActionStatus(
+            t['com.affine.caseAssistant.allFristen.feedback.titleRequired']()
+          );
           return;
         }
 
@@ -1029,7 +1091,9 @@ export const AllFristenPage = () => {
 
         if (!dueAtDate) {
           showActionStatus(
-            'Ungültiges Datumsformat. Bitte nutze YYYY-MM-DD, z. B. @2026-03-10.'
+            t[
+              'com.affine.caseAssistant.allFristen.feedback.invalidDateFormat'
+            ]()
           );
           return;
         }
@@ -1041,7 +1105,9 @@ export const AllFristenPage = () => {
           derivedFrom: 'manual',
           detectionConfidence: 1,
           requiresReview: false,
-          evidenceSnippets: ['Manuell erstellt über Fristen-Ansicht.'],
+          evidenceSnippets: [
+            t['com.affine.caseAssistant.allFristen.evidence.createdManually'](),
+          ],
           sourceDocIds: [],
           priority: 'medium',
           reminderOffsetsInMinutes: [1440, 60, 15],
@@ -1049,7 +1115,11 @@ export const AllFristenPage = () => {
         });
 
         if (!created) {
-          showActionStatus(`Frist konnte nicht angelegt werden: ${title}.`);
+          showActionStatus(
+            t.t('com.affine.caseAssistant.allFristen.feedback.createFailed', {
+              title: title,
+            })
+          );
           return;
         }
 
@@ -1065,7 +1135,10 @@ export const AllFristenPage = () => {
         setFilterMode('today_week');
         setSearchQuery('');
         showActionStatus(
-          `Frist angelegt: ${created.title} (fällig ${new Date(created.dueAt).toLocaleDateString(language)}).`
+          t.t('com.affine.caseAssistant.allFristen.feedback.created', {
+            title: created.title,
+            date: new Date(created.dueAt).toLocaleDateString(language),
+          })
         );
       },
     });
@@ -1103,7 +1176,9 @@ export const AllFristenPage = () => {
       }
 
       showActionStatus(
-        `Frist ohne Aktenzuordnung: ${deadline.title}. Bitte Akte zuweisen, damit der Kalendereintrag direkt geöffnet werden kann.`
+        t.t('com.affine.caseAssistant.allFristen.feedback.noMatterAssignment', {
+          title: deadline.title,
+        })
       );
       workbench.open('/akten');
     },
@@ -1115,7 +1190,9 @@ export const AllFristenPage = () => {
       const base = graph.deadlines?.[deadline.id];
       if (!base) {
         showActionStatus(
-          `Frist konnte nicht geladen werden: ${deadline.title}`
+          t.t('com.affine.caseAssistant.allFristen.feedback.loadFailed', {
+            title: deadline.title,
+          })
         );
         return;
       }
@@ -1131,7 +1208,12 @@ export const AllFristenPage = () => {
 
       if (!updated) {
         showActionStatus(
-          `Review-Status konnte nicht aktualisiert werden: ${deadline.title}`
+          t.t(
+            'com.affine.caseAssistant.allFristen.feedback.reviewUpdateFailed',
+            {
+              title: deadline.title,
+            }
+          )
         );
         return;
       }
@@ -1152,7 +1234,11 @@ export const AllFristenPage = () => {
         },
       });
 
-      showActionStatus(`Frist als geprüft markiert: ${deadline.title}`);
+      showActionStatus(
+        t.t('com.affine.caseAssistant.allFristen.feedback.reviewed', {
+          title: deadline.title,
+        })
+      );
     },
     [
       casePlatformOrchestrationService,
@@ -1166,13 +1252,15 @@ export const AllFristenPage = () => {
   const handleEditDeadline = useCallback(
     (deadline: EnrichedDeadline) => {
       openPromptModal({
-        title: 'Frist bearbeiten',
-        label: 'Titel und Fälligkeitsdatum',
+        title: t['com.affine.caseAssistant.allFristen.modal.edit.title'](),
+        label: t['com.affine.caseAssistant.allFristen.modal.edit.label'](),
         inputOptions: {
-          placeholder: 'Titel @YYYY-MM-DD',
+          placeholder:
+            t['com.affine.caseAssistant.allFristen.modal.edit.placeholder'](),
           defaultValue: `${deadline.title} @${deadline.dueAt.slice(0, 10)}`,
         },
-        confirmText: 'Speichern',
+        confirmText:
+          t['com.affine.caseAssistant.allFristen.modal.edit.confirm'](),
         cancelText: t['com.affine.auth.sign-out.confirm-modal.cancel'](),
         confirmButtonOptions: {
           variant: 'primary',
@@ -1183,18 +1271,26 @@ export const AllFristenPage = () => {
           const title = (parsed?.[1] ?? '').trim();
           const dueDateToken = parsed?.[2]?.trim();
           if (!title || !dueDateToken) {
-            showActionStatus('Bitte Format nutzen: Titel @YYYY-MM-DD');
+            showActionStatus(
+              t['com.affine.caseAssistant.allFristen.feedback.formatRequired']()
+            );
             return;
           }
           const dueAtDate = new Date(`${dueDateToken}T17:00:00`);
           if (Number.isNaN(dueAtDate.getTime())) {
-            showActionStatus('Ungültiges Datum. Bitte YYYY-MM-DD verwenden.');
+            showActionStatus(
+              t['com.affine.caseAssistant.allFristen.feedback.invalidDate']()
+            );
             return;
           }
 
           const base = graph.deadlines?.[deadline.id];
           if (!base) {
-            showActionStatus(`Frist nicht gefunden: ${deadline.title}`);
+            showActionStatus(
+              t.t('com.affine.caseAssistant.allFristen.feedback.notFound', {
+                title: deadline.title,
+              })
+            );
             return;
           }
 
@@ -1208,8 +1304,15 @@ export const AllFristenPage = () => {
           );
           showActionStatus(
             updated
-              ? `Frist aktualisiert: ${title}`
-              : `Frist konnte nicht aktualisiert werden: ${deadline.title}`
+              ? t.t('com.affine.caseAssistant.allFristen.feedback.updated', {
+                  title: title,
+                })
+              : t.t(
+                  'com.affine.caseAssistant.allFristen.feedback.updateFailed',
+                  {
+                    title: deadline.title,
+                  }
+                )
           );
         },
       });
@@ -1226,10 +1329,16 @@ export const AllFristenPage = () => {
   const handleDeleteDeadline = useCallback(
     (deadline: EnrichedDeadline) => {
       openConfirmModal({
-        title: 'Frist löschen?',
-        description: `Die Frist "${deadline.title}" wird entfernt.`,
+        title: t['com.affine.caseAssistant.allFristen.modal.delete.title'](),
+        description: t.t(
+          'com.affine.caseAssistant.allFristen.modal.delete.description',
+          {
+            title: deadline.title,
+          }
+        ),
         cancelText: t['com.affine.auth.sign-out.confirm-modal.cancel'](),
-        confirmText: 'Löschen',
+        confirmText:
+          t['com.affine.caseAssistant.allFristen.modal.delete.confirm'](),
         confirmButtonOptions: {
           variant: 'error',
         },
@@ -1240,8 +1349,15 @@ export const AllFristenPage = () => {
             );
           showActionStatus(
             ok
-              ? `Frist gelöscht: ${deadline.title}`
-              : `Frist konnte nicht gelöscht werden: ${deadline.title}`
+              ? t.t('com.affine.caseAssistant.allFristen.feedback.deleted', {
+                  title: deadline.title,
+                })
+              : t.t(
+                  'com.affine.caseAssistant.allFristen.feedback.deleteFailed',
+                  {
+                    title: deadline.title,
+                  }
+                )
           );
         },
       });
@@ -1254,15 +1370,21 @@ export const AllFristenPage = () => {
       bulkSelection.selectedIds.has(deadline.id)
     );
     if (!targets.length) {
-      showActionStatus('Keine Fristen ausgewählt.');
+      showActionStatus(
+        t['com.affine.caseAssistant.allFristen.feedback.noSelection']()
+      );
       return;
     }
 
     openConfirmModal({
-      title: `${targets.length} Frist(en) löschen?`,
-      description: 'Diese Fristen werden vollständig entfernt.',
+      title: t.t('com.affine.caseAssistant.allFristen.modal.bulkDelete.title', {
+        count: targets.length,
+      }),
+      description:
+        t['com.affine.caseAssistant.allFristen.modal.bulkDelete.description'](),
       cancelText: t['com.affine.auth.sign-out.confirm-modal.cancel'](),
-      confirmText: 'Löschen',
+      confirmText:
+        t['com.affine.caseAssistant.allFristen.modal.bulkDelete.confirm'](),
       confirmButtonOptions: {
         variant: 'error',
       },
@@ -1279,8 +1401,19 @@ export const AllFristenPage = () => {
           const failed = targets.length - succeeded;
           showActionStatus(
             failed > 0
-              ? `Fristen gelöscht: ${succeeded} erfolgreich, ${failed} fehlgeschlagen.`
-              : `Fristen gelöscht: ${succeeded}.`
+              ? t.t(
+                  'com.affine.caseAssistant.allFristen.feedback.bulkDeletedPartial',
+                  {
+                    succeeded,
+                    failed,
+                  }
+                )
+              : t.t(
+                  'com.affine.caseAssistant.allFristen.feedback.bulkDeleted',
+                  {
+                    count: succeeded,
+                  }
+                )
           );
           bulkSelection.clear();
         } finally {
@@ -1341,7 +1474,7 @@ export const AllFristenPage = () => {
       case 'overdue':
         return t['com.affine.caseAssistant.allFristen.urgency.overdue']();
       case 'critical':
-        return 'Kritisch (<48h)';
+        return t['com.affine.caseAssistant.allFristen.urgency.critical']();
       case 'today':
         return t['com.affine.caseAssistant.allFristen.urgency.today']();
       case 'soon':
@@ -1370,7 +1503,10 @@ export const AllFristenPage = () => {
       label: t['com.affine.caseAssistant.allFristen.view.done'](),
     },
     { key: 'all', label: t['com.affine.caseAssistant.allFristen.view.all']() },
-    { key: 'custom', label: 'Individuell' },
+    {
+      key: 'custom',
+      label: t['com.affine.caseAssistant.allFristen.view.custom'](),
+    },
   ];
 
   return (
@@ -1385,7 +1521,7 @@ export const AllFristenPage = () => {
             aria-atomic="true"
           >
             {actionStatus ??
-              `${isCalendarDayFilterActive ? `Kalendertag aktiv: ${selectedDateLabel}.` : 'Kalendertag-Filter deaktiviert.'} ${sorted.length} Frist(en) sichtbar.${selectedDayMeta.criticalCount > 0 ? ` ${selectedDayMeta.criticalCount} kritisch (unter 48 Stunden oder überfällig).` : ''}`}
+              `${isCalendarDayFilterActive ? t.t('com.affine.caseAssistant.allFristen.calendar.active', { date: selectedDateLabel }) : t['com.affine.caseAssistant.allFristen.calendar.inactive']()} ${t.t('com.affine.caseAssistant.allFristen.sr.visible', { count: sorted.length })}${selectedDayMeta.criticalCount > 0 ? ` ${t.t('com.affine.caseAssistant.allFristen.sr.critical', { count: selectedDayMeta.criticalCount })}` : ''}`}
           </div>
 
           {/* Filter Bar */}
@@ -1393,7 +1529,9 @@ export const AllFristenPage = () => {
             {/* Row 1: Saved Views */}
             <div className={styles.filterRow}>
               <label className={styles.toolbarControl}>
-                <span className={styles.toolbarLabel}>Ansicht</span>
+                <span className={styles.toolbarLabel}>
+                  {t['com.affine.caseAssistant.allFristen.toolbar.view']()}
+                </span>
                 <select
                   className={styles.toolbarSelect}
                   value={savedView}
@@ -1430,14 +1568,19 @@ export const AllFristenPage = () => {
                 aria-pressed={isCalendarDayFilterActive}
               >
                 {isCalendarDayFilterActive
-                  ? `Kalendertag: ${selectedDateKey}`
-                  : 'Alle Kalendertage'}
+                  ? t.t(
+                      'com.affine.caseAssistant.allFristen.calendar.dayActive',
+                      {
+                        date: selectedDateKey,
+                      }
+                    )
+                  : t['com.affine.caseAssistant.allFristen.calendar.allDays']()}
               </button>
               <button
                 className={`${styles.filterChip} ${styles.filterChipLowPriority}`}
                 onClick={handleJumpToToday}
               >
-                Heute
+                {t['com.affine.caseAssistant.allFristen.today.button']()}
               </button>
             </div>
 
@@ -1445,7 +1588,9 @@ export const AllFristenPage = () => {
             <div className={styles.filterRow}>
               <div className={styles.filterGroup}>
                 <label className={styles.toolbarControl}>
-                  <span className={styles.toolbarLabel}>Filter</span>
+                  <span className={styles.toolbarLabel}>
+                    {t['com.affine.caseAssistant.allFristen.toolbar.filter']()}
+                  </span>
                   <select
                     className={styles.toolbarSelect}
                     value={effectiveFilterMode}
@@ -1453,23 +1598,57 @@ export const AllFristenPage = () => {
                       setSavedView('custom');
                       setFilterMode(event.target.value as FilterMode);
                     }}
-                    aria-label="Fristen-Filter"
+                    aria-label={t[
+                      'com.affine.caseAssistant.allFristen.filter.ariaLabel'
+                    ]()}
                   >
-                    <option value="all">Alle ({stats.total})</option>
+                    <option value="all">
+                      {t.t(
+                        'com.affine.caseAssistant.allFristen.filter.allLabel',
+                        {
+                          count: stats.total,
+                        }
+                      )}
+                    </option>
                     <option value="overdue">
-                      Überfällig ({stats.overdue})
+                      {t.t(
+                        'com.affine.caseAssistant.allFristen.filter.overdueLabel',
+                        {
+                          count: stats.overdue,
+                        }
+                      )}
                     </option>
                     <option value="today_week">
-                      Heute / 7d ({stats.today + stats.thisWeek})
+                      {t.t(
+                        'com.affine.caseAssistant.allFristen.filter.todayWeekLabel',
+                        {
+                          count: stats.today + stats.thisWeek,
+                        }
+                      )}
                     </option>
                     <option value="completed">
-                      Erledigt ({stats.completed})
+                      {t.t(
+                        'com.affine.caseAssistant.allFristen.filter.completedLabel',
+                        {
+                          count: stats.completed,
+                        }
+                      )}
                     </option>
                     <option value="needs_review">
-                      Review nötig ({stats.needsReview})
+                      {t.t(
+                        'com.affine.caseAssistant.allFristen.filter.needsReviewLabel',
+                        {
+                          count: stats.needsReview,
+                        }
+                      )}
                     </option>
                     <option value="low_confidence">
-                      KI &lt; 70% ({stats.lowConfidence})
+                      {t.t(
+                        'com.affine.caseAssistant.allFristen.filter.lowConfidenceLabel',
+                        {
+                          count: stats.lowConfidence,
+                        }
+                      )}
                     </option>
                   </select>
                 </label>
@@ -1477,11 +1656,13 @@ export const AllFristenPage = () => {
 
               <div className={styles.filterGroupRight}>
                 <button
-                  className={styles.filterChip}
+                  className={styles.primaryActionChip}
                   onClick={handleCreateDeadline}
-                  aria-label="Neue Frist anlegen"
+                  aria-label={t[
+                    'com.affine.caseAssistant.allFristen.create.ariaLabel'
+                  ]()}
                 >
-                  Neu+ Frist
+                  {t['com.affine.caseAssistant.allFristen.create.label']()}
                 </button>
                 {reviewCandidateIds.length > 0 ? (
                   <button
@@ -1489,11 +1670,18 @@ export const AllFristenPage = () => {
                     onClick={() => {
                       bulkSelection.selectByIds(reviewCandidateIds);
                       showActionStatus(
-                        `Review-Auswahl geladen: ${reviewCandidateIds.length} Frist(en).`
+                        t.t(
+                          'com.affine.caseAssistant.allFristen.review.loadSelection',
+                          {
+                            count: reviewCandidateIds.length,
+                          }
+                        )
                       );
                     }}
                   >
-                    Review-Fristen auswählen
+                    {t[
+                      'com.affine.caseAssistant.allFristen.review.selectButton'
+                    ]()}
                   </button>
                 ) : null}
                 {sorted.length > 0 ? (
@@ -1611,7 +1799,9 @@ export const AllFristenPage = () => {
                     onChange={e =>
                       bulkSelection.selectAllVisible(e.target.checked)
                     }
-                    aria-label="Alle sichtbaren Fristen auswählen"
+                    aria-label={t[
+                      'com.affine.caseAssistant.allFristen.selection.selectAll'
+                    ]()}
                   />
                 </span>
                 <span className={styles.sortButton} role="columnheader">
@@ -1646,7 +1836,9 @@ export const AllFristenPage = () => {
                 <div className={styles.emptyState}>
                   <div className={styles.emptyTitle}>
                     {isCalendarDayFilterActive
-                      ? 'Keine Fristen für den gewählten Kalendertag'
+                      ? t[
+                          'com.affine.caseAssistant.allFristen.empty.calendarDay.title'
+                        ]()
                       : searchQuery || filterMode !== 'all'
                         ? t[
                             'com.affine.caseAssistant.allFristen.empty.filtered.title'
@@ -1657,7 +1849,9 @@ export const AllFristenPage = () => {
                   </div>
                   <div className={styles.emptyDescription}>
                     {isCalendarDayFilterActive
-                      ? 'Wähle einen anderen Tag oder deaktiviere den Tagesfilter, um alle Fristen zu sehen.'
+                      ? t[
+                          'com.affine.caseAssistant.allFristen.empty.calendarDay.description'
+                        ]()
                       : searchQuery || filterMode !== 'all'
                         ? t[
                             'com.affine.caseAssistant.allFristen.empty.filtered.description'
@@ -1668,11 +1862,13 @@ export const AllFristenPage = () => {
                   </div>
                   <button
                     type="button"
-                    className={styles.filterChip}
+                    className={styles.primaryActionChip}
                     onClick={handleCreateDeadline}
-                    aria-label="Neue Frist anlegen"
+                    aria-label={t[
+                      'com.affine.caseAssistant.allFristen.create.ariaLabel'
+                    ]()}
                   >
-                    Neu+ Frist
+                    {t['com.affine.caseAssistant.allFristen.create.label']()}
                   </button>
                 </div>
               ) : (
@@ -1747,7 +1943,12 @@ export const AllFristenPage = () => {
                             });
                           }}
                           onClick={e => e.stopPropagation()}
-                          aria-label={`Frist auswählen: ${deadline.title}`}
+                          aria-label={t.t(
+                            'com.affine.caseAssistant.allFristen.selection.ariaLabel',
+                            {
+                              title: deadline.title,
+                            }
+                          )}
                         />
                       </div>
                       <div className={styles.fristMainCell}>
@@ -1768,15 +1969,27 @@ export const AllFristenPage = () => {
                             <span
                               className={styles.deadlineConfidenceBadge}
                               data-tone={confidenceVariant}
-                              title={DETECTION_QUALITY_EXPLANATION}
-                              aria-label={`Erkennungsqualität (KI) für automatische Fristerkennung: ${confidenceLabel}`}
+                              title={t[DETECTION_QUALITY_EXPLANATION_KEY]()}
+                              aria-label={t.t(
+                                'com.affine.caseAssistant.allFristen.confidence.ariaLabel',
+                                {
+                                  confidence: confidenceLabel,
+                                }
+                              )}
                             >
-                              Erkennungsqualität (KI): {confidenceLabel}
+                              {t.t(
+                                'com.affine.caseAssistant.allFristen.confidence.label',
+                                {
+                                  confidence: confidenceLabel,
+                                }
+                              )}
                             </span>
                           ) : null}
                           {deadline.requiresReview ? (
                             <span className={styles.deadlineReviewBadge}>
-                              Review nötig
+                              {t[
+                                'com.affine.caseAssistant.allFristen.review.badge'
+                              ]()}
                             </span>
                           ) : null}
                           {deadline.derivedFrom ? (
@@ -1799,7 +2012,9 @@ export const AllFristenPage = () => {
                                 );
                               }}
                             >
-                              Als geprüft bestätigen
+                              {t[
+                                'com.affine.caseAssistant.allFristen.review.confirmButton'
+                              ]()}
                             </button>
                           ) : null}
 
@@ -1813,13 +2028,20 @@ export const AllFristenPage = () => {
                                 handleMarkDeadlineCompleted(deadline).catch(
                                   () => {
                                     showActionStatus(
-                                      `Frist konnte nicht als erledigt markiert werden: ${deadline.title}`
+                                      t.t(
+                                        'com.affine.caseAssistant.allFristen.feedback.completedFailed',
+                                        {
+                                          title: deadline.title,
+                                        }
+                                      )
                                     );
                                   }
                                 );
                               }}
                             >
-                              Extern erledigt
+                              {t[
+                                'com.affine.caseAssistant.allFristen.markCompleted.external'
+                              ]()}
                             </button>
                           ) : null}
 
@@ -1832,12 +2054,19 @@ export const AllFristenPage = () => {
                                 event.stopPropagation();
                                 handleReopenDeadline(deadline).catch(() => {
                                   showActionStatus(
-                                    `Frist konnte nicht wieder geöffnet werden: ${deadline.title}`
+                                    t.t(
+                                      'com.affine.caseAssistant.allFristen.feedback.reopenFailed',
+                                      {
+                                        title: deadline.title,
+                                      }
+                                    )
                                   );
                                 });
                               }}
                             >
-                              Wieder öffnen
+                              {t[
+                                'com.affine.caseAssistant.allFristen.reopen.button'
+                              ]()}
                             </button>
                           ) : null}
 
@@ -1849,7 +2078,9 @@ export const AllFristenPage = () => {
                               handleEditDeadline(deadline);
                             }}
                           >
-                            Bearbeiten
+                            {t[
+                              'com.affine.caseAssistant.allFristen.edit.button'
+                            ]()}
                           </button>
                           <button
                             type="button"
@@ -1859,19 +2090,36 @@ export const AllFristenPage = () => {
                               handleDeleteDeadline(deadline);
                             }}
                           >
-                            Löschen
+                            {t[
+                              'com.affine.caseAssistant.allFristen.delete.button'
+                            ]()}
                           </button>
                         </div>
                         {hasEvidence ? (
                           <div className={styles.deadlineEvidencePreview}>
-                            Evidenz: {evidencePreview}
+                            {t.t(
+                              'com.affine.caseAssistant.allFristen.evidence.label',
+                              {
+                                evidence: evidencePreview,
+                              }
+                            )}
                           </div>
                         ) : null}
                         {!deadline.requiresReview && reviewedAtLabel ? (
                           <div className={styles.deadlineReviewedMeta}>
-                            Geprüft: {reviewedAtLabel}
+                            {t.t(
+                              'com.affine.caseAssistant.allFristen.reviewed.label',
+                              {
+                                date: reviewedAtLabel,
+                              }
+                            )}
                             {deadline.reviewedBy
-                              ? ` • ${deadline.reviewedBy}`
+                              ? ` • ${t.t(
+                                  'com.affine.caseAssistant.allFristen.reviewed.by',
+                                  {
+                                    reviewedBy: deadline.reviewedBy,
+                                  }
+                                )}`
                               : ''}
                           </div>
                         ) : null}
@@ -1913,12 +2161,19 @@ export const AllFristenPage = () => {
           <BulkActionBar
             containerName="fristen-body"
             selectedCount={bulkSelection.selectedCount}
-            selectionLabel={`${bulkSelection.selectedCount} Frist(en) ausgewählt`}
+            selectionLabel={t.t(
+              'com.affine.caseAssistant.allFristen.bulk.selectionLabel',
+              {
+                count: bulkSelection.selectedCount,
+              }
+            )}
             isRunning={isBulkCompleting || isBulkReviewing || isBulkDeleting}
             primaryLabel={
               bulkPrimaryMode === 'review'
-                ? `Review bestätigen (${selectedReviewCount})`
-                : 'Als erledigt markieren'
+                ? t.t('com.affine.caseAssistant.allFristen.bulk.reviewLabel', {
+                    count: selectedReviewCount,
+                  })
+                : t['com.affine.caseAssistant.allFristen.bulk.completeLabel']()
             }
             onPrimary={() =>
               void (bulkPrimaryMode === 'review'
@@ -1926,7 +2181,9 @@ export const AllFristenPage = () => {
                 : handleBulkMarkCompleted())
             }
             canDelete={bulkSelection.selectedCount > 0}
-            deleteLabel="Löschen"
+            deleteLabel={t[
+              'com.affine.caseAssistant.allFristen.bulk.deleteLabel'
+            ]()}
             onDelete={handleBulkDeleteDeadlines}
             onClear={bulkSelection.clear}
           />

@@ -65,6 +65,10 @@ test.describe('AISettings/Embedding', () => {
     loggedInPage: page,
     utils,
   }) => {
+    const baseOrigin = new URL(
+      process.env.PLAYWRIGHT_BASE_URL ?? 'http://localhost:8080/'
+    ).origin;
+
     // mock the features to be empty(without CopilotEmbedding)
     await page.route('**/graphql', async (route, request) => {
       const postData = request.postData();
@@ -76,7 +80,7 @@ test.describe('AISettings/Embedding', () => {
             data: {
               serverConfig: {
                 version: '1.0.0',
-                baseUrl: 'http://localhost:8080',
+                baseUrl: baseOrigin,
                 name: 'AFFiNE',
                 features: [],
                 type: 'cloud',

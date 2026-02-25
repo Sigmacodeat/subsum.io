@@ -21,7 +21,7 @@
   },
   "scripts": {
     "start": "electron .",
-    "dev": "cross-env DEV_SERVER_URL=http://localhost:8080 node --loader ts-node/esm ./scripts/dev.ts",
+    "dev": "cross-env-shell \"DEV_SERVER_URL=${DEV_SERVER_URL:-http://localhost:8080} node --loader ts-node/esm ./scripts/dev.ts\"",
     "dev:prod": "node --loader ts-node/esm ./scripts/dev.ts",
     "build": "cross-env NODE_ENV=production node --loader ts-node/esm ./scripts/build-layers.ts",
     "build:dev": "node --loader ts-node/esm ./scripts/build-layers.ts",

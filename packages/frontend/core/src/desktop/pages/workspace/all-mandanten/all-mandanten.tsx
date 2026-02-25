@@ -173,6 +173,7 @@ export const AllMandantenPage = () => {
   const [focusedIndex, setFocusedIndex] = useState<number>(-1);
   const rowClickTimerRef = useRef<number | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const createClientButtonRef = useRef<HTMLButtonElement>(null);
   const actionStatusTimerRef = useRef<number | null>(null);
   const language = t.language || 'en';
 
@@ -327,6 +328,29 @@ export const AllMandantenPage = () => {
       4000
     );
   }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const focusTarget = params.get('caFocus');
+    if (focusTarget !== 'create-client') {
+      return;
+    }
+
+    window.requestAnimationFrame(() => {
+      createClientButtonRef.current?.focus();
+    });
+    showActionStatus(
+      'Bitte hier den Mandanten anlegen, um den Workflow zu starten.'
+    );
+
+    params.delete('caFocus');
+    const nextSearch = params.toString();
+    window.history.replaceState(
+      window.history.state,
+      '',
+      `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ''}${window.location.hash}`
+    );
+  }, [showActionStatus]);
 
   const cancelEditClient = useCallback(() => {
     setEditingClientId(null);
@@ -584,6 +608,35 @@ export const AllMandantenPage = () => {
   });
 
   const [isBulkDeletingClients, setIsBulkDeletingClients] = useState(false);
+  const [lastBulkDeletedClientsSnapshot, setLastBulkDeletedClientsSnapshot] =
+    useState<ClientRecord[]>([]);
+
+  const handleUndoBulkDeleteClients = useCallback(async () => {
+    if (lastBulkDeletedClientsSnapshot.length === 0) {
+      return;
+    }
+
+    const results = await Promise.all(
+      lastBulkDeletedClientsSnapshot.map(client =>
+        casePlatformOrchestrationService.upsertClient({
+          ...client,
+          updatedAt: new Date().toISOString(),
+        })
+      )
+    );
+    const succeeded = results.filter(Boolean).length;
+    const failed = lastBulkDeletedClientsSnapshot.length - succeeded;
+    showActionStatus(
+      failed > 0
+        ? `Undo Mandanten: ${succeeded}/${lastBulkDeletedClientsSnapshot.length} wiederhergestellt · ${failed} fehlgeschlagen.`
+        : `Undo Mandanten: ${succeeded}/${lastBulkDeletedClientsSnapshot.length} wiederhergestellt.`
+    );
+    setLastBulkDeletedClientsSnapshot([]);
+  }, [
+    casePlatformOrchestrationService,
+    lastBulkDeletedClientsSnapshot,
+    showActionStatus,
+  ]);
 
   const handleBulkDeleteClients = useCallback(() => {
     const targets = sorted.filter(c => bulkSelection.selectedIds.has(c.id));
@@ -594,7 +647,7 @@ export const AllMandantenPage = () => {
 
     openConfirmModal({
       title: `Mandanten löschen?`,
-      description: `Du löschst ${targets.length} Mandant(en). Mandanten müssen zuvor archiviert sein und dürfen nicht mit Akten verknüpft sein.`,
+      description: `Du löschst ${targets.length} Mandant(en) dauerhaft. Mandanten müssen zuvor archiviert sein und dürfen nicht mit Akten verknüpft sein.`,
       cancelText: t['com.affine.auth.sign-out.confirm-modal.cancel'](),
       confirmText: 'Löschen',
       confirmButtonOptions: {
@@ -604,6 +657,17 @@ export const AllMandantenPage = () => {
         if (isBulkDeletingClients) return;
         setIsBulkDeletingClients(true);
         try {
+          const snapshotById = new Map(
+            targets
+              .map(target => {
+                const client = allClients.find(c => c.id === target.id);
+                return client ? ([target.id, client] as const) : null;
+              })
+              .filter((entry): entry is readonly [string, ClientRecord] =>
+                Boolean(entry)
+              )
+          );
+
           const result =
             await casePlatformOrchestrationService.deleteClientsBulk(
               targets.map(c => c.id)
@@ -621,6 +685,11 @@ export const AllMandantenPage = () => {
           showActionStatus(
             `Mandanten gelöscht: ${result.succeededIds.length}/${result.total}${blockedSuffix}${failedSuffix}.`
           );
+          setLastBulkDeletedClientsSnapshot(
+            result.succeededIds
+              .map(id => snapshotById.get(id))
+              .filter((client): client is ClientRecord => Boolean(client))
+          );
           bulkSelection.clear();
         } finally {
           setIsBulkDeletingClients(false);
@@ -635,6 +704,7 @@ export const AllMandantenPage = () => {
     showActionStatus,
     sorted,
     t,
+    allClients,
   ]);
 
   useEffect(() => {
@@ -815,7 +885,7 @@ export const AllMandantenPage = () => {
     }
 
     openPromptModal({
-      title: 'Neu+ Mandant',
+      title: 'Mandant anlegen',
       label: 'Name',
       inputOptions: {
         placeholder: 'z. B. Max Mustermann GmbH',
@@ -999,11 +1069,12 @@ export const AllMandantenPage = () => {
 
               <div className={styles.topActionRow}>
                 <button
-                  className={styles.filterChip}
+                  ref={createClientButtonRef}
+                  className={styles.primaryActionChip}
                   onClick={handleCreateClient}
-                  aria-label="Neuen Mandanten anlegen"
+                  aria-label="Mandant anlegen"
                 >
-                  Neu+ Mandant
+                  Mandant anlegen
                 </button>
                 {sorted.length > 0 ? (
                   <>
@@ -1125,6 +1196,21 @@ export const AllMandantenPage = () => {
               </div>
 
               <div className={styles.filterGroupRight}>
+                {lastBulkDeletedClientsSnapshot.length > 0 ? (
+                  <button
+                    type="button"
+                    className={styles.filterChip}
+                    onClick={() => {
+                      handleUndoBulkDeleteClients().catch(() => {
+                        showActionStatus(
+                          'Undo fehlgeschlagen. Bitte erneut versuchen.'
+                        );
+                      });
+                    }}
+                  >
+                    Rückgängig ({lastBulkDeletedClientsSnapshot.length})
+                  </button>
+                ) : null}
                 <div className={styles.searchWrap}>
                   <input
                     ref={searchInputRef}
@@ -1237,11 +1323,11 @@ export const AllMandantenPage = () => {
                   </div>
                   <button
                     type="button"
-                    className={styles.filterChip}
+                    className={styles.primaryActionChip}
                     onClick={handleCreateClient}
-                    aria-label="Neuen Mandanten anlegen"
+                    aria-label="Mandant anlegen"
                   >
-                    Neu+ Mandant
+                    Mandant anlegen
                   </button>
                 </div>
               ) : (

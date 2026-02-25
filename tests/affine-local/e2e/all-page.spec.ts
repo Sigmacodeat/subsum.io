@@ -160,6 +160,39 @@ test('select three pages with shiftKey and delete', async ({ page }) => {
   expect(await getPagesCount(page)).toBe(pageCount - 3);
 });
 
+test('all page supports select mode toggle with select-all and clear-all', async ({
+  page,
+}) => {
+  await openHomePage(page);
+  await waitForEditorLoad(page);
+  await clickNewPageButton(page);
+  await clickNewPageButton(page);
+  await clickSideBarAllPageButton(page);
+  await waitForAllPagesLoad(page);
+
+  const docs = page.locator('[data-testid="doc-list-item"]');
+  const total = await docs.count();
+  expect(total).toBeGreaterThan(0);
+
+  await page.getByTestId('all-docs-toggle-select-mode').click();
+
+  await expect(
+    page.locator(
+      '[data-testid="doc-list-item-select"][data-select-mode="true"]'
+    )
+  ).toHaveCount(total);
+
+  await page.getByTestId('all-docs-select-all').click();
+  await expect(
+    page.locator('[data-testid="doc-list-item"][data-selected="true"]')
+  ).toHaveCount(total);
+
+  await page.getByTestId('all-docs-select-all').click();
+  await expect(
+    page.locator('[data-testid="doc-list-item"][data-selected="true"]')
+  ).toHaveCount(0);
+});
+
 test('create a tag and delete it', async ({ page }) => {
   await openHomePage(page);
   await waitForEditorLoad(page);

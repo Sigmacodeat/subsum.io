@@ -1,19 +1,22 @@
 import type { Framework } from '@toeverything/infra';
 
+import { WorkspaceSubscriptionService } from '../cloud/services/workspace-subscription';
 import { CacheStorage, GlobalState } from '../storage';
 import { WorkspaceScope, WorkspaceService } from '../workspace';
-import { WorkspaceSubscriptionService } from '../cloud/services/workspace-subscription';
+import { AIEmailDraftingService } from './services/ai-email-drafting';
 import { AktennotizService } from './services/aktennotiz';
-import { AnwaltsReminderService } from './services/anwalts-reminder';
-import { AnwaltsTagesjournalService } from './services/anwalts-tagesjournal';
 import { CaseAlertCenterService } from './services/alert-center';
 import { AnalyticsCollectorService } from './services/analytics-collector';
+import { AnwaltsReminderService } from './services/anwalts-reminder';
+import { AnwaltsTagesjournalService } from './services/anwalts-tagesjournal';
 import { CaseAuditExportService } from './services/audit-export';
 import { AustriaCostCalculatorService } from './services/austria-cost-calculator';
+import { BeAConnectorService } from './services/bea-connector';
 import { BghCrawlerService } from './services/bgh-crawler';
 import { CaseAssistantBootstrapService } from './services/bootstrap';
 import { BulkOperationsService } from './services/bulk-operations';
 import { BusinessIntelligenceService } from './services/business-intelligence';
+import { CalendarSyncService } from './services/calendar-sync';
 import { CaseAccessControlService } from './services/case-access-control';
 import { CaseAssistantService } from './services/case-assistant';
 import { CaseCockpitService } from './services/cockpit';
@@ -24,9 +27,9 @@ import { CopilotNlpCrudService } from './services/copilot-nlp-crud';
 import { CostCalculatorService } from './services/cost-calculator';
 import { CreditGatewayService } from './services/credit-gateway';
 import { CustomerHealthService } from './services/customer-health';
+import { DATEVExportService } from './services/datev-export';
 import { DeadlineAlertService } from './services/deadline-alert';
 import { DeadlineAutomationService } from './services/deadline-automation';
-import { TerminAutomationService } from './services/termin-automation';
 import { DocumentGeneratorService } from './services/document-generator';
 import { DocumentNormExtractorService } from './services/document-norm-extractor';
 import { DocumentProcessingService } from './services/document-processing';
@@ -56,30 +59,41 @@ import { LegalCopilotWorkflowService } from './services/legal-copilot-workflow';
 import { LegalNormRegistryService } from './services/legal-norm-registry';
 import { LegalNormsService } from './services/legal-norms';
 import { LegalPdfExportService } from './services/legal-pdf-export';
+import { LiveTimerService } from './services/live-timer';
+import { MandantenNotificationService } from './services/mandanten-notification';
 import { MandantenPortalService } from './services/mandanten-portal';
 import { NormClassificationEngine } from './services/norm-classification-engine';
 import { PerformanceMonitorService } from './services/performance-monitor';
 import { CasePlatformAdapterService } from './services/platform-adapters';
 import { CasePlatformOrchestrationService } from './services/platform-orchestration';
 import { CaseProviderSettingsService } from './services/provider-settings';
-import { CaseResidencyPolicyService } from './services/residency-policy';
 import { RechnungService } from './services/rechnung';
-import { AIEmailDraftingService } from './services/ai-email-drafting';
-import { BeAConnectorService } from './services/bea-connector';
-import { CalendarSyncService } from './services/calendar-sync';
-import { DATEVExportService } from './services/datev-export';
-import { LiveTimerService } from './services/live-timer';
-import { MandantenNotificationService } from './services/mandanten-notification';
+import { CaseResidencyPolicyService } from './services/residency-policy';
 import { RisCrawlerService } from './services/ris-crawler';
-import { TreuhandkontoService } from './services/treuhandkonto';
+import { TerminAutomationService } from './services/termin-automation';
 import { TimeTrackingService } from './services/time-tracking';
+import { TreuhandkontoService } from './services/treuhandkonto';
 import { VerfahrensstandService } from './services/verfahrensstand';
 import { VollmachtService } from './services/vollmacht';
 import { WiedervorlageService } from './services/wiedervorlage';
 import { CaseAssistantStore } from './stores/case-assistant';
 import { CaseConnectorSecretStore } from './stores/connector-secret';
 
+export type {
+  DraftGenerationInput,
+  EmailDraft,
+  EmailDraftPurpose,
+  EmailDraftStatus,
+  EmailDraftTone,
+} from './services/ai-email-drafting';
+export {
+  AIEmailDraftingService,
+  EMAIL_DRAFT_PURPOSE_LABELS,
+  EMAIL_DRAFT_TONE_LABELS,
+} from './services/ai-email-drafting';
 export { AktennotizService } from './services/aktennotiz';
+export { CaseAlertCenterService } from './services/alert-center';
+export { AnalyticsCollectorService } from './services/analytics-collector';
 export type {
   AnwaltsReminder,
   AnwaltsReminderCategory,
@@ -105,10 +119,25 @@ export {
   TAGESJOURNAL_SECTION_ICONS,
   TAGESJOURNAL_SECTION_LABELS,
 } from './services/anwalts-tagesjournal';
-export { CaseAlertCenterService } from './services/alert-center';
-export { AnalyticsCollectorService } from './services/analytics-collector';
 export { CaseAuditExportService } from './services/audit-export';
 export { AustriaCostCalculatorService } from './services/austria-cost-calculator';
+export type {
+  BeAAttachment,
+  BeAConnection,
+  BeAConnectionStatus,
+  BeADocumentFormat,
+  BeAMessage,
+  BeAMessageDirection,
+  BeAMessageStatus,
+  BeAProvider,
+  XJustizNachrichtentyp,
+} from './services/bea-connector';
+export {
+  BEA_PROVIDER_LABELS,
+  BEA_STATUS_LABELS,
+  BeAConnectorService,
+  XJUSTIZ_LABELS,
+} from './services/bea-connector';
 export { BghCrawlerService } from './services/bgh-crawler';
 export { CaseAssistantBootstrapService } from './services/bootstrap';
 export type {
@@ -119,10 +148,26 @@ export type {
 } from './services/bulk-operations';
 export { BulkOperationsService } from './services/bulk-operations';
 export { BusinessIntelligenceService } from './services/business-intelligence';
+export type {
+  CalendarConflictResolution,
+  CalendarConnection,
+  CalendarProvider,
+  CalendarSyncDirection,
+  CalendarSyncResult,
+  CalendarSyncStatus,
+} from './services/calendar-sync';
+export {
+  CALENDAR_PROVIDER_LABELS,
+  CALENDAR_SYNC_STATUS_LABELS,
+  CalendarSyncService,
+} from './services/calendar-sync';
 export { CaseAccessControlService } from './services/case-access-control';
 export { CaseAssistantService } from './services/case-assistant';
 export { CaseCockpitService } from './services/cockpit';
-export { COLLECTIVE_CATEGORY_LABELS,CollectiveIntelligenceService } from './services/collective-intelligence';
+export {
+  COLLECTIVE_CATEGORY_LABELS,
+  CollectiveIntelligenceService,
+} from './services/collective-intelligence';
 export { CaseContextPackService } from './services/context-pack';
 export type {
   ContradictionCategory,
@@ -157,11 +202,24 @@ export type {
   PlanPageQuota,
   SubscriptionPlan,
 } from './services/credit-gateway';
-export { CREDIT_COSTS,CreditGatewayService } from './services/credit-gateway';
+export { CREDIT_COSTS, CreditGatewayService } from './services/credit-gateway';
 export { CustomerHealthService } from './services/customer-health';
+export type {
+  ExportConfig,
+  ExportFormat,
+  ExportProvider,
+  ExportRun,
+  ExportScope,
+  ExportStatus,
+} from './services/datev-export';
+export {
+  BMD_KONTEN,
+  DATEV_KONTEN,
+  DATEVExportService,
+  EXPORT_FORMAT_LABELS,
+} from './services/datev-export';
 export { DeadlineAlertService } from './services/deadline-alert';
 export { DeadlineAutomationService } from './services/deadline-automation';
-export { TerminAutomationService } from './services/termin-automation';
 export type {
   DocumentGeneratorInput,
   DocumentTemplate,
@@ -196,16 +254,6 @@ export {
   readStagedFilesStreaming,
   stageLegalUploadFiles,
 } from './services/document-upload';
-
-export type {
-  AuthorityReferenceIssue,
-  AuthorityReferenceIssueCode,
-  NormalizedAuthorityReferences,
-} from './services/stammdaten-normalization';
-export {
-  normalizeAuthorityReferences,
-  normalizeDisplayText,
-} from './services/stammdaten-normalization';
 export type {
   DMSFolderCategory,
   DocumentVersion,
@@ -231,7 +279,11 @@ export {
   DSGVOComplianceService,
   RETENTION_CATEGORY_LABELS,
 } from './services/dsgvo-compliance';
-export type { EmailTemplateContext,SendEmailInput, SendEmailResult } from './services/email';
+export type {
+  EmailTemplateContext,
+  SendEmailInput,
+  SendEmailResult,
+} from './services/email';
 export { EmailService } from './services/email';
 export { ErrorMonitoringService } from './services/error-monitoring';
 export type {
@@ -264,9 +316,17 @@ export {
   FRISTENKONTROLLE_STATUS_LABELS,
   FristenkontrolleService,
 } from './services/fristenkontrolle';
-export { GEGNER_STRATEGY_LABELS, GegnerIntelligenceService, RICHTER_TENDENCY_LABELS } from './services/gegner-intelligence';
+export {
+  GEGNER_STRATEGY_LABELS,
+  GegnerIntelligenceService,
+  RICHTER_TENDENCY_LABELS,
+} from './services/gegner-intelligence';
 export { GeoSessionAnalyticsService } from './services/geo-session-analytics';
-export { GerichtsterminService, TERMIN_STATUS_LABELS,TERMINART_LABELS } from './services/gerichtstermin';
+export {
+  GerichtsterminService,
+  TERMIN_STATUS_LABELS,
+  TERMINART_LABELS,
+} from './services/gerichtstermin';
 export type {
   GwGBeneficialOwner,
   GwGCheckRecord,
@@ -294,12 +354,21 @@ export {
   LOCALE_TO_JURISDICTION,
 } from './services/jurisdiction';
 export { KalenderService } from './services/kalender';
-export { ANWALT_ROLE_LABEL, KanzleiProfileService } from './services/kanzlei-profile';
-export type { KanzleiRuleViolation, KanzleiValidationResult } from './services/kanzlei-rule-validation';
+export {
+  ANWALT_ROLE_LABEL,
+  KanzleiProfileService,
+} from './services/kanzlei-profile';
+export type {
+  KanzleiRuleViolation,
+  KanzleiValidationResult,
+} from './services/kanzlei-rule-validation';
 export { KanzleiRuleValidationService } from './services/kanzlei-rule-validation';
 export { KollisionsPruefungService } from './services/kollisions-pruefung';
 export { LegalAnalysisProviderService } from './services/legal-analysis-provider';
-export { LEGAL_CHAT_MODE_LABELS,LegalChatService } from './services/legal-chat';
+export {
+  LEGAL_CHAT_MODE_LABELS,
+  LegalChatService,
+} from './services/legal-chat';
 export type {
   OnboardingDetectionResult,
   OnboardingFinalizeInput,
@@ -318,73 +387,6 @@ export type {
 export { LegalNormsService } from './services/legal-norms';
 export type { LegalPdfExportInput } from './services/legal-pdf-export';
 export { LegalPdfExportService } from './services/legal-pdf-export';
-export { MandantenPortalService } from './services/mandanten-portal';
-export { NormClassificationEngine } from './services/norm-classification-engine';
-export { PerformanceMonitorService } from './services/performance-monitor';
-export type { ConnectorHealthResult } from './services/platform-adapters';
-export { CasePlatformAdapterService } from './services/platform-adapters';
-export { CasePlatformOrchestrationService } from './services/platform-orchestration';
-export type { ProviderConfig, ProviderKey } from './services/provider-settings';
-export { CaseProviderSettingsService } from './services/provider-settings';
-export type { ResidencyCapability } from './services/residency-policy';
-export { CaseResidencyPolicyService } from './services/residency-policy';
-export { AUSLAGE_KATEGORIE_LABELS,RECHNUNG_STATUS_LABELS, RechnungService } from './services/rechnung';
-export type {
-  DraftGenerationInput,
-  EmailDraft,
-  EmailDraftPurpose,
-  EmailDraftStatus,
-  EmailDraftTone,
-} from './services/ai-email-drafting';
-export {
-  AIEmailDraftingService,
-  EMAIL_DRAFT_PURPOSE_LABELS,
-  EMAIL_DRAFT_TONE_LABELS,
-} from './services/ai-email-drafting';
-export type {
-  BeAAttachment,
-  BeAConnection,
-  BeAConnectionStatus,
-  BeADocumentFormat,
-  BeAMessage,
-  BeAMessageDirection,
-  BeAMessageStatus,
-  BeAProvider,
-  XJustizNachrichtentyp,
-} from './services/bea-connector';
-export {
-  BEA_PROVIDER_LABELS,
-  BEA_STATUS_LABELS,
-  BeAConnectorService,
-  XJUSTIZ_LABELS,
-} from './services/bea-connector';
-export type {
-  CalendarConnection,
-  CalendarConflictResolution,
-  CalendarProvider,
-  CalendarSyncDirection,
-  CalendarSyncResult,
-  CalendarSyncStatus,
-} from './services/calendar-sync';
-export {
-  CALENDAR_PROVIDER_LABELS,
-  CALENDAR_SYNC_STATUS_LABELS,
-  CalendarSyncService,
-} from './services/calendar-sync';
-export type {
-  ExportConfig,
-  ExportFormat,
-  ExportProvider,
-  ExportRun,
-  ExportScope,
-  ExportStatus,
-} from './services/datev-export';
-export {
-  BMD_KONTEN,
-  DATEV_KONTEN,
-  DATEVExportService,
-  EXPORT_FORMAT_LABELS,
-} from './services/datev-export';
 export type {
   ActiveTimerSnapshot,
   TimerSegment,
@@ -408,7 +410,32 @@ export {
   NOTIFICATION_EVENT_LABELS,
   NOTIFICATION_STATUS_LABELS,
 } from './services/mandanten-notification';
+export { MandantenPortalService } from './services/mandanten-portal';
+export { NormClassificationEngine } from './services/norm-classification-engine';
+export { PerformanceMonitorService } from './services/performance-monitor';
+export type { ConnectorHealthResult } from './services/platform-adapters';
+export { CasePlatformAdapterService } from './services/platform-adapters';
+export { CasePlatformOrchestrationService } from './services/platform-orchestration';
+export type { ProviderConfig, ProviderKey } from './services/provider-settings';
+export { CaseProviderSettingsService } from './services/provider-settings';
+export {
+  AUSLAGE_KATEGORIE_LABELS,
+  RECHNUNG_STATUS_LABELS,
+  RechnungService,
+} from './services/rechnung';
+export type { ResidencyCapability } from './services/residency-policy';
+export { CaseResidencyPolicyService } from './services/residency-policy';
 export { RisCrawlerService } from './services/ris-crawler';
+export type {
+  AuthorityReferenceIssue,
+  AuthorityReferenceIssueCode,
+  NormalizedAuthorityReferences,
+} from './services/stammdaten-normalization';
+export {
+  normalizeAuthorityReferences,
+  normalizeDisplayText,
+} from './services/stammdaten-normalization';
+export { TerminAutomationService } from './services/termin-automation';
 export { TimeTrackingService } from './services/time-tracking';
 export type {
   TreuhandKonto,
@@ -423,7 +450,11 @@ export {
   TREUHAND_TRANSACTION_TYPE_LABELS,
   TreuhandkontoService,
 } from './services/treuhandkonto';
-export { INSTANZ_LABELS,VERFAHRENSPHASE_LABELS, VerfahrensstandService } from './services/verfahrensstand';
+export {
+  INSTANZ_LABELS,
+  VERFAHRENSPHASE_LABELS,
+  VerfahrensstandService,
+} from './services/verfahrensstand';
 export { VollmachtService } from './services/vollmacht';
 export { WiedervorlageService } from './services/wiedervorlage';
 export type {
@@ -469,6 +500,13 @@ export type {
   CaseIssueCategory,
   CaseMemoryEvent,
   CasePriority,
+  ChatArtifact,
+  ChatArtifactKind,
+  ChatToolCall,
+  ChatToolCallCategory,
+  ChatToolCallDetailLine,
+  ChatToolCallName,
+  ChatToolCallStatus,
   ChecklistItemStatus,
   ChunkExtractedEntities,
   CitationChain,
@@ -502,11 +540,11 @@ export type {
   DailyActiveMetrics,
   DeadlineAlert,
   DeadlineStatus,
+  DeviceInfo,
+  DeviceType,
   DocumentPreflightReport,
   DocumentPreflightRiskLevel,
   DocumentPreflightRouteDecision,
-  DeviceInfo,
-  DeviceType,
   DocumentProcessingStatus,
   DocumentQualityReport,
   EmailRecord,
@@ -516,7 +554,10 @@ export type {
   ErrorGroup,
   ErrorLogEntry,
   ErrorSeverity,
+  ExportJournalRecord,
   FeatureUsageRecord,
+  FiscalEventType,
+  FiscalSignatureRecord,
   GegnerArgumentPattern,
   GegnerIntelligenceSnapshot,
   GegnerKanzleiProfile,
@@ -538,6 +579,7 @@ export type {
   KalenderEvent,
   KalenderExportResult,
   KanzleiProfile,
+  KassenbelegRecord,
   KollisionsAuditLog,
   KollisionsCheckResult,
   KollisionsMatchLevel,
@@ -553,21 +595,14 @@ export type {
   LegalChatNormCitation,
   LegalChatSession,
   LegalChatSourceCitation,
-  ChatArtifact,
-  ChatArtifactKind,
-  ChatToolCall,
-  ChatToolCallCategory,
-  ChatToolCallDetailLine,
-  ChatToolCallName,
-  ChatToolCallStatus,
-  LlmModelOption,
-  LlmProviderId,
   LegalDocumentKind,
   LegalDocumentRecord,
   LegalDocumentStatus,
   LegalFinding,
   LegalFindingType,
   LegalNormRegistryRecord,
+  LlmModelOption,
+  LlmProviderId,
   MatterRecord,
   MatterStatus,
   NormReference,
@@ -583,10 +618,6 @@ export type {
   QualificationChainResult,
   QualityProblem,
   QualityProblemType,
-  FiscalSignatureRecord,
-  FiscalEventType,
-  ExportJournalRecord,
-  KassenbelegRecord,
   RechnungRecord,
   RechnungsPaymentMethod,
   RechnungsZahlungRecord,
@@ -598,8 +629,6 @@ export type {
   RichterTendencyArea,
   SemanticChunk,
   SemanticChunkCategory,
-  WorkspaceResidencyMode,
-  WorkspaceResidencyPolicy,
   SharedCourtDecision,
   SharedJudikaturStatus,
   SourceDocument,
@@ -614,6 +643,8 @@ export type {
   WiedervorlageStatus,
   WorkflowEvent,
   WorkflowEventType,
+  WorkspaceResidencyMode,
+  WorkspaceResidencyPolicy,
 } from './types';
 
 export function configureCaseAssistantModule(framework: Framework) {
@@ -675,10 +706,7 @@ export function configureCaseAssistantModule(framework: Framework) {
       CaseConnectorSecretStore,
     ])
     .service(CaseAuditExportService, [CasePlatformOrchestrationService])
-    .service(AnwaltsTagesjournalService, [
-      CaseAssistantStore,
-      KalenderService,
-    ])
+    .service(AnwaltsTagesjournalService, [CaseAssistantStore, KalenderService])
     .service(AnwaltsReminderService, [
       CaseAssistantStore,
       CasePlatformOrchestrationService,
@@ -692,8 +720,12 @@ export function configureCaseAssistantModule(framework: Framework) {
       MandantenNotificationService,
       AnwaltsReminderService,
       CalendarSyncService,
+      CasePlatformOrchestrationService,
     ])
-    .service(KanzleiProfileService, [CaseAssistantStore, CaseAccessControlService])
+    .service(KanzleiProfileService, [
+      CaseAssistantStore,
+      CaseAccessControlService,
+    ])
     .service(KanzleiRuleValidationService)
     .service(LegalNormsService)
     .service(LegalNormRegistryService, [CaseAssistantStore, LegalNormsService])
@@ -748,9 +780,18 @@ export function configureCaseAssistantModule(framework: Framework) {
     ])
     // ── Analytics & Monitoring ─────────────────────────────────────────────
     .service(AnalyticsCollectorService, [CaseAssistantStore])
-    .service(ErrorMonitoringService, [CaseAssistantStore, AnalyticsCollectorService])
-    .service(GeoSessionAnalyticsService, [CaseAssistantStore, AnalyticsCollectorService])
-    .service(PerformanceMonitorService, [CaseAssistantStore, AnalyticsCollectorService])
+    .service(ErrorMonitoringService, [
+      CaseAssistantStore,
+      AnalyticsCollectorService,
+    ])
+    .service(GeoSessionAnalyticsService, [
+      CaseAssistantStore,
+      AnalyticsCollectorService,
+    ])
+    .service(PerformanceMonitorService, [
+      CaseAssistantStore,
+      AnalyticsCollectorService,
+    ])
     .service(BusinessIntelligenceService, [
       CaseAssistantStore,
       AnalyticsCollectorService,
@@ -760,12 +801,18 @@ export function configureCaseAssistantModule(framework: Framework) {
     // ── Anwalts-Workflow Services ───────────────────────────────────────
     .service(VerfahrensstandService, [CasePlatformOrchestrationService])
     .service(KollisionsPruefungService, [CasePlatformOrchestrationService])
-    .service(WiedervorlageService, [CasePlatformOrchestrationService, KalenderService])
+    .service(WiedervorlageService, [
+      CasePlatformOrchestrationService,
+      KalenderService,
+    ])
     .service(AktennotizService, [CasePlatformOrchestrationService])
     .service(VollmachtService, [CasePlatformOrchestrationService])
     .service(TimeTrackingService, [CasePlatformOrchestrationService])
     // ── Gerichtstermine & Kalender ─────────────────────────────────────
-    .service(GerichtsterminService, [CasePlatformOrchestrationService, KalenderService])
+    .service(GerichtsterminService, [
+      CasePlatformOrchestrationService,
+      KalenderService,
+    ])
     // ── Finanzen (Rechnungen + Auslagen) ─────────────────────────────────
     .service(RechnungService, [
       CasePlatformOrchestrationService,

@@ -13,16 +13,7 @@ export const IssueFeedbackModal = ({
   return (
     <OverlayModal
       open={open}
-      topImage={
-        <video
-          width={400}
-          height={300}
-          style={{ objectFit: 'cover' }}
-          src={'/static/newIssue.mp4'}
-          autoPlay
-          loop
-        />
-      }
+      topImage={undefined}
       title={t['com.affine.issue-feedback.title']()}
       onOpenChange={setOpen}
       description={t['com.affine.issue-feedback.description']()}

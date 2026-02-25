@@ -5,21 +5,26 @@ import type { AnwaltsReminderService } from './anwalts-reminder';
 import type { CalendarSyncService } from './calendar-sync';
 import type { DeadlineAlertService } from './deadline-alert';
 import type { MandantenNotificationService } from './mandanten-notification';
+import type { CasePlatformOrchestrationService } from './platform-orchestration';
 
-@OnEvent(ApplicationStarted, (s: CaseAssistantBootstrapService) =>
-  s.handleApplicationStarted
+@OnEvent(
+  ApplicationStarted,
+  (s: CaseAssistantBootstrapService) => s.handleApplicationStarted
 )
 export class CaseAssistantBootstrapService extends Service {
   constructor(
     private readonly deadlineAlertService: DeadlineAlertService,
     private readonly mandantenNotificationService: MandantenNotificationService,
     private readonly anwaltsReminderService: AnwaltsReminderService,
-    private readonly calendarSyncService: CalendarSyncService
+    private readonly calendarSyncService: CalendarSyncService,
+    private readonly platformOrchestrationService: CasePlatformOrchestrationService
   ) {
     super();
   }
 
   async handleApplicationStarted() {
+    await this.platformOrchestrationService.syncLegalDomainFromBackendBestEffort();
+
     // Wire DeadlineAlert → Notification pipeline (avoids circular DI)
     this.deadlineAlertService.wireNotificationServices(
       this.mandantenNotificationService,

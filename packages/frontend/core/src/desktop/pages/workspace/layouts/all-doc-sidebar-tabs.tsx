@@ -1,15 +1,22 @@
 import { Button, Scrollable } from '@affine/component';
-import { ViewSidebarTab, WorkbenchService } from '@affine/core/modules/workbench';
-import { CaseAssistantStore } from '@affine/core/modules/case-assistant/stores/case-assistant';
 import { LegalCopilotWorkflowService } from '@affine/core/modules/case-assistant/services/legal-copilot-workflow';
-import type { CaseDeadline, MatterRecord, ClientRecord, LegalDocumentRecord } from '@affine/core/modules/case-assistant/types';
-import { TodayIcon, NotificationIcon } from '@blocksuite/icons/rc';
+import { CaseAssistantStore } from '@affine/core/modules/case-assistant/stores/case-assistant';
+import type {
+  CaseDeadline,
+  ClientRecord,
+  LegalDocumentRecord,
+  MatterRecord,
+} from '@affine/core/modules/case-assistant/types';
+import {
+  ViewSidebarTab,
+  WorkbenchService,
+} from '@affine/core/modules/workbench';
+import { NotificationIcon,TodayIcon } from '@blocksuite/icons/rc';
 import { useLiveData, useService } from '@toeverything/infra';
 import { useCallback, useMemo, useState } from 'react';
 
 import { sidebarScrollArea } from '../detail-page/detail-page.css';
 import { EditorJournalPanel } from '../detail-page/tabs/journal';
-
 import * as legalActivityStyles from './all-doc-sidebar-tabs.css';
 
 /* ── helpers ─────────────────────────────────────────────── */
@@ -111,19 +118,25 @@ function computeMatterPriorityScore(input: {
 
 /* ── Legal Activity Panel ────────────────────────────────── */
 
-
 const LegalActivityPanel = () => {
   const store = useService(CaseAssistantStore);
   const graph = useLiveData(store.watchGraph());
   const workbench = useService(WorkbenchService).workbench;
   const legalCopilotWorkflowService = useService(LegalCopilotWorkflowService);
-  const legalDocs = useLiveData(legalCopilotWorkflowService.legalDocuments$) ?? [];
+  const legalDocs =
+    useLiveData(legalCopilotWorkflowService.legalDocuments$) ?? [];
   const [actionStatus, setActionStatus] = useState<string | null>(null);
 
-  const matters = useMemo(() => Object.values(graph.matters ?? {}), [graph.matters]);
+  const matters = useMemo(
+    () => Object.values(graph.matters ?? {}),
+    [graph.matters]
+  );
   const clients = useMemo(() => graph.clients ?? {}, [graph.clients]);
   const cases = useMemo(() => graph.cases ?? {}, [graph.cases]);
-  const deadlines = useMemo(() => Object.values(graph.deadlines ?? {}), [graph.deadlines]);
+  const deadlines = useMemo(
+    () => Object.values(graph.deadlines ?? {}),
+    [graph.deadlines]
+  );
 
   // Build deadline → caseFile title lookup
   const deadlineCaseMap = useMemo(() => {
@@ -137,8 +150,14 @@ const LegalActivityPanel = () => {
   }, [cases]);
 
   // KPIs
-  const openMatters = useMemo(() => matters.filter(m => m.status === 'open').length, [matters]);
-  const totalClients = useMemo(() => Object.values(clients).filter(c => !c.archived).length, [clients]);
+  const openMatters = useMemo(
+    () => matters.filter(m => m.status === 'open').length,
+    [matters]
+  );
+  const totalClients = useMemo(
+    () => Object.values(clients).filter(c => !c.archived).length,
+    [clients]
+  );
 
   // Upcoming deadlines (next 14 days, sorted by dueAt)
   const upcomingDeadlines = useMemo(() => {
@@ -177,7 +196,10 @@ const LegalActivityPanel = () => {
   // Recently updated matters (top 5)
   const recentMatters = useMemo(() => {
     return [...matters]
-      .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+      .sort(
+        (a, b) =>
+          new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+      )
       .slice(0, 4);
   }, [matters]);
 
@@ -191,7 +213,12 @@ const LegalActivityPanel = () => {
   };
 
   const openMainChatForContext = useCallback(
-    (input: { caseId?: string; matterId?: string; clientId?: string; label: string }) => {
+    (input: {
+      caseId?: string;
+      matterId?: string;
+      clientId?: string;
+      label: string;
+    }) => {
       const { caseId, matterId, clientId, label } = input;
       const params = new URLSearchParams();
       if (caseId) params.set('caCaseId', caseId);
@@ -210,18 +237,30 @@ const LegalActivityPanel = () => {
   const recentDocs = useMemo(() => {
     return [...(legalDocs as LegalDocumentRecord[])]
       .filter(d => d.status === 'indexed')
-      .sort((a, b) => new Date(b.updatedAt ?? b.createdAt).getTime() - new Date(a.updatedAt ?? a.createdAt).getTime())
+      .sort(
+        (a, b) =>
+          new Date(b.updatedAt ?? b.createdAt).getTime() -
+          new Date(a.updatedAt ?? a.createdAt).getTime()
+      )
       .slice(0, 4);
   }, [legalDocs]);
 
-  const navigateTo = useCallback((path: string) => {
-    workbench.open(path);
-  }, [workbench]);
+  const navigateTo = useCallback(
+    (path: string) => {
+      workbench.open(path);
+    },
+    [workbench]
+  );
 
   const caseByDeadlineId = useMemo(() => {
-    const map = new Map<string, { caseId: string; matterId?: string; clientId?: string }>();
+    const map = new Map<
+      string,
+      { caseId: string; matterId?: string; clientId?: string }
+    >();
     for (const c of Object.values(cases)) {
-      const matter = c.matterId ? (graph.matters?.[c.matterId] as MatterRecord | undefined) : undefined;
+      const matter = c.matterId
+        ? (graph.matters?.[c.matterId] as MatterRecord | undefined)
+        : undefined;
       for (const deadlineId of c.deadlineIds ?? []) {
         map.set(deadlineId, {
           caseId: c.id,
@@ -250,7 +289,11 @@ const LegalActivityPanel = () => {
     >();
 
     for (const deadline of deadlines) {
-      if (!deadline.dueAt || deadline.status === 'completed' || deadline.status === 'expired') {
+      if (
+        !deadline.dueAt ||
+        deadline.status === 'completed' ||
+        deadline.status === 'expired'
+      ) {
         continue;
       }
       const ctx = caseByDeadlineId.get(deadline.id);
@@ -260,7 +303,13 @@ const LegalActivityPanel = () => {
 
       const days = daysUntil(deadline.dueAt);
       const severity: 'critical' | 'warning' | 'soon' | 'normal' =
-        days < 0 ? 'critical' : days === 0 ? 'warning' : days <= 3 ? 'soon' : 'normal';
+        days < 0
+          ? 'critical'
+          : days === 0
+            ? 'warning'
+            : days <= 3
+              ? 'soon'
+              : 'normal';
       const label =
         days < 0
           ? `${Math.abs(days)}d überfällig`
@@ -326,7 +375,10 @@ const LegalActivityPanel = () => {
         }
         if (b.critical !== a.critical) return b.critical - a.critical;
         if (b.total !== a.total) return b.total - a.total;
-        return new Date(b.matter.updatedAt).getTime() - new Date(a.matter.updatedAt).getTime();
+        return (
+          new Date(b.matter.updatedAt).getTime() -
+          new Date(a.matter.updatedAt).getTime()
+        );
       })
       .slice(0, 5);
   }, [caseByDeadlineId, deadlines, graph.matters]);
@@ -395,8 +447,10 @@ const LegalActivityPanel = () => {
         onRun: () => {
           const latestCase = Object.values(cases)
             .filter(c => c.matterId === latestMatter.id)
-            .sort((a, b) =>
-              new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+            .sort(
+              (a, b) =>
+                new Date(b.updatedAt).getTime() -
+                new Date(a.updatedAt).getTime()
             )[0];
           openMainChatForContext({
             caseId: latestCase?.id,
@@ -468,8 +522,15 @@ const LegalActivityPanel = () => {
   ]);
 
   return (
-    <div className={legalActivityStyles.container} aria-label="Legal Activity Übersicht">
-      <div className={legalActivityStyles.srOnlyLive} aria-live="polite" aria-atomic="true">
+    <div
+      className={legalActivityStyles.container}
+      aria-label="Legal Activity Übersicht"
+    >
+      <div
+        className={legalActivityStyles.srOnlyLive}
+        aria-live="polite"
+        aria-atomic="true"
+      >
         {actionStatus ?? ''}
       </div>
       {/* Quick Navigation */}
@@ -483,7 +544,10 @@ const LegalActivityPanel = () => {
             title="Alle Akten"
             aria-label="Zu Akten wechseln"
           >
-            <span className={legalActivityStyles.quickNavIcon} aria-hidden="true">
+            <span
+              className={legalActivityStyles.quickNavIcon}
+              aria-hidden="true"
+            >
               📁
             </span>
             Akten
@@ -495,7 +559,10 @@ const LegalActivityPanel = () => {
             title="Alle Mandanten"
             aria-label="Zu Mandanten wechseln"
           >
-            <span className={legalActivityStyles.quickNavIcon} aria-hidden="true">
+            <span
+              className={legalActivityStyles.quickNavIcon}
+              aria-hidden="true"
+            >
               👤
             </span>
             Mandanten
@@ -507,7 +574,10 @@ const LegalActivityPanel = () => {
             title="Fristen"
             aria-label="Zu Fristen wechseln"
           >
-            <span className={legalActivityStyles.quickNavIcon} aria-hidden="true">
+            <span
+              className={legalActivityStyles.quickNavIcon}
+              aria-hidden="true"
+            >
               📅
             </span>
             Fristen
@@ -519,7 +589,10 @@ const LegalActivityPanel = () => {
             title="Termine"
             aria-label="Zu Terminen wechseln"
           >
-            <span className={legalActivityStyles.quickNavIcon} aria-hidden="true">
+            <span
+              className={legalActivityStyles.quickNavIcon}
+              aria-hidden="true"
+            >
               �️
             </span>
             Termine
@@ -538,9 +611,13 @@ const LegalActivityPanel = () => {
               onClick={action.onRun}
               aria-label={`${action.title}, Aktion ausführen`}
             >
-              <span className={legalActivityStyles.matterTitle}>{action.title}</span>
+              <span className={legalActivityStyles.matterTitle}>
+                {action.title}
+              </span>
               <div className={legalActivityStyles.twoColMeta}>
-                <span className={legalActivityStyles.itemMeta}>{action.detail}</span>
+                <span className={legalActivityStyles.itemMeta}>
+                  {action.detail}
+                </span>
                 <span
                   className={[
                     legalActivityStyles.severityBadge,
@@ -576,7 +653,9 @@ const LegalActivityPanel = () => {
             <span
               className={[
                 legalActivityStyles.kpiValue,
-                criticalDeadlineCount > 0 ? legalActivityStyles.kpiValueCritical : '',
+                criticalDeadlineCount > 0
+                  ? legalActivityStyles.kpiValueCritical
+                  : '',
               ]
                 .filter(Boolean)
                 .join(' ')}
@@ -592,10 +671,14 @@ const LegalActivityPanel = () => {
       <div>
         <div className={legalActivityStyles.sectionTitle}>
           Termine & Alerts
-          {criticalDeadlineCount > 0 ? ` · ${criticalDeadlineCount} kritisch` : ''}
+          {criticalDeadlineCount > 0
+            ? ` · ${criticalDeadlineCount} kritisch`
+            : ''}
         </div>
         {visibleUpcomingDeadlines.length === 0 ? (
-          <div className={legalActivityStyles.emptyHint}>Keine anstehenden Fristen</div>
+          <div className={legalActivityStyles.emptyHint}>
+            Keine anstehenden Fristen
+          </div>
         ) : (
           <div className={legalActivityStyles.listCol}>
             {visibleUpcomingDeadlines.map(d => {
@@ -628,7 +711,9 @@ const LegalActivityPanel = () => {
                     });
                   }}
                 >
-                  <span className={legalActivityStyles.itemLabel}>{d.title}</span>
+                  <span className={legalActivityStyles.itemLabel}>
+                    {d.title}
+                  </span>
                   <div className={legalActivityStyles.itemRow}>
                     <span className={legalActivityStyles.itemMeta}>
                       {getDeadlineCaseTitle(d.id)}
@@ -649,11 +734,18 @@ const LegalActivityPanel = () => {
                       </span>
                       {severityClass ? (
                         <span
-                          className={[legalActivityStyles.severityBadge, severityClass]
+                          className={[
+                            legalActivityStyles.severityBadge,
+                            severityClass,
+                          ]
                             .filter(Boolean)
                             .join(' ')}
                         >
-                          {isOverdue ? 'kritisch' : days === 0 ? 'heute' : 'bald'}
+                          {isOverdue
+                            ? 'kritisch'
+                            : days === 0
+                              ? 'heute'
+                              : 'bald'}
                         </span>
                       ) : null}
                     </div>
@@ -663,7 +755,8 @@ const LegalActivityPanel = () => {
             })}
             {upcomingDeadlines.length > visibleUpcomingDeadlines.length ? (
               <div className={legalActivityStyles.emptyHint}>
-                +{upcomingDeadlines.length - visibleUpcomingDeadlines.length} weitere Fristen im Zeitraum
+                +{upcomingDeadlines.length - visibleUpcomingDeadlines.length}{' '}
+                weitere Fristen im Zeitraum
               </div>
             ) : null}
           </div>
@@ -674,7 +767,9 @@ const LegalActivityPanel = () => {
       <div>
         <div className={legalActivityStyles.sectionTitle}>Akte-Alerts</div>
         {alertsByMatter.length === 0 ? (
-          <div className={legalActivityStyles.emptyHint}>Keine Alerts je Akte</div>
+          <div className={legalActivityStyles.emptyHint}>
+            Keine Alerts je Akte
+          </div>
         ) : (
           <div className={legalActivityStyles.listCol}>
             {alertsByMatter.map(item => {
@@ -695,11 +790,15 @@ const LegalActivityPanel = () => {
                   }}
                 >
                   <span className={legalActivityStyles.matterTitle}>
-                    {item.matter.externalRef ? `${item.matter.externalRef} — ` : ''}
+                    {item.matter.externalRef
+                      ? `${item.matter.externalRef} — `
+                      : ''}
                     {item.matter.title}
                   </span>
                   <div className={legalActivityStyles.twoColMeta}>
-                    <span className={legalActivityStyles.itemMeta}>{clientName || 'Mandant offen'}</span>
+                    <span className={legalActivityStyles.itemMeta}>
+                      {clientName || 'Mandant offen'}
+                    </span>
                     <span
                       className={
                         item.critical > 0
@@ -733,9 +832,13 @@ const LegalActivityPanel = () => {
 
       {/* Recent Legal Documents */}
       <div>
-        <div className={legalActivityStyles.sectionTitle}>Letzte Schriftsätze</div>
+        <div className={legalActivityStyles.sectionTitle}>
+          Letzte Schriftsätze
+        </div>
         {recentDocs.length === 0 ? (
-          <div className={legalActivityStyles.emptyHint}>Noch keine Dokumente analysiert</div>
+          <div className={legalActivityStyles.emptyHint}>
+            Noch keine Dokumente analysiert
+          </div>
         ) : (
           <div className={legalActivityStyles.listCol}>
             {recentDocs.map(doc => (
@@ -745,10 +848,18 @@ const LegalActivityPanel = () => {
                 className={legalActivityStyles.docItem}
                 aria-label={`Dokument ${doc.title || 'Unbenannt'} im Hauptchat öffnen`}
                 onClick={() => {
+                  if (doc.linkedPageId) {
+                    workbench.openDoc(doc.linkedPageId);
+                    setActionStatus(
+                      `Öffne Arbeitsseite: ${doc.title || 'Dokument'}`
+                    );
+                    return;
+                  }
                   const caseRecord = cases[doc.caseId];
                   const matterId = caseRecord?.matterId;
                   const clientId = matterId
-                    ? (graph.matters?.[matterId] as MatterRecord | undefined)?.clientId
+                    ? (graph.matters?.[matterId] as MatterRecord | undefined)
+                        ?.clientId
                     : undefined;
                   openMainChatForContext({
                     caseId: doc.caseId,
@@ -775,9 +886,13 @@ const LegalActivityPanel = () => {
 
       {/* Recent Matters */}
       <div>
-        <div className={legalActivityStyles.sectionTitle}>Zuletzt bearbeitete Akten</div>
+        <div className={legalActivityStyles.sectionTitle}>
+          Zuletzt bearbeitete Akten
+        </div>
         {recentMatters.length === 0 ? (
-          <div className={legalActivityStyles.emptyHint}>Noch keine Akten vorhanden</div>
+          <div className={legalActivityStyles.emptyHint}>
+            Noch keine Akten vorhanden
+          </div>
         ) : (
           <div className={legalActivityStyles.listCol}>
             {recentMatters.map(m => (
@@ -789,7 +904,11 @@ const LegalActivityPanel = () => {
                 onClick={() => {
                   const latestCase = Object.values(cases)
                     .filter(c => c.matterId === m.id)
-                    .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())[0];
+                    .sort(
+                      (a, b) =>
+                        new Date(b.updatedAt).getTime() -
+                        new Date(a.updatedAt).getTime()
+                    )[0];
                   openMainChatForContext({
                     caseId: latestCase?.id,
                     matterId: m.id,

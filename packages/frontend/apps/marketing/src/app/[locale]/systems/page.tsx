@@ -43,7 +43,8 @@ const DOWNLOAD_CENTER_URL = STABLE_RELEASE_URL;
 const ALL_RELEASES_URL = 'https://github.com/subsumio/subsumio/releases';
 const SOURCE_ARCHIVE_URL =
   'https://github.com/subsumio/subsumio/archive/refs/heads/main.zip';
-const WEB_APP_URL = 'https://app.subsum.io';
+const WEB_APP_URL =
+  process.env.NEXT_PUBLIC_APP_ORIGIN?.trim() || 'https://app.subsum.io';
 const GITHUB_LATEST_RELEASE_API =
   'https://api.github.com/repos/subsumio/subsumio/releases/latest';
 const IOS_STORE_URL_RAW =

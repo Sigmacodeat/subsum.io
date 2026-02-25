@@ -1002,7 +1002,7 @@ function CollectiveIntelligenceSection() {
             </p>
             <Link
               href="/pricing"
-              className="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-200/35 bg-emerald-500/18 px-8 py-4 text-base font-semibold text-emerald-50 backdrop-blur-sm transition-colors duration-200 hover:bg-emerald-500/24 hover:border-emerald-200/45 sm:min-w-[220px] sm:px-10 sm:py-5 sm:text-lg focus-ring-on-dark"
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-200/60 bg-gradient-to-r from-emerald-500 via-emerald-500 to-teal-500 px-8 py-4 text-base font-semibold text-white shadow-[0_18px_42px_-20px_rgba(16,185,129,0.9)] transition-all duration-300 hover:-translate-y-0.5 hover:from-emerald-400 hover:via-emerald-500 hover:to-teal-400 hover:shadow-[0_24px_48px_-20px_rgba(16,185,129,1)] active:translate-y-0 active:shadow-[0_14px_32px_-18px_rgba(16,185,129,0.9)] sm:min-w-[220px] sm:px-10 sm:py-5 sm:text-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-100 focus-visible:ring-offset-2 focus-visible:ring-offset-emerald-800"
             >
               {t('ctaButton')}
               <ArrowRight className="h-5 w-5" />

@@ -30,6 +30,27 @@ function hostnameMatchesDomain(hostname: string, domain: string) {
   return hostname === domain || hostname.endsWith(`.${domain}`);
 }
 
+function parseAllowedOrigins(input: string): string[] {
+  const raw = input
+    .split(',')
+    .map(s => s.trim())
+    .filter(Boolean);
+
+  const origins: string[] = [];
+  for (const item of raw) {
+    try {
+      const url = new URL(item);
+      if (!['http:', 'https:'].includes(url.protocol)) {
+        continue;
+      }
+      origins.push(url.origin);
+    } catch {
+      // ignore invalid
+    }
+  }
+  return Array.from(new Set(origins));
+}
+
 @Injectable()
 export class URLHelper {
   redirectAllowHosts!: string[];
@@ -67,10 +88,18 @@ export class URLHelper {
 
     this.redirectAllowHosts = [this.baseUrl];
 
-    this.allowedOrigins = [this.origin];
-    if (this.config.server.hosts.length > 0) {
-      for (const host of this.config.server.hosts) {
-        this.allowedOrigins.push(this.convertHostToOrigin(host));
+    const configuredAllowedOrigins = this.config.server.allowedOrigins
+      ? parseAllowedOrigins(this.config.server.allowedOrigins)
+      : [];
+
+    if (configuredAllowedOrigins.length > 0) {
+      this.allowedOrigins = configuredAllowedOrigins;
+    } else {
+      this.allowedOrigins = [this.origin];
+      if (this.config.server.hosts.length > 0) {
+        for (const host of this.config.server.hosts) {
+          this.allowedOrigins.push(this.convertHostToOrigin(host));
+        }
       }
     }
   }

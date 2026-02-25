@@ -16,9 +16,12 @@ import {
 const borderSubtle = '1px solid var(--affine-border-color)';
 const borderDivider = '1px solid var(--affine-border-color)';
 // Accent
-const accentBg = 'color-mix(in srgb, var(--affine-primary-color) 11%, transparent)';
-const accentBgHover = 'color-mix(in srgb, var(--affine-primary-color) 15%, transparent)';
-const accentBorder = 'color-mix(in srgb, var(--affine-primary-color) 28%, transparent)';
+const accentBg =
+  'color-mix(in srgb, var(--affine-primary-color) 11%, transparent)';
+const accentBgHover =
+  'color-mix(in srgb, var(--affine-primary-color) 15%, transparent)';
+const accentBorder =
+  'color-mix(in srgb, var(--affine-primary-color) 28%, transparent)';
 // Surface layers (dark-mode tuned)
 const surfaceBase = cssVarV2('layer/background/primary');
 const surfaceRaised = cssVarV2('layer/background/secondary');
@@ -196,6 +199,18 @@ export const akteMetaBadgeLabel = style({
 export const akteMetaBadgeUrgent = style({
   background: 'rgba(255, 59, 48, 0.08)',
   color: cssVarV2('status/error'),
+});
+
+export const caseSummaryInline = style({
+  marginTop: sp(2),
+  padding: `${sp(2)} ${sp(3)}`,
+  borderRadius: 8,
+  border: borderSubtle,
+  background: surfaceRaised,
+  fontSize: 12,
+  lineHeight: '18px',
+  color: cssVarV2('text/secondary'),
+  maxWidth: 980,
 });
 
 export const statusBadge = style(statusBadgeBaseStyle);
@@ -886,6 +901,46 @@ export const docTitle = style({
   alignItems: 'center',
 });
 
+export const docTitleCol = style({
+  minWidth: 0,
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 4,
+});
+
+export const docDigestSummary = style({
+  fontSize: 11,
+  lineHeight: '16px',
+  color: cssVarV2('text/secondary'),
+  display: '-webkit-box',
+  WebkitLineClamp: 2,
+  WebkitBoxOrient: 'vertical',
+  overflow: 'hidden',
+});
+
+export const docDigestToc = style({
+  display: 'flex',
+  alignItems: 'center',
+  gap: sp(1),
+  flexWrap: 'wrap',
+});
+
+export const docDigestTocItem = style({
+  display: 'inline-flex',
+  alignItems: 'center',
+  maxWidth: 200,
+  padding: `1px ${sp(1)}`,
+  borderRadius: 4,
+  border: borderSubtle,
+  background: surfaceBase,
+  fontSize: 10,
+  lineHeight: '14px',
+  color: cssVarV2('text/secondary'),
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+});
+
 export const chunkCategory = style({
   fontWeight: 500,
 });
@@ -1214,8 +1269,7 @@ export const skeletonRow = style({
   height: 40,
   borderRadius: 8,
   margin: `${sp(1)} 0`,
-  background:
-    `linear-gradient(90deg, ${surfaceRaised} 25%, color-mix(in srgb, ${cssVarV2('text/secondary')} 6%, transparent) 50%, ${surfaceRaised} 75%)`,
+  background: `linear-gradient(90deg, ${surfaceRaised} 25%, color-mix(in srgb, ${cssVarV2('text/secondary')} 6%, transparent) 50%, ${surfaceRaised} 75%)`,
   backgroundSize: '200% 100%',
   animation: `${skeletonShimmer} 1.2s ease-in-out infinite`,
 });

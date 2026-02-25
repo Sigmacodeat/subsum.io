@@ -36,9 +36,11 @@ import { DocStorageModule } from './core/doc';
 import { DocRendererModule } from './core/doc-renderer';
 import { DocServiceModule } from './core/doc-service';
 import { FeatureModule } from './core/features';
+import { IssueReportsModule } from './core/issue-reports';
 import { MailModule } from './core/mail';
 import { MonitorModule } from './core/monitor';
 import { NotificationModule } from './core/notification';
+import { OrganizationModule } from './core/organizations';
 import { PermissionModule } from './core/permission';
 import { PublicApiModule } from './core/public-api';
 import { QueueDashboardModule } from './core/queue-dashboard';
@@ -50,8 +52,6 @@ import { SyncModule } from './core/sync';
 import { TelemetryModule } from './core/telemetry';
 import { UserModule } from './core/user';
 import { VersionModule } from './core/version';
-import { OrganizationModule } from './core/organizations';
-import { IssueReportsModule } from './core/issue-reports';
 import { WorkspaceModule } from './core/workspaces';
 import { Env } from './env';
 import { ModelsModule } from './models';
@@ -61,10 +61,11 @@ import { CopilotModule } from './plugins/copilot';
 import { CustomerIoModule } from './plugins/customerio';
 import { GCloudModule } from './plugins/gcloud';
 import { IndexerModule } from './plugins/indexer';
+import { LegalCaseModule } from './plugins/legal-case';
+import { LegalPdfModule } from './plugins/legal-pdf';
 import { LicenseModule } from './plugins/license';
 import { OAuthModule } from './plugins/oauth';
 import { PaymentModule } from './plugins/payment';
-import { LegalPdfModule } from './plugins/legal-pdf';
 import { WorkerModule } from './plugins/worker';
 
 export const FunctionalityModules = [
@@ -211,7 +212,8 @@ export function buildAppModule(env: Env) {
       AccessTokenModule,
       PublicApiModule,
       QueueDashboardModule,
-      LegalPdfModule
+      LegalPdfModule,
+      LegalCaseModule
     )
     // doc service and front service
     .useIf(() => env.flavors.doc || env.flavors.front, DocServiceModule)

@@ -9,6 +9,7 @@ import {
   FileText,
   Gauge,
   LayoutDashboard,
+  MousePointer2,
   Search,
   Sparkles,
   Users,
@@ -22,7 +23,10 @@ import {
   useState,
 } from 'react';
 
-import { useElementScrollProgress } from './animations';
+import {
+  useElementScrollProgress,
+  useResponsiveMotionScale,
+} from './animations';
 
 function usePrefersReducedMotion() {
   const [reduced, setReduced] = useState(false);
@@ -86,30 +90,71 @@ type PreviewActivity = {
   tone: 'ok' | 'warn' | 'info';
 };
 
+type WorkflowStep = {
+  id: string;
+  label: string;
+  x: number;
+  y: number;
+};
+
+const DESKTOP_WORKFLOW_STEPS: WorkflowStep[] = [
+  { id: 'search', label: 'Prüfung starten', x: 73, y: 11 },
+  { id: 'copilot', label: 'Copilot validiert', x: 82, y: 44 },
+  { id: 'matter', label: 'Akte priorisieren', x: 31, y: 56 },
+  { id: 'export', label: 'Export freigeben', x: 84, y: 90 },
+];
+
+const TABLET_WORKFLOW_STEPS: WorkflowStep[] = [
+  { id: 'search', label: 'Prüfung starten', x: 69, y: 14 },
+  { id: 'copilot', label: 'Copilot validiert', x: 76, y: 40 },
+  { id: 'matter', label: 'Akte priorisieren', x: 34, y: 58 },
+  { id: 'export', label: 'Export freigeben', x: 74, y: 84 },
+];
+
 function clamp(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, n));
 }
 
 export function AppDashboardPreview() {
   const reducedMotion = usePrefersReducedMotion();
+  const motionScale = useResponsiveMotionScale();
+  const isTabletMotion = motionScale < 0.95;
+  const motionEaseScale = clamp((motionScale - 0.58) / 0.42, 0.58, 1);
   const [now] = useState(() => Date.now());
   const frameRef = useRef<HTMLDivElement>(null);
   const [tilt, setTilt] = useState({ rx: 2, ry: -3, gx: 50, gy: 30 });
   const [searchText, setSearchText] = useState('');
   const [searchTargetIndex, setSearchTargetIndex] = useState(0);
+  const [activeWorkflowStep, setActiveWorkflowStep] = useState(0);
+  const [workflowClick, setWorkflowClick] = useState(false);
   const { ref: scrollRef, progress } = useElementScrollProgress(80);
 
   const depth = useMemo(() => {
     const p = clamp(progress, 0, 1);
+    const amp = motionEaseScale;
     return {
       p,
-      mainY: (0.5 - p) * 14,
-      kpiY: (0.5 - p) * 20,
-      listY: (0.5 - p) * 26,
-      rightY: (0.5 - p) * 32,
+      mainY: (0.5 - p) * (14 * amp),
+      kpiY: (0.5 - p) * (20 * amp),
+      listY: (0.5 - p) * (26 * amp),
+      rightY: (0.5 - p) * (32 * amp),
       sheenOpacity: clamp((p - 0.1) / 0.5, 0, 1),
     };
-  }, [progress]);
+  }, [progress, motionEaseScale]);
+
+  const motionTiming = useMemo(() => {
+    const responseFactor = 1 - motionEaseScale;
+    return {
+      typingInitialDelayMs: Math.round(190 + responseFactor * 120),
+      typingMs: Math.round(32 + responseFactor * 10),
+      deletingMs: Math.round(26 + responseFactor * 8),
+      typingPauseMs: Math.round(920 + responseFactor * 220),
+      workflowCadenceMs: Math.round(1820 + responseFactor * 560),
+      workflowClickMs: Math.round(220 + responseFactor * 90),
+      panelShiftMs: Math.round(205 + responseFactor * 75),
+      cursorTravelMs: Math.round(730 + responseFactor * 230),
+    };
+  }, [motionEaseScale]);
 
   const matters = useMemo<PreviewMatter[]>(
     () => [
@@ -201,6 +246,11 @@ export function AppDashboardPreview() {
     []
   );
 
+  const workflowSteps = useMemo<WorkflowStep[]>(
+    () => (isTabletMotion ? TABLET_WORKFLOW_STEPS : DESKTOP_WORKFLOW_STEPS),
+    [isTabletMotion]
+  );
+
   useEffect(() => {
     if (reducedMotion) {
       setSearchText(searchTargets[0] ?? '');
@@ -222,7 +272,7 @@ export function AppDashboardPreview() {
         t = window.setTimeout(() => {
           isDeleting = true;
           tick();
-        }, 1000);
+        }, motionTiming.typingPauseMs);
         return;
       }
 
@@ -231,14 +281,41 @@ export function AppDashboardPreview() {
         return;
       }
 
-      t = window.setTimeout(tick, isDeleting ? 28 : 34);
+      t = window.setTimeout(
+        tick,
+        isDeleting ? motionTiming.deletingMs : motionTiming.typingMs
+      );
     };
 
-    t = window.setTimeout(tick, 250);
+    t = window.setTimeout(tick, motionTiming.typingInitialDelayMs);
     return () => {
       if (t) window.clearTimeout(t);
     };
-  }, [reducedMotion, searchTargetIndex, searchTargets]);
+  }, [reducedMotion, searchTargetIndex, searchTargets, motionTiming]);
+
+  useEffect(() => {
+    if (reducedMotion) {
+      setActiveWorkflowStep(0);
+      setWorkflowClick(false);
+      return;
+    }
+
+    const interval = window.setInterval(() => {
+      setActiveWorkflowStep(prev => (prev + 1) % workflowSteps.length);
+    }, motionTiming.workflowCadenceMs);
+
+    return () => window.clearInterval(interval);
+  }, [reducedMotion, workflowSteps.length, motionTiming.workflowCadenceMs]);
+
+  useEffect(() => {
+    if (reducedMotion) return;
+    setWorkflowClick(true);
+    const timeout = window.setTimeout(
+      () => setWorkflowClick(false),
+      motionTiming.workflowClickMs
+    );
+    return () => window.clearTimeout(timeout);
+  }, [activeWorkflowStep, reducedMotion, motionTiming.workflowClickMs]);
 
   const onMouseMove = useCallback(
     (e: ReactMouseEvent<HTMLDivElement>) => {
@@ -250,8 +327,8 @@ export function AppDashboardPreview() {
       const px = clamp((e.clientX - rect.left) / rect.width, 0, 1);
       const py = clamp((e.clientY - rect.top) / rect.height, 0, 1);
 
-      const rx = (0.5 - py) * 8;
-      const ry = (px - 0.5) * 10;
+      const rx = (0.5 - py) * (8 * motionEaseScale);
+      const ry = (px - 0.5) * (10 * motionEaseScale);
 
       setTilt({
         rx,
@@ -260,13 +337,18 @@ export function AppDashboardPreview() {
         gy: Math.round(py * 100),
       });
     },
-    [reducedMotion]
+    [reducedMotion, motionEaseScale]
   );
 
   const onMouseLeave = useCallback(() => {
     if (reducedMotion) return;
-    setTilt({ rx: 2, ry: -3, gx: 50, gy: 30 });
-  }, [reducedMotion]);
+    setTilt({
+      rx: 2 * motionEaseScale,
+      ry: -3 * motionEaseScale,
+      gx: 50,
+      gy: 30,
+    });
+  }, [reducedMotion, motionEaseScale]);
 
   const chat = useMemo<PreviewChat[]>(
     () => [
@@ -333,6 +415,8 @@ export function AppDashboardPreview() {
     if (k === 'soon') return 'bg-amber-50 text-amber-700 border-amber-100';
     return 'bg-slate-50 text-slate-700 border-slate-200';
   };
+
+  const currentWorkflow = workflowSteps[activeWorkflowStep] ?? workflowSteps[0];
 
   return (
     <div
@@ -459,7 +543,7 @@ export function AppDashboardPreview() {
                     : `translateY(${depth.mainY}px) translateZ(0)`,
                   transition: reducedMotion
                     ? undefined
-                    : 'transform 220ms cubic-bezier(0.16,1,0.3,1)',
+                    : `transform ${motionTiming.panelShiftMs}ms cubic-bezier(0.16,1,0.3,1)`,
                   willChange: reducedMotion ? undefined : 'transform',
                 }}
               >
@@ -478,7 +562,13 @@ export function AppDashboardPreview() {
                   </div>
 
                   <div className="ml-auto flex items-center gap-2">
-                    <div className="hidden md:flex items-center gap-2 px-3 py-2 rounded-xl bg-white/75 border border-slate-200/70 shadow-sm">
+                    <div
+                      className={`hidden md:flex items-center gap-2 px-3 py-2 rounded-xl bg-white/75 border shadow-sm transition-all duration-300 ${
+                        !reducedMotion && activeWorkflowStep === 0
+                          ? 'border-primary-300/90 shadow-[0_8px_22px_-14px_rgba(37,99,235,0.7)]'
+                          : 'border-slate-200/70'
+                      }`}
+                    >
                       <Search className="w-4 h-4 text-slate-400" />
                       <div className="text-[11px] text-slate-400 font-medium">
                         {searchText || 'Suche: Mandant, AZ, Norm…'}
@@ -512,7 +602,7 @@ export function AppDashboardPreview() {
                           : `translateY(${depth.kpiY}px) translateZ(0)`,
                         transition: reducedMotion
                           ? undefined
-                          : 'transform 220ms cubic-bezier(0.16,1,0.3,1)',
+                          : `transform ${motionTiming.panelShiftMs}ms cubic-bezier(0.16,1,0.3,1)`,
                         willChange: reducedMotion ? undefined : 'transform',
                       }}
                     >
@@ -598,7 +688,7 @@ export function AppDashboardPreview() {
                           : `translateY(${depth.listY}px) translateZ(0)`,
                         transition: reducedMotion
                           ? undefined
-                          : 'transform 220ms cubic-bezier(0.16,1,0.3,1)',
+                          : `transform ${motionTiming.panelShiftMs}ms cubic-bezier(0.16,1,0.3,1)`,
                         willChange: reducedMotion ? undefined : 'transform',
                       }}
                     >
@@ -617,10 +707,16 @@ export function AppDashboardPreview() {
                       </div>
 
                       <div className="divide-y divide-slate-200/60">
-                        {matters.map(m => (
+                        {matters.map((m, idx) => (
                           <div
                             key={m.id}
-                            className="px-4 py-3 flex items-center gap-3 hover:bg-slate-50/70 transition-colors duration-200"
+                            className={`px-4 py-3 flex items-center gap-3 transition-all duration-300 ${
+                              !reducedMotion &&
+                              activeWorkflowStep === 2 &&
+                              idx === 0
+                                ? 'bg-primary-50/70 shadow-[inset_0_0_0_1px_rgba(147,197,253,0.8)]'
+                                : 'hover:bg-slate-50/70'
+                            }`}
                           >
                             <div
                               className={`w-2.5 h-2.5 rounded-full ${priorityDot(m.priority)} shadow-sm`}
@@ -667,11 +763,17 @@ export function AppDashboardPreview() {
                         : `translateY(${depth.rightY}px) translateZ(0)`,
                       transition: reducedMotion
                         ? undefined
-                        : 'transform 220ms cubic-bezier(0.16,1,0.3,1)',
+                        : `transform ${motionTiming.panelShiftMs}ms cubic-bezier(0.16,1,0.3,1)`,
                       willChange: reducedMotion ? undefined : 'transform',
                     }}
                   >
-                    <div className="rounded-[16px] bg-white/82 border border-slate-200/70 shadow-sm overflow-hidden">
+                    <div
+                      className={`rounded-[16px] bg-white/82 border shadow-sm overflow-hidden transition-all duration-300 ${
+                        !reducedMotion && activeWorkflowStep === 1
+                          ? 'border-primary-300/80 shadow-[0_14px_38px_-24px_rgba(37,99,235,0.75)]'
+                          : 'border-slate-200/70'
+                      }`}
+                    >
                       <div className="px-4 py-3 border-b border-slate-200/70 bg-white/60 flex items-center gap-2">
                         <Gauge className="w-4 h-4 text-slate-600" />
                         <div className="text-[11px] font-bold text-slate-700">
@@ -737,7 +839,15 @@ export function AppDashboardPreview() {
                           </div>
                           <div className="ml-auto flex items-center gap-2">
                             <div className="w-2 h-2 rounded-full bg-primary-500/70 animate-pulse" />
-                            <div className="w-14 h-6 rounded-lg gradient-primary shadow-sm" />
+                            <div
+                              className="w-14 h-6 rounded-lg gradient-primary shadow-sm"
+                              style={{
+                                animation:
+                                  !reducedMotion && activeWorkflowStep === 1
+                                    ? 'pulse 1.4s ease-in-out infinite'
+                                    : undefined,
+                              }}
+                            />
                           </div>
                         </div>
                       </div>
@@ -968,6 +1078,65 @@ export function AppDashboardPreview() {
           </div>
         </div>
       </div>
+
+      {!reducedMotion && currentWorkflow && (
+        <>
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 z-20"
+          >
+            {workflowSteps.map((step, idx) => {
+              const isActive = idx === activeWorkflowStep;
+              return (
+                <div
+                  key={step.id}
+                  className="absolute -translate-x-1/2 -translate-y-1/2 rounded-full"
+                  style={{
+                    left: `${step.x}%`,
+                    top: `${step.y}%`,
+                    width: isActive ? 16 : 10,
+                    height: isActive ? 16 : 10,
+                    background: isActive
+                      ? 'rgba(59,130,246,0.36)'
+                      : 'rgba(148,163,184,0.22)',
+                    border: isActive
+                      ? '1px solid rgba(59,130,246,0.7)'
+                      : '1px solid rgba(148,163,184,0.35)',
+                    boxShadow: isActive
+                      ? '0 0 0 7px rgba(59,130,246,0.12)'
+                      : undefined,
+                    transition: 'all 240ms ease',
+                  }}
+                />
+              );
+            })}
+          </div>
+
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute z-30"
+            style={{
+              left: `${currentWorkflow.x}%`,
+              top: `${currentWorkflow.y}%`,
+              transform: `translate(-40%, -30%) scale(${workflowClick ? (isTabletMotion ? 0.95 : 0.92) : 1})`,
+              transition: `left ${motionTiming.cursorTravelMs}ms cubic-bezier(0.16,1,0.3,1), top ${motionTiming.cursorTravelMs}ms cubic-bezier(0.16,1,0.3,1), transform 180ms ease`,
+            }}
+          >
+            <div className="relative">
+              <MousePointer2 className="h-5 w-5 fill-white text-slate-800 drop-shadow-[0_4px_10px_rgba(15,23,42,0.4)]" />
+              <div
+                className="absolute left-4 top-3 rounded-full border border-primary-200/80 bg-white/92 px-2 py-1 text-[9px] font-semibold text-primary-700 shadow-[0_8px_20px_-14px_rgba(37,99,235,0.65)]"
+                style={{
+                  whiteSpace: 'nowrap',
+                  fontSize: isTabletMotion ? 8 : 9,
+                }}
+              >
+                {currentWorkflow.label}
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }

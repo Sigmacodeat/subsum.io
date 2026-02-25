@@ -75,13 +75,23 @@ import {
   VollmachtService,
 } from '@affine/core/modules/case-assistant';
 import type { ComplianceAuditEntry } from '@affine/core/modules/case-assistant/types';
+import {
+  type Member,
+  WorkspaceMembersService,
+} from '@affine/core/modules/permissions';
 import { WorkbenchService } from '@affine/core/modules/workbench';
 import { WorkspaceService } from '@affine/core/modules/workspace';
-import { type Member, WorkspaceMembersService } from '@affine/core/modules/permissions';
 import type { Store } from '@blocksuite/affine/store';
 import { useLiveData, useService } from '@toeverything/infra';
 import { useTheme } from 'next-themes';
-import { type KeyboardEvent,useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  type KeyboardEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 
 import * as styles from '../case-assistant.css';
 import { useCaseActionGuards } from './hooks/use-access-actions';
@@ -128,6 +138,7 @@ import { DSGVOComplianceSection } from './sections/dsgvo-compliance-section';
 import { EinstellungenSection } from './sections/einstellungen-section';
 import { EmailInboxSection } from './sections/email-inbox-section';
 import { EvidenceSection } from './sections/evidence-section';
+import type { UploadTelemetryAlert } from './sections/file-upload-zone';
 import { FristenkontrolleSection } from './sections/fristenkontrolle-section';
 import { GwGComplianceSection } from './sections/gwg-compliance-section';
 import { IntakeChecklistSection } from './sections/intake-checklist-section';
@@ -135,7 +146,6 @@ import { JudikaturSection } from './sections/judikatur-section';
 import { KanzleiProfileSection } from './sections/kanzlei-profile-section';
 import { KollisionsPruefungSection } from './sections/kollisions-pruefung-section';
 import { LegalWorkflowSection } from './sections/legal-workflow-section';
-import type { UploadTelemetryAlert } from './sections/file-upload-zone';
 import { MandantenSection } from './sections/mandanten-section';
 import { NormSearchSection } from './sections/norm-search-section';
 import { OpposingPartySection } from './sections/opposing-party-section';
@@ -188,7 +198,6 @@ type AnwaltsWorkflowTabId =
   | 'kalender'
   | 'finanzen'
   | 'konflikte';
-
 
 export const EditorCaseAssistantPanel = ({
   caseId,
@@ -262,11 +271,14 @@ export const EditorCaseAssistantPanel = ({
   const workspaceMembersService = useService(WorkspaceMembersService);
   const kollisionsPruefungService = useService(KollisionsPruefungService);
   void kollisionsPruefungService;
-  const graph = useLiveData(caseAssistantService.graph$) as CaseGraphRecord | null;
+  const graph = useLiveData(
+    caseAssistantService.graph$
+  ) as CaseGraphRecord | null;
   const activeJurisdiction: Jurisdiction =
     useLiveData(caseAssistantService.activeJurisdiction$) ?? 'AT';
   const alerts = useLiveData(caseAlertCenterService.alerts$);
-  const workspaceMembers = useLiveData(workspaceMembersService.members.pageMembers$) ?? [];
+  const workspaceMembers =
+    useLiveData(workspaceMembersService.members.pageMembers$) ?? [];
   const connectors: ConnectorConfig[] =
     useLiveData(casePlatformOrchestrationService.connectors$) ?? [];
   const ingestionJobs: IngestionJob[] =
@@ -286,17 +298,19 @@ export const EditorCaseAssistantPanel = ({
     useLiveData(legalCopilotWorkflowService.blueprints$) ?? [];
   const copilotRuns: CopilotRun[] =
     useLiveData(legalCopilotWorkflowService.copilotRuns$) ?? [];
-  const ocrJobs: OcrJob[] = useLiveData(legalCopilotWorkflowService.ocrJobs$) ?? [];
+  const ocrJobs: OcrJob[] =
+    useLiveData(legalCopilotWorkflowService.ocrJobs$) ?? [];
   const qualityReports: DocumentQualityReport[] =
     useLiveData(casePlatformOrchestrationService.qualityReports$) ?? [];
   const vollmachten: Vollmacht[] =
     useLiveData(vollmachtService.vollmachten$) ?? [];
-  const vollmachtSigningRequests = useLiveData(
-    casePlatformOrchestrationService.vollmachtSigningRequests$
-  ) ?? [];
+  const vollmachtSigningRequests =
+    useLiveData(casePlatformOrchestrationService.vollmachtSigningRequests$) ??
+    [];
   const auditEntries: ComplianceAuditEntry[] =
     useLiveData(casePlatformOrchestrationService.auditEntries$) ?? [];
-  const [ingestionMode, setIngestionMode] = useState<IngestionMode>('selection');
+  const [ingestionMode, setIngestionMode] =
+    useState<IngestionMode>('selection');
   const [onlyCriticalAlerts, setOnlyCriticalAlerts] = useState(false);
   const [isIngesting, setIsIngesting] = useState(false);
   const [ingestionStatus, setIngestionStatus] = useState<string | null>(null);
@@ -314,7 +328,9 @@ export const EditorCaseAssistantPanel = ({
     content: '',
   });
   const [folderQuery, setFolderQuery] = useState('');
-  const [folderSearchCount, setFolderSearchCount] = useState<number | null>(null);
+  const [folderSearchCount, setFolderSearchCount] = useState<number | null>(
+    null
+  );
   const [activeSidebarSection, setActiveSidebarSection] =
     useState<SidebarSectionId>(initialSidebarSection);
   const [residencyPolicyDraft, setResidencyPolicyDraft] =
@@ -331,9 +347,9 @@ export const EditorCaseAssistantPanel = ({
       sessionIdleTimeoutMinutes: 60,
       updatedAt: new Date(0).toISOString(),
     });
-  const [activeCopilotRailTab, setActiveCopilotRailTab] = useState<'copilot' | 'alerts'>(
-    initialSidebarSection === 'alerts' ? 'alerts' : 'copilot'
-  );
+  const [activeCopilotRailTab, setActiveCopilotRailTab] = useState<
+    'copilot' | 'alerts'
+  >(initialSidebarSection === 'alerts' ? 'alerts' : 'copilot');
   const [activeCopilotWorkspaceTab, setActiveCopilotWorkspaceTab] =
     useState<CopilotWorkspaceTab>('workflow');
   const copilotWorkspaceTabs = useMemo<CopilotWorkspaceTab[]>(
@@ -347,7 +363,9 @@ export const EditorCaseAssistantPanel = ({
   const [isCopilotPanelOpen, setIsCopilotPanelOpen] = useState(true);
   const [copilotPrompt, setCopilotPrompt] = useState('');
   const [copilotResponse, setCopilotResponse] = useState<string | null>(null);
-  const [copilotDraftPreview, setCopilotDraftPreview] = useState<string | null>(null);
+  const [copilotDraftPreview, setCopilotDraftPreview] = useState<string | null>(
+    null
+  );
 
   useEffect(() => {
     void kanzleiProfileService.syncFromBackend(workspaceId).catch(() => {
@@ -362,15 +380,20 @@ export const EditorCaseAssistantPanel = ({
     useState<CaseAssistantRole | null>(null);
   const [draftApprovedByRole, setDraftApprovedByRole] =
     useState<CaseAssistantRole | null>(null);
-  const [draftReviewRequestedHash, setDraftReviewRequestedHash] =
-    useState<string | null>(null);
-  const [draftApprovedHash, setDraftApprovedHash] = useState<string | null>(null);
+  const [draftReviewRequestedHash, setDraftReviewRequestedHash] = useState<
+    string | null
+  >(null);
+  const [draftApprovedHash, setDraftApprovedHash] = useState<string | null>(
+    null
+  );
   const [isCopilotRunning, setIsCopilotRunning] = useState(false);
   const [isApplyingCopilotDraft, setIsApplyingCopilotDraft] = useState(false);
   const [ocrEndpoint, setOcrEndpoint] = useState('');
   const [ocrToken, setOcrToken] = useState('');
   const [hasStoredOcrToken, setHasStoredOcrToken] = useState(false);
-  const [taskAssignees, setTaskAssignees] = useState<Record<string, string>>({});
+  const [taskAssignees, setTaskAssignees] = useState<Record<string, string>>(
+    {}
+  );
   const [blueprintObjectiveDraft, setBlueprintObjectiveDraft] = useState('');
   const [blueprintReviewStatus, setBlueprintReviewStatus] = useState<
     'draft' | 'in_review' | 'approved'
@@ -380,26 +403,37 @@ export const EditorCaseAssistantPanel = ({
 
   // ═══ New Legal Service States ═══
   const [normSearchQuery, setNormSearchQuery] = useState('');
-  const [normSearchResults, setNormSearchResults] = useState<NormMatchResult[]>([]);
-  const [contradictionMatrix, setContradictionMatrix] = useState<ContradictionMatrix | null>(null);
+  const [normSearchResults, setNormSearchResults] = useState<NormMatchResult[]>(
+    []
+  );
+  const [contradictionMatrix, setContradictionMatrix] =
+    useState<ContradictionMatrix | null>(null);
   const [costStreitwert, setCostStreitwert] = useState('10000');
-  const [costInstanz, setCostInstanz] = useState<Gerichtsinstanz>('landgericht');
-  const [costVerfahren, setCostVerfahren] = useState<Verfahrensart>('klageverfahren');
+  const [costInstanz, setCostInstanz] =
+    useState<Gerichtsinstanz>('landgericht');
+  const [costVerfahren, setCostVerfahren] =
+    useState<Verfahrensart>('klageverfahren');
   const [costObsiegen, setCostObsiegen] = useState('50');
 
   const jurisdictionManualOverrideRef = useRef(false);
 
   const [costResult, setCostResult] = useState<KostenrisikoResult | null>(null);
   const [costVergleichQuote, setCostVergleichQuote] = useState('60');
-  const [costVergleichResult, setCostVergleichResult] = useState<VergleichswertResult | null>(null);
-  const [docGenTemplate, setDocGenTemplate] = useState<DocumentTemplate>('klageschrift');
+  const [costVergleichResult, setCostVergleichResult] =
+    useState<VergleichswertResult | null>(null);
+  const [docGenTemplate, setDocGenTemplate] =
+    useState<DocumentTemplate>('klageschrift');
   const [docGenPartyKlaeger, setDocGenPartyKlaeger] = useState('');
   const [docGenPartyBeklagter, setDocGenPartyBeklagter] = useState('');
   const [docGenGericht, setDocGenGericht] = useState('');
   const [docGenAktenzeichen, setDocGenAktenzeichen] = useState('');
   const [selectedDocGenMatterId, setSelectedDocGenMatterId] = useState('');
-  const [generatedDoc, setGeneratedDoc] = useState<GeneratedDocument | null>(null);
-  const [evidenceSummaryMarkdown, setEvidenceSummaryMarkdown] = useState<string | null>(null);
+  const [generatedDoc, setGeneratedDoc] = useState<GeneratedDocument | null>(
+    null
+  );
+  const [evidenceSummaryMarkdown, setEvidenceSummaryMarkdown] = useState<
+    string | null
+  >(null);
   const [evidenceCount, setEvidenceCount] = useState(0);
   const [judikaturQuery, setJudikaturQuery] = useState('');
   const [judikaturResults, setJudikaturResults] = useState<CourtDecision[]>([]);
@@ -418,7 +452,8 @@ export const EditorCaseAssistantPanel = ({
   const [isHudocImporting, setIsHudocImporting] = useState(false);
   const [legalAnalysisEndpoint, setLegalAnalysisEndpoint] = useState('');
   const [legalAnalysisToken, setLegalAnalysisToken] = useState('');
-  const [hasStoredLegalAnalysisToken, setHasStoredLegalAnalysisToken] = useState(false);
+  const [hasStoredLegalAnalysisToken, setHasStoredLegalAnalysisToken] =
+    useState(false);
   const [judikaturEndpoint, setJudikaturEndpoint] = useState('');
   const [judikaturToken, setJudikaturToken] = useState('');
   const [hasStoredJudikaturToken, setHasStoredJudikaturToken] = useState(false);
@@ -438,50 +473,87 @@ export const EditorCaseAssistantPanel = ({
   const [matterDraftTitle, setMatterDraftTitle] = useState('');
   const [matterDraftDescription, setMatterDraftDescription] = useState('');
   const [matterDraftExternalRef, setMatterDraftExternalRef] = useState('');
-  const [matterDraftAuthorityReferences, setMatterDraftAuthorityReferences] = useState('');
+  const [matterDraftAuthorityReferences, setMatterDraftAuthorityReferences] =
+    useState('');
   const [matterDraftGericht, setMatterDraftGericht] = useState('');
+  const [matterDraftPolizei, setMatterDraftPolizei] = useState('');
+  const [matterDraftStaatsanwaltschaft, setMatterDraftStaatsanwaltschaft] =
+    useState('');
+  const [matterDraftRichter, setMatterDraftRichter] = useState('');
+  const [matterDraftGerichtsaktenzeichen, setMatterDraftGerichtsaktenzeichen] =
+    useState('');
+  const [
+    matterDraftStaatsanwaltschaftAktenzeichen,
+    setMatterDraftStaatsanwaltschaftAktenzeichen,
+  ] = useState('');
+  const [matterDraftPolizeiAktenzeichen, setMatterDraftPolizeiAktenzeichen] =
+    useState('');
   const [matterDraftStatus, setMatterDraftStatus] =
     useState<MatterRecord['status']>('open');
   const [matterDraftJurisdiction, setMatterDraftJurisdiction] =
     useState<Jurisdiction>(activeJurisdiction);
   const [matterDraftTags, setMatterDraftTags] = useState('');
-  const [matterDraftAssignedAnwaltId, setMatterDraftAssignedAnwaltId] = useState('');
+  const [matterDraftAssignedAnwaltId, setMatterDraftAssignedAnwaltId] =
+    useState('');
   const [matterSearchQuery, setMatterSearchQuery] = useState('');
   const [showArchivedMatters, setShowArchivedMatters] = useState(false);
   const [isOnboardingWizardOpen, setIsOnboardingWizardOpen] = useState(false);
-  const [analyticsPeriod, setAnalyticsPeriod] = useState<import('@affine/core/modules/case-assistant').AnalyticsPeriod>('30d');
+  const [analyticsPeriod, setAnalyticsPeriod] =
+    useState<import('@affine/core/modules/case-assistant').AnalyticsPeriod>(
+      '30d'
+    );
   const [isAnalyticsRefreshing, setIsAnalyticsRefreshing] = useState(false);
   const [analyticsKpis, setAnalyticsKpis] = useState<any>(null);
   const [analyticsDailyMetrics, setAnalyticsDailyMetrics] = useState<any[]>([]);
   const [analyticsErrorGroups, setAnalyticsErrorGroups] = useState<any[]>([]);
-  const [analyticsCoreWebVitals, setAnalyticsCoreWebVitals] = useState<any>(null);
+  const [analyticsCoreWebVitals, setAnalyticsCoreWebVitals] =
+    useState<any>(null);
   const [analyticsAvgLoadTime, setAnalyticsAvgLoadTime] = useState(0);
-  const [analyticsGeoDistribution, setAnalyticsGeoDistribution] = useState<any[]>([]);
-  const [analyticsDeviceBreakdown, setAnalyticsDeviceBreakdown] = useState<any>(null);
-  const [analyticsBrowserBreakdown, setAnalyticsBrowserBreakdown] = useState<any>(null);
+  const [analyticsGeoDistribution, setAnalyticsGeoDistribution] = useState<
+    any[]
+  >([]);
+  const [analyticsDeviceBreakdown, setAnalyticsDeviceBreakdown] =
+    useState<any>(null);
+  const [analyticsBrowserBreakdown, setAnalyticsBrowserBreakdown] =
+    useState<any>(null);
   const [analyticsTopReferrers, setAnalyticsTopReferrers] = useState<any[]>([]);
-  const [analyticsSessionsByHour, setAnalyticsSessionsByHour] = useState<any[]>([]);
+  const [analyticsSessionsByHour, setAnalyticsSessionsByHour] = useState<any[]>(
+    []
+  );
   const [analyticsFeatureUsage, setAnalyticsFeatureUsage] = useState<any[]>([]);
-  const [analyticsCustomerHealth, setAnalyticsCustomerHealth] = useState<any[]>([]);
-  const [analyticsHealthSummary, setAnalyticsHealthSummary] = useState<any>(null);
-  const [analyticsRetentionCohorts, setAnalyticsRetentionCohorts] = useState<any[]>([]);
+  const [analyticsCustomerHealth, setAnalyticsCustomerHealth] = useState<any[]>(
+    []
+  );
+  const [analyticsHealthSummary, setAnalyticsHealthSummary] =
+    useState<any>(null);
+  const [analyticsRetentionCohorts, setAnalyticsRetentionCohorts] = useState<
+    any[]
+  >([]);
   const [supportStatusSnapshot, setSupportStatusSnapshot] =
     useState<SupportStatusSnapshot | null>(null);
-  const [supportIncidents, setSupportIncidents] = useState<SupportIncident[]>([]);
+  const [supportIncidents, setSupportIncidents] = useState<SupportIncident[]>(
+    []
+  );
   const [supportAlerts, setSupportAlerts] = useState<SupportAlert[]>([]);
-  const [supportAuditTrail, setSupportAuditTrail] = useState<SupportAuditEntry[]>([]);
+  const [supportAuditTrail, setSupportAuditTrail] = useState<
+    SupportAuditEntry[]
+  >([]);
   const [supportRetentionPolicy, setSupportRetentionPolicy] =
     useState<SupportRetentionPolicy | null>(null);
   const [supportEscalationPolicy, setSupportEscalationPolicy] =
     useState<SupportEscalationPolicy | null>(null);
   const [supportOpsError, setSupportOpsError] = useState<string | null>(null);
-  const [isSavingSupportRetention, setIsSavingSupportRetention] = useState(false);
-  const [isSavingSupportEscalation, setIsSavingSupportEscalation] = useState(false);
+  const [isSavingSupportRetention, setIsSavingSupportRetention] =
+    useState(false);
+  const [isSavingSupportEscalation, setIsSavingSupportEscalation] =
+    useState(false);
   const supportRetentionSaveInFlightRef = useRef(false);
   const supportEscalationSaveInFlightRef = useRef(false);
   const [selectedMatterId, setSelectedMatterId] = useState('');
-  const [undoClientSnapshot, setUndoClientSnapshot] = useState<ClientRecord | null>(null);
-  const [undoMatterSnapshot, setUndoMatterSnapshot] = useState<MatterRecord | null>(null);
+  const [undoClientSnapshot, setUndoClientSnapshot] =
+    useState<ClientRecord | null>(null);
+  const [undoMatterSnapshot, setUndoMatterSnapshot] =
+    useState<MatterRecord | null>(null);
   const [pendingDestructiveAction, setPendingDestructiveAction] =
     useState<PendingDestructiveAction | null>(null);
 
@@ -626,10 +698,22 @@ export const EditorCaseAssistantPanel = ({
 
   const onSaveKanzleiProfile = useCallback(
     async (draft: {
-      name: string; address: string; phone: string; fax: string; email: string;
-      website: string; steuernummer: string; ustIdNr: string; iban: string;
-      bic: string; bankName: string; datevBeraternummer: string; datevMandantennummer: string;
-      bmdFirmennummer: string; rechtsanwaltskammer: string; aktenzeichenSchema: string;
+      name: string;
+      address: string;
+      phone: string;
+      fax: string;
+      email: string;
+      website: string;
+      steuernummer: string;
+      ustIdNr: string;
+      iban: string;
+      bic: string;
+      bankName: string;
+      datevBeraternummer: string;
+      datevMandantennummer: string;
+      bmdFirmennummer: string;
+      rechtsanwaltskammer: string;
+      aktenzeichenSchema: string;
       logoDataUrl?: string;
     }) => {
       const result = await kanzleiProfileService.saveKanzleiProfile({
@@ -655,7 +739,9 @@ export const EditorCaseAssistantPanel = ({
       if (result) {
         setIngestionStatus('Kanzleiprofil gespeichert.');
       } else {
-        setIngestionStatus('Kanzleiprofil konnte nicht gespeichert werden (fehlende Berechtigung).');
+        setIngestionStatus(
+          'Kanzleiprofil konnte nicht gespeichert werden (fehlende Berechtigung).'
+        );
       }
     },
     [kanzleiProfileService, workspaceId]
@@ -693,9 +779,13 @@ export const EditorCaseAssistantPanel = ({
         isActive: true,
       });
       if (result) {
-        setIngestionStatus(`Anwalt ${result.firstName} ${result.lastName} gespeichert.`);
+        setIngestionStatus(
+          `Anwalt ${result.firstName} ${result.lastName} gespeichert.`
+        );
       } else {
-        setIngestionStatus('Anwalt konnte nicht gespeichert werden (fehlende Berechtigung).');
+        setIngestionStatus(
+          'Anwalt konnte nicht gespeichert werden (fehlende Berechtigung).'
+        );
       }
     },
     [kanzleiProfile?.id, kanzleiProfileService, workspaceId]
@@ -715,7 +805,8 @@ export const EditorCaseAssistantPanel = ({
 
   const onGenerateNextAktenzeichen = useCallback(async () => {
     const clientName = caseClient?.displayName;
-    const nextAz = await kanzleiProfileService.generateNextAktenzeichen(clientName);
+    const nextAz =
+      await kanzleiProfileService.generateNextAktenzeichen(clientName);
     setMatterDraftExternalRef(nextAz);
     setIngestionStatus(`Nächstes Aktenzeichen generiert: ${nextAz}`);
   }, [kanzleiProfileService, caseClient?.displayName]);
@@ -728,7 +819,9 @@ export const EditorCaseAssistantPanel = ({
   useEffect(() => {
     deadlineAlertService.start().catch((error: unknown) => {
       console.error('[case-assistant] failed to start alert service', error);
-      setIngestionStatus('Alert-Service konnte nicht gestartet werden. Bitte erneut versuchen.');
+      setIngestionStatus(
+        'Alert-Service konnte nicht gestartet werden. Bitte erneut versuchen.'
+      );
     });
 
     return () => {
@@ -749,7 +842,12 @@ export const EditorCaseAssistantPanel = ({
       errorMonitoring.stopListening();
       performanceMonitor.stopObserving();
     };
-  }, [analyticsCollector, errorMonitoring, performanceMonitor, geoSessionAnalytics]);
+  }, [
+    analyticsCollector,
+    errorMonitoring,
+    performanceMonitor,
+    geoSessionAnalytics,
+  ]);
 
   const syncSupportSnapshotRemote = useCallback(
     async (payload: {
@@ -761,24 +859,30 @@ export const EditorCaseAssistantPanel = ({
       metadata: Record<string, unknown>;
     }) => {
       try {
-        await fetch(`/api/workspaces/${workspaceId}/analytics/support/snapshot`, {
-          method: 'POST',
-          credentials: 'include',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            schemaVersion: 1,
-            generatedAt: new Date().toISOString(),
-            snapshot: payload,
-            errorGroups: payload.errorGroups,
-            customerHealth: payload.customerHealth,
-            performanceSummary: payload.performanceSummary,
-            metadata: payload.metadata,
-          }),
-        });
+        await fetch(
+          `/api/workspaces/${workspaceId}/analytics/support/snapshot`,
+          {
+            method: 'POST',
+            credentials: 'include',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              schemaVersion: 1,
+              generatedAt: new Date().toISOString(),
+              snapshot: payload,
+              errorGroups: payload.errorGroups,
+              customerHealth: payload.customerHealth,
+              performanceSummary: payload.performanceSummary,
+              metadata: payload.metadata,
+            }),
+          }
+        );
       } catch (error) {
-        console.warn('[case-assistant] remote support snapshot sync failed', error);
+        console.warn(
+          '[case-assistant] remote support snapshot sync failed',
+          error
+        );
       }
     },
     [workspaceId]
@@ -805,7 +909,10 @@ export const EditorCaseAssistantPanel = ({
         latestCustomerHealth: unknown[];
       };
     } catch (error) {
-      console.warn('[case-assistant] remote support dashboard fetch failed', error);
+      console.warn(
+        '[case-assistant] remote support dashboard fetch failed',
+        error
+      );
       return null;
     }
   }, [workspaceId, analyticsPeriod]);
@@ -813,10 +920,13 @@ export const EditorCaseAssistantPanel = ({
   const fetchSupportOpsJson = useCallback(
     async <T,>(endpoint: string): Promise<T | null> => {
       try {
-        const res = await fetch(`/api/workspaces/${workspaceId}/analytics/support${endpoint}`, {
-          method: 'GET',
-          credentials: 'include',
-        });
+        const res = await fetch(
+          `/api/workspaces/${workspaceId}/analytics/support${endpoint}`,
+          {
+            method: 'GET',
+            credentials: 'include',
+          }
+        );
         if (!res.ok) {
           return null;
         }
@@ -837,16 +947,21 @@ export const EditorCaseAssistantPanel = ({
       setIsSavingSupportRetention(true);
       setSupportOpsError(null);
       try {
-        const res = await fetch(`/api/workspaces/${workspaceId}/analytics/support/retention`, {
-          method: 'POST',
-          credentials: 'include',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(payload),
-        });
+        const res = await fetch(
+          `/api/workspaces/${workspaceId}/analytics/support/retention`,
+          {
+            method: 'POST',
+            credentials: 'include',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(payload),
+          }
+        );
         if (!res.ok) {
-          setSupportOpsError('Retention-Policy konnte nicht gespeichert werden.');
+          setSupportOpsError(
+            'Retention-Policy konnte nicht gespeichert werden.'
+          );
           return false;
         }
         const next = (await res.json()) as SupportRetentionPolicy;
@@ -877,16 +992,21 @@ export const EditorCaseAssistantPanel = ({
       setIsSavingSupportEscalation(true);
       setSupportOpsError(null);
       try {
-        const res = await fetch(`/api/workspaces/${workspaceId}/analytics/support/escalation`, {
-          method: 'POST',
-          credentials: 'include',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(payload),
-        });
+        const res = await fetch(
+          `/api/workspaces/${workspaceId}/analytics/support/escalation`,
+          {
+            method: 'POST',
+            credentials: 'include',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(payload),
+          }
+        );
         if (!res.ok) {
-          setSupportOpsError('Eskalations-Policy konnte nicht gespeichert werden.');
+          setSupportOpsError(
+            'Eskalations-Policy konnte nicht gespeichert werden.'
+          );
           return false;
         }
         const next = (await res.json()) as SupportEscalationPolicy;
@@ -894,7 +1014,9 @@ export const EditorCaseAssistantPanel = ({
         setSupportOpsError(null);
         return true;
       } catch {
-        setSupportOpsError('Eskalations-Policy konnte nicht gespeichert werden.');
+        setSupportOpsError(
+          'Eskalations-Policy konnte nicht gespeichert werden.'
+        );
         return false;
       } finally {
         setIsSavingSupportEscalation(false);
@@ -909,15 +1031,21 @@ export const EditorCaseAssistantPanel = ({
     try {
       const sessions = geoSessionAnalytics.getSessions(analyticsPeriod);
       const totalSessions = sessions.length;
-      const avgDuration = geoSessionAnalytics.getAverageSessionDuration(analyticsPeriod);
+      const avgDuration =
+        geoSessionAnalytics.getAverageSessionDuration(analyticsPeriod);
       const bounceRate = geoSessionAnalytics.getBounceRate(analyticsPeriod);
-      const totalPageViews = geoSessionAnalytics.getTotalPageViews(analyticsPeriod);
+      const totalPageViews =
+        geoSessionAnalytics.getTotalPageViews(analyticsPeriod);
       const errorLogs = errorMonitoring.getUnresolvedErrors();
       const avgLoad = performanceMonitor.getAverageLoadTime(analyticsPeriod);
       const healthScores = customerHealthService.computeHealthScores();
       const avgHealth = customerHealthService.getAverageHealthScore();
-      const atRisk = healthScores.filter(s => s.status === 'at-risk' || s.status === 'critical').length;
-      const uniqueUsers = new Set(sessions.filter(s => s.userId).map(s => s.userId!));
+      const atRisk = healthScores.filter(
+        s => s.status === 'at-risk' || s.status === 'critical'
+      ).length;
+      const uniqueUsers = new Set(
+        sessions.filter(s => s.userId).map(s => s.userId!)
+      );
       const newUsers = sessions.filter(s => !s.isReturning && s.userId).length;
 
       const kpis = {
@@ -935,16 +1063,24 @@ export const EditorCaseAssistantPanel = ({
         atRiskCustomers: atRisk,
       };
 
-      const dailyMetrics = businessIntelligence.getDailyMetrics(analyticsPeriod);
+      const dailyMetrics =
+        businessIntelligence.getDailyMetrics(analyticsPeriod);
       const errorGroups = errorMonitoring.getErrorGroups();
-      const coreWebVitals = performanceMonitor.getCoreWebVitalsScore(analyticsPeriod);
-      const geoDistribution = geoSessionAnalytics.getGeoDistribution(analyticsPeriod);
-      const deviceBreakdown = geoSessionAnalytics.getDeviceBreakdown(analyticsPeriod);
-      const browserBreakdown = geoSessionAnalytics.getBrowserBreakdown(analyticsPeriod);
+      const coreWebVitals =
+        performanceMonitor.getCoreWebVitalsScore(analyticsPeriod);
+      const geoDistribution =
+        geoSessionAnalytics.getGeoDistribution(analyticsPeriod);
+      const deviceBreakdown =
+        geoSessionAnalytics.getDeviceBreakdown(analyticsPeriod);
+      const browserBreakdown =
+        geoSessionAnalytics.getBrowserBreakdown(analyticsPeriod);
       const topReferrers = geoSessionAnalytics.getTopReferrers(analyticsPeriod);
-      const sessionsByHour = geoSessionAnalytics.getSessionsByHour(analyticsPeriod);
-      const featureUsage = businessIntelligence.getFeatureUsage(analyticsPeriod);
-      const retentionCohorts = businessIntelligence.getRetentionCohorts(analyticsPeriod);
+      const sessionsByHour =
+        geoSessionAnalytics.getSessionsByHour(analyticsPeriod);
+      const featureUsage =
+        businessIntelligence.getFeatureUsage(analyticsPeriod);
+      const retentionCohorts =
+        businessIntelligence.getRetentionCohorts(analyticsPeriod);
       const healthSummary = customerHealthService.getHealthSummary();
 
       setAnalyticsKpis(kpis);
@@ -980,15 +1116,21 @@ export const EditorCaseAssistantPanel = ({
       });
 
       const remote = await fetchSupportDashboardRemote();
-      const [statusSnapshot, incidents, alerts, auditTrail, retentionPolicy, escalationPolicy] =
-        await Promise.all([
-          fetchSupportOpsJson<SupportStatusSnapshot>('/status'),
-          fetchSupportOpsJson<SupportIncident[]>('/incidents?limit=50'),
-          fetchSupportOpsJson<SupportAlert[]>('/alerts?limit=100'),
-          fetchSupportOpsJson<SupportAuditEntry[]>('/audit?limit=100'),
-          fetchSupportOpsJson<SupportRetentionPolicy>('/retention'),
-          fetchSupportOpsJson<SupportEscalationPolicy>('/escalation'),
-        ]);
+      const [
+        statusSnapshot,
+        incidents,
+        alerts,
+        auditTrail,
+        retentionPolicy,
+        escalationPolicy,
+      ] = await Promise.all([
+        fetchSupportOpsJson<SupportStatusSnapshot>('/status'),
+        fetchSupportOpsJson<SupportIncident[]>('/incidents?limit=50'),
+        fetchSupportOpsJson<SupportAlert[]>('/alerts?limit=100'),
+        fetchSupportOpsJson<SupportAuditEntry[]>('/audit?limit=100'),
+        fetchSupportOpsJson<SupportRetentionPolicy>('/retention'),
+        fetchSupportOpsJson<SupportEscalationPolicy>('/escalation'),
+      ]);
 
       const remoteSnapshot = remote?.snapshot;
       if (remote?.source === 'snapshot' && remoteSnapshot) {
@@ -1005,7 +1147,10 @@ export const EditorCaseAssistantPanel = ({
           setAnalyticsFeatureUsage(remoteFeatures);
         }
       }
-      if (Array.isArray(remote?.latestErrorGroups) && remote.latestErrorGroups.length > 0) {
+      if (
+        Array.isArray(remote?.latestErrorGroups) &&
+        remote.latestErrorGroups.length > 0
+      ) {
         setAnalyticsErrorGroups(remote.latestErrorGroups);
       }
       if (
@@ -1030,7 +1175,9 @@ export const EditorCaseAssistantPanel = ({
         retentionPolicy,
         escalationPolicy,
       ];
-      const supportOpsSuccessCount = supportOpsFetchResults.filter(result => result !== null).length;
+      const supportOpsSuccessCount = supportOpsFetchResults.filter(
+        result => result !== null
+      ).length;
 
       if (supportOpsSuccessCount === 0) {
         setSupportOpsError(
@@ -1068,21 +1215,30 @@ export const EditorCaseAssistantPanel = ({
     }
   }, [activeSidebarSection, analyticsPeriod, refreshAnalyticsDashboard]);
 
-  const onResolveAnalyticsError = useCallback((fingerprint: string) => {
-    errorMonitoring.resolveError(fingerprint);
-    setAnalyticsErrorGroups(errorMonitoring.getErrorGroups());
-  }, [errorMonitoring]);
+  const onResolveAnalyticsError = useCallback(
+    (fingerprint: string) => {
+      errorMonitoring.resolveError(fingerprint);
+      setAnalyticsErrorGroups(errorMonitoring.getErrorGroups());
+    },
+    [errorMonitoring]
+  );
 
-  const onUnresolveAnalyticsError = useCallback((fingerprint: string) => {
-    errorMonitoring.unresolveError(fingerprint);
-    setAnalyticsErrorGroups(errorMonitoring.getErrorGroups());
-  }, [errorMonitoring]);
+  const onUnresolveAnalyticsError = useCallback(
+    (fingerprint: string) => {
+      errorMonitoring.unresolveError(fingerprint);
+      setAnalyticsErrorGroups(errorMonitoring.getErrorGroups());
+    },
+    [errorMonitoring]
+  );
 
-  const onAcknowledgeHealthAlert = useCallback((alertId: string) => {
-    customerHealthService.acknowledgeAlert(alertId);
-    setAnalyticsCustomerHealth(customerHealthService.getHealthScores());
-    setAnalyticsHealthSummary(customerHealthService.getHealthSummary());
-  }, [customerHealthService]);
+  const onAcknowledgeHealthAlert = useCallback(
+    (alertId: string) => {
+      customerHealthService.acknowledgeAlert(alertId);
+      setAnalyticsCustomerHealth(customerHealthService.getHealthScores());
+      setAnalyticsHealthSummary(customerHealthService.getHealthSummary());
+    },
+    [customerHealthService]
+  );
 
   useEffect(() => {
     if (caseMatter?.externalRef) {
@@ -1147,7 +1303,10 @@ export const EditorCaseAssistantPanel = ({
         })
       )
     ).catch(error => {
-      console.error('[case-assistant] failed to seed connector defaults', error);
+      console.error(
+        '[case-assistant] failed to seed connector defaults',
+        error
+      );
       setIngestionStatus(
         'Standard-Connectoren konnten nicht initialisiert werden. Bitte erneut versuchen.'
       );
@@ -1199,8 +1358,13 @@ export const EditorCaseAssistantPanel = ({
         tags: ['auto-created'],
       })
       .catch((error: unknown) => {
-        console.error('[case-assistant] failed to initialize case record', error);
-        setIngestionStatus('Akte konnte nicht initialisiert werden. Bitte erneut versuchen.');
+        console.error(
+          '[case-assistant] failed to initialize case record',
+          error
+        );
+        setIngestionStatus(
+          'Akte konnte nicht initialisiert werden. Bitte erneut versuchen.'
+        );
       });
   }, [caseAssistantService, caseId, caseRecord, title, workspaceId]);
 
@@ -1258,22 +1422,30 @@ export const EditorCaseAssistantPanel = ({
     const all = Object.values(graph?.deadlines ?? {}) as CaseDeadline[];
     return all
       .filter(d => deadlineIds.has(d.id))
-      .sort((a, b) => new Date(a.dueAt).getTime() - new Date(b.dueAt).getTime());
+      .sort(
+        (a, b) => new Date(a.dueAt).getTime() - new Date(b.dueAt).getTime()
+      );
   }, [graph?.deadlines, caseRecord?.deadlineIds]);
 
-  const suggestTemplateForDeadline = useCallback((deadline: CaseDeadline): DocumentTemplate => {
-    const text = [deadline.title, ...(deadline.evidenceSnippets ?? [])].join(' ').toLowerCase();
-    if (text.includes('widerspruch')) return 'widerspruch';
-    if (text.includes('berufung')) return 'berufungsschrift';
-    if (text.includes('klageerwider')) return 'klageerwiderung';
-    if (text.includes('klage')) return 'klageschrift';
-    if (text.includes('abmahnung')) return 'abmahnung';
-    if (text.includes('mahnung')) return 'mahnung';
-    if (text.includes('kuendigung') || text.includes('kündigung')) return 'kuendigung';
-    if (text.includes('mietminderung')) return 'mietminderungsanzeige';
-    if (text.includes('vergleich')) return 'vergleichsvorschlag';
-    return 'sachverhaltsdarstellung';
-  }, []);
+  const suggestTemplateForDeadline = useCallback(
+    (deadline: CaseDeadline): DocumentTemplate => {
+      const text = [deadline.title, ...(deadline.evidenceSnippets ?? [])]
+        .join(' ')
+        .toLowerCase();
+      if (text.includes('widerspruch')) return 'widerspruch';
+      if (text.includes('berufung')) return 'berufungsschrift';
+      if (text.includes('klageerwider')) return 'klageerwiderung';
+      if (text.includes('klage')) return 'klageschrift';
+      if (text.includes('abmahnung')) return 'abmahnung';
+      if (text.includes('mahnung')) return 'mahnung';
+      if (text.includes('kuendigung') || text.includes('kündigung'))
+        return 'kuendigung';
+      if (text.includes('mietminderung')) return 'mietminderungsanzeige';
+      if (text.includes('vergleich')) return 'vergleichsvorschlag';
+      return 'sachverhaltsdarstellung';
+    },
+    []
+  );
 
   const caseActors = useMemo(() => {
     const actorIds = new Set(caseRecord?.actorIds ?? []);
@@ -1290,7 +1462,10 @@ export const EditorCaseAssistantPanel = ({
   const caseNormReferences = useMemo(() => {
     const refs = new Set<string>();
     const docs = (legalDocuments ?? []).filter(
-      (d: LegalDocumentRecord) => d.caseId === caseId && d.workspaceId === workspaceId && d.status === 'indexed'
+      (d: LegalDocumentRecord) =>
+        d.caseId === caseId &&
+        d.workspaceId === workspaceId &&
+        d.status === 'indexed'
     );
     for (const doc of docs) {
       if (doc.paragraphReferences) {
@@ -1391,7 +1566,13 @@ export const EditorCaseAssistantPanel = ({
         caseFindingsCount: caseFindings.length,
         hasGeneratedDoc: !!generatedDoc,
       }),
-    [caseDocuments.length, caseFindings.length, generatedDoc, ocrFailedCount, ocrRunningCount]
+    [
+      caseDocuments.length,
+      caseFindings.length,
+      generatedDoc,
+      ocrFailedCount,
+      ocrRunningCount,
+    ]
   );
 
   const recommendedMobileActionText = useMemo(
@@ -1424,7 +1605,9 @@ export const EditorCaseAssistantPanel = ({
         if (disposed) {
           return;
         }
-        setIngestionStatus('OCR-Provider-Konfiguration konnte nicht geladen werden.');
+        setIngestionStatus(
+          'OCR-Provider-Konfiguration konnte nicht geladen werden.'
+        );
       });
 
     return () => {
@@ -1446,7 +1629,9 @@ export const EditorCaseAssistantPanel = ({
         if (disposed) {
           return;
         }
-        setIngestionStatus('Workspace-Residency-Policy konnte nicht geladen werden.');
+        setIngestionStatus(
+          'Workspace-Residency-Policy konnte nicht geladen werden.'
+        );
       });
 
     return () => {
@@ -1492,7 +1677,9 @@ export const EditorCaseAssistantPanel = ({
         if (disposed) {
           return;
         }
-        setIngestionStatus('Legal-Provider-Konfiguration konnte nicht geladen werden.');
+        setIngestionStatus(
+          'Legal-Provider-Konfiguration konnte nicht geladen werden.'
+        );
       });
 
     return () => {
@@ -1567,11 +1754,11 @@ export const EditorCaseAssistantPanel = ({
       await deadlineAlertService.syncNow();
     } catch (error) {
       console.error('[case-assistant] quick ingestion failed', error);
-      setIngestionStatus('Schnellanalyse fehlgeschlagen. Bitte erneut versuchen.');
+      setIngestionStatus(
+        'Schnellanalyse fehlgeschlagen. Bitte erneut versuchen.'
+      );
       const latestJob =
-        (jobId
-          ? ingestionJobs.find(job => job.id === jobId)
-          : null) ??
+        (jobId ? ingestionJobs.find(job => job.id === jobId) : null) ??
         ingestionJobs.find(
           job =>
             job.caseId === caseId &&
@@ -1636,7 +1823,10 @@ export const EditorCaseAssistantPanel = ({
       return;
     }
 
-    const currentDraftHash = buildDraftIntegrityHash(copilotDraftPreview, draftSections);
+    const currentDraftHash = buildDraftIntegrityHash(
+      copilotDraftPreview,
+      draftSections
+    );
     if (!draftApprovedHash || draftApprovedHash !== currentDraftHash) {
       setCopilotResponse(
         'Entwurf wurde nach Freigabe verändert. Bitte erneut zur Freigabe senden und freigeben.'
@@ -1648,7 +1838,8 @@ export const EditorCaseAssistantPanel = ({
       !!lastAuditVerification?.ok &&
       !!lastAuditVerification?.draftGovernance?.strictFlowOk &&
       !!draftApprovedHash &&
-      lastAuditVerification?.draftGovernance?.latestApprovedHash === draftApprovedHash;
+      lastAuditVerification?.draftGovernance?.latestApprovedHash ===
+        draftApprovedHash;
 
     if (!auditGateOk) {
       setCopilotResponse(
@@ -1703,10 +1894,12 @@ export const EditorCaseAssistantPanel = ({
         metadata: {
           totalSections: String(draftSections.length),
           acceptedSections: String(
-            draftSections.filter(section => section.status === 'accepted').length
+            draftSections.filter(section => section.status === 'accepted')
+              .length
           ),
           rejectedSections: String(
-            draftSections.filter(section => section.status === 'rejected').length
+            draftSections.filter(section => section.status === 'rejected')
+              .length
           ),
           acceptedWithoutCitations: String(acceptedWithoutCitations.length),
           appliedDraftHash: currentDraftHash,
@@ -1714,7 +1907,9 @@ export const EditorCaseAssistantPanel = ({
       });
     } catch (error) {
       console.error('[case-assistant] apply copilot draft failed', error);
-      setCopilotResponse('Entwurf konnte nicht eingefügt werden. Bitte erneut versuchen.');
+      setCopilotResponse(
+        'Entwurf konnte nicht eingefügt werden. Bitte erneut versuchen.'
+      );
     } finally {
       setIsApplyingCopilotDraft(false);
     }
@@ -1736,7 +1931,10 @@ export const EditorCaseAssistantPanel = ({
       setCopilotResponse('Kein Entwurf zur Freigabe vorhanden.');
       return;
     }
-    const requestedHash = buildDraftIntegrityHash(copilotDraftPreview, draftSections);
+    const requestedHash = buildDraftIntegrityHash(
+      copilotDraftPreview,
+      draftSections
+    );
     setDraftReviewStatus('in_review');
     setDraftReviewRequestedByRole(currentRole);
     setDraftApprovedByRole(null);
@@ -1782,7 +1980,9 @@ export const EditorCaseAssistantPanel = ({
       return;
     }
     if (!draftReviewRequestedByRole) {
-      setCopilotResponse('Freigabe nicht möglich: Requester-Rolle fehlt. Bitte erneut zur Freigabe senden.');
+      setCopilotResponse(
+        'Freigabe nicht möglich: Requester-Rolle fehlt. Bitte erneut zur Freigabe senden.'
+      );
       return;
     }
     if (draftReviewRequestedByRole === currentRole) {
@@ -1792,7 +1992,9 @@ export const EditorCaseAssistantPanel = ({
       return;
     }
     if (!draftReviewRequestedHash) {
-      setCopilotResponse('Freigabe nicht möglich: Draft-Hash fehlt. Bitte erneut zur Freigabe senden.');
+      setCopilotResponse(
+        'Freigabe nicht möglich: Draft-Hash fehlt. Bitte erneut zur Freigabe senden.'
+      );
       return;
     }
     if (draftReviewNote.trim().length < 12) {
@@ -1802,7 +2004,10 @@ export const EditorCaseAssistantPanel = ({
       return;
     }
 
-    const currentDraftHash = buildDraftIntegrityHash(copilotDraftPreview, draftSections);
+    const currentDraftHash = buildDraftIntegrityHash(
+      copilotDraftPreview,
+      draftSections
+    );
     if (currentDraftHash !== draftReviewRequestedHash) {
       setCopilotResponse(
         'Entwurf wurde seit Review-Request verändert. Bitte erneut "Zur Freigabe" ausführen.'
@@ -1818,7 +2023,9 @@ export const EditorCaseAssistantPanel = ({
     setDraftApprovedByRole(currentRole);
     setDraftApprovedHash(currentDraftHash);
     setLastAuditVerification(null);
-    setCopilotResponse('Entwurf wurde freigegeben. Bitte jetzt Audit Verify ausführen.');
+    setCopilotResponse(
+      'Entwurf wurde freigegeben. Bitte jetzt Audit Verify ausführen.'
+    );
     await casePlatformOrchestrationService.appendAuditEntry({
       caseId,
       workspaceId,
@@ -1887,27 +2094,42 @@ export const EditorCaseAssistantPanel = ({
   );
 
   const caseJobs = useMemo(
-    () => ingestionJobs.filter(j => j.caseId === caseId && j.workspaceId === workspaceId),
+    () =>
+      ingestionJobs.filter(
+        j => j.caseId === caseId && j.workspaceId === workspaceId
+      ),
     [ingestionJobs, caseId, workspaceId]
   );
 
   const pipelineProgress = useMemo(() => {
-    const latestJob = caseJobs.length > 0
-      ? [...caseJobs].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0]
-      : null;
+    const latestJob =
+      caseJobs.length > 0
+        ? [...caseJobs].sort((a, b) =>
+            b.updatedAt.localeCompare(a.updatedAt)
+          )[0]
+        : null;
 
-    const indexedCount = caseDocuments.filter(doc => doc.status === 'indexed').length;
-    const ocrPendingCount = caseDocuments.filter(doc => doc.status === 'ocr_pending').length;
-    const ocrRunningCount = caseDocuments.filter(doc => doc.status === 'ocr_running').length;
-    const failedCount = caseDocuments.filter(doc => doc.status === 'failed').length;
+    const indexedCount = caseDocuments.filter(
+      doc => doc.status === 'indexed'
+    ).length;
+    const ocrPendingCount = caseDocuments.filter(
+      doc => doc.status === 'ocr_pending'
+    ).length;
+    const ocrRunningCount = caseDocuments.filter(
+      doc => doc.status === 'ocr_running'
+    ).length;
+    const failedCount = caseDocuments.filter(
+      doc => doc.status === 'failed'
+    ).length;
 
-    const defaultPhaseLabel = ocrRunningCount > 0
-      ? 'OCR läuft'
-      : ocrPendingCount > 0
-        ? 'OCR ausstehend'
-        : indexedCount > 0
-          ? 'Indexierung abgeschlossen'
-          : 'Warten auf Upload';
+    const defaultPhaseLabel =
+      ocrRunningCount > 0
+        ? 'OCR läuft'
+        : ocrPendingCount > 0
+          ? 'OCR ausstehend'
+          : indexedCount > 0
+            ? 'Indexierung abgeschlossen'
+            : 'Warten auf Upload';
 
     return {
       phaseLabel: latestJob
@@ -1915,7 +2137,8 @@ export const EditorCaseAssistantPanel = ({
         : defaultPhaseLabel,
       progress: latestJob?.progress ?? 0,
       active: Boolean(
-        latestJob && (latestJob.status === 'queued' || latestJob.status === 'running')
+        latestJob &&
+        (latestJob.status === 'queued' || latestJob.status === 'running')
       ),
       indexedCount,
       ocrPendingCount,
@@ -1927,7 +2150,9 @@ export const EditorCaseAssistantPanel = ({
   const statusTone = useMemo<'info' | 'error'>(() => {
     const message = (ingestionStatus ?? copilotResponse ?? '').toLowerCase();
     if (!message) return 'info';
-    return /fehl|blockiert|ungültig|nicht\s+verfügbar|konnte\s+nicht|kein\s+gültig/.test(message)
+    return /fehl|blockiert|ungültig|nicht\s+verfügbar|konnte\s+nicht|kein\s+gültig/.test(
+      message
+    )
       ? 'error'
       : 'info';
   }, [copilotResponse, ingestionStatus]);
@@ -1960,7 +2185,13 @@ export const EditorCaseAssistantPanel = ({
         }
       }, 'matter switch failed');
     },
-    [caseId, casePlatformOrchestrationService, currentRole, runAsyncUiAction, workspaceId]
+    [
+      caseId,
+      casePlatformOrchestrationService,
+      currentRole,
+      runAsyncUiAction,
+      workspaceId,
+    ]
   );
 
   const handleRoleChange = useCallback(
@@ -2016,11 +2247,14 @@ export const EditorCaseAssistantPanel = ({
   );
 
   const onSaveResidencyPolicy = useCallback(async () => {
-    const result = await casePlatformOrchestrationService.setWorkspaceResidencyPolicy(
-      residencyPolicyDraft
-    );
+    const result =
+      await casePlatformOrchestrationService.setWorkspaceResidencyPolicy(
+        residencyPolicyDraft
+      );
     if (!result) {
-      setIngestionStatus('Residency-Policy konnte nicht gespeichert werden (fehlende Berechtigung).');
+      setIngestionStatus(
+        'Residency-Policy konnte nicht gespeichert werden (fehlende Berechtigung).'
+      );
       return;
     }
     setResidencyPolicyDraft(result);
@@ -2032,7 +2266,9 @@ export const EditorCaseAssistantPanel = ({
   ]);
 
   useEffect(() => {
-    const selected = selectedMatterId ? mattersById.get(selectedMatterId) : null;
+    const selected = selectedMatterId
+      ? mattersById.get(selectedMatterId)
+      : null;
     const matterJurisdiction = selected?.jurisdiction;
 
     if (matterJurisdiction && matterJurisdiction !== activeJurisdiction) {
@@ -2183,7 +2419,8 @@ export const EditorCaseAssistantPanel = ({
         matterId: selectedMatterId || undefined,
         clientName: input.clientName,
         clientKind: input.clientKind,
-        senderName: activeAnwaltDisplayName ?? kanzleiProfile?.name ?? 'Kanzlei',
+        senderName:
+          activeAnwaltDisplayName ?? kanzleiProfile?.name ?? 'Kanzlei',
         senderEmail,
       });
 
@@ -2207,16 +2444,30 @@ export const EditorCaseAssistantPanel = ({
 
   const connectorCards = useMemo(() => {
     return connectors.map(connector => {
-      const credentialMeta = casePlatformAdapterService.getCredentialMeta(connector.id);
+      const credentialMeta = casePlatformAdapterService.getCredentialMeta(
+        connector.id
+      );
       const rotationDays = parseRotationDays(
-        connectorDrafts[connector.id]?.rotationDays ?? connector.metadata?.rotationDays ?? '30',
+        connectorDrafts[connector.id]?.rotationDays ??
+          connector.metadata?.rotationDays ??
+          '30',
         30
       );
       const rotationMode = normalizeRotationMode(
-        connectorDrafts[connector.id]?.rotationMode ?? connector.metadata?.rotationMode
+        connectorDrafts[connector.id]?.rotationMode ??
+          connector.metadata?.rotationMode
       );
-      const rotationDue = isCredentialRotationDue(credentialMeta.updatedAt, rotationDays);
-      return { connector, credentialMeta, rotationDays, rotationMode, rotationDue };
+      const rotationDue = isCredentialRotationDue(
+        credentialMeta.updatedAt,
+        rotationDays
+      );
+      return {
+        connector,
+        credentialMeta,
+        rotationDays,
+        rotationMode,
+        rotationDue,
+      };
     });
   }, [casePlatformAdapterService, connectorDrafts, connectors]);
 
@@ -2224,11 +2475,15 @@ export const EditorCaseAssistantPanel = ({
     const fromDate = risImportFromDate.trim();
     const toDate = risImportToDate.trim();
     const maxRaw = risImportMaxResults.trim();
-    if (fromDate && !isIsoDateInput(fromDate)) return 'RIS Import (von) ist ungültig. Bitte YYYY-MM-DD verwenden.';
-    if (toDate && !isIsoDateInput(toDate)) return 'RIS Import (bis) ist ungültig. Bitte YYYY-MM-DD verwenden.';
-    if (fromDate && toDate && fromDate > toDate) return 'RIS Import Zeitraum ist ungültig: "von" darf nicht nach "bis" liegen.';
+    if (fromDate && !isIsoDateInput(fromDate))
+      return 'RIS Import (von) ist ungültig. Bitte YYYY-MM-DD verwenden.';
+    if (toDate && !isIsoDateInput(toDate))
+      return 'RIS Import (bis) ist ungültig. Bitte YYYY-MM-DD verwenden.';
+    if (fromDate && toDate && fromDate > toDate)
+      return 'RIS Import Zeitraum ist ungültig: "von" darf nicht nach "bis" liegen.';
     const parsed = Number.parseInt(maxRaw || '25', 10);
-    if (!Number.isFinite(parsed) || parsed < 1 || parsed > 100) return 'RIS Import Max muss zwischen 1 und 100 liegen.';
+    if (!Number.isFinite(parsed) || parsed < 1 || parsed > 100)
+      return 'RIS Import Max muss zwischen 1 und 100 liegen.';
     return null;
   }, [risImportFromDate, risImportMaxResults, risImportToDate]);
 
@@ -2262,7 +2517,8 @@ export const EditorCaseAssistantPanel = ({
     caseAuditExportService,
   });
 
-  const lastFocusedElementBeforeDestructiveDialogRef = useRef<HTMLElement | null>(null);
+  const lastFocusedElementBeforeDestructiveDialogRef =
+    useRef<HTMLElement | null>(null);
 
   const {
     onCreateClient,
@@ -2311,6 +2567,12 @@ export const EditorCaseAssistantPanel = ({
     matterDraftExternalRef,
     matterDraftAuthorityReferences,
     matterDraftGericht,
+    matterDraftPolizei,
+    matterDraftStaatsanwaltschaft,
+    matterDraftRichter,
+    matterDraftGerichtsaktenzeichen,
+    matterDraftStaatsanwaltschaftAktenzeichen,
+    matterDraftPolizeiAktenzeichen,
     matterDraftStatus,
     matterDraftJurisdiction,
     matterDraftTags,
@@ -2320,6 +2582,12 @@ export const EditorCaseAssistantPanel = ({
     setMatterDraftExternalRef,
     setMatterDraftAuthorityReferences,
     setMatterDraftGericht,
+    setMatterDraftPolizei,
+    setMatterDraftStaatsanwaltschaft,
+    setMatterDraftRichter,
+    setMatterDraftGerichtsaktenzeichen,
+    setMatterDraftStaatsanwaltschaftAktenzeichen,
+    setMatterDraftPolizeiAktenzeichen,
     setMatterDraftJurisdiction,
     setMatterDraftTags,
     setMatterDraftAssignedAnwaltId,
@@ -2333,18 +2601,24 @@ export const EditorCaseAssistantPanel = ({
     casePlatformOrchestrationService,
   });
 
-  const onUploadTelemetryAlert = useCallback(async (alert: UploadTelemetryAlert) => {
-    await casePlatformOrchestrationService.appendAuditEntry({
-      caseId,
-      workspaceId,
-      action: `document.upload.telemetry.${alert.type}`,
-      severity: alert.severity,
-      details: alert.message,
-      metadata: Object.fromEntries(
-        Object.entries(alert.metrics).map(([key, value]) => [key, String(value)])
-      ),
-    });
-  }, [caseId, casePlatformOrchestrationService, workspaceId]);
+  const onUploadTelemetryAlert = useCallback(
+    async (alert: UploadTelemetryAlert) => {
+      await casePlatformOrchestrationService.appendAuditEntry({
+        caseId,
+        workspaceId,
+        action: `document.upload.telemetry.${alert.type}`,
+        severity: alert.severity,
+        details: alert.message,
+        metadata: Object.fromEntries(
+          Object.entries(alert.metrics).map(([key, value]) => [
+            key,
+            String(value),
+          ])
+        ),
+      });
+    },
+    [caseId, casePlatformOrchestrationService, workspaceId]
+  );
 
   const {
     onRunCopilotCommand,
@@ -2400,7 +2674,9 @@ export const EditorCaseAssistantPanel = ({
     caseAktenzeichen: caseMatter?.externalRef ?? null,
     caseGericht: caseMatter?.gericht ?? null,
     caseAnwaltName: activeAnwaltDisplayName,
-    caseOpposingPartyNames: (caseMatter?.opposingParties ?? []).map(p => p.displayName),
+    caseOpposingPartyNames: (caseMatter?.opposingParties ?? []).map(
+      p => p.displayName
+    ),
     judikaturIngestionService,
     judikaturResearchService,
     legalCopilotWorkflowService,
@@ -2518,200 +2794,279 @@ export const EditorCaseAssistantPanel = ({
         workspaceId,
       });
     } catch {
-      setIngestionStatus('Onboarding-Metadaten konnten nicht ermittelt werden.');
+      setIngestionStatus(
+        'Onboarding-Metadaten konnten nicht ermittelt werden.'
+      );
       return null;
     }
   }, [caseId, legalCopilotWorkflowService, setIngestionStatus, workspaceId]);
 
-  const onFinalizeOnboarding = useCallback(async (input: {
-    reviewConfirmed: boolean;
-    proofNote: string;
-  }) => {
-    const result = await legalCopilotWorkflowService.finalizeOnboarding({
+  const onFinalizeOnboarding = useCallback(
+    async (input: { reviewConfirmed: boolean; proofNote: string }) => {
+      const result = await legalCopilotWorkflowService.finalizeOnboarding({
+        caseId,
+        workspaceId,
+        clientId: selectedClientId || undefined,
+        matterId: selectedMatterId || undefined,
+        reviewConfirmed: input.reviewConfirmed,
+        proofNote: input.proofNote,
+      });
+      setIngestionStatus(result.message);
+      return result;
+    },
+    [
       caseId,
+      legalCopilotWorkflowService,
+      selectedClientId,
+      selectedMatterId,
+      setIngestionStatus,
       workspaceId,
-      clientId: selectedClientId || undefined,
-      matterId: selectedMatterId || undefined,
-      reviewConfirmed: input.reviewConfirmed,
-      proofNote: input.proofNote,
-    });
-    setIngestionStatus(result.message);
-    return result;
-  }, [
-    caseId,
-    legalCopilotWorkflowService,
-    selectedClientId,
-    selectedMatterId,
-    setIngestionStatus,
-    workspaceId,
-  ]);
+    ]
+  );
 
-  const [lastBulkOperation, setLastBulkOperation] = useState<BulkOperation | null>(null);
+  const [lastBulkOperation, setLastBulkOperation] =
+    useState<BulkOperation | null>(null);
 
   const currentOpposingParties = useMemo(
     () => caseMatter?.opposingParties ?? [],
     [caseMatter]
   );
 
-  const onAddOpposingParty = useCallback(async (party: Omit<import('@affine/core/modules/case-assistant').OpposingParty, 'id'>) => {
-    if (!caseMatter) return;
-    const id = `op:${Date.now().toString(36)}:${Math.random().toString(36).slice(2, 8)}`;
-    const updated = {
-      ...caseMatter,
-      opposingParties: [...(caseMatter.opposingParties ?? []), { id, ...party }],
-    };
-    await casePlatformOrchestrationService.upsertMatter(updated);
-    setIngestionStatus(`Gegenpartei hinzugefügt: ${party.displayName}`);
-  }, [caseMatter, casePlatformOrchestrationService, setIngestionStatus]);
+  const onAddOpposingParty = useCallback(
+    async (
+      party: Omit<
+        import('@affine/core/modules/case-assistant').OpposingParty,
+        'id'
+      >
+    ) => {
+      if (!caseMatter) return;
+      const id = `op:${Date.now().toString(36)}:${Math.random().toString(36).slice(2, 8)}`;
+      const updated = {
+        ...caseMatter,
+        opposingParties: [
+          ...(caseMatter.opposingParties ?? []),
+          { id, ...party },
+        ],
+      };
+      await casePlatformOrchestrationService.upsertMatter(updated);
+      setIngestionStatus(`Gegenpartei hinzugefügt: ${party.displayName}`);
+    },
+    [caseMatter, casePlatformOrchestrationService, setIngestionStatus]
+  );
 
-  const onUpdateOpposingParty = useCallback(async (party: import('@affine/core/modules/case-assistant').OpposingParty) => {
-    if (!caseMatter) return;
-    const updated = {
-      ...caseMatter,
-      opposingParties: (caseMatter.opposingParties ?? []).map(p => p.id === party.id ? party : p),
-    };
-    await casePlatformOrchestrationService.upsertMatter(updated);
-    setIngestionStatus(`Gegenpartei aktualisiert: ${party.displayName}`);
-  }, [caseMatter, casePlatformOrchestrationService, setIngestionStatus]);
+  const onUpdateOpposingParty = useCallback(
+    async (
+      party: import('@affine/core/modules/case-assistant').OpposingParty
+    ) => {
+      if (!caseMatter) return;
+      const updated = {
+        ...caseMatter,
+        opposingParties: (caseMatter.opposingParties ?? []).map(p =>
+          p.id === party.id ? party : p
+        ),
+      };
+      await casePlatformOrchestrationService.upsertMatter(updated);
+      setIngestionStatus(`Gegenpartei aktualisiert: ${party.displayName}`);
+    },
+    [caseMatter, casePlatformOrchestrationService, setIngestionStatus]
+  );
 
-  const onRemoveOpposingParty = useCallback(async (partyId: string) => {
-    if (!caseMatter) return;
-    const removed = (caseMatter.opposingParties ?? []).find(p => p.id === partyId);
-    const updated = {
-      ...caseMatter,
-      opposingParties: (caseMatter.opposingParties ?? []).filter(p => p.id !== partyId),
-    };
-    await casePlatformOrchestrationService.upsertMatter(updated);
-    setIngestionStatus(`Gegenpartei entfernt: ${removed?.displayName ?? partyId}`);
-  }, [caseMatter, casePlatformOrchestrationService, setIngestionStatus]);
+  const onRemoveOpposingParty = useCallback(
+    async (partyId: string) => {
+      if (!caseMatter) return;
+      const removed = (caseMatter.opposingParties ?? []).find(
+        p => p.id === partyId
+      );
+      const updated = {
+        ...caseMatter,
+        opposingParties: (caseMatter.opposingParties ?? []).filter(
+          p => p.id !== partyId
+        ),
+      };
+      await casePlatformOrchestrationService.upsertMatter(updated);
+      setIngestionStatus(
+        `Gegenpartei entfernt: ${removed?.displayName ?? partyId}`
+      );
+    },
+    [caseMatter, casePlatformOrchestrationService, setIngestionStatus]
+  );
 
-  const onBulkSendEmails = useCallback(async (input: {
-    clientIds: string[];
-    templateType: EmailTemplateType;
-    subject: string;
-    bodyTemplate: string;
-    templateContext?: {
-      fristDatum?: string;
+  const onBulkSendEmails = useCallback(
+    async (input: {
+      clientIds: string[];
+      templateType: EmailTemplateType;
+      subject: string;
+      bodyTemplate: string;
+      templateContext?: {
+        fristDatum?: string;
+        customFields?: Record<string, string>;
+      };
+    }) => {
+      setIsWorkflowBusy(true);
+      try {
+        const op = await bulkOperationsService.bulkSendEmails({
+          workspaceId,
+          clientIds: input.clientIds,
+          templateType: input.templateType,
+          subject: input.subject,
+          bodyTemplate: input.bodyTemplate,
+          templateContext: input.templateContext,
+          senderName: kanzleiProfile?.name ?? 'Kanzlei',
+          senderEmail: kanzleiProfile?.email ?? '',
+        });
+        setLastBulkOperation(op);
+        setIngestionStatus(
+          `Bulk-Email: ${op.completedItems}/${op.totalItems} gesendet.`
+        );
+        return op;
+      } finally {
+        setIsWorkflowBusy(false);
+      }
+    },
+    [
+      bulkOperationsService,
+      workspaceId,
+      kanzleiProfile,
+      setIngestionStatus,
+      setIsWorkflowBusy,
+    ]
+  );
+
+  const onBulkGenerateSchriftsaetze = useCallback(
+    async (input: {
+      matterIds: string[];
+      template: string;
       customFields?: Record<string, string>;
-    };
-  }) => {
-    setIsWorkflowBusy(true);
-    try {
-      const op = await bulkOperationsService.bulkSendEmails({
-        workspaceId,
-        clientIds: input.clientIds,
-        templateType: input.templateType,
-        subject: input.subject,
-        bodyTemplate: input.bodyTemplate,
-        templateContext: input.templateContext,
-        senderName: kanzleiProfile?.name ?? 'Kanzlei',
-        senderEmail: kanzleiProfile?.email ?? '',
-      });
-      setLastBulkOperation(op);
-      setIngestionStatus(`Bulk-Email: ${op.completedItems}/${op.totalItems} gesendet.`);
-      return op;
-    } finally {
-      setIsWorkflowBusy(false);
-    }
-  }, [bulkOperationsService, workspaceId, kanzleiProfile, setIngestionStatus, setIsWorkflowBusy]);
+    }) => {
+      setIsWorkflowBusy(true);
+      try {
+        const op = await bulkOperationsService.bulkGenerateSchriftsaetze({
+          workspaceId,
+          matterIds: input.matterIds,
+          template: input.template,
+          customFields: input.customFields,
+          parties: {
+            anwalt: activeAnwaltDisplayName ?? undefined,
+            kanzlei: kanzleiProfile?.name,
+            logoDataUrl: kanzleiProfile?.logoDataUrl,
+          },
+        });
+        setLastBulkOperation(op);
+        setIngestionStatus(
+          `Bulk-Schriftsätze: ${op.completedItems}/${op.totalItems} generiert.`
+        );
+        return op;
+      } finally {
+        setIsWorkflowBusy(false);
+      }
+    },
+    [
+      bulkOperationsService,
+      workspaceId,
+      anwaelte,
+      kanzleiProfile,
+      setIngestionStatus,
+      setIsWorkflowBusy,
+    ]
+  );
 
-  const onBulkGenerateSchriftsaetze = useCallback(async (input: {
-    matterIds: string[];
-    template: string;
-    customFields?: Record<string, string>;
-  }) => {
-    setIsWorkflowBusy(true);
-    try {
-      const op = await bulkOperationsService.bulkGenerateSchriftsaetze({
-        workspaceId,
-        matterIds: input.matterIds,
-        template: input.template,
-        customFields: input.customFields,
-        parties: {
+  const onBulkGenerateMandantenbriefe = useCallback(
+    async (input: { matterIds: string[]; sachverhalt?: string }) => {
+      setIsWorkflowBusy(true);
+      try {
+        const op = await bulkOperationsService.bulkGenerateMandantenbriefe({
+          workspaceId,
+          matterIds: input.matterIds,
           anwalt: activeAnwaltDisplayName ?? undefined,
           kanzlei: kanzleiProfile?.name,
           logoDataUrl: kanzleiProfile?.logoDataUrl,
-        },
-      });
-      setLastBulkOperation(op);
-      setIngestionStatus(`Bulk-Schriftsätze: ${op.completedItems}/${op.totalItems} generiert.`);
-      return op;
-    } finally {
-      setIsWorkflowBusy(false);
-    }
-  }, [bulkOperationsService, workspaceId, anwaelte, kanzleiProfile, setIngestionStatus, setIsWorkflowBusy]);
+          sachverhalt: input.sachverhalt,
+        });
+        setLastBulkOperation(op);
+        setIngestionStatus(
+          `Bulk-Mandantenbriefe: ${op.completedItems}/${op.totalItems} generiert.`
+        );
+        return op;
+      } finally {
+        setIsWorkflowBusy(false);
+      }
+    },
+    [
+      bulkOperationsService,
+      workspaceId,
+      anwaelte,
+      kanzleiProfile,
+      setIngestionStatus,
+      setIsWorkflowBusy,
+    ]
+  );
 
-  const onBulkGenerateMandantenbriefe = useCallback(async (input: {
-    matterIds: string[];
-    sachverhalt?: string;
-  }) => {
-    setIsWorkflowBusy(true);
-    try {
-      const op = await bulkOperationsService.bulkGenerateMandantenbriefe({
-        workspaceId,
-        matterIds: input.matterIds,
-        anwalt: activeAnwaltDisplayName ?? undefined,
-        kanzlei: kanzleiProfile?.name,
-        logoDataUrl: kanzleiProfile?.logoDataUrl,
-        sachverhalt: input.sachverhalt,
-      });
-      setLastBulkOperation(op);
-      setIngestionStatus(`Bulk-Mandantenbriefe: ${op.completedItems}/${op.totalItems} generiert.`);
-      return op;
-    } finally {
-      setIsWorkflowBusy(false);
-    }
-  }, [bulkOperationsService, workspaceId, anwaelte, kanzleiProfile, setIngestionStatus, setIsWorkflowBusy]);
+  const onBulkUpdateMatterStatus = useCallback(
+    async (input: {
+      matterIds: string[];
+      newStatus: 'open' | 'closed' | 'archived';
+    }) => {
+      setIsWorkflowBusy(true);
+      try {
+        const op = await bulkOperationsService.bulkUpdateMatterStatus({
+          workspaceId,
+          matterIds: input.matterIds,
+          newStatus: input.newStatus,
+        });
+        setLastBulkOperation(op);
+        setIngestionStatus(
+          `Bulk-Status-Update: ${op.completedItems}/${op.totalItems} Akten aktualisiert.`
+        );
+        return op;
+      } finally {
+        setIsWorkflowBusy(false);
+      }
+    },
+    [bulkOperationsService, workspaceId, setIngestionStatus, setIsWorkflowBusy]
+  );
 
-  const onBulkUpdateMatterStatus = useCallback(async (input: {
-    matterIds: string[];
-    newStatus: 'open' | 'closed' | 'archived';
-  }) => {
-    setIsWorkflowBusy(true);
-    try {
-      const op = await bulkOperationsService.bulkUpdateMatterStatus({
-        workspaceId,
-        matterIds: input.matterIds,
-        newStatus: input.newStatus,
-      });
-      setLastBulkOperation(op);
-      setIngestionStatus(`Bulk-Status-Update: ${op.completedItems}/${op.totalItems} Akten aktualisiert.`);
-      return op;
-    } finally {
-      setIsWorkflowBusy(false);
-    }
-  }, [bulkOperationsService, workspaceId, setIngestionStatus, setIsWorkflowBusy]);
-
-  const onBulkPdfExport = useCallback(async (input: {
-    matterIds: string[];
-  }) => {
-    setIsWorkflowBusy(true);
-    try {
-      const docs = caseDocuments
-        .filter(d => {
-          const caseFile = graph?.cases
-            ? Object.values(graph.cases).find(c => c.id === d.caseId)
-            : undefined;
-          return caseFile && input.matterIds.includes(caseFile.matterId ?? '');
-        })
-        .map(d => ({
-          id: d.id,
-          title: d.title,
-          caseId: d.caseId,
-          markdown: d.normalizedText ?? d.rawText,
-        }));
-      const op = await bulkOperationsService.bulkPdfExport({
-        workspaceId,
-        matterIds: input.matterIds,
-        documents: docs,
-      });
-      setLastBulkOperation(op);
-      setIngestionStatus(`Bulk-PDF-Export: ${op.completedItems}/${op.totalItems} Dokumente exportiert.`);
-      return op;
-    } finally {
-      setIsWorkflowBusy(false);
-    }
-  }, [bulkOperationsService, workspaceId, caseDocuments, graph, setIngestionStatus, setIsWorkflowBusy]);
+  const onBulkPdfExport = useCallback(
+    async (input: { matterIds: string[] }) => {
+      setIsWorkflowBusy(true);
+      try {
+        const docs = caseDocuments
+          .filter(d => {
+            const caseFile = graph?.cases
+              ? Object.values(graph.cases).find(c => c.id === d.caseId)
+              : undefined;
+            return (
+              caseFile && input.matterIds.includes(caseFile.matterId ?? '')
+            );
+          })
+          .map(d => ({
+            id: d.id,
+            title: d.title,
+            caseId: d.caseId,
+            markdown: d.normalizedText ?? d.rawText,
+          }));
+        const op = await bulkOperationsService.bulkPdfExport({
+          workspaceId,
+          matterIds: input.matterIds,
+          documents: docs,
+        });
+        setLastBulkOperation(op);
+        setIngestionStatus(
+          `Bulk-PDF-Export: ${op.completedItems}/${op.totalItems} Dokumente exportiert.`
+        );
+        return op;
+      } finally {
+        setIsWorkflowBusy(false);
+      }
+    },
+    [
+      bulkOperationsService,
+      workspaceId,
+      caseDocuments,
+      graph,
+      setIngestionStatus,
+      setIsWorkflowBusy,
+    ]
+  );
 
   const templateOptions = useMemo(
     () => documentGeneratorService.listTemplates(),
@@ -2719,12 +3074,18 @@ export const EditorCaseAssistantPanel = ({
   );
 
   const acceptedWithCitationCount = useMemo(
-    () => draftSections.filter(s => s.status === 'accepted' && s.citations.length > 0).length,
+    () =>
+      draftSections.filter(
+        s => s.status === 'accepted' && s.citations.length > 0
+      ).length,
     [draftSections]
   );
 
   const acceptedWithoutCitationCount = useMemo(
-    () => draftSections.filter(s => s.status === 'accepted' && s.citations.length === 0).length,
+    () =>
+      draftSections.filter(
+        s => s.status === 'accepted' && s.citations.length === 0
+      ).length,
     [draftSections]
   );
 
@@ -2758,7 +3119,9 @@ export const EditorCaseAssistantPanel = ({
       if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
         targetIndex = (index + 1) % copilotWorkspaceTabs.length;
       } else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
-        targetIndex = (index - 1 + copilotWorkspaceTabs.length) % copilotWorkspaceTabs.length;
+        targetIndex =
+          (index - 1 + copilotWorkspaceTabs.length) %
+          copilotWorkspaceTabs.length;
       } else if (event.key === 'Home') {
         targetIndex = 0;
       } else if (event.key === 'End') {
@@ -2770,7 +3133,9 @@ export const EditorCaseAssistantPanel = ({
       event.preventDefault();
       const targetTab = copilotWorkspaceTabs[targetIndex];
       setActiveCopilotWorkspaceTab(targetTab);
-      document.getElementById(`case-assistant-copilot-workspace-tab-${targetTab}`)?.focus();
+      document
+        .getElementById(`case-assistant-copilot-workspace-tab-${targetTab}`)
+        ?.focus();
     },
     [copilotWorkspaceTabs]
   );
@@ -2781,8 +3146,13 @@ export const EditorCaseAssistantPanel = ({
     }
 
     try {
-      const storedTab = globalThis.localStorage.getItem(copilotWorkspaceStorageKey);
-      if (storedTab && copilotWorkspaceTabs.includes(storedTab as CopilotWorkspaceTab)) {
+      const storedTab = globalThis.localStorage.getItem(
+        copilotWorkspaceStorageKey
+      );
+      if (
+        storedTab &&
+        copilotWorkspaceTabs.includes(storedTab as CopilotWorkspaceTab)
+      ) {
         setActiveCopilotWorkspaceTab(storedTab as CopilotWorkspaceTab);
       }
     } catch {
@@ -2796,7 +3166,10 @@ export const EditorCaseAssistantPanel = ({
     }
 
     try {
-      globalThis.localStorage.setItem(copilotWorkspaceStorageKey, activeCopilotWorkspaceTab);
+      globalThis.localStorage.setItem(
+        copilotWorkspaceStorageKey,
+        activeCopilotWorkspaceTab
+      );
     } catch {
       // Persistence is best-effort.
     }
@@ -2826,48 +3199,60 @@ export const EditorCaseAssistantPanel = ({
   const panelRootRef = useRef<HTMLDivElement | null>(null);
   const destructiveDialogCardRef = useRef<HTMLDivElement | null>(null);
 
-  const handlePrepareDeadlineDocument = useCallback((deadline: CaseDeadline) => {
-    const template = suggestTemplateForDeadline(deadline);
-    setDocGenTemplate(template);
+  const handlePrepareDeadlineDocument = useCallback(
+    (deadline: CaseDeadline) => {
+      const template = suggestTemplateForDeadline(deadline);
+      setDocGenTemplate(template);
 
-    if (caseMatter?.id) {
-      setSelectedDocGenMatterId(caseMatter.id);
-      if (!docGenAktenzeichen?.trim() && caseMatter.externalRef) {
-        setDocGenAktenzeichen(caseMatter.externalRef);
+      if (caseMatter?.id) {
+        setSelectedDocGenMatterId(caseMatter.id);
+        if (!docGenAktenzeichen?.trim() && caseMatter.externalRef) {
+          setDocGenAktenzeichen(caseMatter.externalRef);
+        }
+        if (!docGenGericht?.trim() && caseMatter.gericht) {
+          setDocGenGericht(caseMatter.gericht);
+        }
+        if (
+          !docGenPartyBeklagter?.trim() &&
+          (caseMatter.opposingParties?.length ?? 0) > 0
+        ) {
+          setDocGenPartyBeklagter(
+            (caseMatter.opposingParties ?? [])
+              .map(party => party.displayName)
+              .join(', ')
+          );
+        }
       }
-      if (!docGenGericht?.trim() && caseMatter.gericht) {
-        setDocGenGericht(caseMatter.gericht);
+
+      if (!docGenPartyKlaeger?.trim() && caseClient?.displayName) {
+        setDocGenPartyKlaeger(caseClient.displayName);
       }
-      if (!docGenPartyBeklagter?.trim() && (caseMatter.opposingParties?.length ?? 0) > 0) {
-        setDocGenPartyBeklagter((caseMatter.opposingParties ?? []).map(party => party.displayName).join(', '));
-      }
-    }
 
-    if (!docGenPartyKlaeger?.trim() && caseClient?.displayName) {
-      setDocGenPartyKlaeger(caseClient.displayName);
-    }
+      setIngestionStatus(
+        `Frist erkannt: "${deadline.title}". Vorlage "${template}" wurde vorbereitet – bitte Schriftsatz generieren und bei Bedarf im Copilot-Chat optimieren.`
+      );
 
-    setIngestionStatus(
-      `Frist erkannt: "${deadline.title}". Vorlage "${template}" wurde vorbereitet – bitte Schriftsatz generieren und bei Bedarf im Copilot-Chat optimieren.`
-    );
-
-    documentGeneratorSectionRef.current?.scrollIntoView({
-      behavior: 'smooth',
-      block: 'start',
-    });
-  }, [
-    caseClient?.displayName,
-    caseMatter,
-    docGenAktenzeichen,
-    docGenGericht,
-    docGenPartyBeklagter,
-    docGenPartyKlaeger,
-    suggestTemplateForDeadline,
-  ]);
+      documentGeneratorSectionRef.current?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start',
+      });
+    },
+    [
+      caseClient?.displayName,
+      caseMatter,
+      docGenAktenzeichen,
+      docGenGericht,
+      docGenPartyBeklagter,
+      docGenPartyKlaeger,
+      suggestTemplateForDeadline,
+    ]
+  );
 
   const handleOptimizeGeneratedWithCopilot = useCallback(() => {
     if (!generatedDoc) {
-      setIngestionStatus('Bitte zuerst ein Dokument generieren, bevor die Copilot-Optimierung startet.');
+      setIngestionStatus(
+        'Bitte zuerst ein Dokument generieren, bevor die Copilot-Optimierung startet.'
+      );
       return;
     }
 
@@ -2900,7 +3285,9 @@ export const EditorCaseAssistantPanel = ({
     params.set('caPrompt', prompt);
 
     workbench.open(`/chat?${params.toString()}`);
-    setIngestionStatus('Copilot-Optimierung geöffnet: Entwurf wurde als Prompt in den Hauptchat übernommen.');
+    setIngestionStatus(
+      'Copilot-Optimierung geöffnet: Entwurf wurde als Prompt in den Hauptchat übernommen.'
+    );
   }, [
     caseClient?.id,
     caseId,
@@ -2947,12 +3334,11 @@ export const EditorCaseAssistantPanel = ({
     <div
       ref={panelRootRef}
       className={`${styles.root} ${isCopilotVariant ? styles.rootCopilotOnly : ''}`}
-      aria-busy={isWorkflowBusy || isIngesting || isRisImporting || isCopilotRunning}
+      aria-busy={
+        isWorkflowBusy || isIngesting || isRisImporting || isCopilotRunning
+      }
     >
-      <a
-        href="#case-assistant-main"
-        className={styles.skipLink}
-      >
+      <a href="#case-assistant-main" className={styles.skipLink}>
         Zum Hauptinhalt springen
       </a>
       <div aria-live="polite" aria-atomic="true" className={styles.srOnly}>
@@ -2967,23 +3353,34 @@ export const EditorCaseAssistantPanel = ({
           <section className={styles.section}>
             <div className={styles.headerRow}>
               <h3 className={styles.sectionTitle}>Legal Copilot Workspace</h3>
+              <span className={styles.chip}>{activeJurisdiction}</span>
               <span className={styles.chip}>
-                {activeJurisdiction}
+                Residency: {residencyModeLabel}
               </span>
-              <span className={styles.chip}>Residency: {residencyModeLabel}</span>
               <span className={styles.summary}>
-                Hauptarbeitsfläche für Chat, Workflow-Steuerung, Mandatsdaten und Insights.
+                Hauptarbeitsfläche für Chat, Workflow-Steuerung, Mandatsdaten
+                und Insights.
               </span>
             </div>
-            <div className={styles.copilotWorkspaceTabs} role="tablist" aria-label="Legal Copilot Bereiche">
+            <div
+              className={styles.copilotWorkspaceTabs}
+              role="tablist"
+              aria-label="Legal Copilot Bereiche"
+            >
               <Button
                 id="case-assistant-copilot-workspace-tab-workflow"
                 role="tab"
                 aria-selected={activeCopilotWorkspaceTab === 'workflow'}
                 tabIndex={activeCopilotWorkspaceTab === 'workflow' ? 0 : -1}
-                variant={activeCopilotWorkspaceTab === 'workflow' ? 'secondary' : 'plain'}
+                variant={
+                  activeCopilotWorkspaceTab === 'workflow'
+                    ? 'secondary'
+                    : 'plain'
+                }
                 className={styles.copilotWorkspaceTabButton}
-                onKeyDown={event => onCopilotWorkspaceTabKeyDown(event, 'workflow')}
+                onKeyDown={event =>
+                  onCopilotWorkspaceTabKeyDown(event, 'workflow')
+                }
                 onClick={() => setActiveCopilotWorkspaceTab('workflow')}
               >
                 Workflow
@@ -2993,9 +3390,13 @@ export const EditorCaseAssistantPanel = ({
                 role="tab"
                 aria-selected={activeCopilotWorkspaceTab === 'matter'}
                 tabIndex={activeCopilotWorkspaceTab === 'matter' ? 0 : -1}
-                variant={activeCopilotWorkspaceTab === 'matter' ? 'secondary' : 'plain'}
+                variant={
+                  activeCopilotWorkspaceTab === 'matter' ? 'secondary' : 'plain'
+                }
                 className={styles.copilotWorkspaceTabButton}
-                onKeyDown={event => onCopilotWorkspaceTabKeyDown(event, 'matter')}
+                onKeyDown={event =>
+                  onCopilotWorkspaceTabKeyDown(event, 'matter')
+                }
                 onClick={() => setActiveCopilotWorkspaceTab('matter')}
               >
                 Akte & Mandant
@@ -3005,9 +3406,15 @@ export const EditorCaseAssistantPanel = ({
                 role="tab"
                 aria-selected={activeCopilotWorkspaceTab === 'insights'}
                 tabIndex={activeCopilotWorkspaceTab === 'insights' ? 0 : -1}
-                variant={activeCopilotWorkspaceTab === 'insights' ? 'secondary' : 'plain'}
+                variant={
+                  activeCopilotWorkspaceTab === 'insights'
+                    ? 'secondary'
+                    : 'plain'
+                }
                 className={styles.copilotWorkspaceTabButton}
-                onKeyDown={event => onCopilotWorkspaceTabKeyDown(event, 'insights')}
+                onKeyDown={event =>
+                  onCopilotWorkspaceTabKeyDown(event, 'insights')
+                }
                 onClick={() => setActiveCopilotWorkspaceTab('insights')}
               >
                 Insights
@@ -3020,7 +3427,9 @@ export const EditorCaseAssistantPanel = ({
               sectionRef={legalWorkflowSectionRef}
               caseClientName={caseClient?.displayName ?? null}
               caseMatterTitle={caseMatter?.title ?? null}
-              caseMatterAuthorityReferences={caseMatter?.authorityReferences ?? []}
+              caseMatterAuthorityReferences={
+                caseMatter?.authorityReferences ?? []
+              }
               caseDocuments={caseDocuments}
               caseFindingsCount={caseFindings.length}
               ocrRunningCount={ocrRunningCount}
@@ -3097,7 +3506,9 @@ export const EditorCaseAssistantPanel = ({
                 matterDraftExternalRef={matterDraftExternalRef}
                 setMatterDraftExternalRef={setMatterDraftExternalRef}
                 matterDraftAuthorityReferences={matterDraftAuthorityReferences}
-                setMatterDraftAuthorityReferences={setMatterDraftAuthorityReferences}
+                setMatterDraftAuthorityReferences={
+                  setMatterDraftAuthorityReferences
+                }
                 matterDraftGericht={matterDraftGericht}
                 setMatterDraftGericht={setMatterDraftGericht}
                 matterDraftTags={matterDraftTags}
@@ -3122,13 +3533,15 @@ export const EditorCaseAssistantPanel = ({
                 activeAnwaelte={anwaelte.filter(a => a.isActive)}
                 matterDraftAssignedAnwaltId={matterDraftAssignedAnwaltId}
                 setMatterDraftAssignedAnwaltId={setMatterDraftAssignedAnwaltId}
-                onGenerateNextAktenzeichen={kanzleiProfile
-                  ? () => {
-                      return onGenerateNextAktenzeichen().catch(() => {
-                        // handled in onGenerateNextAktenzeichen
-                      });
-                    }
-                  : undefined}
+                onGenerateNextAktenzeichen={
+                  kanzleiProfile
+                    ? () => {
+                        return onGenerateNextAktenzeichen().catch(() => {
+                          // handled in onGenerateNextAktenzeichen
+                        });
+                      }
+                    : undefined
+                }
               />
               <MandantenSection
                 sectionRef={mandantenSectionRef}
@@ -3146,7 +3559,9 @@ export const EditorCaseAssistantPanel = ({
                 kanzleiName={kanzleiProfile?.name ?? null}
                 getGwgOnboardingForClient={getGwgOnboardingForClient}
                 onRequestGeneralVollmacht={handleRequestGeneralVollmacht}
-                onDecideVollmachtSigningRequest={handleDecideVollmachtSigningRequest}
+                onDecideVollmachtSigningRequest={
+                  handleDecideVollmachtSigningRequest
+                }
                 onStartGwgOnboarding={handleStartGwgOnboarding}
                 clientSearchQuery={clientSearchQuery}
                 setClientSearchQuery={setClientSearchQuery}
@@ -3197,7 +3612,10 @@ export const EditorCaseAssistantPanel = ({
       ) : null}
       {!isCopilotVariant ? (
         <>
-          <aside className={`${styles.leftRail} ${styles.railStack}`} aria-label="Case cockpit rail">
+          <aside
+            className={`${styles.leftRail} ${styles.railStack}`}
+            aria-label="Case cockpit rail"
+          >
             <SidebarLinksSection
               onScrollToSection={scrollToSection}
               activeSection={activeSidebarSection}
@@ -3205,7 +3623,11 @@ export const EditorCaseAssistantPanel = ({
             />
           </aside>
 
-          <main id="case-assistant-main" className={`${styles.centerRail} ${styles.railStack}`} aria-label="Connector and queue operations">
+          <main
+            id="case-assistant-main"
+            className={`${styles.centerRail} ${styles.railStack}`}
+            aria-label="Connector and queue operations"
+          >
             {/* ── Breadcrumb Navigation ── */}
             <nav aria-label="Breadcrumb" className={styles.breadcrumbNav}>
               <button
@@ -3236,7 +3658,9 @@ export const EditorCaseAssistantPanel = ({
                   </span>
                   <span className={styles.breadcrumbCurrent}>
                     {caseMatter.title}
-                    {caseMatter.externalRef ? ` (${caseMatter.externalRef})` : ''}
+                    {caseMatter.externalRef
+                      ? ` (${caseMatter.externalRef})`
+                      : ''}
                   </span>
                 </>
               ) : null}
@@ -3267,10 +3691,13 @@ export const EditorCaseAssistantPanel = ({
                   canAction={canAction}
                   runAsyncUiAction={runAsyncUiAction}
                 />
-                <section className={`${styles.section} ${styles.centeredSection}`}>
+                <section
+                  className={`${styles.section} ${styles.centeredSection}`}
+                >
                   <div className={styles.warningBanner}>
-                    <strong>Start-Empfehlung:</strong> Laden Sie zuerst alle Aktenunterlagen hoch —
-                    die Pipeline extrahiert Mandant/Akte, führt OCR aus und analysiert automatisch.
+                    <strong>Start-Empfehlung:</strong> Laden Sie zuerst alle
+                    Aktenunterlagen hoch — die Pipeline extrahiert Mandant/Akte,
+                    führt OCR aus und analysiert automatisch.
                   </div>
                   <div className={styles.onboardingButtonRow}>
                     <button
@@ -3320,10 +3747,13 @@ export const EditorCaseAssistantPanel = ({
             {isOperationsSectionVisible('automation') ? (
               <>
                 <section ref={automationSectionRef} className={styles.section}>
-                  <h3 className={styles.sectionTitle}>🔄 Workflow-Automation</h3>
+                  <h3 className={styles.sectionTitle}>
+                    🔄 Workflow-Automation
+                  </h3>
                   <p className={styles.summary}>
-                    Dokumenten-Intake, OCR-Verarbeitung und KI-Vollworkflow — vollständig
-                    automatisiert mit Audit-Trail und Qualitätssicherung.
+                    Dokumenten-Intake, OCR-Verarbeitung und KI-Vollworkflow —
+                    vollständig automatisiert mit Audit-Trail und
+                    Qualitätssicherung.
                   </p>
                 </section>
 
@@ -3331,7 +3761,9 @@ export const EditorCaseAssistantPanel = ({
                   sectionRef={legalWorkflowSectionRef}
                   caseClientName={caseClient?.displayName ?? null}
                   caseMatterTitle={caseMatter?.title ?? null}
-                  caseMatterAuthorityReferences={caseMatter?.authorityReferences ?? []}
+                  caseMatterAuthorityReferences={
+                    caseMatter?.authorityReferences ?? []
+                  }
                   caseDocuments={caseDocuments}
                   caseFindingsCount={caseFindings.length}
                   ocrRunningCount={ocrRunningCount}
@@ -3413,506 +3845,556 @@ export const EditorCaseAssistantPanel = ({
                 />
 
                 <div className={styles.blueprintEditor}>
-        <div className={styles.headerRow}>
-          <h4 className={styles.sectionTitle}>⚖️ Juristische Werkzeuge</h4>
-        </div>
+                  <div className={styles.headerRow}>
+                    <h4 className={styles.sectionTitle}>
+                      ⚖️ Juristische Werkzeuge
+                    </h4>
+                  </div>
 
-        <ClientMatterSection
-          caseClient={caseClient}
-          caseMatter={caseMatter}
-          canAction={canAction}
-          runAsyncUiAction={runAsyncUiAction}
-          clientDraftName={clientDraftName}
-          setClientDraftName={setClientDraftName}
-          clientDraftKind={clientDraftKind}
-          setClientDraftKind={setClientDraftKind}
-          clientDraftEmail={clientDraftEmail}
-          setClientDraftEmail={setClientDraftEmail}
-          clientDraftPhone={clientDraftPhone}
-          setClientDraftPhone={setClientDraftPhone}
-          clientDraftAddress={clientDraftAddress}
-          setClientDraftAddress={setClientDraftAddress}
-          clientDraftTags={clientDraftTags}
-          setClientDraftTags={setClientDraftTags}
-          clientDraftNotes={clientDraftNotes}
-          setClientDraftNotes={setClientDraftNotes}
-          selectedClientId={selectedClientId}
-          setSelectedClientId={setSelectedClientId}
-          visibleClients={visibleClients}
-          clientSearchQuery={clientSearchQuery}
-          setClientSearchQuery={setClientSearchQuery}
-          undoClientSnapshot={undoClientSnapshot}
-          showArchivedClients={showArchivedClients}
-          setShowArchivedClients={setShowArchivedClients}
-          onCreateClient={onCreateClient}
-          onAssignClientToCase={onAssignClientToCase}
-          onRequestArchiveSelectedClient={onRequestArchiveSelectedClient}
-          onRequestDeleteSelectedClient={onRequestDeleteSelectedClient}
-          onUndoClientAction={() => {
-            onUndoClientAction().catch(() => {
-              // handled in onUndoClientAction
-            });
-          }}
-          matterDraftTitle={matterDraftTitle}
-          setMatterDraftTitle={setMatterDraftTitle}
-          matterDraftStatus={matterDraftStatus}
-          setMatterDraftStatus={setMatterDraftStatus}
-          matterDraftJurisdiction={matterDraftJurisdiction}
-          setMatterDraftJurisdiction={setMatterDraftJurisdiction}
-          matterDraftExternalRef={matterDraftExternalRef}
-          setMatterDraftExternalRef={setMatterDraftExternalRef}
-          matterDraftAuthorityReferences={matterDraftAuthorityReferences}
-          setMatterDraftAuthorityReferences={setMatterDraftAuthorityReferences}
-          matterDraftGericht={matterDraftGericht}
-          setMatterDraftGericht={setMatterDraftGericht}
-          matterDraftTags={matterDraftTags}
-          setMatterDraftTags={setMatterDraftTags}
-          matterDraftDescription={matterDraftDescription}
-          setMatterDraftDescription={setMatterDraftDescription}
-          matterSearchQuery={matterSearchQuery}
-          setMatterSearchQuery={setMatterSearchQuery}
-          selectedMatterId={selectedMatterId}
-          setSelectedMatterId={setSelectedMatterId}
-          visibleMatters={visibleMatters}
-          undoMatterSnapshot={undoMatterSnapshot}
-          onCreateMatter={onCreateMatter}
-          onAssignMatterToCase={onAssignMatterToCase}
-          onRequestDeleteSelectedMatter={onRequestDeleteSelectedMatter}
-          onRequestArchiveSelectedMatter={onRequestArchiveSelectedMatter}
-          onUndoMatterAction={() => {
-            onUndoMatterAction().catch(() => {
-              // handled in onUndoMatterAction
-            });
-          }}
-          activeAnwaelte={anwaelte.filter(a => a.isActive)}
-          matterDraftAssignedAnwaltId={matterDraftAssignedAnwaltId}
-          setMatterDraftAssignedAnwaltId={setMatterDraftAssignedAnwaltId}
-          onGenerateNextAktenzeichen={kanzleiProfile
-            ? () => {
-                return onGenerateNextAktenzeichen().catch(() => {
-                  // handled in onGenerateNextAktenzeichen
-                });
-              }
-            : undefined}
-        />
+                  <ClientMatterSection
+                    caseClient={caseClient}
+                    caseMatter={caseMatter}
+                    canAction={canAction}
+                    runAsyncUiAction={runAsyncUiAction}
+                    clientDraftName={clientDraftName}
+                    setClientDraftName={setClientDraftName}
+                    clientDraftKind={clientDraftKind}
+                    setClientDraftKind={setClientDraftKind}
+                    clientDraftEmail={clientDraftEmail}
+                    setClientDraftEmail={setClientDraftEmail}
+                    clientDraftPhone={clientDraftPhone}
+                    setClientDraftPhone={setClientDraftPhone}
+                    clientDraftAddress={clientDraftAddress}
+                    setClientDraftAddress={setClientDraftAddress}
+                    clientDraftTags={clientDraftTags}
+                    setClientDraftTags={setClientDraftTags}
+                    clientDraftNotes={clientDraftNotes}
+                    setClientDraftNotes={setClientDraftNotes}
+                    selectedClientId={selectedClientId}
+                    setSelectedClientId={setSelectedClientId}
+                    visibleClients={visibleClients}
+                    clientSearchQuery={clientSearchQuery}
+                    setClientSearchQuery={setClientSearchQuery}
+                    undoClientSnapshot={undoClientSnapshot}
+                    showArchivedClients={showArchivedClients}
+                    setShowArchivedClients={setShowArchivedClients}
+                    onCreateClient={onCreateClient}
+                    onAssignClientToCase={onAssignClientToCase}
+                    onRequestArchiveSelectedClient={
+                      onRequestArchiveSelectedClient
+                    }
+                    onRequestDeleteSelectedClient={
+                      onRequestDeleteSelectedClient
+                    }
+                    onUndoClientAction={() => {
+                      onUndoClientAction().catch(() => {
+                        // handled in onUndoClientAction
+                      });
+                    }}
+                    matterDraftTitle={matterDraftTitle}
+                    setMatterDraftTitle={setMatterDraftTitle}
+                    matterDraftStatus={matterDraftStatus}
+                    setMatterDraftStatus={setMatterDraftStatus}
+                    matterDraftJurisdiction={matterDraftJurisdiction}
+                    setMatterDraftJurisdiction={setMatterDraftJurisdiction}
+                    matterDraftExternalRef={matterDraftExternalRef}
+                    setMatterDraftExternalRef={setMatterDraftExternalRef}
+                    matterDraftAuthorityReferences={
+                      matterDraftAuthorityReferences
+                    }
+                    setMatterDraftAuthorityReferences={
+                      setMatterDraftAuthorityReferences
+                    }
+                    matterDraftGericht={matterDraftGericht}
+                    setMatterDraftGericht={setMatterDraftGericht}
+                    matterDraftTags={matterDraftTags}
+                    setMatterDraftTags={setMatterDraftTags}
+                    matterDraftDescription={matterDraftDescription}
+                    setMatterDraftDescription={setMatterDraftDescription}
+                    matterSearchQuery={matterSearchQuery}
+                    setMatterSearchQuery={setMatterSearchQuery}
+                    selectedMatterId={selectedMatterId}
+                    setSelectedMatterId={setSelectedMatterId}
+                    visibleMatters={visibleMatters}
+                    undoMatterSnapshot={undoMatterSnapshot}
+                    onCreateMatter={onCreateMatter}
+                    onAssignMatterToCase={onAssignMatterToCase}
+                    onRequestDeleteSelectedMatter={
+                      onRequestDeleteSelectedMatter
+                    }
+                    onRequestArchiveSelectedMatter={
+                      onRequestArchiveSelectedMatter
+                    }
+                    onUndoMatterAction={() => {
+                      onUndoMatterAction().catch(() => {
+                        // handled in onUndoMatterAction
+                      });
+                    }}
+                    activeAnwaelte={anwaelte.filter(a => a.isActive)}
+                    matterDraftAssignedAnwaltId={matterDraftAssignedAnwaltId}
+                    setMatterDraftAssignedAnwaltId={
+                      setMatterDraftAssignedAnwaltId
+                    }
+                    onGenerateNextAktenzeichen={
+                      kanzleiProfile
+                        ? () => {
+                            return onGenerateNextAktenzeichen().catch(() => {
+                              // handled in onGenerateNextAktenzeichen
+                            });
+                          }
+                        : undefined
+                    }
+                  />
 
-        <NormSearchSection
-          normSearchQuery={normSearchQuery}
-          setNormSearchQuery={setNormSearchQuery}
-          onSearchNorms={onSearchNorms}
-          runAsyncUiAction={runAsyncUiAction}
-          normSearchResults={normSearchResults}
-        />
+                  <NormSearchSection
+                    normSearchQuery={normSearchQuery}
+                    setNormSearchQuery={setNormSearchQuery}
+                    onSearchNorms={onSearchNorms}
+                    runAsyncUiAction={runAsyncUiAction}
+                    normSearchResults={normSearchResults}
+                  />
 
-        <ProviderSettingsSection
-          legalAnalysisEndpoint={legalAnalysisEndpoint}
-          setLegalAnalysisEndpoint={setLegalAnalysisEndpoint}
-          legalAnalysisToken={legalAnalysisToken}
-          setLegalAnalysisToken={setLegalAnalysisToken}
-          judikaturEndpoint={judikaturEndpoint}
-          setJudikaturEndpoint={setJudikaturEndpoint}
-          judikaturToken={judikaturToken}
-          setJudikaturToken={setJudikaturToken}
-          onSaveLegalProviderSettings={onSaveLegalProviderSettings}
-          runAsyncUiAction={runAsyncUiAction}
-        />
+                  <ProviderSettingsSection
+                    legalAnalysisEndpoint={legalAnalysisEndpoint}
+                    setLegalAnalysisEndpoint={setLegalAnalysisEndpoint}
+                    legalAnalysisToken={legalAnalysisToken}
+                    setLegalAnalysisToken={setLegalAnalysisToken}
+                    judikaturEndpoint={judikaturEndpoint}
+                    setJudikaturEndpoint={setJudikaturEndpoint}
+                    judikaturToken={judikaturToken}
+                    setJudikaturToken={setJudikaturToken}
+                    onSaveLegalProviderSettings={onSaveLegalProviderSettings}
+                    runAsyncUiAction={runAsyncUiAction}
+                  />
 
-        <JudikaturSection
-          activeJurisdiction={activeJurisdiction}
-          canExecuteCopilot={canAction('copilot.execute')}
-          isWorkflowBusy={isWorkflowBusy}
-          runAsyncUiAction={runAsyncUiAction}
-          ingestionStatusSetter={setIngestionStatus}
-          risImportFromDate={risImportFromDate}
-          setRisImportFromDate={setRisImportFromDate}
-          risImportToDate={risImportToDate}
-          setRisImportToDate={setRisImportToDate}
-          risImportMaxResults={risImportMaxResults}
-          setRisImportMaxResults={setRisImportMaxResults}
-          risImportValidationError={risImportValidationError}
-          isRisImporting={isRisImporting}
-          onImportRecentRisDecisions={onImportRecentRisDecisions}
-          bghImportFromDate={bghImportFromDate}
-          setBghImportFromDate={setBghImportFromDate}
-          bghImportToDate={bghImportToDate}
-          setBghImportToDate={setBghImportToDate}
-          bghImportMaxResults={bghImportMaxResults}
-          setBghImportMaxResults={setBghImportMaxResults}
-          isBghImporting={isBghImporting}
-          onImportRecentBghDecisions={onImportRecentBghDecisions}
-          hudocRespondentState={hudocRespondentState}
-          setHudocRespondentState={setHudocRespondentState}
-          hudocImportFromDate={hudocImportFromDate}
-          setHudocImportFromDate={setHudocImportFromDate}
-          hudocImportToDate={hudocImportToDate}
-          setHudocImportToDate={setHudocImportToDate}
-          hudocImportMaxResults={hudocImportMaxResults}
-          setHudocImportMaxResults={setHudocImportMaxResults}
-          isHudocImporting={isHudocImporting}
-          onImportRecentHudocDecisions={onImportRecentHudocDecisions}
-          judikaturQuery={judikaturQuery}
-          setJudikaturQuery={setJudikaturQuery}
-          onSearchJudikatur={onSearchJudikatur}
-          judikaturResults={judikaturResults}
-          onInsertJudikaturCitation={onInsertJudikaturCitation}
-        />
+                  <JudikaturSection
+                    activeJurisdiction={activeJurisdiction}
+                    canExecuteCopilot={canAction('copilot.execute')}
+                    isWorkflowBusy={isWorkflowBusy}
+                    runAsyncUiAction={runAsyncUiAction}
+                    ingestionStatusSetter={setIngestionStatus}
+                    risImportFromDate={risImportFromDate}
+                    setRisImportFromDate={setRisImportFromDate}
+                    risImportToDate={risImportToDate}
+                    setRisImportToDate={setRisImportToDate}
+                    risImportMaxResults={risImportMaxResults}
+                    setRisImportMaxResults={setRisImportMaxResults}
+                    risImportValidationError={risImportValidationError}
+                    isRisImporting={isRisImporting}
+                    onImportRecentRisDecisions={onImportRecentRisDecisions}
+                    bghImportFromDate={bghImportFromDate}
+                    setBghImportFromDate={setBghImportFromDate}
+                    bghImportToDate={bghImportToDate}
+                    setBghImportToDate={setBghImportToDate}
+                    bghImportMaxResults={bghImportMaxResults}
+                    setBghImportMaxResults={setBghImportMaxResults}
+                    isBghImporting={isBghImporting}
+                    onImportRecentBghDecisions={onImportRecentBghDecisions}
+                    hudocRespondentState={hudocRespondentState}
+                    setHudocRespondentState={setHudocRespondentState}
+                    hudocImportFromDate={hudocImportFromDate}
+                    setHudocImportFromDate={setHudocImportFromDate}
+                    hudocImportToDate={hudocImportToDate}
+                    setHudocImportToDate={setHudocImportToDate}
+                    hudocImportMaxResults={hudocImportMaxResults}
+                    setHudocImportMaxResults={setHudocImportMaxResults}
+                    isHudocImporting={isHudocImporting}
+                    onImportRecentHudocDecisions={onImportRecentHudocDecisions}
+                    judikaturQuery={judikaturQuery}
+                    setJudikaturQuery={setJudikaturQuery}
+                    onSearchJudikatur={onSearchJudikatur}
+                    judikaturResults={judikaturResults}
+                    onInsertJudikaturCitation={onInsertJudikaturCitation}
+                  />
 
-        <ContradictionSection
-          caseDocumentsCount={caseDocuments.length}
-          isWorkflowBusy={isWorkflowBusy}
-          onRunContradictionAnalysis={onRunContradictionAnalysis}
-          runAsyncUiAction={runAsyncUiAction}
-          contradictionMatrix={contradictionMatrix}
-        />
+                  <ContradictionSection
+                    caseDocumentsCount={caseDocuments.length}
+                    isWorkflowBusy={isWorkflowBusy}
+                    onRunContradictionAnalysis={onRunContradictionAnalysis}
+                    runAsyncUiAction={runAsyncUiAction}
+                    contradictionMatrix={contradictionMatrix}
+                  />
 
-        <CostCalculatorSection
-          costStreitwert={costStreitwert}
-          setCostStreitwert={setCostStreitwert}
-          costInstanz={costInstanz}
-          setCostInstanz={setCostInstanz}
-          costVerfahren={costVerfahren}
-          setCostVerfahren={setCostVerfahren}
-          costObsiegen={costObsiegen}
-          setCostObsiegen={setCostObsiegen}
-          costVergleichQuote={costVergleichQuote}
-          setCostVergleichQuote={setCostVergleichQuote}
-          onCalculateCosts={onCalculateCosts}
-          onCalculateVergleich={onCalculateVergleich}
-          runAsyncUiAction={runAsyncUiAction}
-          costResult={costResult}
-          costVergleichResult={costVergleichResult}
-        />
+                  <CostCalculatorSection
+                    costStreitwert={costStreitwert}
+                    setCostStreitwert={setCostStreitwert}
+                    costInstanz={costInstanz}
+                    setCostInstanz={setCostInstanz}
+                    costVerfahren={costVerfahren}
+                    setCostVerfahren={setCostVerfahren}
+                    costObsiegen={costObsiegen}
+                    setCostObsiegen={setCostObsiegen}
+                    costVergleichQuote={costVergleichQuote}
+                    setCostVergleichQuote={setCostVergleichQuote}
+                    onCalculateCosts={onCalculateCosts}
+                    onCalculateVergleich={onCalculateVergleich}
+                    runAsyncUiAction={runAsyncUiAction}
+                    costResult={costResult}
+                    costVergleichResult={costVergleichResult}
+                  />
 
-        <section ref={documentGeneratorSectionRef}>
-          <DocumentGeneratorSection
-            templateOptions={templateOptions}
-            docGenTemplate={docGenTemplate}
-            setDocGenTemplate={setDocGenTemplate}
-            docGenPartyKlaeger={docGenPartyKlaeger}
-            setDocGenPartyKlaeger={setDocGenPartyKlaeger}
-            docGenPartyBeklagter={docGenPartyBeklagter}
-            setDocGenPartyBeklagter={setDocGenPartyBeklagter}
-            docGenGericht={docGenGericht}
-            setDocGenGericht={setDocGenGericht}
-            docGenAktenzeichen={docGenAktenzeichen}
-            setDocGenAktenzeichen={setDocGenAktenzeichen}
-            onGenerateDocument={onGenerateDocument}
-            onExportGeneratedDocumentPdf={onExportGeneratedDocumentPdf}
-            generatedDoc={generatedDoc}
-            runAsyncUiAction={runAsyncUiAction}
-            onInsertGeneratedDocumentIntoCurrentDoc={onInsertGeneratedDocumentIntoCurrentDoc}
-            onOptimizeWithCopilot={handleOptimizeGeneratedWithCopilot}
-            matters={matters}
-            clients={clients}
-            clientsById={clientsById}
-            selectedDocGenMatterId={selectedDocGenMatterId}
-            setSelectedDocGenMatterId={setSelectedDocGenMatterId}
-            currentMatter={caseMatter}
-            currentClient={caseClient}
-            anwaltDisplayName={activeAnwaltDisplayName ?? undefined}
-            kanzleiName={kanzleiProfile?.name ?? undefined}
-          />
-        </section>
+                  <section ref={documentGeneratorSectionRef}>
+                    <DocumentGeneratorSection
+                      templateOptions={templateOptions}
+                      docGenTemplate={docGenTemplate}
+                      setDocGenTemplate={setDocGenTemplate}
+                      docGenPartyKlaeger={docGenPartyKlaeger}
+                      setDocGenPartyKlaeger={setDocGenPartyKlaeger}
+                      docGenPartyBeklagter={docGenPartyBeklagter}
+                      setDocGenPartyBeklagter={setDocGenPartyBeklagter}
+                      docGenGericht={docGenGericht}
+                      setDocGenGericht={setDocGenGericht}
+                      docGenAktenzeichen={docGenAktenzeichen}
+                      setDocGenAktenzeichen={setDocGenAktenzeichen}
+                      onGenerateDocument={onGenerateDocument}
+                      onExportGeneratedDocumentPdf={
+                        onExportGeneratedDocumentPdf
+                      }
+                      generatedDoc={generatedDoc}
+                      runAsyncUiAction={runAsyncUiAction}
+                      onInsertGeneratedDocumentIntoCurrentDoc={
+                        onInsertGeneratedDocumentIntoCurrentDoc
+                      }
+                      onOptimizeWithCopilot={handleOptimizeGeneratedWithCopilot}
+                      matters={matters}
+                      clients={clients}
+                      clientsById={clientsById}
+                      selectedDocGenMatterId={selectedDocGenMatterId}
+                      setSelectedDocGenMatterId={setSelectedDocGenMatterId}
+                      currentMatter={caseMatter}
+                      currentClient={caseClient}
+                      anwaltDisplayName={activeAnwaltDisplayName ?? undefined}
+                      kanzleiName={kanzleiProfile?.name ?? undefined}
+                    />
+                  </section>
 
-        <EvidenceSection
-          caseDocumentsCount={caseDocuments.length}
-          isWorkflowBusy={isWorkflowBusy}
-          onAutoDetectEvidence={onAutoDetectEvidence}
-          runAsyncUiAction={runAsyncUiAction}
-          evidenceCount={evidenceCount}
-          evidenceSummaryMarkdown={evidenceSummaryMarkdown}
-          evidenceItems={evidenceRegisterService.getAll(caseId)}
-          evidenceGaps={evidenceRegisterService.analyzeLuecken(caseId)}
-        />
+                  <EvidenceSection
+                    caseDocumentsCount={caseDocuments.length}
+                    isWorkflowBusy={isWorkflowBusy}
+                    onAutoDetectEvidence={onAutoDetectEvidence}
+                    runAsyncUiAction={runAsyncUiAction}
+                    evidenceCount={evidenceCount}
+                    evidenceSummaryMarkdown={evidenceSummaryMarkdown}
+                    evidenceItems={evidenceRegisterService.getAll(caseId)}
+                    evidenceGaps={evidenceRegisterService.analyzeLuecken(
+                      caseId
+                    )}
+                  />
 
-        <OpposingPartySection
-          opposingParties={currentOpposingParties}
-          canAction={canAction}
-          isWorkflowBusy={isWorkflowBusy}
-          runAsyncUiAction={runAsyncUiAction}
-          onAddOpposingParty={onAddOpposingParty}
-          onUpdateOpposingParty={onUpdateOpposingParty}
-          onRemoveOpposingParty={onRemoveOpposingParty}
-        />
+                  <OpposingPartySection
+                    opposingParties={currentOpposingParties}
+                    canAction={canAction}
+                    isWorkflowBusy={isWorkflowBusy}
+                    runAsyncUiAction={runAsyncUiAction}
+                    onAddOpposingParty={onAddOpposingParty}
+                    onUpdateOpposingParty={onUpdateOpposingParty}
+                    onRemoveOpposingParty={onRemoveOpposingParty}
+                  />
 
-        <BulkOperationsSection
-          clients={clients}
-          matters={matters}
-          clientsById={clientsById}
-          canAction={canAction}
-          isWorkflowBusy={isWorkflowBusy}
-          runAsyncUiAction={runAsyncUiAction}
-          onBulkSendEmails={onBulkSendEmails}
-          onBulkGenerateSchriftsaetze={onBulkGenerateSchriftsaetze}
-          onBulkGenerateMandantenbriefe={onBulkGenerateMandantenbriefe}
-          onBulkUpdateMatterStatus={onBulkUpdateMatterStatus}
-          onBulkPdfExport={onBulkPdfExport}
-          lastBulkOperation={lastBulkOperation}
-          kanzleiName={kanzleiProfile?.name}
-          anwaltName={activeAnwaltDisplayName ?? undefined}
-        />
-              </div>
-
-              <BlueprintReviewSection
-                latestBlueprint={latestBlueprint}
-                blueprintObjectiveDraft={blueprintObjectiveDraft}
-                setBlueprintObjectiveDraft={setBlueprintObjectiveDraft}
-                blueprintReviewStatus={blueprintReviewStatus}
-                setBlueprintReviewStatus={setBlueprintReviewStatus}
-                blueprintReviewNoteDraft={blueprintReviewNoteDraft}
-                setBlueprintReviewNoteDraft={setBlueprintReviewNoteDraft}
-                canManageBlueprint={canAction('blueprint.manage')}
-                isWorkflowBusy={isWorkflowBusy}
-                runAsyncUiAction={runAsyncUiAction}
-                onSaveBlueprintReview={onSaveBlueprintReview}
-              />
-            </>
-          ) : null}
-
-          {isOperationsSectionVisible('anwalts-workflow') ? (
-            <>
-              <section ref={anwaltsWorkflowSectionRef} className={styles.section}>
-                <div className={styles.headerRow}>
-                  <h3 className={styles.sectionTitle}>🧾 Anwalts-Workflow</h3>
-                  <span className={styles.chip}>Residency: {residencyModeLabel}</span>
+                  <BulkOperationsSection
+                    clients={clients}
+                    matters={matters}
+                    clientsById={clientsById}
+                    canAction={canAction}
+                    isWorkflowBusy={isWorkflowBusy}
+                    runAsyncUiAction={runAsyncUiAction}
+                    onBulkSendEmails={onBulkSendEmails}
+                    onBulkGenerateSchriftsaetze={onBulkGenerateSchriftsaetze}
+                    onBulkGenerateMandantenbriefe={
+                      onBulkGenerateMandantenbriefe
+                    }
+                    onBulkUpdateMatterStatus={onBulkUpdateMatterStatus}
+                    onBulkPdfExport={onBulkPdfExport}
+                    lastBulkOperation={lastBulkOperation}
+                    kanzleiName={kanzleiProfile?.name}
+                    anwaltName={activeAnwaltDisplayName ?? undefined}
+                  />
                 </div>
-                <p className={styles.summary}>
-                  Operative Bearbeitung für Wiedervorlagen, Aktennotizen, Vollmachten und
-                  Zeiterfassung in einer klaren, mandatsbezogenen Arbeitsfläche.
-                </p>
-              </section>
 
-              <AnwaltsWorkflowSection
+                <BlueprintReviewSection
+                  latestBlueprint={latestBlueprint}
+                  blueprintObjectiveDraft={blueprintObjectiveDraft}
+                  setBlueprintObjectiveDraft={setBlueprintObjectiveDraft}
+                  blueprintReviewStatus={blueprintReviewStatus}
+                  setBlueprintReviewStatus={setBlueprintReviewStatus}
+                  blueprintReviewNoteDraft={blueprintReviewNoteDraft}
+                  setBlueprintReviewNoteDraft={setBlueprintReviewNoteDraft}
+                  canManageBlueprint={canAction('blueprint.manage')}
+                  isWorkflowBusy={isWorkflowBusy}
+                  runAsyncUiAction={runAsyncUiAction}
+                  onSaveBlueprintReview={onSaveBlueprintReview}
+                />
+              </>
+            ) : null}
+
+            {isOperationsSectionVisible('anwalts-workflow') ? (
+              <>
+                <section
+                  ref={anwaltsWorkflowSectionRef}
+                  className={styles.section}
+                >
+                  <div className={styles.headerRow}>
+                    <h3 className={styles.sectionTitle}>🧾 Anwalts-Workflow</h3>
+                    <span className={styles.chip}>
+                      Residency: {residencyModeLabel}
+                    </span>
+                  </div>
+                  <p className={styles.summary}>
+                    Operative Bearbeitung für Wiedervorlagen, Aktennotizen,
+                    Vollmachten und Zeiterfassung in einer klaren,
+                    mandatsbezogenen Arbeitsfläche.
+                  </p>
+                </section>
+
+                <AnwaltsWorkflowSection
+                  workspaceId={workspaceId}
+                  caseId={caseId}
+                  matterId={caseMatter?.id}
+                  clientId={caseClient?.id}
+                  anwaltId={activeAnwalt?.id}
+                  caseClientName={caseClient?.displayName ?? null}
+                  activeAnwaltName={activeAnwaltDisplayName ?? null}
+                  opposingPartyNames={(caseMatter?.opposingParties ?? []).map(
+                    p => p.displayName
+                  )}
+                  initialTab={initialAnwaltsWorkflowTab}
+                  highlightedDeadlineId={initialDeadlineId}
+                />
+              </>
+            ) : null}
+
+            {isOperationsSectionVisible('verfahrensstand') ? (
+              <>
+                <section
+                  ref={verfahrensstandSectionRef}
+                  className={styles.section}
+                >
+                  <h3 className={styles.sectionTitle}>🏛️ Verfahrensstand</h3>
+                  <p className={styles.summary}>
+                    Phasen- und Instanzsteuerung je Akte inklusive aktueller
+                    Lage und Historie.
+                  </p>
+                </section>
+
+                <VerfahrensstandSection
+                  workspaceId={workspaceId}
+                  caseId={caseId}
+                  matterId={caseMatter?.id}
+                />
+              </>
+            ) : null}
+
+            {isOperationsSectionVisible('kollision') ? (
+              <KollisionsPruefungSection
+                sectionRef={kollisionSectionRef}
                 workspaceId={workspaceId}
                 caseId={caseId}
                 matterId={caseMatter?.id}
-                clientId={caseClient?.id}
-                anwaltId={activeAnwalt?.id}
-                caseClientName={caseClient?.displayName ?? null}
+                anwaltId={caseMatter?.assignedAnwaltId}
+              />
+            ) : null}
+
+            {isOperationsSectionVisible('analytics') ? (
+              <AnalyticsDashboardSection
+                sectionRef={analyticsSectionRef}
+                kpis={analyticsKpis}
+                selectedPeriod={analyticsPeriod}
+                onPeriodChange={setAnalyticsPeriod}
+                dailyMetrics={analyticsDailyMetrics}
+                errorGroups={analyticsErrorGroups}
+                onResolveError={onResolveAnalyticsError}
+                onUnresolveError={onUnresolveAnalyticsError}
+                coreWebVitals={analyticsCoreWebVitals}
+                avgLoadTime={analyticsAvgLoadTime}
+                geoDistribution={analyticsGeoDistribution}
+                deviceBreakdown={analyticsDeviceBreakdown}
+                browserBreakdown={analyticsBrowserBreakdown}
+                topReferrers={analyticsTopReferrers}
+                sessionsByHour={analyticsSessionsByHour}
+                featureUsage={analyticsFeatureUsage}
+                customerHealth={analyticsCustomerHealth}
+                healthSummary={analyticsHealthSummary}
+                onAcknowledgeAlert={onAcknowledgeHealthAlert}
+                retentionCohorts={analyticsRetentionCohorts}
+                supportStatusSnapshot={supportStatusSnapshot}
+                supportIncidents={supportIncidents}
+                supportAlerts={supportAlerts}
+                supportAuditTrail={supportAuditTrail}
+                supportRetentionPolicy={supportRetentionPolicy}
+                supportEscalationPolicy={supportEscalationPolicy}
+                supportOpsError={supportOpsError}
+                isSavingSupportRetention={isSavingSupportRetention}
+                isSavingSupportEscalation={isSavingSupportEscalation}
+                onSaveSupportRetentionPolicy={updateSupportRetentionPolicy}
+                onSaveSupportEscalationPolicy={updateSupportEscalationPolicy}
+                onRefreshDashboard={() => {
+                  refreshAnalyticsDashboard().catch((error: unknown) => {
+                    console.warn(
+                      '[case-assistant] manual analytics refresh failed',
+                      error
+                    );
+                  });
+                }}
+                isRefreshing={isAnalyticsRefreshing}
+              />
+            ) : null}
+
+            {isOperationsSectionVisible('alerts') ? (
+              <section className={styles.section}>
+                <h3 className={styles.sectionTitle}>🔔 Fristen-Alerts</h3>
+                <p className={styles.summary}>
+                  Die Fristen-Alerts befinden sich in der rechten Spalte. Dort
+                  können aktive Fristen priorisiert gefiltert, bestätigt und
+                  verwaltet werden.
+                </p>
+              </section>
+            ) : null}
+
+            {isOperationsSectionVisible('mandanten') ? (
+              <MandantenSection
+                sectionRef={mandantenSectionRef}
+                clients={clients}
+                matters={matters}
+                cases={Object.values(graph?.cases ?? {})}
+                legalDocuments={legalDocuments}
+                legalFindings={legalFindings}
+                vollmachten={vollmachten}
+                vollmachtSigningRequests={vollmachtSigningRequests}
+                auditEntries={auditEntries}
+                workspace={workspaceService.workspace}
+                activeAnwaltId={activeAnwalt?.id ?? null}
                 activeAnwaltName={activeAnwaltDisplayName ?? null}
-                opposingPartyNames={(caseMatter?.opposingParties ?? []).map(p => p.displayName)}
-                initialTab={initialAnwaltsWorkflowTab}
-                highlightedDeadlineId={initialDeadlineId}
+                kanzleiName={kanzleiProfile?.name ?? null}
+                getGwgOnboardingForClient={getGwgOnboardingForClient}
+                onRequestGeneralVollmacht={handleRequestGeneralVollmacht}
+                onDecideVollmachtSigningRequest={
+                  handleDecideVollmachtSigningRequest
+                }
+                onStartGwgOnboarding={handleStartGwgOnboarding}
+                clientSearchQuery={clientSearchQuery}
+                setClientSearchQuery={setClientSearchQuery}
+                showArchivedClients={showArchivedClients}
+                setShowArchivedClients={setShowArchivedClients}
+                canAction={canAction}
+                runAsyncUiAction={runAsyncUiAction}
+                onSelectMatter={handleMatterSelect}
+                highlightMatterId={selectedMatterId || undefined}
+                anwaelteById={anwaelteByIdMap}
               />
-            </>
-          ) : null}
+            ) : null}
 
-          {isOperationsSectionVisible('verfahrensstand') ? (
-            <>
-              <section ref={verfahrensstandSectionRef} className={styles.section}>
-                <h3 className={styles.sectionTitle}>🏛️ Verfahrensstand</h3>
-                <p className={styles.summary}>
-                  Phasen- und Instanzsteuerung je Akte inklusive aktueller Lage und Historie.
-                </p>
+            {isOperationsSectionVisible('einstellungen') ? (
+              <EinstellungenSection
+                sectionRef={einstellungenSectionRef}
+                currentRole={currentRole}
+                onRoleChange={handleRoleChange}
+                currentJurisdiction={activeJurisdiction}
+                onJurisdictionChange={handleJurisdictionChange}
+                jurisdictionOptions={jurisdictionOptions}
+                themeMode={activeThemeMode}
+                onThemeModeChange={mode => {
+                  setTheme(mode);
+                }}
+                residencyPolicyDraft={residencyPolicyDraft}
+                onResidencyPolicyDraftChange={onResidencyPolicyDraftChange}
+                onSaveResidencyPolicy={onSaveResidencyPolicy}
+                connectorCards={connectorCards}
+                connectorDrafts={connectorDrafts}
+                canAction={canAction}
+                runAsyncUiAction={runAsyncUiAction}
+                onConnectorDraftChange={onConnectorDraftChange}
+                onRotateConnectorCredential={onRotateConnectorCredential}
+                onSaveConnectorSettings={onSaveConnectorSettings}
+                onToggleConnector={onToggleConnector}
+                onHealthcheckConnector={onHealthcheckConnector}
+                onClearConnectorCredential={onClearConnectorCredential}
+                formatSecretUpdatedAt={formatSecretUpdatedAt}
+                normalizeRotationMode={normalizeRotationMode}
+                ingestionStatus={ingestionStatus}
+                statusTone={statusTone}
+              />
+            ) : null}
+
+            {isOperationsSectionVisible('fristenkontrolle') ? (
+              <section
+                ref={fristenkontrolleSectionRef}
+                className={styles.section}
+              >
+                <FristenkontrolleSection
+                  currentUserId={caseId}
+                  currentUserName={title}
+                />
               </section>
+            ) : null}
 
-              <VerfahrensstandSection
+            {isOperationsSectionVisible('rechnungen') ? (
+              <section ref={rechnungenSectionRef} className={styles.section}>
+                <RechnungSection
+                  workspaceId={workspaceId}
+                  matterId={selectedMatterId ?? ''}
+                  caseId={caseId}
+                  clientId={selectedClientId ?? ''}
+                />
+              </section>
+            ) : null}
+
+            {isOperationsSectionVisible('gwg-compliance') ? (
+              <section ref={gwgComplianceSectionRef} className={styles.section}>
+                <GwGComplianceSection currentUserName={title} />
+              </section>
+            ) : null}
+
+            {isOperationsSectionVisible('dsgvo-compliance') ? (
+              <section
+                ref={dsgvoComplianceSectionRef}
+                className={styles.section}
+              >
+                <DSGVOComplianceSection currentUserName={title} />
+              </section>
+            ) : null}
+
+            {isOperationsSectionVisible('document-versioning') ? (
+              <section
+                ref={documentVersioningSectionRef}
+                className={styles.section}
+              >
+                <DocumentVersioningSection
+                  matterId={selectedMatterId ?? ''}
+                  currentUserId={caseId}
+                  currentUserName={title}
+                />
+              </section>
+            ) : null}
+
+            {isOperationsSectionVisible('bea-postfach') ? (
+              <BeaPostfachSection
+                sectionRef={beaPostfachSectionRef}
+                workspaceId={workspaceId}
+                connectorStatus={(() => {
+                  const beaConnector = connectors.find(
+                    c =>
+                      c.name.toLowerCase().includes('bea') ||
+                      c.name.toLowerCase().includes('werv')
+                  );
+                  if (beaConnector?.status === 'connected') return 'connected';
+                  if (beaConnector?.status === 'error') return 'error';
+                  return 'disconnected';
+                })()}
+              />
+            ) : null}
+
+            {isOperationsSectionVisible('email-inbox') ? (
+              <EmailInboxSection
+                sectionRef={emailInboxSectionRef}
                 workspaceId={workspaceId}
                 caseId={caseId}
-                matterId={caseMatter?.id}
+                clients={clients}
+                matters={matters}
+                clientsById={clientsById}
+                kanzleiProfile={kanzleiProfile}
+                activeAnwaltName={activeAnwaltDisplayName}
               />
-            </>
-          ) : null}
-
-          {isOperationsSectionVisible('kollision') ? (
-            <KollisionsPruefungSection
-              sectionRef={kollisionSectionRef}
-              workspaceId={workspaceId}
-              caseId={caseId}
-              matterId={caseMatter?.id}
-              anwaltId={caseMatter?.assignedAnwaltId}
-            />
-          ) : null}
-
-          {isOperationsSectionVisible('analytics') ? (
-            <AnalyticsDashboardSection
-              sectionRef={analyticsSectionRef}
-              kpis={analyticsKpis}
-              selectedPeriod={analyticsPeriod}
-              onPeriodChange={setAnalyticsPeriod}
-              dailyMetrics={analyticsDailyMetrics}
-              errorGroups={analyticsErrorGroups}
-              onResolveError={onResolveAnalyticsError}
-              onUnresolveError={onUnresolveAnalyticsError}
-              coreWebVitals={analyticsCoreWebVitals}
-              avgLoadTime={analyticsAvgLoadTime}
-              geoDistribution={analyticsGeoDistribution}
-              deviceBreakdown={analyticsDeviceBreakdown}
-              browserBreakdown={analyticsBrowserBreakdown}
-              topReferrers={analyticsTopReferrers}
-              sessionsByHour={analyticsSessionsByHour}
-              featureUsage={analyticsFeatureUsage}
-              customerHealth={analyticsCustomerHealth}
-              healthSummary={analyticsHealthSummary}
-              onAcknowledgeAlert={onAcknowledgeHealthAlert}
-              retentionCohorts={analyticsRetentionCohorts}
-              supportStatusSnapshot={supportStatusSnapshot}
-              supportIncidents={supportIncidents}
-              supportAlerts={supportAlerts}
-              supportAuditTrail={supportAuditTrail}
-              supportRetentionPolicy={supportRetentionPolicy}
-              supportEscalationPolicy={supportEscalationPolicy}
-              supportOpsError={supportOpsError}
-              isSavingSupportRetention={isSavingSupportRetention}
-              isSavingSupportEscalation={isSavingSupportEscalation}
-              onSaveSupportRetentionPolicy={updateSupportRetentionPolicy}
-              onSaveSupportEscalationPolicy={updateSupportEscalationPolicy}
-              onRefreshDashboard={() => {
-                refreshAnalyticsDashboard().catch((error: unknown) => {
-                  console.warn('[case-assistant] manual analytics refresh failed', error);
-                });
-              }}
-              isRefreshing={isAnalyticsRefreshing}
-            />
-          ) : null}
-
-          {isOperationsSectionVisible('alerts') ? (
-            <section className={styles.section}>
-              <h3 className={styles.sectionTitle}>🔔 Fristen-Alerts</h3>
-              <p className={styles.summary}>
-                Die Fristen-Alerts befinden sich in der rechten Spalte. Dort können aktive
-                Fristen priorisiert gefiltert, bestätigt und verwaltet werden.
-              </p>
-            </section>
-          ) : null}
-
-          {isOperationsSectionVisible('mandanten') ? (
-            <MandantenSection
-              sectionRef={mandantenSectionRef}
-              clients={clients}
-              matters={matters}
-              cases={Object.values(graph?.cases ?? {})}
-              legalDocuments={legalDocuments}
-              legalFindings={legalFindings}
-              vollmachten={vollmachten}
-              vollmachtSigningRequests={vollmachtSigningRequests}
-              auditEntries={auditEntries}
-              workspace={workspaceService.workspace}
-              activeAnwaltId={activeAnwalt?.id ?? null}
-              activeAnwaltName={activeAnwaltDisplayName ?? null}
-              kanzleiName={kanzleiProfile?.name ?? null}
-              getGwgOnboardingForClient={getGwgOnboardingForClient}
-              onRequestGeneralVollmacht={handleRequestGeneralVollmacht}
-              onDecideVollmachtSigningRequest={handleDecideVollmachtSigningRequest}
-              onStartGwgOnboarding={handleStartGwgOnboarding}
-              clientSearchQuery={clientSearchQuery}
-              setClientSearchQuery={setClientSearchQuery}
-              showArchivedClients={showArchivedClients}
-              setShowArchivedClients={setShowArchivedClients}
-              canAction={canAction}
-              runAsyncUiAction={runAsyncUiAction}
-              onSelectMatter={handleMatterSelect}
-              highlightMatterId={selectedMatterId || undefined}
-              anwaelteById={anwaelteByIdMap}
-            />
-          ) : null}
-
-          {isOperationsSectionVisible('einstellungen') ? (
-            <EinstellungenSection
-              sectionRef={einstellungenSectionRef}
-              currentRole={currentRole}
-              onRoleChange={handleRoleChange}
-              currentJurisdiction={activeJurisdiction}
-              onJurisdictionChange={handleJurisdictionChange}
-              jurisdictionOptions={jurisdictionOptions}
-              themeMode={activeThemeMode}
-              onThemeModeChange={mode => {
-                setTheme(mode);
-              }}
-              residencyPolicyDraft={residencyPolicyDraft}
-              onResidencyPolicyDraftChange={onResidencyPolicyDraftChange}
-              onSaveResidencyPolicy={onSaveResidencyPolicy}
-              connectorCards={connectorCards}
-              connectorDrafts={connectorDrafts}
-              canAction={canAction}
-              runAsyncUiAction={runAsyncUiAction}
-              onConnectorDraftChange={onConnectorDraftChange}
-              onRotateConnectorCredential={onRotateConnectorCredential}
-              onSaveConnectorSettings={onSaveConnectorSettings}
-              onToggleConnector={onToggleConnector}
-              onHealthcheckConnector={onHealthcheckConnector}
-              onClearConnectorCredential={onClearConnectorCredential}
-              formatSecretUpdatedAt={formatSecretUpdatedAt}
-              normalizeRotationMode={normalizeRotationMode}
-              ingestionStatus={ingestionStatus}
-              statusTone={statusTone}
-            />
-          ) : null}
-
-          {isOperationsSectionVisible('fristenkontrolle') ? (
-            <section ref={fristenkontrolleSectionRef} className={styles.section}>
-              <FristenkontrolleSection
-                currentUserId={caseId}
-                currentUserName={title}
-              />
-            </section>
-          ) : null}
-
-          {isOperationsSectionVisible('rechnungen') ? (
-            <section ref={rechnungenSectionRef} className={styles.section}>
-              <RechnungSection
-                workspaceId={workspaceId}
-                matterId={selectedMatterId ?? ''}
-                caseId={caseId}
-                clientId={selectedClientId ?? ''}
-              />
-            </section>
-          ) : null}
-
-          {isOperationsSectionVisible('gwg-compliance') ? (
-            <section ref={gwgComplianceSectionRef} className={styles.section}>
-              <GwGComplianceSection
-                currentUserName={title}
-              />
-            </section>
-          ) : null}
-
-          {isOperationsSectionVisible('dsgvo-compliance') ? (
-            <section ref={dsgvoComplianceSectionRef} className={styles.section}>
-              <DSGVOComplianceSection
-                currentUserName={title}
-              />
-            </section>
-          ) : null}
-
-          {isOperationsSectionVisible('document-versioning') ? (
-            <section ref={documentVersioningSectionRef} className={styles.section}>
-              <DocumentVersioningSection
-                matterId={selectedMatterId ?? ''}
-                currentUserId={caseId}
-                currentUserName={title}
-              />
-            </section>
-          ) : null}
-
-          {isOperationsSectionVisible('bea-postfach') ? (
-            <BeaPostfachSection
-              sectionRef={beaPostfachSectionRef}
-              workspaceId={workspaceId}
-              connectorStatus={(() => {
-                const beaConnector = connectors.find(
-                  c => c.name.toLowerCase().includes('bea') || c.name.toLowerCase().includes('werv')
-                );
-                if (beaConnector?.status === 'connected') return 'connected';
-                if (beaConnector?.status === 'error') return 'error';
-                return 'disconnected';
-              })()}
-            />
-          ) : null}
-
-          {isOperationsSectionVisible('email-inbox') ? (
-            <EmailInboxSection
-              sectionRef={emailInboxSectionRef}
-              workspaceId={workspaceId}
-              caseId={caseId}
-              clients={clients}
-              matters={matters}
-              clientsById={clientsById}
-              kanzleiProfile={kanzleiProfile}
-              activeAnwaltName={activeAnwaltDisplayName}
-            />
-          ) : null}
-
+            ) : null}
           </main>
         </>
       ) : null}
@@ -3964,13 +4446,12 @@ export const EditorCaseAssistantPanel = ({
         onClose={() => setIsOnboardingWizardOpen(false)}
         initialFlow="documents-first"
         caseId={caseId}
-
         currentRole={currentRole}
         onRoleChange={handleRoleChange}
-
         clients={clients}
         selectedClientId={selectedClientId}
         setSelectedClientId={setSelectedClientId}
+        selectedMatterId={selectedMatterId}
         clientDraftName={clientDraftName}
         setClientDraftName={setClientDraftName}
         clientDraftKind={clientDraftKind}
@@ -3986,6 +4467,22 @@ export const EditorCaseAssistantPanel = ({
         setMatterDraftAuthorityReferences={setMatterDraftAuthorityReferences}
         matterDraftGericht={matterDraftGericht}
         setMatterDraftGericht={setMatterDraftGericht}
+        matterDraftPolizei={matterDraftPolizei}
+        setMatterDraftPolizei={setMatterDraftPolizei}
+        matterDraftStaatsanwaltschaft={matterDraftStaatsanwaltschaft}
+        setMatterDraftStaatsanwaltschaft={setMatterDraftStaatsanwaltschaft}
+        matterDraftRichter={matterDraftRichter}
+        setMatterDraftRichter={setMatterDraftRichter}
+        matterDraftGerichtsaktenzeichen={matterDraftGerichtsaktenzeichen}
+        setMatterDraftGerichtsaktenzeichen={setMatterDraftGerichtsaktenzeichen}
+        matterDraftStaatsanwaltschaftAktenzeichen={
+          matterDraftStaatsanwaltschaftAktenzeichen
+        }
+        setMatterDraftStaatsanwaltschaftAktenzeichen={
+          setMatterDraftStaatsanwaltschaftAktenzeichen
+        }
+        matterDraftPolizeiAktenzeichen={matterDraftPolizeiAktenzeichen}
+        setMatterDraftPolizeiAktenzeichen={setMatterDraftPolizeiAktenzeichen}
         matterDraftAssignedAnwaltId={matterDraftAssignedAnwaltId}
         setMatterDraftAssignedAnwaltId={setMatterDraftAssignedAnwaltId}
         anwaelte={anwaelte}

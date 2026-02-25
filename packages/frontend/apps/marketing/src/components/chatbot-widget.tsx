@@ -77,6 +77,12 @@ const RETURNING_KEY = 'subsumio-chatbot:visited';
 const SESSION_KEY = 'subsumio-chatbot:session:v1';
 const MAX_VISIBLE_ACTIONS = 3;
 const MAX_SESSION_MESSAGES = 50;
+const MAX_INPUT_LENGTH = 600;
+
+const GREETING_PATTERN =
+  /\b(hi|hallo|hey|servus|guten\s+(tag|morgen|abend)|hello|moin|bonjour|hola|ciao|hej|hallochen)\b/i;
+const THANKS_PATTERN =
+  /\b(danke|thanks|thank\s+you|merci|gracias|grazie|thx|danke\s+dir)\b/i;
 
 function extractLocale(pathname: string): string {
   return pathname.split('/').filter(Boolean)[0] ?? 'de-AT';
@@ -235,6 +241,11 @@ export default function ChatbotWidget({
   const [restoredFromSession, setRestoredFromSession] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const toggleButtonRef = useRef<HTMLButtonElement>(null);
+  const dialogRef = useRef<HTMLElement>(null);
+  const pendingBotMessagesRef = useRef(0);
+  const botTimeoutsRef = useRef<number[]>([]);
+  const wasOpenRef = useRef(false);
 
   const isControlled = controlledOpen !== undefined;
   const currentIsOpen = isControlled ? controlledOpen : isOpen;
@@ -259,9 +270,10 @@ export default function ChatbotWidget({
 
   const enqueueBotMessage = useCallback(
     (content: string, actions?: ChatAction[]) => {
+      pendingBotMessagesRef.current += 1;
       setIsTyping(true);
-      const delay = 400 + Math.random() * 300;
-      window.setTimeout(() => {
+      const delay = 280 + Math.random() * 220;
+      const timeoutId = window.setTimeout(() => {
         setMessages(prev => [
           ...prev,
           {
@@ -272,10 +284,83 @@ export default function ChatbotWidget({
             actions,
           },
         ]);
-        setIsTyping(false);
+        pendingBotMessagesRef.current = Math.max(
+          0,
+          pendingBotMessagesRef.current - 1
+        );
+        setIsTyping(pendingBotMessagesRef.current > 0);
+        botTimeoutsRef.current = botTimeoutsRef.current.filter(
+          id => id !== timeoutId
+        );
       }, delay);
+      botTimeoutsRef.current.push(timeoutId);
     },
     []
+  );
+
+  const detectIntentFromMessage = useCallback(
+    (message: string): Intent | null => {
+      const normalized = message.toLowerCase();
+      const scores: Record<Intent, number> = {
+        'context-help': 0,
+        demo: 0,
+        pricing: 0,
+        register: 0,
+        subscribe: 0,
+        credits: 0,
+        api: 0,
+        support: 0,
+      };
+
+      for (const rule of NLP_RULES) {
+        if (rule.pattern.test(normalized)) {
+          scores[rule.intent] += 3;
+        }
+      }
+
+      if (
+        /\b(vergleich|compare|difference|plan|paket|teamgröße|team size)\b/i.test(
+          normalized
+        )
+      ) {
+        scores.pricing += 2;
+      }
+      if (
+        /\b(sofort|asap|dringend|urgent|problem|fehler|error|hilfe\?)\b/i.test(
+          normalized
+        )
+      ) {
+        scores.support += 2;
+      }
+      if (
+        /\b(start|loslegen|onboard|einrichten|setup|erstes\s+mal)\b/i.test(
+          normalized
+        )
+      ) {
+        scores.register += 2;
+      }
+      if (
+        /\b(webhook|endpoint|token|auth|oauth|integration|sdk)\b/i.test(
+          normalized
+        )
+      ) {
+        scores.api += 2;
+      }
+
+      const prioritizedForPage = getPagePrioritizedActions(pageContext.key);
+      const prioritizedForPersona = getPersonaPrioritizedActions(persona);
+      if (prioritizedForPage[0]) scores[prioritizedForPage[0]] += 1;
+      if (prioritizedForPersona[0]) scores[prioritizedForPersona[0]] += 1;
+
+      const ranked = (Object.entries(scores) as Array<[Intent, number]>).sort(
+        (a, b) => b[1] - a[1]
+      );
+      const [bestIntent, bestScore] = ranked[0];
+
+      if (bestScore < 2) return null;
+      return bestIntent;
+    },
+    [pageContext.key, persona]
   );
 
   const buildRolePrompt = useCallback(
@@ -353,6 +438,12 @@ export default function ChatbotWidget({
       primary: idx === 0,
     }));
   }, [intentToAction, pageContext.key, persona]);
+
+  const buildFallbackReply = useCallback(() => {
+    const topActions = buildSmartActions().slice(0, 3);
+    const bullets = topActions.map(action => `• ${action.label}`).join('\n');
+    return `${t.intentFallback}\n\n${bullets}`;
+  }, [buildSmartActions, t.intentFallback]);
 
   const buildIntentActions = useCallback(
     (intent: Intent): ChatAction[] => {
@@ -930,13 +1021,65 @@ export default function ChatbotWidget({
     }
   }, [currentIsOpen]);
 
+  useEffect(() => {
+    return () => {
+      for (const timeoutId of botTimeoutsRef.current) {
+        window.clearTimeout(timeoutId);
+      }
+      botTimeoutsRef.current = [];
+      pendingBotMessagesRef.current = 0;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!currentIsOpen || !dialogRef.current) return;
+
+    const root = dialogRef.current;
+    const selector =
+      'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])';
+    const focusable = Array.from(
+      root.querySelectorAll<HTMLElement>(selector)
+    ).filter(el => !el.hasAttribute('disabled'));
+
+    if (focusable.length === 0) return;
+
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+
+    const handleTab = (event: KeyboardEvent) => {
+      if (event.key !== 'Tab') return;
+
+      const active = document.activeElement as HTMLElement | null;
+      if (event.shiftKey && active === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && active === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener('keydown', handleTab);
+    return () => document.removeEventListener('keydown', handleTab);
+  }, [currentIsOpen]);
+
+  useEffect(() => {
+    if (wasOpenRef.current && !currentIsOpen) {
+      window.setTimeout(() => toggleButtonRef.current?.focus(), 0);
+    }
+    wasOpenRef.current = currentIsOpen;
+  }, [currentIsOpen]);
+
   const handleSendMessage = () => {
     if (!inputValue.trim()) return;
+
+    const trimmedInput = inputValue.trim().slice(0, MAX_INPUT_LENGTH);
+    if (!trimmedInput) return;
 
     const userMessage: Message = {
       id: `${Date.now()}-user`,
       type: 'user',
-      content: inputValue,
+      content: trimmedInput,
       timestamp: new Date(),
     };
 
@@ -946,14 +1089,35 @@ export default function ChatbotWidget({
 
     const normalized = userMessage.content.toLowerCase();
 
-    for (const rule of NLP_RULES) {
-      if (rule.pattern.test(normalized)) {
-        handleIntent(rule.intent);
-        return;
-      }
+    if (GREETING_PATTERN.test(normalized)) {
+      enqueueBotMessage(
+        t.welcomeReturningPage.replace(
+          '{page}',
+          t.pageLabels[pageContext.key] ?? ''
+        ),
+        buildSmartActions()
+      );
+      return;
     }
 
-    enqueueBotMessage(t.intentFallback, buildSmartActions());
+    if (THANKS_PATTERN.test(normalized)) {
+      enqueueBotMessage(
+        `${t.intentSupport}\n\n${buildSmartActions()
+          .slice(0, 2)
+          .map(action => `• ${action.label}`)
+          .join('\n')}`,
+        buildSmartActions()
+      );
+      return;
+    }
+
+    const detectedIntent = detectIntentFromMessage(normalized);
+    if (detectedIntent) {
+      handleIntent(detectedIntent);
+      return;
+    }
+
+    enqueueBotMessage(buildFallbackReply(), buildSmartActions());
   };
 
   const handleToggle = () => {
@@ -988,6 +1152,7 @@ export default function ChatbotWidget({
           </div>
         )}
         <button
+          ref={toggleButtonRef}
           onClick={handleToggle}
           className="group relative flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-r from-primary-600 to-cyan-600 text-white shadow-lg transition-all duration-300 hover:scale-110 hover:shadow-xl sm:h-16 sm:w-16"
           aria-label={t.open}
@@ -1004,6 +1169,7 @@ export default function ChatbotWidget({
 
   return (
     <section
+      ref={dialogRef}
       data-subsumio-chatbot="1"
       className={`fixed bottom-0 z-50 flex flex-col overflow-hidden bg-white shadow-2xl transition-all duration-300 sm:bottom-6 sm:rounded-2xl sm:border sm:border-slate-200 ${
         isAnimatingOpen ? 'animate-slideUpFade' : ''
@@ -1041,7 +1207,13 @@ export default function ChatbotWidget({
         <span>{t.pageLabels[pageContext.key] ?? pageContext.key}</span>
       </div>
 
-      <div className="flex-1 overflow-y-auto bg-gradient-to-b from-slate-50 to-white p-4 space-y-4">
+      <div
+        className="flex-1 overflow-y-auto space-y-4 bg-gradient-to-b from-slate-50 to-white p-4"
+        role="log"
+        aria-live="polite"
+        aria-relevant="additions text"
+        aria-busy={isTyping}
+      >
         <div className="mb-2 flex items-center justify-center">
           <span className="inline-flex items-center gap-1.5 rounded-full bg-primary-50 px-3 py-1 text-xs font-medium text-primary-700">
             <Zap className="h-3 w-3" />
@@ -1069,7 +1241,9 @@ export default function ChatbotWidget({
                     : 'border border-slate-200 bg-white text-slate-800 shadow-sm'
                 }`}
               >
-                <p className="text-sm leading-relaxed">{message.content}</p>
+                <p className="text-sm leading-relaxed whitespace-pre-line">
+                  {message.content}
+                </p>
               </div>
               {message.actions && message.actions.length > 0 && (
                 <div className="mt-2 space-y-1.5">
@@ -1151,6 +1325,7 @@ export default function ChatbotWidget({
                   className="h-2 w-2 animate-bounce rounded-full bg-primary-400"
                   style={{ animationDelay: '300ms' }}
                 />
+                <span className="sr-only">{t.typing}</span>
               </div>
             </div>
           </div>
@@ -1159,30 +1334,32 @@ export default function ChatbotWidget({
       </div>
 
       <div className="border-t border-slate-200 bg-white p-3 sm:rounded-b-2xl sm:p-4">
-        <div className="flex gap-2">
+        <form
+          className="flex gap-2"
+          onSubmit={e => {
+            e.preventDefault();
+            handleSendMessage();
+          }}
+        >
           <input
             ref={inputRef}
             type="text"
             value={inputValue}
             onChange={e => setInputValue(e.target.value)}
-            onKeyDown={e => {
-              if (e.key === 'Enter') {
-                e.preventDefault();
-                handleSendMessage();
-              }
-            }}
+            aria-label={t.placeholder}
+            maxLength={MAX_INPUT_LENGTH}
             placeholder={t.placeholder}
             className="flex-1 rounded-full border border-slate-200 px-4 py-2.5 text-sm focus:border-primary-300 focus:outline-none focus:ring-2 focus:ring-primary-500/30"
           />
           <button
-            onClick={handleSendMessage}
+            type="submit"
             disabled={!inputValue.trim()}
             className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-r from-primary-600 to-cyan-600 text-white transition-all hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-40"
             aria-label={t.send}
           >
             <Send className="h-4 w-4" />
           </button>
-        </div>
+        </form>
         <div className="mt-2 flex items-center justify-between text-xs text-slate-400">
           <span className="flex items-center gap-1.5">
             <Sparkles className="h-3 w-3" />

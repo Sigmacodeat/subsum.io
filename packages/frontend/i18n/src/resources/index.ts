@@ -23,7 +23,22 @@ export type Language =
   | 'ko'
   | 'pt-BR'
   | 'fa'
-  | 'nb-NO';
+  | 'nb-NO'
+  | 'nl'
+  | 'pt-PT'
+  | 'fi'
+  | 'cs'
+  | 'hu'
+  | 'ro'
+  | 'bg'
+  | 'hr'
+  | 'sk'
+  | 'si'
+  | 'et'
+  | 'lv'
+  | 'lt'
+  | 'ga'
+  | 'mt';
 
 export type LanguageResource = typeof en;
 export const SUPPORTED_LANGUAGES: Record<
@@ -174,5 +189,95 @@ export const SUPPORTED_LANGUAGES: Record<
     originalName: 'Norsk (Bokmål)',
     flagEmoji: '🇳🇴',
     resource: () => import('./nb-NO.json'),
+  },
+  nl: {
+    name: 'Dutch',
+    originalName: 'Nederlands',
+    flagEmoji: '🇳🇱',
+    resource: () => import('./nl.json'),
+  },
+  'pt-PT': {
+    name: 'Portuguese (Portugal)',
+    originalName: 'português (Portugal)',
+    flagEmoji: '🇵🇹',
+    resource: () => import('./pt-PT.json'),
+  },
+  fi: {
+    name: 'Finnish',
+    originalName: 'suomi',
+    flagEmoji: '🇫🇮',
+    resource: () => import('./fi.json'),
+  },
+  cs: {
+    name: 'Czech',
+    originalName: 'čeština',
+    flagEmoji: '🇨🇿',
+    resource: () => import('./cs.json'),
+  },
+  hu: {
+    name: 'Hungarian',
+    originalName: 'magyar',
+    flagEmoji: '🇭🇺',
+    resource: () => import('./hu.json'),
+  },
+  ro: {
+    name: 'Romanian',
+    originalName: 'română',
+    flagEmoji: '🇷🇴',
+    resource: () => import('./ro.json'),
+  },
+  bg: {
+    name: 'Bulgarian',
+    originalName: 'български',
+    flagEmoji: '🇧🇬',
+    resource: () => import('./bg.json'),
+  },
+  hr: {
+    name: 'Croatian',
+    originalName: 'hrvatski',
+    flagEmoji: '🇭🇷',
+    resource: () => import('./hr.json'),
+  },
+  sk: {
+    name: 'Slovak',
+    originalName: 'slovenčina',
+    flagEmoji: '🇸🇰',
+    resource: () => import('./sk.json'),
+  },
+  si: {
+    name: 'Slovenian',
+    originalName: 'slovenščina',
+    flagEmoji: '🇸🇮',
+    resource: () => import('./si.json'),
+  },
+  et: {
+    name: 'Estonian',
+    originalName: 'eesti',
+    flagEmoji: '🇪🇪',
+    resource: () => import('./et.json'),
+  },
+  lv: {
+    name: 'Latvian',
+    originalName: 'latviešu',
+    flagEmoji: '🇱🇻',
+    resource: () => import('./lv.json'),
+  },
+  lt: {
+    name: 'Lithuanian',
+    originalName: 'lietuvių',
+    flagEmoji: '🇱🇹',
+    resource: () => import('./lt.json'),
+  },
+  ga: {
+    name: 'Irish',
+    originalName: 'Gaeilge',
+    flagEmoji: '🇬🇮',
+    resource: () => import('./ga.json'),
+  },
+  mt: {
+    name: 'Maltese',
+    originalName: 'Malti',
+    flagEmoji: '🇲🇹',
+    resource: () => import('./mt.json'),
   },
 };

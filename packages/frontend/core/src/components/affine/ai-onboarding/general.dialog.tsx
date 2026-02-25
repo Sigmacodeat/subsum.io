@@ -20,27 +20,27 @@ type Translate = ReturnType<typeof useI18n>;
 
 const getPlayList = (t: Translate): Array<PlayListItem> => [
   {
-    video: '/onboarding/ai-onboarding.general.1.mp4',
+    video: '',
     title: t['com.affine.ai-onboarding.general.1.title'](),
     desc: t['com.affine.ai-onboarding.general.1.description'](),
   },
   {
-    video: '/onboarding/ai-onboarding.general.2.mp4',
+    video: '',
     title: t['com.affine.ai-onboarding.general.2.title'](),
     desc: t['com.affine.ai-onboarding.general.2.description'](),
   },
   {
-    video: '/onboarding/ai-onboarding.general.3.mp4',
+    video: '',
     title: t['com.affine.ai-onboarding.general.3.title'](),
     desc: t['com.affine.ai-onboarding.general.3.description'](),
   },
   {
-    video: '/onboarding/ai-onboarding.general.4.mp4',
+    video: '',
     title: t['com.affine.ai-onboarding.general.4.title'](),
     desc: t['com.affine.ai-onboarding.general.4.description'](),
   },
   {
-    video: '/onboarding/ai-onboarding.general.5.mp4',
+    video: '',
     title: t['com.affine.ai-onboarding.general.5.title'](),
     desc: (
       <Trans
@@ -61,23 +61,9 @@ const getPlayList = (t: Translate): Array<PlayListItem> => [
   },
 ];
 
-let prefetched = false;
+// Onboarding videos removed during AFFiNE→Subsumio rebrand
 function prefetchVideos() {
-  if (prefetched) return;
-  const videos = [
-    '/onboarding/ai-onboarding.general.1.mp4',
-    '/onboarding/ai-onboarding.general.2.mp4',
-    '/onboarding/ai-onboarding.general.3.mp4',
-    '/onboarding/ai-onboarding.general.4.mp4',
-    '/onboarding/ai-onboarding.general.5.mp4',
-  ];
-  videos.forEach(video => {
-    const prefetchLink = document.createElement('link');
-    prefetchLink.href = video;
-    prefetchLink.rel = 'prefetch';
-    document.head.append(prefetchLink);
-  });
-  prefetched = true;
+  // no-op: videos not yet available for Subsumio
 }
 
 export const AIOnboardingGeneral = () => {

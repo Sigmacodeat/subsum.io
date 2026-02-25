@@ -135,7 +135,13 @@ export interface ExportJournalRecord {
   createdAt: string;
 }
 
-export type AnwaltRole = 'partner' | 'senior_associate' | 'associate' | 'counsel' | 'referendar' | 'other';
+export type AnwaltRole =
+  | 'partner'
+  | 'senior_associate'
+  | 'associate'
+  | 'counsel'
+  | 'referendar'
+  | 'other';
 
 export interface KanzleiProfile {
   id: string;
@@ -333,6 +339,18 @@ export interface MatterRecord {
   authorityReferences?: string[];
   /** Zuständiges Gericht (z.B. "Landesgericht Wien", "Amtsgericht München") */
   gericht?: string;
+  /** Polizei / Dienststelle (z.B. "LKA Wien", "PI Mitte") */
+  polizei?: string;
+  /** Zuständige Staatsanwaltschaft */
+  staatsanwaltschaft?: string;
+  /** Zuständige Richterin / zuständiger Richter */
+  richter?: string;
+  /** Gerichtliches Aktenzeichen (falls von externalRef getrennt gepflegt) */
+  gerichtsaktenzeichen?: string;
+  /** Aktenzeichen der Staatsanwaltschaft */
+  staatsanwaltschaftAktenzeichen?: string;
+  /** Aktenzeichen der Polizei */
+  polizeiAktenzeichen?: string;
   status: MatterStatus;
   /** Opposing party information */
   opposingParties?: OpposingParty[];
@@ -370,7 +388,12 @@ export type BulkOperationType =
   | 'mandantenbrief'
   | 'status-update';
 
-export type BulkOperationStatus = 'queued' | 'running' | 'completed' | 'failed' | 'partial';
+export type BulkOperationStatus =
+  | 'queued'
+  | 'running'
+  | 'completed'
+  | 'failed'
+  | 'partial';
 
 export interface BulkOperation {
   id: string;
@@ -396,7 +419,13 @@ export interface BulkOperationResult {
   outputRef?: string;
 }
 
-export type EmailStatus = 'draft' | 'queued' | 'sending' | 'sent' | 'failed' | 'bounced';
+export type EmailStatus =
+  | 'draft'
+  | 'queued'
+  | 'sending'
+  | 'sent'
+  | 'failed'
+  | 'bounced';
 
 export type EmailTemplateType =
   | 'mandantenbrief'
@@ -471,7 +500,11 @@ export interface CaseDeadline {
   id: string;
   title: string;
   dueAt: string;
-  derivedFrom?: 'auto_template' | 'limitation_rule' | 'regex_extract' | 'manual';
+  derivedFrom?:
+    | 'auto_template'
+    | 'limitation_rule'
+    | 'regex_extract'
+    | 'manual';
   baseEventAt?: string;
   detectionConfidence?: number;
   requiresReview?: boolean;
@@ -733,6 +766,8 @@ export interface LegalDocumentRecord {
   caseId: string;
   workspaceId: string;
   title: string;
+  /** Linked AFFiNE page id used as editable working document for this legal source. */
+  linkedPageId?: string;
   kind: LegalDocumentKind;
   status: LegalDocumentStatus;
   detectedJurisdiction?: Jurisdiction;
@@ -975,7 +1010,16 @@ export interface CopilotRun {
   outputSummary?: string;
 }
 
-export type Jurisdiction = 'AT' | 'DE' | 'CH' | 'FR' | 'IT' | 'PT' | 'PL' | 'EU' | 'ECHR';
+export type Jurisdiction =
+  | 'AT'
+  | 'DE'
+  | 'CH'
+  | 'FR'
+  | 'IT'
+  | 'PT'
+  | 'PL'
+  | 'EU'
+  | 'ECHR';
 
 /**
  * Configuration for a specific jurisdiction.
@@ -1100,7 +1144,12 @@ export interface CourtDecision {
   id: string;
   jurisdiction: Jurisdiction;
   court: CourtLevel;
-  precedentialWeight?: 'supreme' | 'appellate' | 'first_instance' | 'international' | 'unknown';
+  precedentialWeight?:
+    | 'supreme'
+    | 'appellate'
+    | 'first_instance'
+    | 'international'
+    | 'unknown';
   chamber?: string;
   fileNumber: string;
   ecli?: string;
@@ -1121,7 +1170,13 @@ export interface CourtDecision {
   referencedDecisions: string[];
   citedByDecisions: string[];
   sourceUrl?: string;
-  sourceDatabase: 'ris' | 'openlegaldata' | 'hudoc' | 'juris' | 'beck' | 'manual';
+  sourceDatabase:
+    | 'ris'
+    | 'openlegaldata'
+    | 'hudoc'
+    | 'juris'
+    | 'beck'
+    | 'manual';
   isLeadingCase: boolean;
   isOverruled: boolean;
   overruledBy?: string;
@@ -1304,7 +1359,12 @@ export type AnalyticsEventCategory =
   | 'session'
   | 'system';
 
-export type AnalyticsEventSeverity = 'debug' | 'info' | 'warning' | 'error' | 'critical';
+export type AnalyticsEventSeverity =
+  | 'debug'
+  | 'info'
+  | 'warning'
+  | 'error'
+  | 'critical';
 
 export interface AnalyticsEvent {
   id: string;
@@ -1326,9 +1386,21 @@ export interface AnalyticsEvent {
 
 export type DeviceType = 'desktop' | 'tablet' | 'mobile' | 'unknown';
 
-export type BrowserFamily = 'chrome' | 'firefox' | 'safari' | 'edge' | 'opera' | 'other';
+export type BrowserFamily =
+  | 'chrome'
+  | 'firefox'
+  | 'safari'
+  | 'edge'
+  | 'opera'
+  | 'other';
 
-export type OSFamily = 'windows' | 'macos' | 'linux' | 'ios' | 'android' | 'other';
+export type OSFamily =
+  | 'windows'
+  | 'macos'
+  | 'linux'
+  | 'ios'
+  | 'android'
+  | 'other';
 
 export interface DeviceInfo {
   type: DeviceType;
@@ -1484,7 +1556,10 @@ export interface PerformanceSummary {
   p75: Record<PerformanceMetricName, number>;
   p95: Record<PerformanceMetricName, number>;
   p99: Record<PerformanceMetricName, number>;
-  ratings: Record<PerformanceMetricName, { good: number; needsImprovement: number; poor: number }>;
+  ratings: Record<
+    PerformanceMetricName,
+    { good: number; needsImprovement: number; poor: number }
+  >;
   sampleCount: number;
   generatedAt: string;
 }
@@ -1534,7 +1609,12 @@ export interface RetentionCohort {
   retentionByWeek: Record<number, number>;
 }
 
-export type CustomerHealthStatus = 'healthy' | 'at-risk' | 'critical' | 'churned' | 'new';
+export type CustomerHealthStatus =
+  | 'healthy'
+  | 'at-risk'
+  | 'critical'
+  | 'churned'
+  | 'new';
 
 export interface CustomerHealthScore {
   workspaceId: string;
@@ -1565,7 +1645,13 @@ export interface CustomerHealthScore {
 
 export interface CustomerHealthAlert {
   id: string;
-  type: 'error_spike' | 'usage_drop' | 'performance_degradation' | 'feature_abandonment' | 'inactivity' | 'churn_risk';
+  type:
+    | 'error_spike'
+    | 'usage_drop'
+    | 'performance_degradation'
+    | 'feature_abandonment'
+    | 'inactivity'
+    | 'churn_risk';
   severity: ErrorSeverity;
   message: string;
   metric?: string;
@@ -1638,6 +1724,8 @@ export interface ComplianceAuditEntry {
   metadata?: Record<string, string>;
   createdAt: string;
 }
+
+export type AuditEntry = ComplianceAuditEntry;
 
 export interface AuditChainAnchor {
   scopeId: string;
@@ -1772,7 +1860,11 @@ export type LegalChatMode =
 
 export type LegalChatMessageRole = 'user' | 'assistant' | 'system';
 
-export type LegalChatMessageStatus = 'pending' | 'streaming' | 'complete' | 'error';
+export type LegalChatMessageStatus =
+  | 'pending'
+  | 'streaming'
+  | 'complete'
+  | 'error';
 
 // ── LLM Model / Provider Selection ──────────────────────────────────────────
 
@@ -1852,12 +1944,12 @@ export type ChatToolCallName =
   | 'confidence_score';
 
 export type ChatToolCallCategory =
-  | 'preparation'   // credit check, context building
-  | 'retrieval'     // search chunks, norms, judikatur
-  | 'analysis'      // evidence, contradictions, subsumtion
-  | 'generation'    // document generation, LLM call
-  | 'ingestion'     // upload, OCR, chunking, entity extraction
-  | 'persistence';  // save to akte, finalize
+  | 'preparation' // credit check, context building
+  | 'retrieval' // search chunks, norms, judikatur
+  | 'analysis' // evidence, contradictions, subsumtion
+  | 'generation' // document generation, LLM call
+  | 'ingestion' // upload, OCR, chunking, entity extraction
+  | 'persistence'; // save to akte, finalize
 
 export interface ChatToolCall {
   id: string;
@@ -1901,7 +1993,15 @@ export interface ChatToolApprovalRequest {
 
 export interface ChatToolCallDetailLine {
   /** Icon type for visual differentiation */
-  icon: 'file' | 'norm' | 'finding' | 'deadline' | 'chunk' | 'warning' | 'check' | 'document';
+  icon:
+    | 'file'
+    | 'norm'
+    | 'finding'
+    | 'deadline'
+    | 'chunk'
+    | 'warning'
+    | 'check'
+    | 'document';
   /** Primary label (e.g. file name, norm reference) */
   label: string;
   /** Secondary text (e.g. category, status) */
@@ -1914,14 +2014,14 @@ export interface ChatToolCallDetailLine {
 // ── Chat Artifact Types (generated documents, downloadable in chat) ──────────
 
 export type ChatArtifactKind =
-  | 'schriftsatz'    // Klageschrift, Berufung, etc.
-  | 'gutachten'      // Legal opinion / Gutachten
-  | 'vertrag'        // Contract / Vertrag
-  | 'brief'          // Letter / Anschreiben
-  | 'notiz'          // Internal note
-  | 'analyse'        // Analysis report
+  | 'schriftsatz' // Klageschrift, Berufung, etc.
+  | 'gutachten' // Legal opinion / Gutachten
+  | 'vertrag' // Contract / Vertrag
+  | 'brief' // Letter / Anschreiben
+  | 'notiz' // Internal note
+  | 'analyse' // Analysis report
   | 'zusammenfassung' // Summary document
-  | 'generic';       // Generic document
+  | 'generic'; // Generic document
 
 export interface ChatArtifact {
   id: string;
@@ -2015,7 +2115,12 @@ export interface LegalChatMessage {
   confidence?: {
     score: number;
     level: string;
-    factors: Array<{ name: string; weight: number; score: number; description: string }>;
+    factors: Array<{
+      name: string;
+      weight: number;
+      score: number;
+      description: string;
+    }>;
     supportingSources: number;
     contradictingSources: number;
     hasUnverifiedClaims: boolean;
@@ -2133,10 +2238,7 @@ export type SharedJudikaturStatus =
   | 'enriched'
   | 'published';
 
-export type CollectiveSharingLevel =
-  | 'private'
-  | 'anonymized_shared'
-  | 'public';
+export type CollectiveSharingLevel = 'private' | 'anonymized_shared' | 'public';
 
 /** A single anonymized knowledge entry contributed by a tenant */
 export interface CollectiveKnowledgeEntry {
@@ -2345,7 +2447,11 @@ export type GegnerStrategyType =
   | 'jurisdictional_challenge'
   | 'other';
 
-export type GegnerProfileSource = 'case_document' | 'manual_entry' | 'court_decision' | 'collective';
+export type GegnerProfileSource =
+  | 'case_document'
+  | 'manual_entry'
+  | 'court_decision'
+  | 'collective';
 
 export interface GegnerStrategyPattern {
   id: string;
@@ -2381,7 +2487,12 @@ export interface GegnerKanzleiProfile {
   settlementTendency: number;
   delayTendency: number;
   totalEncounters: number;
-  record: { wins: number; losses: number; settlements: number; pending: number };
+  record: {
+    wins: number;
+    losses: number;
+    settlements: number;
+    pending: number;
+  };
   avgCaseDurationDays: number;
   preferredCourts: string[];
   preferredNorms: string[];
@@ -2443,7 +2554,12 @@ export interface GegnerIntelligenceSnapshot {
 // ANWALTS-WORKFLOW GAPS — Zeiterfassung, Wiedervorlage, Aktennotizen, Vollmacht
 // ═══════════════════════════════════════════════════════════════════════════════
 
-export type TimeEntryStatus = 'draft' | 'submitted' | 'approved' | 'invoiced' | 'rejected';
+export type TimeEntryStatus =
+  | 'draft'
+  | 'submitted'
+  | 'approved'
+  | 'invoiced'
+  | 'rejected';
 
 export interface TimeEntry {
   id: string;
@@ -2453,7 +2569,15 @@ export interface TimeEntry {
   clientId: string;
   anwaltId: string;
   description: string;
-  activityType: 'beratung' | 'schriftsatz' | 'telefonat' | 'termin' | 'recherche' | 'akteneinsicht' | 'korrespondenz' | 'sonstiges';
+  activityType:
+    | 'beratung'
+    | 'schriftsatz'
+    | 'telefonat'
+    | 'termin'
+    | 'recherche'
+    | 'akteneinsicht'
+    | 'korrespondenz'
+    | 'sonstiges';
   durationMinutes: number;
   hourlyRate: number;
   amount: number;
@@ -2484,7 +2608,11 @@ export interface Wiedervorlage {
   updatedAt: string;
 }
 
-export type AktennotizKind = 'telefonat' | 'besprechung' | 'beschluss' | 'sonstiges';
+export type AktennotizKind =
+  | 'telefonat'
+  | 'besprechung'
+  | 'beschluss'
+  | 'sonstiges';
 
 export interface Aktennotiz {
   id: string;
@@ -2591,7 +2719,13 @@ export interface ATKostenrisikoResult {
 // ANWALTS-WORKFLOW GAPS — Kollisionsprüfung (Conflict of Interest)
 // ═══════════════════════════════════════════════════════════════════════════════
 
-export type KollisionsRolle = 'mandant' | 'gegner' | 'beteiligter' | 'anwalt' | 'zeuge' | 'mitarbeiter';
+export type KollisionsRolle =
+  | 'mandant'
+  | 'gegner'
+  | 'beteiligter'
+  | 'anwalt'
+  | 'zeuge'
+  | 'mitarbeiter';
 
 export type KollisionsMatchLevel = 'exact' | 'high' | 'medium' | 'low';
 
@@ -2669,7 +2803,13 @@ export interface Gerichtstermin {
   requiresReview?: boolean;
   evidenceSnippets?: string[];
   kategorie?: 'gerichtstermin' | 'gespraech' | 'sonstiger';
-  terminart: 'muendliche_verhandlung' | 'beweisaufnahme' | 'gutachtentermin' | 'vergleichstermin' | 'urteilsverkündung' | 'sonstiger';
+  terminart:
+    | 'muendliche_verhandlung'
+    | 'beweisaufnahme'
+    | 'gutachtentermin'
+    | 'vergleichstermin'
+    | 'urteilsverkündung'
+    | 'sonstiger';
   datum: string;
   uhrzeit?: string;
   dauerMinuten?: number;
@@ -2679,7 +2819,12 @@ export interface Gerichtstermin {
   berichterstatter?: string;
   teilnehmer: string[];
   notizen?: string;
-  status: 'geplant' | 'bestaetigt' | 'abgesagt' | 'verschoben' | 'abgeschlossen';
+  status:
+    | 'geplant'
+    | 'bestaetigt'
+    | 'abgesagt'
+    | 'verschoben'
+    | 'abgeschlossen';
   ergebnis?: string;
   folgeterminId?: string;
   createdAt: string;
@@ -2763,7 +2908,15 @@ export interface RechnungRecord {
   honorarTarifCode?: string;
   leistungszeitraumVon?: string;
   leistungszeitraumBis?: string;
-  status: 'entwurf' | 'versendet' | 'bezahlt' | 'teilbezahlt' | 'storniert' | 'mahnung_1' | 'mahnung_2' | 'inkasso';
+  status:
+    | 'entwurf'
+    | 'versendet'
+    | 'bezahlt'
+    | 'teilbezahlt'
+    | 'storniert'
+    | 'mahnung_1'
+    | 'mahnung_2'
+    | 'inkasso';
   bezahltAm?: string;
   bezahlterBetrag?: number;
   zahlungen?: RechnungsZahlungRecord[];
@@ -2787,7 +2940,14 @@ export interface AuslageRecord {
   waehrung: string;
   datum: string;
   belegRef?: string;
-  kategorie: 'gerichtskosten' | 'sachverstaendiger' | 'zeuge' | 'reisekosten' | 'kopien' | 'post' | 'sonstiges';
+  kategorie:
+    | 'gerichtskosten'
+    | 'sachverstaendiger'
+    | 'zeuge'
+    | 'reisekosten'
+    | 'kopien'
+    | 'post'
+    | 'sonstiges';
   weiterberechnet: boolean;
   rechnungId?: string;
   createdAt: string;

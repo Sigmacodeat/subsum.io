@@ -15,18 +15,18 @@ npx playwright test --config=tests/affiliate-compliance.playwright.config.ts
 
 ## Coverage (10 Cases)
 
-| # | Test | Type | Pass Criteria |
-|---|------|------|---------------|
-| 1 | Terms akzeptieren | UI/GQL | Status + Event `affiliate_terms_accepted` |
-| 2 | Tax-Daten speichern | UI/GQL | Persistenz + Event `affiliate_tax_info_updated` |
-| 3 | Referral gültig | GQL | Attribution erfolgreich |
-| 4 | Admin mark paid | UI/GQL | Status paid + Event `admin_mark_payout_paid` |
-| 5 | Admin mark failed | UI/GQL | Status failed + Event `admin_mark_payout_failed` |
-| 6 | Admin Affiliate-Update | UI/GQL | Update + Event `admin_update_affiliate_profile` |
-| 7 | Alias Self-Referral | GQL | Block + Event `referral_rejected_alias_self_referral` |
-| 8 | Terms nicht akzeptiert | UI/GQL | Payout Hold + Event `payout_hold_compliance` (`terms_not_accepted`) |
-| 9 | Tax-Info unvollständig | UI/GQL | Payout Hold + Event `payout_hold_compliance` (`tax_info_incomplete`) |
-|10 | Stripe Payouts nicht enabled | UI/GQL | Payout Hold + Event `payout_hold_compliance` (`stripe_payout_not_ready`) |
+| #   | Test                         | Type   | Pass Criteria                                                            |
+| --- | ---------------------------- | ------ | ------------------------------------------------------------------------ |
+| 1   | Terms akzeptieren            | UI/GQL | Status + Event `affiliate_terms_accepted`                                |
+| 2   | Tax-Daten speichern          | UI/GQL | Persistenz + Event `affiliate_tax_info_updated`                          |
+| 3   | Referral gültig              | GQL    | Attribution erfolgreich                                                  |
+| 4   | Admin mark paid              | UI/GQL | Status paid + Event `admin_mark_payout_paid`                             |
+| 5   | Admin mark failed            | UI/GQL | Status failed + Event `admin_mark_payout_failed`                         |
+| 6   | Admin Affiliate-Update       | UI/GQL | Update + Event `admin_update_affiliate_profile`                          |
+| 7   | Alias Self-Referral          | GQL    | Block + Event `referral_rejected_alias_self_referral`                    |
+| 8   | Terms nicht akzeptiert       | UI/GQL | Payout Hold + Event `payout_hold_compliance` (`terms_not_accepted`)      |
+| 9   | Tax-Info unvollständig       | UI/GQL | Payout Hold + Event `payout_hold_compliance` (`tax_info_incomplete`)     |
+| 10  | Stripe Payouts nicht enabled | UI/GQL | Payout Hold + Event `payout_hold_compliance` (`stripe_payout_not_ready`) |
 
 ## Required Test Data (Seed)
 
@@ -55,6 +55,7 @@ Add these to the frontend for stable selectors:
 
 ## Notes
 
-- Tests assume backend runs on `http://localhost:8080` (Dashboard port).
+- Tests use Playwright `baseURL` and can be overridden via `PLAYWRIGHT_BASE_URL`.
+- Local default for the SaaS app UI is `http://localhost:8080/`.
 - For CI, ensure DB is seeded and migrations applied.
 - GraphQL assertions use raw fetch; can be swapped for a client if preferred.

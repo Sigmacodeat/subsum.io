@@ -1,4 +1,5 @@
-import { LiveData, Store, type AsyncMemento } from '@toeverything/infra';
+import { type AsyncMemento,LiveData, Store } from '@toeverything/infra';
+
 import type { GlobalState } from '../../storage';
 import type { WorkspaceService } from '../../workspace';
 import type {
@@ -7,6 +8,7 @@ import type {
   AnalyticsSession,
   AnwaltProfile,
   AuditChainAnchor,
+  AuslageRecord,
   CaseActor,
   CaseAssistantRole,
   CaseBlueprint,
@@ -29,13 +31,17 @@ import type {
   DocumentQualityReport,
   EmailRecord,
   ErrorLogEntry,
-  Gerichtstermin,
-  GeoLocation,
-  IngestionJob,
-  Jurisdiction,
-  JudikaturSuggestion,
-  KanzleiProfile,
+  ExportJournalRecord,
+  FiscalSignatureRecord,
   GegnerKanzleiProfile,
+  GeoLocation,
+  Gerichtstermin,
+  IngestionJob,
+  JudikaturSuggestion,
+  Jurisdiction,
+  KanzleiProfile,
+  KassenbelegRecord,
+  KycSubmissionRecord,
   LegalChatMessage,
   LegalChatSession,
   LegalDocumentRecord,
@@ -43,23 +49,18 @@ import type {
   LegalNormRegistryRecord,
   MatterRecord,
   OcrJob,
-  PortalRequestRecord,
   PerformanceMetric,
-  KycSubmissionRecord,
-  SemanticChunk,
-  RichterProfile,
+  PortalRequestRecord,
   RechnungRecord,
-  AuslageRecord,
-  KassenbelegRecord,
-  FiscalSignatureRecord,
-  ExportJournalRecord,
-  WorkspaceResidencyPolicy,
+  RichterProfile,
+  SemanticChunk,
   SharedCourtDecision,
   TimeEntry,
-  VollmachtSigningRequestRecord,
   Vollmacht,
+  VollmachtSigningRequestRecord,
   Wiedervorlage,
   WorkflowEvent,
+  WorkspaceResidencyPolicy,
 } from '../types';
 
 const EMPTY_GRAPH: CaseGraphRecord = {
@@ -80,13 +81,16 @@ const EMPTY_GRAPH: CaseGraphRecord = {
 const MAX_RAW_TEXT_STORE_BYTES = 256 * 1024;
 const BINARY_PLACEHOLDER = '[binary-in-ocr-cache]';
 
-function sanitizeLegalDocForStore(doc: LegalDocumentRecord): LegalDocumentRecord {
+function sanitizeLegalDocForStore(
+  doc: LegalDocumentRecord
+): LegalDocumentRecord {
   if (!doc.rawText || doc.rawText.length <= MAX_RAW_TEXT_STORE_BYTES) {
     return doc;
   }
   // rawText is oversized — likely base64 content that leaked into the store.
   // Replace with placeholder to prevent JSON.stringify from exceeding V8 string limit.
-  const isBase64 = doc.rawText.startsWith('data:') && doc.rawText.includes(';base64,');
+  const isBase64 =
+    doc.rawText.startsWith('data:') && doc.rawText.includes(';base64,');
   console.warn(
     `[store] sanitizeLegalDocForStore: rawText too large for doc "${doc.title}" (${doc.rawText.length} chars, isBase64=${isBase64}). Truncating.`
   );
@@ -94,7 +98,8 @@ function sanitizeLegalDocForStore(doc: LegalDocumentRecord): LegalDocumentRecord
     ...doc,
     rawText: isBase64
       ? BINARY_PLACEHOLDER
-      : doc.rawText.slice(0, MAX_RAW_TEXT_STORE_BYTES) + `\n[truncated at ${MAX_RAW_TEXT_STORE_BYTES} chars]`,
+      : doc.rawText.slice(0, MAX_RAW_TEXT_STORE_BYTES) +
+        `\n[truncated at ${MAX_RAW_TEXT_STORE_BYTES} chars]`,
   };
 }
 
@@ -149,6 +154,10 @@ export class CaseAssistantStore extends Store {
 
   private get workspaceId() {
     return this.workspaceService.workspace!.id;
+  }
+
+  getWorkspaceId() {
+    return this.workspaceId;
   }
 
   private get graphKey() {
@@ -383,7 +392,8 @@ export class CaseAssistantStore extends Store {
 
   watchGraph() {
     return this.watchState<CaseGraphRecord>(this.graphKey, EMPTY_GRAPH).map(
-      (graph: CaseGraphRecord | undefined) => this.ensureGraphShape(graph ?? EMPTY_GRAPH)
+      (graph: CaseGraphRecord | undefined) =>
+        this.ensureGraphShape(graph ?? EMPTY_GRAPH)
     );
   }
 
@@ -460,8 +470,13 @@ export class CaseAssistantStore extends Store {
   }
 
   async getLegalDocuments(options?: { includeTrashed?: boolean }) {
-    const rawActive = (await this.readState<LegalDocumentRecord[]>(this.legalDocumentsKey)) ?? [];
-    const trashed = (await this.readState<LegalDocumentRecord[]>(this.legalDocumentsTrashKey)) ?? [];
+    const rawActive =
+      (await this.readState<LegalDocumentRecord[]>(this.legalDocumentsKey)) ??
+      [];
+    const trashed =
+      (await this.readState<LegalDocumentRecord[]>(
+        this.legalDocumentsTrashKey
+      )) ?? [];
 
     // Sanitize on read: strip oversized rawText from any previously corrupted records.
     // This self-heals the store so subsequent writes succeed.
@@ -477,7 +492,9 @@ export class CaseAssistantStore extends Store {
     }
 
     const nowMs = Date.now();
-    const cleanedTrashed = trashed.filter(doc => !doc.purgeAt || new Date(doc.purgeAt).getTime() > nowMs);
+    const cleanedTrashed = trashed.filter(
+      doc => !doc.purgeAt || new Date(doc.purgeAt).getTime() > nowMs
+    );
     if (cleanedTrashed.length !== trashed.length) {
       await this.writeState(this.legalDocumentsTrashKey, cleanedTrashed);
     }
@@ -492,7 +509,11 @@ export class CaseAssistantStore extends Store {
   }
 
   async getTrashedLegalDocuments() {
-    return (await this.readState<LegalDocumentRecord[]>(this.legalDocumentsTrashKey)) ?? [];
+    return (
+      (await this.readState<LegalDocumentRecord[]>(
+        this.legalDocumentsTrashKey
+      )) ?? []
+    );
   }
 
   async setTrashedLegalDocuments(items: LegalDocumentRecord[]) {
@@ -564,7 +585,9 @@ export class CaseAssistantStore extends Store {
   }
 
   async getWorkflowEvents() {
-    return (await this.readState<WorkflowEvent[]>(this.workflowEventsKey)) ?? [];
+    return (
+      (await this.readState<WorkflowEvent[]>(this.workflowEventsKey)) ?? []
+    );
   }
 
   async setWorkflowEvents(events: WorkflowEvent[]) {
@@ -576,7 +599,9 @@ export class CaseAssistantStore extends Store {
   }
 
   async getAuditEntries() {
-    return (await this.readState<ComplianceAuditEntry[]>(this.auditEntriesKey)) ?? [];
+    return (
+      (await this.readState<ComplianceAuditEntry[]>(this.auditEntriesKey)) ?? []
+    );
   }
 
   async setAuditEntries(entries: ComplianceAuditEntry[]) {
@@ -588,7 +613,9 @@ export class CaseAssistantStore extends Store {
   }
 
   async getAuditAnchors() {
-    return (await this.readState<AuditChainAnchor[]>(this.auditAnchorsKey)) ?? [];
+    return (
+      (await this.readState<AuditChainAnchor[]>(this.auditAnchorsKey)) ?? []
+    );
   }
 
   async setAuditAnchors(anchors: AuditChainAnchor[]) {
@@ -600,7 +627,9 @@ export class CaseAssistantStore extends Store {
   }
 
   async getCourtDecisions() {
-    return (await this.readState<CourtDecision[]>(this.courtDecisionsKey)) ?? [];
+    return (
+      (await this.readState<CourtDecision[]>(this.courtDecisionsKey)) ?? []
+    );
   }
 
   async setCourtDecisions(items: CourtDecision[]) {
@@ -608,11 +637,18 @@ export class CaseAssistantStore extends Store {
   }
 
   watchLegalNormRegistry() {
-    return this.watchState<LegalNormRegistryRecord[]>(this.legalNormRegistryKey, []);
+    return this.watchState<LegalNormRegistryRecord[]>(
+      this.legalNormRegistryKey,
+      []
+    );
   }
 
   async getLegalNormRegistry() {
-    return (await this.readState<LegalNormRegistryRecord[]>(this.legalNormRegistryKey)) ?? [];
+    return (
+      (await this.readState<LegalNormRegistryRecord[]>(
+        this.legalNormRegistryKey
+      )) ?? []
+    );
   }
 
   async setLegalNormRegistry(items: LegalNormRegistryRecord[]) {
@@ -620,11 +656,18 @@ export class CaseAssistantStore extends Store {
   }
 
   watchJudikaturSuggestions() {
-    return this.watchState<JudikaturSuggestion[]>(this.judikaturSuggestionsKey, []);
+    return this.watchState<JudikaturSuggestion[]>(
+      this.judikaturSuggestionsKey,
+      []
+    );
   }
 
   async getJudikaturSuggestions() {
-    return (await this.readState<JudikaturSuggestion[]>(this.judikaturSuggestionsKey)) ?? [];
+    return (
+      (await this.readState<JudikaturSuggestion[]>(
+        this.judikaturSuggestionsKey
+      )) ?? []
+    );
   }
 
   async setJudikaturSuggestions(items: JudikaturSuggestion[]) {
@@ -636,7 +679,9 @@ export class CaseAssistantStore extends Store {
   }
 
   async getCitationChains() {
-    return (await this.readState<CitationChain[]>(this.citationChainsKey)) ?? [];
+    return (
+      (await this.readState<CitationChain[]>(this.citationChainsKey)) ?? []
+    );
   }
 
   async setCitationChains(items: CitationChain[]) {
@@ -648,7 +693,9 @@ export class CaseAssistantStore extends Store {
   }
 
   async getSemanticChunks() {
-    return (await this.readState<SemanticChunk[]>(this.semanticChunksKey)) ?? [];
+    return (
+      (await this.readState<SemanticChunk[]>(this.semanticChunksKey)) ?? []
+    );
   }
 
   async setSemanticChunks(items: SemanticChunk[]) {
@@ -660,7 +707,10 @@ export class CaseAssistantStore extends Store {
   }
 
   async getQualityReports() {
-    return (await this.readState<DocumentQualityReport[]>(this.qualityReportsKey)) ?? [];
+    return (
+      (await this.readState<DocumentQualityReport[]>(this.qualityReportsKey)) ??
+      []
+    );
   }
 
   async setQualityReports(items: DocumentQualityReport[]) {
@@ -684,7 +734,10 @@ export class CaseAssistantStore extends Store {
   }
 
   async getPortalRequests() {
-    return (await this.readState<PortalRequestRecord[]>(this.portalRequestsKey)) ?? [];
+    return (
+      (await this.readState<PortalRequestRecord[]>(this.portalRequestsKey)) ??
+      []
+    );
   }
 
   async setPortalRequests(items: PortalRequestRecord[]) {
@@ -729,7 +782,10 @@ export class CaseAssistantStore extends Store {
   }
 
   async getKycSubmissions() {
-    return (await this.readState<KycSubmissionRecord[]>(this.kycSubmissionsKey)) ?? [];
+    return (
+      (await this.readState<KycSubmissionRecord[]>(this.kycSubmissionsKey)) ??
+      []
+    );
   }
 
   async setKycSubmissions(items: KycSubmissionRecord[]) {
@@ -747,7 +803,9 @@ export class CaseAssistantStore extends Store {
     const items = await this.getEmails();
     const existing = items.find(item => item.id === record.id);
     if (existing) {
-      await this.setEmails(items.map(item => (item.id === record.id ? record : item)));
+      await this.setEmails(
+        items.map(item => (item.id === record.id ? record : item))
+      );
       return;
     }
     await this.setEmails([record, ...items]);
@@ -755,20 +813,28 @@ export class CaseAssistantStore extends Store {
 
   async getAuditAnchor(scopeId: string) {
     const anchors = await this.getAuditAnchors();
-    return anchors.find((anchor: AuditChainAnchor) => anchor.scopeId === scopeId) ?? null;
+    return (
+      anchors.find((anchor: AuditChainAnchor) => anchor.scopeId === scopeId) ??
+      null
+    );
   }
 
   async upsertAuditAnchor(anchor: AuditChainAnchor, maxItems = 100) {
     const anchors = await this.getAuditAnchors();
-    const next = [anchor, ...anchors.filter((item: AuditChainAnchor) => item.scopeId !== anchor.scopeId)].slice(
-      0,
-      maxItems
-    );
+    const next = [
+      anchor,
+      ...anchors.filter(
+        (item: AuditChainAnchor) => item.scopeId !== anchor.scopeId
+      ),
+    ].slice(0, maxItems);
     await this.setAuditAnchors(next);
   }
 
   watchRole() {
-    return this.watchState<CaseAssistantRole>(this.roleKey, 'owner' as CaseAssistantRole);
+    return this.watchState<CaseAssistantRole>(
+      this.roleKey,
+      'owner' as CaseAssistantRole
+    );
   }
 
   async getRole() {
@@ -927,7 +993,9 @@ export class CaseAssistantStore extends Store {
       .map(sanitizeLegalDocForStore);
     next.unshift(sanitizedRecord);
     const trashed = await this.getTrashedLegalDocuments();
-    const nextTrash = trashed.filter((item: LegalDocumentRecord) => item.id !== sanitizedRecord.id);
+    const nextTrash = trashed.filter(
+      (item: LegalDocumentRecord) => item.id !== sanitizedRecord.id
+    );
     await this.setLegalDocuments(next);
     await this.setTrashedLegalDocuments(nextTrash);
   }
@@ -985,7 +1053,9 @@ export class CaseAssistantStore extends Store {
 
   async upsertJudikaturSuggestion(record: JudikaturSuggestion) {
     const items = await this.getJudikaturSuggestions();
-    const next = items.filter((item: JudikaturSuggestion) => item.id !== record.id);
+    const next = items.filter(
+      (item: JudikaturSuggestion) => item.id !== record.id
+    );
     next.unshift(record);
     await this.setJudikaturSuggestions(next);
   }
@@ -1038,7 +1108,9 @@ export class CaseAssistantStore extends Store {
   // ── Analytics & Monitoring ─────────────────────────────────────────────────
 
   getAnalyticsEvents(): AnalyticsEvent[] {
-    return this.globalState.get<AnalyticsEvent[]>(this.analyticsEventsKey) ?? [];
+    return (
+      this.globalState.get<AnalyticsEvent[]>(this.analyticsEventsKey) ?? []
+    );
   }
 
   setAnalyticsEvents(events: AnalyticsEvent[]): void {
@@ -1050,7 +1122,9 @@ export class CaseAssistantStore extends Store {
   }
 
   getAnalyticsSessions(): AnalyticsSession[] {
-    return this.globalState.get<AnalyticsSession[]>(this.analyticsSessionsKey) ?? [];
+    return (
+      this.globalState.get<AnalyticsSession[]>(this.analyticsSessionsKey) ?? []
+    );
   }
 
   setAnalyticsSessions(sessions: AnalyticsSession[]): void {
@@ -1074,7 +1148,10 @@ export class CaseAssistantStore extends Store {
   }
 
   getPerformanceMetrics(): PerformanceMetric[] {
-    return this.globalState.get<PerformanceMetric[]>(this.performanceMetricsKey) ?? [];
+    return (
+      this.globalState.get<PerformanceMetric[]>(this.performanceMetricsKey) ??
+      []
+    );
   }
 
   setPerformanceMetrics(metrics: PerformanceMetric[]): void {
@@ -1086,7 +1163,11 @@ export class CaseAssistantStore extends Store {
   }
 
   getCustomerHealthScores(): CustomerHealthScore[] {
-    return this.globalState.get<CustomerHealthScore[]>(this.customerHealthScoresKey) ?? [];
+    return (
+      this.globalState.get<CustomerHealthScore[]>(
+        this.customerHealthScoresKey
+      ) ?? []
+    );
   }
 
   setCustomerHealthScores(scores: CustomerHealthScore[]): void {
@@ -1094,11 +1175,18 @@ export class CaseAssistantStore extends Store {
   }
 
   watchCustomerHealthScores() {
-    return this.watchState<CustomerHealthScore[]>(this.customerHealthScoresKey, []);
+    return this.watchState<CustomerHealthScore[]>(
+      this.customerHealthScoresKey,
+      []
+    );
   }
 
   getGeoCache(): { location: GeoLocation; cachedAt: number } | null {
-    return this.globalState.get<{ location: GeoLocation; cachedAt: number }>(this.geoCacheKey) ?? null;
+    return (
+      this.globalState.get<{ location: GeoLocation; cachedAt: number }>(
+        this.geoCacheKey
+      ) ?? null
+    );
   }
 
   setGeoCache(cache: { location: GeoLocation; cachedAt: number }): void {
@@ -1116,7 +1204,9 @@ export class CaseAssistantStore extends Store {
   }
 
   getTrashedChatSessions(): LegalChatSession[] {
-    return this.globalState.get<LegalChatSession[]>(this.chatSessionsTrashKey) ?? [];
+    return (
+      this.globalState.get<LegalChatSession[]>(this.chatSessionsTrashKey) ?? []
+    );
   }
 
   setTrashedChatSessions(sessions: LegalChatSession[]): void {
@@ -1136,7 +1226,9 @@ export class CaseAssistantStore extends Store {
   }
 
   getTrashedChatMessages(): LegalChatMessage[] {
-    return this.globalState.get<LegalChatMessage[]>(this.chatMessagesTrashKey) ?? [];
+    return (
+      this.globalState.get<LegalChatMessage[]>(this.chatMessagesTrashKey) ?? []
+    );
   }
 
   setTrashedChatMessages(messages: LegalChatMessage[]): void {
@@ -1150,7 +1242,9 @@ export class CaseAssistantStore extends Store {
   // ── Gegner Intelligence ─────────────────────────────────────────────────
 
   getGegnerProfiles(): GegnerKanzleiProfile[] {
-    return this.globalState.get<GegnerKanzleiProfile[]>(this.gegnerProfilesKey) ?? [];
+    return (
+      this.globalState.get<GegnerKanzleiProfile[]>(this.gegnerProfilesKey) ?? []
+    );
   }
 
   setGegnerProfiles(profiles: GegnerKanzleiProfile[]): void {
@@ -1162,7 +1256,9 @@ export class CaseAssistantStore extends Store {
   }
 
   getRichterProfiles(): RichterProfile[] {
-    return this.globalState.get<RichterProfile[]>(this.richterProfilesKey) ?? [];
+    return (
+      this.globalState.get<RichterProfile[]>(this.richterProfilesKey) ?? []
+    );
   }
 
   setRichterProfiles(profiles: RichterProfile[]): void {
@@ -1188,7 +1284,11 @@ export class CaseAssistantStore extends Store {
   }
 
   getCollectiveKnowledgePool(): CollectiveKnowledgeEntry[] {
-    return this.globalState.get<CollectiveKnowledgeEntry[]>(this.collectiveKnowledgePoolKey) ?? [];
+    return (
+      this.globalState.get<CollectiveKnowledgeEntry[]>(
+        this.collectiveKnowledgePoolKey
+      ) ?? []
+    );
   }
 
   setCollectiveKnowledgePool(entries: CollectiveKnowledgeEntry[]): void {
@@ -1196,11 +1296,18 @@ export class CaseAssistantStore extends Store {
   }
 
   watchCollectiveKnowledgePool() {
-    return this.watchState<CollectiveKnowledgeEntry[]>(this.collectiveKnowledgePoolKey, []);
+    return this.watchState<CollectiveKnowledgeEntry[]>(
+      this.collectiveKnowledgePoolKey,
+      []
+    );
   }
 
   getSharedCourtDecisions(): SharedCourtDecision[] {
-    return this.globalState.get<SharedCourtDecision[]>(this.sharedCourtDecisionsKey) ?? [];
+    return (
+      this.globalState.get<SharedCourtDecision[]>(
+        this.sharedCourtDecisionsKey
+      ) ?? []
+    );
   }
 
   setSharedCourtDecisions(decisions: SharedCourtDecision[]): void {
@@ -1208,11 +1315,18 @@ export class CaseAssistantStore extends Store {
   }
 
   watchSharedCourtDecisions() {
-    return this.watchState<SharedCourtDecision[]>(this.sharedCourtDecisionsKey, []);
+    return this.watchState<SharedCourtDecision[]>(
+      this.sharedCourtDecisionsKey,
+      []
+    );
   }
 
   getCollectiveSharingConfig(): CollectiveSharingConfig | null {
-    return this.globalState.get<CollectiveSharingConfig>(this.collectiveSharingConfigKey) ?? null;
+    return (
+      this.globalState.get<CollectiveSharingConfig>(
+        this.collectiveSharingConfigKey
+      ) ?? null
+    );
   }
 
   setCollectiveSharingConfig(config: CollectiveSharingConfig): void {
@@ -1220,7 +1334,10 @@ export class CaseAssistantStore extends Store {
   }
 
   watchCollectiveSharingConfig() {
-    return this.watchState<CollectiveSharingConfig | null>(this.collectiveSharingConfigKey, null);
+    return this.watchState<CollectiveSharingConfig | null>(
+      this.collectiveSharingConfigKey,
+      null
+    );
   }
 
   // ═══ Jurisdiction ═══
@@ -1234,7 +1351,9 @@ export class CaseAssistantStore extends Store {
   }
 
   getActiveJurisdiction(): Jurisdiction {
-    return this.globalState.get<Jurisdiction>(this.activeJurisdictionKey) ?? 'AT';
+    return (
+      this.globalState.get<Jurisdiction>(this.activeJurisdictionKey) ?? 'AT'
+    );
   }
 
   setActiveJurisdiction(jurisdiction: Jurisdiction): void {
@@ -1254,8 +1373,9 @@ export class CaseAssistantStore extends Store {
 
   async getWorkspaceResidencyPolicy() {
     return (
-      (await this.readState<WorkspaceResidencyPolicy>(this.residencyPolicyKey)) ??
-      null
+      (await this.readState<WorkspaceResidencyPolicy>(
+        this.residencyPolicyKey
+      )) ?? null
     );
   }
 
@@ -1318,7 +1438,9 @@ export class CaseAssistantStore extends Store {
   }
 
   async getWiedervorlagen() {
-    return (await this.readState<Wiedervorlage[]>(this.wiedervorlagenKey)) ?? [];
+    return (
+      (await this.readState<Wiedervorlage[]>(this.wiedervorlagenKey)) ?? []
+    );
   }
 
   async setWiedervorlagen(items: Wiedervorlage[]) {
@@ -1378,7 +1500,9 @@ export class CaseAssistantStore extends Store {
   }
 
   async getKassenbelege() {
-    return (await this.readState<KassenbelegRecord[]>(this.kassenbelegeKey)) ?? [];
+    return (
+      (await this.readState<KassenbelegRecord[]>(this.kassenbelegeKey)) ?? []
+    );
   }
 
   async setKassenbelege(items: KassenbelegRecord[]) {
@@ -1386,12 +1510,17 @@ export class CaseAssistantStore extends Store {
   }
 
   watchFiscalSignatures() {
-    return this.watchState<FiscalSignatureRecord[]>(this.fiscalSignaturesKey, []);
+    return this.watchState<FiscalSignatureRecord[]>(
+      this.fiscalSignaturesKey,
+      []
+    );
   }
 
   async getFiscalSignatures() {
     return (
-      (await this.readState<FiscalSignatureRecord[]>(this.fiscalSignaturesKey)) ?? []
+      (await this.readState<FiscalSignatureRecord[]>(
+        this.fiscalSignaturesKey
+      )) ?? []
     );
   }
 
@@ -1404,7 +1533,9 @@ export class CaseAssistantStore extends Store {
   }
 
   async getExportJournal() {
-    return (await this.readState<ExportJournalRecord[]>(this.exportJournalKey)) ?? [];
+    return (
+      (await this.readState<ExportJournalRecord[]>(this.exportJournalKey)) ?? []
+    );
   }
 
   async setExportJournal(items: ExportJournalRecord[]) {

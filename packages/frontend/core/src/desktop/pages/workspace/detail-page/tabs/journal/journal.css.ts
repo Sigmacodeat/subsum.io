@@ -87,8 +87,7 @@ export const dailyCountNav = style([
     whiteSpace: 'nowrap',
     borderRadius: 10,
     border: `0.5px solid ${glassStroke}`,
-    background:
-      `${glassFill}, color-mix(in srgb, var(--affine-background-primary-color) 74%, transparent)`,
+    background: `${glassFill}, color-mix(in srgb, var(--affine-background-primary-color) 74%, transparent)`,
     color: cssVarV2('text/primary'),
     display: 'flex',
     alignItems: 'center',
@@ -96,11 +95,11 @@ export const dailyCountNav = style([
     transition: interactionTransition,
     selectors: {
       '&[aria-selected="true"]': {
-        background:
-          `linear-gradient(135deg, color-mix(in srgb, ${cssVarV2('button/primary')} 68%, var(--affine-background-primary-color) 32%) 0%, color-mix(in srgb, ${cssVarV2('button/primary')} 56%, var(--affine-background-primary-color) 44%) 100%)`,
+        background: `linear-gradient(135deg, color-mix(in srgb, ${cssVarV2('button/primary')} 68%, var(--affine-background-primary-color) 32%) 0%, color-mix(in srgb, ${cssVarV2('button/primary')} 56%, var(--affine-background-primary-color) 44%) 100%)`,
         color: cssVarV2('button/pureWhiteText'),
         borderColor: `color-mix(in srgb, ${cssVarV2('button/primary')} 34%, transparent)`,
-        boxShadow: '0 6px 16px color-mix(in srgb, var(--affine-primary-color) 18%, rgba(0, 0, 0, 0.16))',
+        boxShadow:
+          '0 6px 16px color-mix(in srgb, var(--affine-primary-color) 18%, rgba(0, 0, 0, 0.16))',
       },
     },
   },
@@ -156,7 +155,8 @@ export const pageItem = style([
       '&[aria-selected="true"]': {
         background:
           'color-mix(in srgb, var(--affine-hover-color, rgba(255, 255, 255, 0.06)) 40%, transparent)',
-        borderColor: 'color-mix(in srgb, var(--affine-border-color) 80%, transparent)',
+        borderColor:
+          'color-mix(in srgb, var(--affine-border-color) 80%, transparent)',
       },
     },
   },
@@ -204,8 +204,7 @@ export const journalConflictMoreTrigger = style([
     minHeight: 32,
     borderRadius: 8,
     border: `0.5px solid ${glassStroke}`,
-    background:
-      `${glassFill}, color-mix(in srgb, var(--affine-background-primary-color) 74%, transparent)`,
+    background: `${glassFill}, color-mix(in srgb, var(--affine-background-primary-color) 74%, transparent)`,
     padding: '0px 8px',
     fontSize: cssVar('fontSm'),
     display: 'flex',
@@ -282,7 +281,7 @@ export const journalDateCellDotType = styleVariants({
   event: {
     backgroundColor: cssVarV2.calendar.green,
   },
-  activity: {
+  legal: {
     backgroundColor: cssVarV2.calendar.red,
   },
 });

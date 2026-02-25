@@ -24,7 +24,7 @@ export default async function globalSetup() {
   const context = await browser.newContext();
   await skipOnboarding(context);
   const page = await context.newPage();
-  await page.goto('http://localhost:8080/', { timeout: 240 * 1000 });
+  await openHomePage(page);
   const user = await getUser();
   await page.getByTestId('sidebar-user-avatar').click({
     delay: 200,

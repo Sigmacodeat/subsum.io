@@ -76,6 +76,12 @@ type Params = {
   matterDraftExternalRef: string;
   matterDraftAuthorityReferences: string;
   matterDraftGericht: string;
+  matterDraftPolizei: string;
+  matterDraftStaatsanwaltschaft: string;
+  matterDraftRichter: string;
+  matterDraftGerichtsaktenzeichen: string;
+  matterDraftStaatsanwaltschaftAktenzeichen: string;
+  matterDraftPolizeiAktenzeichen: string;
   matterDraftStatus: MatterRecord['status'];
   matterDraftJurisdiction: Jurisdiction;
   matterDraftTags: string;
@@ -83,16 +89,38 @@ type Params = {
   setMatterDraftTitle: React.Dispatch<React.SetStateAction<string>>;
   setMatterDraftDescription: React.Dispatch<React.SetStateAction<string>>;
   setMatterDraftExternalRef: React.Dispatch<React.SetStateAction<string>>;
-  setMatterDraftAuthorityReferences: React.Dispatch<React.SetStateAction<string>>;
+  setMatterDraftAuthorityReferences: React.Dispatch<
+    React.SetStateAction<string>
+  >;
   setMatterDraftGericht: React.Dispatch<React.SetStateAction<string>>;
-  setMatterDraftJurisdiction: React.Dispatch<React.SetStateAction<Jurisdiction>>;
+  setMatterDraftPolizei: React.Dispatch<React.SetStateAction<string>>;
+  setMatterDraftStaatsanwaltschaft: React.Dispatch<
+    React.SetStateAction<string>
+  >;
+  setMatterDraftRichter: React.Dispatch<React.SetStateAction<string>>;
+  setMatterDraftGerichtsaktenzeichen: React.Dispatch<
+    React.SetStateAction<string>
+  >;
+  setMatterDraftStaatsanwaltschaftAktenzeichen: React.Dispatch<
+    React.SetStateAction<string>
+  >;
+  setMatterDraftPolizeiAktenzeichen: React.Dispatch<
+    React.SetStateAction<string>
+  >;
+  setMatterDraftJurisdiction: React.Dispatch<
+    React.SetStateAction<Jurisdiction>
+  >;
   setMatterDraftTags: React.Dispatch<React.SetStateAction<string>>;
   setMatterDraftAssignedAnwaltId: React.Dispatch<React.SetStateAction<string>>;
 
   undoClientSnapshot: ClientRecord | null;
-  setUndoClientSnapshot: React.Dispatch<React.SetStateAction<ClientRecord | null>>;
+  setUndoClientSnapshot: React.Dispatch<
+    React.SetStateAction<ClientRecord | null>
+  >;
   undoMatterSnapshot: MatterRecord | null;
-  setUndoMatterSnapshot: React.Dispatch<React.SetStateAction<MatterRecord | null>>;
+  setUndoMatterSnapshot: React.Dispatch<
+    React.SetStateAction<MatterRecord | null>
+  >;
 
   pendingDestructiveAction: PendingDestructiveAction | null;
   setPendingDestructiveAction: React.Dispatch<
@@ -173,10 +201,14 @@ export const usePanelClientMatterActions = (params: Params) => {
     }
 
     const titleValue =
-      params.matterDraftTitle.trim() || `Akte ${new Date().toLocaleDateString('de-DE')}`;
+      params.matterDraftTitle.trim() ||
+      `Akte ${new Date().toLocaleDateString('de-DE')}`;
     const explicitExternalRef = params.matterDraftExternalRef.trim();
-    const resolvedExternalRef = explicitExternalRef || generateFallbackAktenzeichen(params.matters);
-    const authorityReferences = normalizeAuthorityReferences(params.matterDraftAuthorityReferences).values;
+    const resolvedExternalRef =
+      explicitExternalRef || generateFallbackAktenzeichen(params.matters);
+    const authorityReferences = normalizeAuthorityReferences(
+      params.matterDraftAuthorityReferences
+    ).values;
 
     const normalizedTitle = normalizeMatterTitle(titleValue);
     const normalizedRef = explicitExternalRef.toLowerCase();
@@ -199,6 +231,20 @@ export const usePanelClientMatterActions = (params: Params) => {
 
     if (existingMatter) {
       params.setSelectedMatterId(existingMatter.id);
+      if (params.caseRecord) {
+        const assigned =
+          await params.casePlatformOrchestrationService.assignCaseMatter({
+            caseId: params.caseId,
+            workspaceId: params.workspaceId,
+            matterId: existingMatter.id,
+          });
+        if (!assigned) {
+          params.setIngestionStatus(
+            `Akte erkannt, aber Case-Verknüpfung fehlgeschlagen (Rolle ${params.currentRole}, benötigt: operator).`
+          );
+          return;
+        }
+      }
       params.setIngestionStatus(
         `Bestehende Akte erkannt und zugewiesen: ${existingMatter.title}` +
           `${existingMatter.externalRef ? ` (${existingMatter.externalRef})` : ''}.`
@@ -214,8 +260,19 @@ export const usePanelClientMatterActions = (params: Params) => {
       title: titleValue,
       description: params.matterDraftDescription.trim() || undefined,
       externalRef: resolvedExternalRef,
-      authorityReferences: authorityReferences.length > 0 ? authorityReferences : undefined,
+      authorityReferences:
+        authorityReferences.length > 0 ? authorityReferences : undefined,
       gericht: params.matterDraftGericht.trim() || undefined,
+      polizei: params.matterDraftPolizei.trim() || undefined,
+      staatsanwaltschaft:
+        params.matterDraftStaatsanwaltschaft.trim() || undefined,
+      richter: params.matterDraftRichter.trim() || undefined,
+      gerichtsaktenzeichen:
+        params.matterDraftGerichtsaktenzeichen.trim() || undefined,
+      staatsanwaltschaftAktenzeichen:
+        params.matterDraftStaatsanwaltschaftAktenzeichen.trim() || undefined,
+      polizeiAktenzeichen:
+        params.matterDraftPolizeiAktenzeichen.trim() || undefined,
       assignedAnwaltId: params.matterDraftAssignedAnwaltId || undefined,
       status: params.matterDraftStatus,
       tags: params.matterDraftTags
@@ -232,12 +289,32 @@ export const usePanelClientMatterActions = (params: Params) => {
     }
 
     params.setSelectedMatterId(created.id);
+    if (params.caseRecord) {
+      const assigned =
+        await params.casePlatformOrchestrationService.assignCaseMatter({
+          caseId: params.caseId,
+          workspaceId: params.workspaceId,
+          matterId: created.id,
+        });
+      if (!assigned) {
+        params.setIngestionStatus(
+          `Akte angelegt, aber Case-Verknüpfung fehlgeschlagen (Rolle ${params.currentRole}, benötigt: operator).`
+        );
+        return;
+      }
+    }
     params.setMatterDraftJurisdiction(params.activeJurisdiction);
     params.setMatterDraftTitle('');
     params.setMatterDraftDescription('');
     params.setMatterDraftExternalRef('');
     params.setMatterDraftAuthorityReferences('');
     params.setMatterDraftGericht('');
+    params.setMatterDraftPolizei('');
+    params.setMatterDraftStaatsanwaltschaft('');
+    params.setMatterDraftRichter('');
+    params.setMatterDraftGerichtsaktenzeichen('');
+    params.setMatterDraftStaatsanwaltschaftAktenzeichen('');
+    params.setMatterDraftPolizeiAktenzeichen('');
     params.setMatterDraftTags('');
     params.setMatterDraftAssignedAnwaltId('');
     params.setUndoMatterSnapshot(null);
@@ -248,8 +325,10 @@ export const usePanelClientMatterActions = (params: Params) => {
     );
   }, [
     params.activeJurisdiction,
+    params.caseId,
     params.matterDraftJurisdiction,
     params.caseClient,
+    params.caseRecord,
     params.casePlatformOrchestrationService,
     params.currentRole,
     params.matterDraftDescription,
@@ -257,6 +336,12 @@ export const usePanelClientMatterActions = (params: Params) => {
     params.matterDraftAuthorityReferences,
     params.matterDraftExternalRef,
     params.matterDraftGericht,
+    params.matterDraftPolizei,
+    params.matterDraftStaatsanwaltschaft,
+    params.matterDraftRichter,
+    params.matterDraftGerichtsaktenzeichen,
+    params.matterDraftStaatsanwaltschaftAktenzeichen,
+    params.matterDraftPolizeiAktenzeichen,
     params.matterDraftStatus,
     params.matterDraftTags,
     params.matterDraftTitle,
@@ -267,6 +352,12 @@ export const usePanelClientMatterActions = (params: Params) => {
     params.setMatterDraftAuthorityReferences,
     params.setMatterDraftExternalRef,
     params.setMatterDraftGericht,
+    params.setMatterDraftPolizei,
+    params.setMatterDraftStaatsanwaltschaft,
+    params.setMatterDraftRichter,
+    params.setMatterDraftGerichtsaktenzeichen,
+    params.setMatterDraftStaatsanwaltschaftAktenzeichen,
+    params.setMatterDraftPolizeiAktenzeichen,
     params.setMatterDraftTags,
     params.setMatterDraftTitle,
     params.setSelectedMatterId,
@@ -284,18 +375,21 @@ export const usePanelClientMatterActions = (params: Params) => {
       return;
     }
 
-    const assigned = await params.casePlatformOrchestrationService.assignCaseMatter({
-      caseId: params.caseId,
-      workspaceId: params.workspaceId,
-      matterId: params.selectedMatterId,
-    });
+    const assigned =
+      await params.casePlatformOrchestrationService.assignCaseMatter({
+        caseId: params.caseId,
+        workspaceId: params.workspaceId,
+        matterId: params.selectedMatterId,
+      });
     if (!assigned) {
       params.setIngestionStatus(
         `Akte konnte nicht zugeordnet werden (Rolle ${params.currentRole}, benötigt: operator).`
       );
       return;
     }
-    const assignedMatter = params.matters.find(item => item.id === assigned.matterId);
+    const assignedMatter = params.matters.find(
+      item => item.id === assigned.matterId
+    );
     params.setIngestionStatus(
       `Case mit Akte verknüpft: ${assignedMatter?.title ?? assigned.matterId ?? 'unbekannt'}.`
     );
@@ -321,14 +415,18 @@ export const usePanelClientMatterActions = (params: Params) => {
       return;
     }
 
-    const selectedClient = params.clients.find(item => item.id === params.selectedClientId);
+    const selectedClient = params.clients.find(
+      item => item.id === params.selectedClientId
+    );
     if (!selectedClient) {
       params.setIngestionStatus('Ausgewählter Mandant wurde nicht gefunden.');
       return;
     }
 
     if (params.caseMatter) {
-      const existingClientIds = params.caseMatter.clientIds ?? [params.caseMatter.clientId];
+      const existingClientIds = params.caseMatter.clientIds ?? [
+        params.caseMatter.clientId,
+      ];
       const normalizedClientIds = [
         selectedClient.id,
         ...existingClientIds.filter(id => id !== selectedClient.id),
@@ -337,26 +435,32 @@ export const usePanelClientMatterActions = (params: Params) => {
       const normalizedAuthorityRefs = normalizeAuthorityReferences(
         params.caseMatter.authorityReferences ?? []
       ).values;
-      const updatedMatter = await params.casePlatformOrchestrationService.upsertMatter({
-        ...params.caseMatter,
-        clientId: selectedClient.id,
-        clientIds: normalizedClientIds,
-        authorityReferences:
-          normalizedAuthorityRefs.length > 0 ? normalizedAuthorityRefs : undefined,
-      });
+      const updatedMatter =
+        await params.casePlatformOrchestrationService.upsertMatter({
+          ...params.caseMatter,
+          clientId: selectedClient.id,
+          clientIds: normalizedClientIds,
+          authorityReferences:
+            normalizedAuthorityRefs.length > 0
+              ? normalizedAuthorityRefs
+              : undefined,
+        });
       if (!updatedMatter) {
         params.setIngestionStatus(
           `Mandant konnte nicht zugeordnet werden (Rolle ${params.currentRole}, benötigt: operator).`
         );
         return;
       }
-      const assigned = await params.casePlatformOrchestrationService.assignCaseMatter({
-        caseId: params.caseId,
-        workspaceId: params.workspaceId,
-        matterId: updatedMatter.id,
-      });
+      const assigned =
+        await params.casePlatformOrchestrationService.assignCaseMatter({
+          caseId: params.caseId,
+          workspaceId: params.workspaceId,
+          matterId: updatedMatter.id,
+        });
       if (!assigned) {
-        params.setIngestionStatus('Akte konnte nach Mandantenwechsel nicht dem Case zugeordnet werden.');
+        params.setIngestionStatus(
+          'Akte konnte nach Mandantenwechsel nicht dem Case zugeordnet werden.'
+        );
         return;
       }
       params.setSelectedMatterId(updatedMatter.id);
@@ -366,32 +470,40 @@ export const usePanelClientMatterActions = (params: Params) => {
       return;
     }
 
-    const createdMatter = await params.casePlatformOrchestrationService.upsertMatter({
-      id: createLocalRecordId('matter'),
-      workspaceId: params.workspaceId,
-      clientId: selectedClient.id,
-      clientIds: [selectedClient.id],
-      jurisdiction: params.matterDraftJurisdiction,
-      title: params.caseRecord.title || `Akte ${new Date().toLocaleDateString('de-DE')}`,
-      externalRef: generateFallbackAktenzeichen(params.matters),
-      authorityReferences: normalizeAuthorityReferences(params.matterDraftAuthorityReferences).values,
-      gericht: params.matterDraftGericht.trim() || undefined,
-      status: 'open',
-      tags: ['case-linked'],
-    });
+    const createdMatter =
+      await params.casePlatformOrchestrationService.upsertMatter({
+        id: createLocalRecordId('matter'),
+        workspaceId: params.workspaceId,
+        clientId: selectedClient.id,
+        clientIds: [selectedClient.id],
+        jurisdiction: params.matterDraftJurisdiction,
+        title:
+          params.caseRecord.title ||
+          `Akte ${new Date().toLocaleDateString('de-DE')}`,
+        externalRef: generateFallbackAktenzeichen(params.matters),
+        authorityReferences: normalizeAuthorityReferences(
+          params.matterDraftAuthorityReferences
+        ).values,
+        gericht: params.matterDraftGericht.trim() || undefined,
+        status: 'open',
+        tags: ['case-linked'],
+      });
     if (!createdMatter) {
       params.setIngestionStatus(
         `Akte konnte nicht erstellt werden (Rolle ${params.currentRole}, benötigt: operator).`
       );
       return;
     }
-    const assigned = await params.casePlatformOrchestrationService.assignCaseMatter({
-      caseId: params.caseId,
-      workspaceId: params.workspaceId,
-      matterId: createdMatter.id,
-    });
+    const assigned =
+      await params.casePlatformOrchestrationService.assignCaseMatter({
+        caseId: params.caseId,
+        workspaceId: params.workspaceId,
+        matterId: createdMatter.id,
+      });
     if (!assigned) {
-      params.setIngestionStatus('Neue Akte konnte nicht dem Case zugeordnet werden.');
+      params.setIngestionStatus(
+        'Neue Akte konnte nicht dem Case zugeordnet werden.'
+      );
       return;
     }
 
@@ -418,7 +530,8 @@ export const usePanelClientMatterActions = (params: Params) => {
 
   const onDeleteSelectedClient = useCallback(
     async (explicitClientId?: string) => {
-      const clientId = explicitClientId ?? params.selectedClientId ?? params.caseClient?.id;
+      const clientId =
+        explicitClientId ?? params.selectedClientId ?? params.caseClient?.id;
       if (!clientId) {
         params.setIngestionStatus('Bitte einen Mandanten auswählen.');
         return;
@@ -436,7 +549,8 @@ export const usePanelClientMatterActions = (params: Params) => {
         return;
       }
 
-      const ok = await params.casePlatformOrchestrationService.deleteClient(clientId);
+      const ok =
+        await params.casePlatformOrchestrationService.deleteClient(clientId);
       if (!ok) {
         params.setIngestionStatus(
           'Mandant konnte nicht gelöscht werden (evtl. nicht archiviert, noch verknüpfte Akten oder unzureichende Rolle).'
@@ -447,7 +561,9 @@ export const usePanelClientMatterActions = (params: Params) => {
       if (params.selectedClientId === clientId) {
         params.setSelectedClientId('');
       }
-      params.setIngestionStatus(`Mandant gelöscht: ${selectedClient.displayName}. Rückgängig verfügbar.`);
+      params.setIngestionStatus(
+        `Mandant gelöscht: ${selectedClient.displayName}. Rückgängig verfügbar.`
+      );
     },
     [
       params.canAction,
@@ -464,7 +580,8 @@ export const usePanelClientMatterActions = (params: Params) => {
 
   const onDeleteSelectedMatter = useCallback(
     async (explicitMatterId?: string) => {
-      const matterId = explicitMatterId ?? params.selectedMatterId ?? params.caseMatter?.id;
+      const matterId =
+        explicitMatterId ?? params.selectedMatterId ?? params.caseMatter?.id;
       if (!matterId) {
         params.setIngestionStatus('Bitte eine Akte auswählen.');
         return;
@@ -482,7 +599,8 @@ export const usePanelClientMatterActions = (params: Params) => {
         return;
       }
 
-      const ok = await params.casePlatformOrchestrationService.deleteMatter(matterId);
+      const ok =
+        await params.casePlatformOrchestrationService.deleteMatter(matterId);
       if (!ok) {
         params.setIngestionStatus(
           'Akte konnte nicht gelöscht werden (evtl. nicht archiviert, noch verknüpft oder unzureichende Rolle).'
@@ -493,7 +611,9 @@ export const usePanelClientMatterActions = (params: Params) => {
       if (params.selectedMatterId === matterId) {
         params.setSelectedMatterId('');
       }
-      params.setIngestionStatus(`Akte gelöscht: ${selectedMatter.title}. Rückgängig verfügbar.`);
+      params.setIngestionStatus(
+        `Akte gelöscht: ${selectedMatter.title}. Rückgängig verfügbar.`
+      );
     },
     [
       params.canAction,
@@ -515,13 +635,15 @@ export const usePanelClientMatterActions = (params: Params) => {
         params.setIngestionStatus('Bitte zuerst eine Akte auswählen.');
         return;
       }
-      const selectedMatter = params.matters.find(item => item.id === matterId) ?? null;
+      const selectedMatter =
+        params.matters.find(item => item.id === matterId) ?? null;
       if (!selectedMatter) {
         params.setIngestionStatus('Akte konnte nicht gefunden werden.');
         return;
       }
 
-      const archived = await params.casePlatformOrchestrationService.archiveMatter(matterId);
+      const archived =
+        await params.casePlatformOrchestrationService.archiveMatter(matterId);
       if (!archived) {
         params.setIngestionStatus(
           `Akte konnte nicht archiviert werden (Rolle ${params.currentRole}, benötigt: operator).`
@@ -548,13 +670,15 @@ export const usePanelClientMatterActions = (params: Params) => {
         params.setIngestionStatus('Bitte zuerst einen Mandanten auswählen.');
         return;
       }
-      const selectedClient = params.clients.find(item => item.id === clientId) ?? null;
+      const selectedClient =
+        params.clients.find(item => item.id === clientId) ?? null;
       if (!selectedClient) {
         params.setIngestionStatus('Mandant konnte nicht gefunden werden.');
         return;
       }
 
-      const archived = await params.casePlatformOrchestrationService.archiveClient(clientId);
+      const archived =
+        await params.casePlatformOrchestrationService.archiveClient(clientId);
       if (!archived) {
         params.setIngestionStatus(
           `Mandant konnte nicht archiviert werden (Rolle ${params.currentRole}, benötigt: operator).`
@@ -579,14 +703,20 @@ export const usePanelClientMatterActions = (params: Params) => {
       params.setIngestionStatus('Kein Mandanten-Undo verfügbar.');
       return;
     }
-    const restored = await params.casePlatformOrchestrationService.upsertClient(params.undoClientSnapshot);
+    const restored = await params.casePlatformOrchestrationService.upsertClient(
+      params.undoClientSnapshot
+    );
     if (!restored) {
-      params.setIngestionStatus('Mandanten-Undo fehlgeschlagen (Rolle prüfen).');
+      params.setIngestionStatus(
+        'Mandanten-Undo fehlgeschlagen (Rolle prüfen).'
+      );
       return;
     }
     params.setSelectedClientId(restored.id);
     params.setUndoClientSnapshot(null);
-    params.setIngestionStatus(`Mandant wiederhergestellt: ${restored.displayName}.`);
+    params.setIngestionStatus(
+      `Mandant wiederhergestellt: ${restored.displayName}.`
+    );
   }, [
     params.casePlatformOrchestrationService,
     params.setIngestionStatus,
@@ -600,7 +730,9 @@ export const usePanelClientMatterActions = (params: Params) => {
       params.setIngestionStatus('Kein Akten-Undo verfügbar.');
       return;
     }
-    const restored = await params.casePlatformOrchestrationService.upsertMatter(params.undoMatterSnapshot);
+    const restored = await params.casePlatformOrchestrationService.upsertMatter(
+      params.undoMatterSnapshot
+    );
     if (!restored) {
       params.setIngestionStatus('Akten-Undo fehlgeschlagen (Rolle prüfen).');
       return;
@@ -618,12 +750,19 @@ export const usePanelClientMatterActions = (params: Params) => {
 
   const onOpenDestructiveActionDialog = useCallback(
     (action: PendingDestructiveAction) => {
-      if (typeof document !== 'undefined' && document.activeElement instanceof HTMLElement) {
-        params.lastFocusedElementBeforeDestructiveDialogRef.current = document.activeElement;
+      if (
+        typeof document !== 'undefined' &&
+        document.activeElement instanceof HTMLElement
+      ) {
+        params.lastFocusedElementBeforeDestructiveDialogRef.current =
+          document.activeElement;
       }
       params.setPendingDestructiveAction(action);
     },
-    [params.lastFocusedElementBeforeDestructiveDialogRef, params.setPendingDestructiveAction]
+    [
+      params.lastFocusedElementBeforeDestructiveDialogRef,
+      params.setPendingDestructiveAction,
+    ]
   );
 
   const onRequestDeleteSelectedClient = useCallback(() => {

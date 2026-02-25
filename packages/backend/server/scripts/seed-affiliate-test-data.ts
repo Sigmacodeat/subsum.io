@@ -1,6 +1,6 @@
 #!/usr/bin/env ts-node
+import { hash } from '@node-rs/argon2';
 import { PrismaClient } from '@prisma/client';
-import { hash } from 'bcryptjs';
 
 const db = new PrismaClient();
 
@@ -18,7 +18,7 @@ async function main() {
     create: {
       email: ADMIN_EMAIL,
       name: 'Admin Test',
-      password: await hash(ADMIN_PASSWORD, 10),
+      password: await hash(ADMIN_PASSWORD),
       emailVerifiedAt: new Date(),
     },
   });
@@ -33,12 +33,14 @@ async function main() {
     create: {
       email: affiliateEmail,
       name: 'Test Affiliate',
-      password: await hash('affiliate1234!', 10),
+      password: await hash('affiliate1234!'),
       emailVerifiedAt: new Date(),
     },
   });
 
-  console.log(`✅ Affiliate user: ${affiliateUser.email} (id: ${affiliateUser.id})`);
+  console.log(
+    `✅ Affiliate user: ${affiliateUser.email} (id: ${affiliateUser.id})`
+  );
 
   // 3) Create affiliate profile with referral code
   const affiliateProfile = await db.affiliateProfile.upsert({
@@ -50,7 +52,7 @@ async function main() {
       stripePayoutsEnabled: true,
       payoutEmail: 'payout@subsumio.test',
       levelOneRateBps: 1000, // 10%
-      levelTwoRateBps: 200,   // 2%
+      levelTwoRateBps: 200, // 2%
     },
     create: {
       userId: affiliateUser.id,
@@ -100,12 +102,13 @@ async function main() {
   console.log('\n--- Admin Access ---');
   console.log(`Email: ${ADMIN_EMAIL}`);
   console.log(`Password: ${ADMIN_PASSWORD}`);
-  console.log(`Dashboard: http://localhost:8080/admin/affiliates`);
+  const baseUrl = process.env.PLAYWRIGHT_BASE_URL ?? 'http://localhost:8080';
+  console.log(`Dashboard: ${baseUrl.replace(/\/$/, '')}/admin/affiliates`);
   console.log('\n--- Affiliate Access ---');
   console.log(`Email: ${affiliateEmail}`);
   console.log(`Password: affiliate1234!`);
   console.log(`Referral Code: ${TEST_AFFILIATE_CODE}`);
-  console.log(`Settings: http://localhost:8080/settings?tab=affiliate`);
+  console.log(`Settings: ${baseUrl.replace(/\/$/, '')}/settings?tab=affiliate`);
 }
 
 main()

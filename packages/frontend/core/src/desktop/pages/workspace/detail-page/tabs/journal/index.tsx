@@ -5,11 +5,11 @@ import {
   Menu,
   MenuItem,
   MenuSeparator,
-  Scrollable,
   useConfirmModal,
 } from '@affine/component';
 import { Guard } from '@affine/core/components/guard';
 import { MoveToTrash } from '@affine/core/components/page-list';
+import { CaseAssistantStore } from '@affine/core/modules/case-assistant/stores/case-assistant';
 import { WorkspaceServerService } from '@affine/core/modules/cloud';
 import {
   type DocRecord,
@@ -31,15 +31,14 @@ import {
   useService,
   useServiceOptional,
 } from '@toeverything/infra';
-import { assignInlineVars } from '@vanilla-extract/dynamic';
 import clsx from 'clsx';
 import dayjs from 'dayjs';
 import type { HTMLAttributes, PropsWithChildren, ReactNode } from 'react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { CalendarEvents } from './calendar-events';
-import { LegalCalendarEvents } from './legal-calendar-events';
 import * as styles from './journal.css';
+import { LegalCalendarEvents } from './legal-calendar-events';
 import { JournalTemplateOnboarding } from './template-onboarding';
 import { JournalTemplateSetting } from './template-setting';
 
@@ -97,17 +96,11 @@ const PageItem = ({
   );
 };
 
-type NavItemName = 'createdToday' | 'updatedToday';
-interface NavItem {
-  name: NavItemName;
-  label: string;
-  count: number;
-}
 interface JournalBlockProps {
   date: dayjs.Dayjs;
 }
 
-type DateDotType = 'journal' | 'event' | 'activity';
+type DateDotType = 'journal' | 'event' | 'legal';
 
 const mobile = environment.isMobile;
 export const EditorJournalPanel = () => {
@@ -144,7 +137,7 @@ export const EditorJournalPanel = () => {
   const calendarCursorMonthEnd = useMemo(() => {
     return dayjs(`${calendarCursorMonthKey}-01`).endOf('month');
   }, [calendarCursorMonthKey]);
-  const docRecords = useLiveData(useService(DocsService).list.docs$);
+  const caseAssistantStore = useService(CaseAssistantStore);
   const allJournalDates = useLiveData(journalService.allJournalDates$);
   const eventDates = useLiveData(calendar.eventDates$);
   const workspaceCalendars = useLiveData(calendar.workspaceCalendars$);
@@ -188,20 +181,31 @@ export const EditorJournalPanel = () => {
     [openJournal, selectedDate]
   );
 
-  const docActivityDates = useMemo(() => {
+  const caseGraph = useLiveData(caseAssistantStore.watchGraph());
+  const legalDates = useMemo(() => {
     const dates = new Set<string>();
-    for (const docRecord of docRecords) {
-      const meta = docRecord.meta$.value;
-      if (meta.trash) continue;
-      if (meta.createDate) {
-        dates.add(dayjs(meta.createDate).format('YYYY-MM-DD'));
+    const deadlines = Object.values(caseGraph?.deadlines ?? {}) as Array<{
+      dueAt: string;
+      status: string;
+    }>;
+    for (const d of deadlines) {
+      if (d.status === 'completed' || d.status === 'expired') continue;
+      if (d.dueAt) {
+        dates.add(dayjs(d.dueAt).format('YYYY-MM-DD'));
       }
-      if (meta.updatedDate) {
-        dates.add(dayjs(meta.updatedDate).format('YYYY-MM-DD'));
+    }
+    const termine = Object.values(caseGraph?.termine ?? {}) as Array<{
+      datum: string;
+      status: string;
+    }>;
+    for (const t of termine) {
+      if (t.status === 'abgesagt' || t.status === 'abgeschlossen') continue;
+      if (t.datum) {
+        dates.add(dayjs(t.datum).format('YYYY-MM-DD'));
       }
     }
     return dates;
-  }, [docRecords]);
+  }, [caseGraph?.deadlines, caseGraph?.termine]);
 
   useEffect(() => {
     calendar.revalidateWorkspaceCalendars().catch(() => undefined);
@@ -233,12 +237,12 @@ export const EditorJournalPanel = () => {
       if (eventDates.has(dateKey)) {
         dotTypes.push('event');
       }
-      if (docActivityDates.has(dateKey)) {
-        dotTypes.push('activity');
+      if (legalDates.has(dateKey)) {
+        dotTypes.push('legal');
       }
       return dotTypes;
     },
-    [allJournalDates, docActivityDates, eventDates]
+    [allJournalDates, legalDates, eventDates]
   );
 
   const customDayRenderer = useCallback(
@@ -299,7 +303,6 @@ export const EditorJournalPanel = () => {
       <JournalConflictBlock date={selectedDate} />
       <CalendarEvents date={selectedDate} />
       <LegalCalendarEvents date={selectedDate} />
-      <JournalDailyCountBlock date={selectedDate} />
       <JournalTemplateSetting />
     </div>
   );
@@ -316,120 +319,6 @@ export const sortPagesByDate = (
       dayjs(b.meta$.value[field]).diff(dayjs(a.meta$.value[field]))
     );
   });
-};
-
-const DailyCountEmptyFallback = ({ name }: { name: NavItemName }) => {
-  const t = useI18n();
-
-  return (
-    <div className={styles.dailyCountEmpty}>
-      {name === 'createdToday'
-        ? t['com.affine.journal.daily-count-created-empty-tips']()
-        : t['com.affine.journal.daily-count-updated-empty-tips']()}
-    </div>
-  );
-};
-const JournalDailyCountBlock = ({ date }: JournalBlockProps) => {
-  const nodeRef = useRef<HTMLDivElement>(null);
-  const t = useI18n();
-  const [activeItem, setActiveItem] = useState<NavItemName>('createdToday');
-  const docRecords = useLiveData(useService(DocsService).list.docs$);
-
-  const getTodaysPages = useCallback(
-    (field: 'createDate' | 'updatedDate') => {
-      return sortPagesByDate(
-        docRecords.filter(docRecord => {
-          const meta = docRecord.meta$.value;
-          if (meta.trash) return false;
-          return meta[field] && dayjs(meta[field]).isSame(date, 'day');
-        }),
-        field
-      );
-    },
-    [date, docRecords]
-  );
-
-  const createdToday = useMemo(
-    () => getTodaysPages('createDate'),
-    [getTodaysPages]
-  );
-  const updatedToday = useMemo(
-    () => getTodaysPages('updatedDate'),
-    [getTodaysPages]
-  );
-
-  const headerItems = useMemo<NavItem[]>(
-    () => [
-      {
-        name: 'createdToday',
-        label: t['com.affine.journal.created-today'](),
-        count: createdToday.length,
-      },
-      {
-        name: 'updatedToday',
-        label: t['com.affine.journal.updated-today'](),
-        count: updatedToday.length,
-      },
-    ],
-    [createdToday.length, t, updatedToday.length]
-  );
-
-  const activeIndex = headerItems.findIndex(({ name }) => name === activeItem);
-
-  const vars = assignInlineVars({
-    '--active-index': String(activeIndex),
-    '--item-count': String(headerItems.length),
-  });
-
-  return (
-    <div className={styles.dailyCount} style={vars}>
-      <header className={styles.dailyCountHeader}>
-        {headerItems.map(({ label, count, name }, index) => {
-          return (
-            <button
-              onClick={() => setActiveItem(name)}
-              aria-selected={activeItem === name}
-              className={styles.dailyCountNav}
-              key={index}
-            >
-              {label}
-              &nbsp;
-              <CountDisplay count={count} />
-            </button>
-          );
-        })}
-      </header>
-
-      <main className={styles.dailyCountContainer} data-active={activeItem}>
-        {headerItems.map(({ name }) => {
-          const renderList =
-            name === 'createdToday' ? createdToday : updatedToday;
-          if (renderList.length === 0)
-            return (
-              <div key={name} className={styles.dailyCountItem}>
-                <DailyCountEmptyFallback name={name} />
-              </div>
-            );
-          return (
-            <Scrollable.Root key={name} className={styles.dailyCountItem}>
-              <Scrollable.Scrollbar />
-              <Scrollable.Viewport>
-                <div className={styles.dailyCountContent} ref={nodeRef}>
-                  {renderList.map((pageRecord, index) => (
-                    <PageItem
-                      tabIndex={name === activeItem ? 0 : -1}
-                      key={index}
-                      docId={pageRecord.id}
-                    />
-                  ))}
-                </div>
-              </Scrollable.Viewport>
-            </Scrollable.Root>
-          );
-        })}
-      </main>
-    </div>
-  );
 };
 
 const MAX_CONFLICT_COUNT = 5;
