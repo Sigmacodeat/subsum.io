@@ -1,7 +1,19 @@
 import { useConfirmModal } from '@affine/component';
 import { useI18n } from '@affine/i18n';
+import {
+  LEGAL_UPLOAD_ACCEPT_ATTR,
+  prepareLegalUploadFiles,
+} from '@affine/core/modules/case-assistant';
 import { useLiveData, useService } from '@toeverything/infra';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  type ChangeEvent,
+  type DragEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { useParams } from 'react-router-dom';
 
 import { LegalChatService } from '../../../../modules/case-assistant/services/legal-chat';
@@ -41,6 +53,8 @@ type ActiveTab = 'documents' | 'pages' | 'semantic';
 type SidePanelTab = 'copilot' | 'info' | 'deadlines';
 type AlertTierFilter = 'all' | 'P1' | 'P2' | 'P3';
 type AlertKindFilter = 'all' | 'deadline' | 'finding';
+
+const AKTE_CHAT_UPLOAD_CHUNK_SIZE = 20;
 
 const STATUS_STYLE: Record<MatterStatus, string> = {
   open: styles.statusOpen,
@@ -1821,8 +1835,13 @@ export const AkteDetailPage = () => {
   );
 
   const onSendChatMessage = useCallback(
-    async (content: string) => {
-      if (!activeChatSessionId || isChatBusy || !content.trim()) return;
+    async (content: string, attachments: UploadedFile[] = []) => {
+      if (
+        !activeChatSessionId ||
+        isChatBusy ||
+        (!content.trim() && attachments.length === 0)
+      )
+        return;
       setIsChatBusy(true);
       try {
         const caseId =
@@ -1834,11 +1853,128 @@ export const AkteDetailPage = () => {
           );
           return;
         }
+
+        let effectiveContent = content.trim();
+        if (attachments.length > 0) {
+          const sourceRef = `akte-chat-upload:${activeChatSessionId}:${Date.now()}`;
+          let jobId: string | null = null;
+
+          try {
+            const job = await casePlatformOrchestrationService.enqueueIngestionJob({
+              caseId,
+              workspaceId,
+              sourceType: 'upload',
+              sourceRef,
+            });
+            jobId = job.id;
+
+            await casePlatformOrchestrationService.updateJobStatus({
+              jobId,
+              status: 'running',
+              progress: 3,
+            });
+
+            const documents = attachments.map(file => ({
+              title: file.name,
+              kind: file.kind,
+              content: file.content,
+              pageCount: file.pageCount,
+              sourceMimeType: file.mimeType,
+              sourceSizeBytes: file.size,
+              sourceLastModifiedAt: file.lastModifiedAt,
+              sourceRef: `${sourceRef}:${file.name}`,
+              folderPath: file.folderPath || '/akte/eingang/chat',
+            }));
+
+            const chunks: Array<typeof documents> = [];
+            for (
+              let index = 0;
+              index < documents.length;
+              index += AKTE_CHAT_UPLOAD_CHUNK_SIZE
+            ) {
+              chunks.push(
+                documents.slice(index, index + AKTE_CHAT_UPLOAD_CHUNK_SIZE)
+              );
+            }
+
+            const ingested: Array<
+              Partial<LegalDocumentRecord> & {
+                status?: string;
+                processingStatus?: string;
+              }
+            > = [];
+
+            for (let index = 0; index < chunks.length; index++) {
+              const chunkResult = await copilotWorkflowService.intakeDocuments({
+                caseId,
+                workspaceId,
+                documents: chunks[index],
+              });
+              ingested.push(...chunkResult);
+
+              const progress = Math.min(
+                95,
+                Math.round(((index + 1) / chunks.length) * 92) + 3
+              );
+              await casePlatformOrchestrationService.updateJobStatus({
+                jobId,
+                status: 'running',
+                progress,
+              });
+            }
+
+            const failedCount = ingested.filter(
+              item => item.processingStatus === 'failed'
+            ).length;
+            await casePlatformOrchestrationService.updateJobStatus({
+              jobId,
+              status: failedCount > 0 ? 'failed' : 'completed',
+              progress: 100,
+              errorMessage:
+                failedCount > 0
+                  ? `${failedCount} Datei(en) in der Verarbeitung fehlgeschlagen.`
+                  : undefined,
+            });
+
+            if (ingested.length === 0) {
+              showStatus(
+                'Keine neuen Dateien aufgenommen (Duplikat oder fehlende Rechte).'
+              );
+            } else {
+              const scanCount = ingested.filter(
+                item => item.status === 'ocr_pending'
+              ).length;
+              showStatus(
+                scanCount > 0
+                  ? `${ingested.length} Datei(en) aufgenommen, ${scanCount} in OCR-Warteschlange.`
+                  : `${ingested.length} Datei(en) aufgenommen.`
+              );
+            }
+
+            if (!effectiveContent) {
+              effectiveContent =
+                'Bitte analysiere die soeben hochgeladenen Dokumente und erstelle eine strukturierte Ersteinschätzung mit Quellen.';
+            }
+          } catch (error) {
+            if (jobId) {
+              await casePlatformOrchestrationService.updateJobStatus({
+                jobId,
+                status: 'failed',
+                progress: 100,
+                errorMessage: 'Upload über Akte-Chat fehlgeschlagen',
+              });
+            }
+            console.error('[akte-detail] attachment ingestion failed', error);
+            showStatus('Datei-Import im Akte-Chat fehlgeschlagen.');
+            return;
+          }
+        }
+
         await chatService.sendMessage({
           sessionId: activeChatSessionId,
           caseId,
           workspaceId,
-          content,
+          content: effectiveContent,
           mode: activeChatMode,
         });
       } catch (error) {
@@ -1858,6 +1994,8 @@ export const AkteDetailPage = () => {
       workspaceId,
       caseChatSessions,
       caseFiles,
+      casePlatformOrchestrationService,
+      copilotWorkflowService,
       showStatus,
       t,
     ]
@@ -3186,8 +3324,8 @@ export const AkteDetailPage = () => {
                   onCreateSession={onCreateChatSession}
                   onSelectSession={setActiveChatSessionId}
                   onSwitchMode={setActiveChatMode}
-                  onSendMessage={content => {
-                    onSendChatMessage(content).catch(() => {
+                  onSendMessage={(content, attachments) => {
+                    onSendChatMessage(content, attachments).catch(() => {
                       // Fehlerstatus wird bereits innerhalb von onSendChatMessage gesetzt.
                     });
                   }}
@@ -3389,7 +3527,7 @@ type AkteChatPanelProps = {
   onCreateSession: (mode?: LegalChatMode) => void | Promise<void>;
   onSelectSession: (id: string) => void;
   onSwitchMode: (mode: LegalChatMode) => void;
-  onSendMessage: (content: string) => void;
+  onSendMessage: (content: string, attachments?: UploadedFile[]) => void;
 };
 
 const AkteChatPanel = ({
@@ -3407,7 +3545,13 @@ const AkteChatPanel = ({
 }: AkteChatPanelProps) => {
   const t = useI18n();
   const [inputValue, setInputValue] = useState('');
+  const [attachedFiles, setAttachedFiles] = useState<UploadedFile[]>([]);
+  const [attachmentError, setAttachmentError] = useState<string | null>(null);
+  const [isPreparingAttachments, setIsPreparingAttachments] =
+    useState<boolean>(false);
+  const [isDragOver, setIsDragOver] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const chatModes = useMemo(
     () =>
@@ -3427,10 +3571,125 @@ const AkteChatPanel = ({
 
   const handleSend = useCallback(() => {
     const trimmed = inputValue.trim();
-    if (!trimmed || isBusy) return;
-    onSendMessage(trimmed);
+    if (isBusy || isPreparingAttachments) return;
+    if (!trimmed && attachedFiles.length === 0) return;
+    onSendMessage(trimmed, attachedFiles);
     setInputValue('');
-  }, [inputValue, isBusy, onSendMessage]);
+    setAttachedFiles([]);
+    setAttachmentError(null);
+  }, [attachedFiles, inputValue, isBusy, isPreparingAttachments, onSendMessage]);
+
+  const onOpenFilePicker = useCallback(() => {
+    if (isBusy || isPreparingAttachments) return;
+    fileInputRef.current?.click();
+  }, [isBusy, isPreparingAttachments]);
+
+  const onAttachmentInputChange = useCallback(
+    (event: ChangeEvent<HTMLInputElement>) => {
+      const list = event.target.files;
+      event.target.value = '';
+      if (!activeSessionId) {
+        setAttachmentError('Bitte zuerst eine Chat-Session auswählen.');
+        return;
+      }
+      if (!list || list.length === 0) {
+        return;
+      }
+
+      const files = Array.from(list);
+      (async () => {
+        setIsPreparingAttachments(true);
+        setAttachmentError(null);
+        try {
+          const { accepted, rejected } = await prepareLegalUploadFiles({
+            files,
+            maxFiles: 80,
+          });
+
+          if (accepted.length === 0) {
+            setAttachmentError(
+              rejected[0]?.reason ?? 'Keine unterstützten Dateien ausgewählt.'
+            );
+            return;
+          }
+
+          if (rejected.length > 0) {
+            setAttachmentError(
+              `${rejected.length} Datei(en) wurden übersprungen (nicht unterstützt, zu groß oder Lesefehler).`
+            );
+          }
+
+          setAttachedFiles(prev => {
+            const seen = new Set(
+              prev.map(item => `${item.name}:${item.size}:${item.lastModifiedAt}`)
+            );
+            const merged = [...prev];
+            for (const file of accepted) {
+              const key = `${file.name}:${file.size}:${file.lastModifiedAt}`;
+              if (!seen.has(key)) {
+                seen.add(key);
+                merged.push(file);
+              }
+            }
+            return merged;
+          });
+        } catch {
+          setAttachmentError('Dateianhänge konnten nicht gelesen werden.');
+        } finally {
+          setIsPreparingAttachments(false);
+        }
+      })().catch(() => {
+        setAttachmentError('Dateianhänge konnten nicht gelesen werden.');
+        setIsPreparingAttachments(false);
+      });
+    },
+    [activeSessionId]
+  );
+
+  const onDropFiles = useCallback(
+    (event: DragEvent<HTMLElement>) => {
+      event.preventDefault();
+      event.stopPropagation();
+      setIsDragOver(false);
+
+      if (!activeSessionId || isBusy || isPreparingAttachments) {
+        return;
+      }
+
+      const dropped = event.dataTransfer?.files;
+      if (!dropped || dropped.length === 0) {
+        return;
+      }
+
+      const fakeEvent = {
+        target: { files: dropped, value: '' },
+      } as unknown as ChangeEvent<HTMLInputElement>;
+
+      onAttachmentInputChange(fakeEvent);
+    },
+    [activeSessionId, isBusy, isPreparingAttachments, onAttachmentInputChange]
+  );
+
+  const onDragOverSection = useCallback((event: DragEvent<HTMLElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!isDragOver) {
+      setIsDragOver(true);
+    }
+  }, [isDragOver]);
+
+  const onDragLeaveSection = useCallback(
+    (event: DragEvent<HTMLElement>) => {
+      event.preventDefault();
+      event.stopPropagation();
+      setIsDragOver(false);
+    },
+    []
+  );
+
+  const onRemoveAttachment = useCallback((index: number) => {
+    setAttachedFiles(prev => prev.filter((_, idx) => idx !== index));
+  }, []);
 
   return (
     <div className={styles.chatRoot}>
@@ -3548,7 +3807,30 @@ const AkteChatPanel = ({
       </div>
 
       {/* Input */}
-      <div className={styles.chatInputBar}>
+      <div
+        className={styles.chatInputBar}
+        data-drag-over={isDragOver ? 'true' : undefined}
+        onDrop={onDropFiles}
+        onDragOver={onDragOverSection}
+        onDragLeave={onDragLeaveSection}
+      >
+        <input
+          ref={fileInputRef}
+          type="file"
+          hidden
+          multiple
+          accept={LEGAL_UPLOAD_ACCEPT_ATTR}
+          onChange={onAttachmentInputChange}
+        />
+        <button
+          type="button"
+          className={styles.chatAttachButton}
+          onClick={onOpenFilePicker}
+          disabled={!activeSessionId || isBusy || isPreparingAttachments}
+          title="Dateien anhängen"
+        >
+          📎
+        </button>
         <textarea
           value={inputValue}
           onChange={e => setInputValue(e.target.value)}
@@ -3574,12 +3856,35 @@ const AkteChatPanel = ({
         <button
           type="button"
           onClick={handleSend}
-          disabled={!inputValue.trim() || !activeSessionId || isBusy}
+          disabled={
+            (!inputValue.trim() && attachedFiles.length === 0) ||
+            !activeSessionId ||
+            isBusy ||
+            isPreparingAttachments
+          }
           className={styles.chatSendButton}
         >
-          {isBusy ? '…' : '→'}
+          {isBusy || isPreparingAttachments ? '…' : '→'}
         </button>
       </div>
+      {attachedFiles.length > 0 && (
+        <div className={styles.chatAttachmentList}>
+          {attachedFiles.map((file, index) => (
+            <button
+              key={`${file.name}:${file.size}:${file.lastModifiedAt}`}
+              type="button"
+              className={styles.chatAttachmentChip}
+              onClick={() => onRemoveAttachment(index)}
+              title="Anhang entfernen"
+            >
+              {file.name}
+            </button>
+          ))}
+        </div>
+      )}
+      {attachmentError && (
+        <div className={styles.chatAttachmentError}>{attachmentError}</div>
+      )}
       {isBusy && <div className={styles.chatBusyHint}>Copilot analysiert…</div>}
     </div>
   );

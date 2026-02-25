@@ -1612,6 +1612,41 @@ export const chatInputBar = style({
   gap: sp(2),
   alignItems: 'flex-end',
   background: surfaceBase,
+  selectors: {
+    '&[data-drag-over="true"]': {
+      background: 'color-mix(in srgb, var(--affine-primary-color) 8%, transparent)',
+    },
+  },
+});
+
+export const chatAttachButton = style({
+  width: 34,
+  height: 34,
+  borderRadius: 10,
+  border: borderSubtle,
+  background: surfaceRaised,
+  color: cssVarV2('text/primary'),
+  fontSize: 16,
+  lineHeight: 1,
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  cursor: 'pointer',
+  transition: 'all 0.12s ease',
+  selectors: {
+    '&:hover:not(:disabled)': {
+      borderColor: accentBorder,
+      background: surfaceBase,
+    },
+    '&:disabled': {
+      opacity: 0.4,
+      cursor: 'not-allowed',
+    },
+    '&:focus-visible': {
+      outline: `2px solid ${cssVarV2('button/primary')}`,
+      outlineOffset: 2,
+    },
+  },
 });
 
 export const chatTextarea = style({
@@ -1667,4 +1702,41 @@ export const chatBusyHint = style({
   padding: `2px ${sp(3)} ${sp(2)}`,
   fontSize: 11,
   color: cssVarV2('text/secondary'),
+});
+
+export const chatAttachmentList = style({
+  display: 'flex',
+  flexWrap: 'wrap',
+  gap: sp(1),
+  padding: `0 ${sp(3)} ${sp(1)}`,
+});
+
+export const chatAttachmentChip = style({
+  border: borderSubtle,
+  borderRadius: 999,
+  padding: `2px ${sp(2)}`,
+  fontSize: 11,
+  color: cssVarV2('text/secondary'),
+  background: surfaceRaised,
+  cursor: 'pointer',
+  maxWidth: '100%',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+  selectors: {
+    '&:hover': {
+      color: cssVarV2('text/primary'),
+      borderColor: accentBorder,
+    },
+    '&:focus-visible': {
+      outline: `2px solid ${cssVarV2('button/primary')}`,
+      outlineOffset: 1,
+    },
+  },
+});
+
+export const chatAttachmentError = style({
+  padding: `0 ${sp(3)} ${sp(2)}`,
+  fontSize: 11,
+  color: cssVarV2('status/error'),
 });

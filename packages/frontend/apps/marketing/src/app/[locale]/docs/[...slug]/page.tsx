@@ -5,6 +5,8 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import Script from 'next/script';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
+import { compileMDX } from 'next-mdx-remote/rsc';
+import remarkGfm from 'remark-gfm';
 
 import { loadDocComponentBySlug } from '@/docs/content-loader';
 import { mdxComponents } from '@/docs/mdx-components';
@@ -30,6 +32,33 @@ async function readDocSourceSafe(filePath: string): Promise<string | null> {
     return await fs.readFile(absolute, 'utf8');
   } catch {
     return null;
+  }
+}
+
+async function compileDocSourceSafe(source: string) {
+  try {
+    const { content } = await compileMDX({
+      source,
+      components: mdxComponents as any,
+      options: {
+        parseFrontmatter: false,
+        mdxOptions: {
+          remarkPlugins: [remarkGfm],
+        },
+      },
+    });
+    return content;
+  } catch {
+    return null;
+  }
+}
+
+function extractTocFromSourceSafe(source: string | null) {
+  if (!source) return [];
+  try {
+    return extractTocFromMdx(source);
+  } catch {
+    return [];
   }
 }
 
@@ -75,10 +104,13 @@ export default async function DocsArticlePage({
   if (!entry) notFound();
 
   const DocContent = await loadDocComponentBySlug(slug);
-  if (!DocContent) notFound();
 
   const source = await readDocSourceSafe(entry.filePath);
-  const toc = source ? extractTocFromMdx(source) : [];
+  const fallbackCompiledContent =
+    !DocContent && source ? await compileDocSourceSafe(source) : null;
+  if (!DocContent && !fallbackCompiledContent) notFound();
+
+  const toc = extractTocFromSourceSafe(source);
   const { prev, next } = getPrevNext(slug);
 
   const t = await getTranslations({ locale, namespace: 'docs' });
@@ -216,7 +248,11 @@ export default async function DocsArticlePage({
             {/* Article */}
             <article className="min-w-0">
               <div className="prose prose-slate max-w-none prose-headings:scroll-mt-28 prose-a:text-primary-700 prose-a:no-underline hover:prose-a:underline prose-code:font-mono">
-                <DocContent components={mdxComponents as any} />
+                {DocContent ? (
+                  <DocContent components={mdxComponents as any} />
+                ) : (
+                  fallbackCompiledContent
+                )}
               </div>
 
               <div className="mt-10 grid sm:grid-cols-2 gap-4">

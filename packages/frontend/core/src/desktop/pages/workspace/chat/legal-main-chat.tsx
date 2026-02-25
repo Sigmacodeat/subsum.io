@@ -38,6 +38,10 @@ import { useLocation } from 'react-router-dom';
 
 import type { UploadedFile } from '../detail-page/tabs/case-assistant/sections/file-upload-zone';
 import { PremiumChatSection } from '../detail-page/tabs/case-assistant/sections/premium-chat-section';
+import {
+  resolveArtifactRepositoryRoute,
+  resolveChatUploadFolderPath,
+} from '../../../../modules/case-assistant/services/document-repository-routing';
 import * as styles from './index.css';
 
 function createId(prefix: string) {
@@ -52,7 +56,8 @@ const roleRank = {
 } as const;
 
 export const Component = () => {
-  const CHAT_UPLOAD_CHUNK_SIZE = 25;
+  const CHAT_UPLOAD_CHUNK_SIZE = 20;
+
   const t = useI18n();
   const location = useLocation();
   const workspaceId = useService(WorkspaceService).workspace.id;
@@ -507,6 +512,7 @@ export const Component = () => {
               sourceSizeBytes: file.size,
               sourceLastModifiedAt: file.lastModifiedAt,
               sourceRef: `${chatUploadSourceRef}:${file.name}`,
+              folderPath: resolveChatUploadFolderPath(file.folderPath),
             })),
             chatUploadSourceRef,
             'upload'
@@ -1567,6 +1573,7 @@ export const Component = () => {
       }
 
       const sourceRef = `chat-artifact:${messageId}:${artifact.id}`;
+      const repositoryRoute = resolveArtifactRepositoryRoute(artifact);
       const ingested = await legalCopilotWorkflowService.intakeDocuments({
         caseId: selectedCaseId,
         workspaceId,
@@ -1578,7 +1585,8 @@ export const Component = () => {
             sourceMimeType: artifact.mimeType,
             sourceSizeBytes: artifact.sizeBytes,
             sourceRef,
-            tags: ['chat-artifact', 'generated-document'],
+            folderPath: repositoryRoute.folderPath,
+            tags: repositoryRoute.tags,
           },
         ],
       });
