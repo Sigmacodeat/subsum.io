@@ -601,7 +601,7 @@ export class DeadlineAutomationService extends Service {
           derivedFrom: 'auto_template',
           baseEventAt: baseDate.toISOString(),
           detectionConfidence: confidence,
-          requiresReview: confidence < 0.78,
+          requiresReview: true,
           evidenceSnippets,
           sourceDocIds: [doc.id],
           status: 'open',

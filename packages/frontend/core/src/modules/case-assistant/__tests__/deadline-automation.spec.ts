@@ -81,7 +81,7 @@ test('derives Fortfuehrungsantrag deadline from event date', () => {
   expect(fortfuehrung).toBeTruthy();
   expect(fortfuehrung?.dueAt.startsWith('2026-02-24')).toBe(true);
   expect(fortfuehrung?.derivedFrom).toBe('auto_template');
-  expect(fortfuehrung?.requiresReview).toBe(false);
+  expect(fortfuehrung?.requiresReview).toBe(true);
   expect((fortfuehrung?.detectionConfidence ?? 0) >= 0.85).toBe(true);
   expect((fortfuehrung?.evidenceSnippets?.length ?? 0) > 0).toBe(true);
 });
@@ -111,7 +111,7 @@ test('anchors Einspruch Strafbefehl on Zustellung date when multiple dates exist
   expect(einspruch).toBeTruthy();
   expect(einspruch?.dueAt.startsWith('2026-03-02')).toBe(true);
   expect(einspruch?.derivedFrom).toBe('auto_template');
-  expect(einspruch?.requiresReview).toBe(false);
+  expect(einspruch?.requiresReview).toBe(true);
 });
 
 test('upsertAutoDeadlines links persisted auto-deadlines into the case record', async () => {

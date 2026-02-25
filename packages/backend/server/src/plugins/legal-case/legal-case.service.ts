@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { PrismaClient } from '@prisma/client';
+import { Prisma, PrismaClient } from '@prisma/client';
 
 import { LegalAuditService } from './legal-audit.service';
 import { LegalConflictService } from './legal-conflict.service';
@@ -50,8 +50,14 @@ export class LegalCaseService {
     return { items, total };
   }
 
-  async getClient(id: string) {
-    return this.db.legalClient.findUnique({ where: { id } });
+  async getClient(workspaceId: string, id: string) {
+    return this.db.legalClient.findFirst({
+      where: {
+        id,
+        workspaceId,
+        deletedAt: null,
+      },
+    });
   }
 
   async upsertClient(params: {
@@ -175,9 +181,12 @@ export class LegalCaseService {
     return { items, total };
   }
 
-  async getMatter(id: string) {
-    return this.db.legalMatter.findUnique({
-      where: { id },
+  async getMatter(workspaceId: string, id: string) {
+    return this.db.legalMatter.findFirst({
+      where: {
+        id,
+        workspaceId,
+      },
       include: {
         client: true,
         matterClients: { include: { client: true } },
@@ -298,6 +307,138 @@ export class LegalCaseService {
     });
 
     return updated;
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // CASE FILES (Fallakten)
+  // ═══════════════════════════════════════════════════════════════════════
+
+  async listCaseFiles(
+    workspaceId: string,
+    options?: {
+      matterId?: string;
+      search?: string;
+      limit?: number;
+      offset?: number;
+    }
+  ) {
+    const where: any = { workspaceId };
+    if (options?.matterId) where.matterId = options.matterId;
+    if (options?.search) {
+      where.OR = [
+        { title: { contains: options.search, mode: 'insensitive' } },
+        { summary: { contains: options.search, mode: 'insensitive' } },
+      ];
+    }
+
+    const [items, total] = await Promise.all([
+      this.db.legalCaseFile.findMany({
+        where,
+        orderBy: { updatedAt: 'desc' },
+        take: options?.limit ?? 200,
+        skip: options?.offset ?? 0,
+      }),
+      this.db.legalCaseFile.count({ where }),
+    ]);
+
+    return { items, total };
+  }
+
+  async getCaseFile(workspaceId: string, caseFileId: string) {
+    return this.db.legalCaseFile.findFirst({
+      where: {
+        id: caseFileId,
+        workspaceId,
+      },
+    });
+  }
+
+  async upsertCaseFile(params: {
+    userId: string;
+    workspaceId: string;
+    input: any;
+    ipAddress?: string;
+  }) {
+    const { userId, workspaceId, input, ipAddress } = params;
+
+    const matter = await this.db.legalMatter.findFirst({
+      where: {
+        id: input.matterId,
+        workspaceId,
+      },
+      select: {
+        id: true,
+        title: true,
+      },
+    });
+    if (!matter) {
+      throw new Error('Matter nicht gefunden.');
+    }
+
+    const data = {
+      workspaceId,
+      matterId: input.matterId,
+      title: input.title,
+      summary: input.summary,
+      priority: input.priority ?? 'medium',
+      docIds: Array.isArray(input.docIds) ? input.docIds : [],
+      deadlineIds: Array.isArray(input.deadlineIds) ? input.deadlineIds : [],
+      metadata: input.metadata,
+    };
+
+    const result = input.id
+      ? await this.db.legalCaseFile.upsert({
+          where: { id: input.id },
+          update: data,
+          create: { id: input.id, ...data },
+        })
+      : await this.db.legalCaseFile.create({ data });
+
+    await this.audit.append({
+      workspaceId,
+      userId,
+      matterId: result.matterId,
+      action: input.id ? 'case_file.updated' : 'case_file.created',
+      details: `Fallakte "${result.title ?? 'Unbenannt'}" wurde ${input.id ? 'aktualisiert' : 'angelegt'} (Akte: ${matter.title}).`,
+      ipAddress,
+      metadata: {
+        caseFileId: result.id,
+        matterId: result.matterId,
+      },
+    });
+
+    return result;
+  }
+
+  async deleteCaseFile(params: {
+    userId: string;
+    workspaceId: string;
+    caseFileId: string;
+  }) {
+    const caseFile = await this.db.legalCaseFile.findFirst({
+      where: {
+        id: params.caseFileId,
+        workspaceId: params.workspaceId,
+      },
+    });
+    if (!caseFile) return false;
+
+    await this.db.legalCaseFile.delete({
+      where: { id: caseFile.id },
+    });
+
+    await this.audit.append({
+      workspaceId: params.workspaceId,
+      userId: params.userId,
+      matterId: caseFile.matterId,
+      action: 'case_file.deleted',
+      details: `Fallakte "${caseFile.title ?? 'Unbenannt'}" wurde gelöscht.`,
+      metadata: {
+        caseFileId: caseFile.id,
+      },
+    });
+
+    return true;
   }
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -654,33 +795,59 @@ export class LegalCaseService {
   }) {
     const { userId, workspaceId, input, ipAddress } = params;
 
-    const invoiceNumber =
-      input.invoiceNumber ?? (await this.generateInvoiceNumber(workspaceId));
-
     const subtotalCents = Number(input.subtotalCents);
     const taxRateBps = input.taxRateBps ?? 1900;
     const taxAmountCents = Math.round((subtotalCents * taxRateBps) / 10000);
     const totalCents = subtotalCents + taxAmountCents;
 
-    const result = await this.db.legalInvoice.create({
-      data: {
-        workspaceId,
-        matterId: input.matterId,
-        clientId: input.clientId,
-        invoiceNumber,
-        status: input.status ?? 'draft',
-        currency: input.currency ?? 'EUR',
-        subtotalCents,
-        taxRateBps,
-        taxAmountCents,
-        totalCents,
-        issuedAt: input.issuedAt ? new Date(input.issuedAt) : undefined,
-        dueDate: input.dueDate ? new Date(input.dueDate) : undefined,
-        notes: input.notes,
-        lineItems: input.lineItems ?? [],
-        metadata: input.metadata,
-      },
-    });
+    const userProvidedInvoiceNumber =
+      typeof input.invoiceNumber === 'string' && input.invoiceNumber.trim()
+        ? input.invoiceNumber.trim()
+        : undefined;
+
+    let result: Awaited<ReturnType<typeof this.db.legalInvoice.create>> | null =
+      null;
+    const maxRetries = userProvidedInvoiceNumber ? 1 : 5;
+
+    for (let attempt = 0; attempt < maxRetries; attempt += 1) {
+      const invoiceNumber =
+        userProvidedInvoiceNumber ??
+        (await this.generateInvoiceNumber(workspaceId));
+      try {
+        result = await this.db.legalInvoice.create({
+          data: {
+            workspaceId,
+            matterId: input.matterId,
+            clientId: input.clientId,
+            invoiceNumber,
+            status: input.status ?? 'draft',
+            currency: input.currency ?? 'EUR',
+            subtotalCents,
+            taxRateBps,
+            taxAmountCents,
+            totalCents,
+            issuedAt: input.issuedAt ? new Date(input.issuedAt) : undefined,
+            dueDate: input.dueDate ? new Date(input.dueDate) : undefined,
+            notes: input.notes,
+            lineItems: input.lineItems ?? [],
+            metadata: input.metadata,
+          },
+        });
+        break;
+      } catch (error) {
+        const duplicateInvoiceNumber =
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === 'P2002';
+
+        if (!duplicateInvoiceNumber || attempt >= maxRetries - 1) {
+          throw error;
+        }
+      }
+    }
+
+    if (!result) {
+      throw new Error('Rechnung konnte nicht erstellt werden. Bitte erneut versuchen.');
+    }
 
     if (input.timeEntryIds?.length) {
       await this.db.legalTimeEntry.updateMany({
@@ -695,7 +862,7 @@ export class LegalCaseService {
       matterId: input.matterId,
       clientId: input.clientId,
       action: 'invoice.created',
-      details: `Rechnung ${invoiceNumber} erstellt: €${(totalCents / 100).toFixed(2)}.`,
+      details: `Rechnung ${result.invoiceNumber} erstellt: €${(totalCents / 100).toFixed(2)}.`,
       ipAddress,
     });
 
@@ -727,7 +894,274 @@ export class LegalCaseService {
     matterId?: string;
     opposingParties: string[];
   }) {
-    return this.conflicts.check(params);
+    return this.conflicts.runCheck({
+      userId: params.userId,
+      workspaceId: params.workspaceId,
+      clientId: params.clientId,
+      matterId: params.matterId,
+      opposingParties: params.opposingParties,
+    });
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // PORTAL REQUESTS
+  // ═══════════════════════════════════════════════════════════════════════
+
+  async listPortalRequests(
+    workspaceId: string,
+    options?: {
+      type?: string;
+      status?: string;
+      limit?: number;
+      offset?: number;
+    }
+  ) {
+    const where: any = { workspaceId };
+    if (options?.type) where.type = options.type;
+    if (options?.status) where.status = options.status;
+
+    const [items, total] = await Promise.all([
+      this.db.legalPortalRequest.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        take: options?.limit ?? 100,
+        skip: options?.offset ?? 0,
+      }),
+      this.db.legalPortalRequest.count({ where }),
+    ]);
+
+    return { items, total };
+  }
+
+  async getPortalRequest(workspaceId: string, id: string) {
+    return this.db.legalPortalRequest.findFirst({
+      where: { id, workspaceId },
+    });
+  }
+
+  async upsertPortalRequest(params: {
+    userId: string;
+    workspaceId: string;
+    input: any;
+    ipAddress?: string;
+  }) {
+    const { userId, workspaceId, input, ipAddress } = params;
+
+    const data = {
+      workspaceId,
+      clientId: input.clientId,
+      caseId: input.caseId,
+      matterId: input.matterId,
+      type: input.type ?? 'vollmacht',
+      channel: input.channel ?? 'email',
+      status: input.status ?? 'created',
+      tokenHash: input.tokenHash,
+      expiresAt: new Date(input.expiresAt),
+      lastSentAt: input.lastSentAt ? new Date(input.lastSentAt) : undefined,
+      openedAt: input.openedAt ? new Date(input.openedAt) : undefined,
+      completedAt: input.completedAt ? new Date(input.completedAt) : undefined,
+      revokedAt: input.revokedAt ? new Date(input.revokedAt) : undefined,
+      failedAt: input.failedAt ? new Date(input.failedAt) : undefined,
+      sendCount: input.sendCount ?? 0,
+      metadata: input.metadata,
+    };
+
+    const result = input.id
+      ? await this.db.legalPortalRequest.upsert({
+          where: { id: input.id },
+          update: data,
+          create: { id: input.id, ...data },
+        })
+      : await this.db.legalPortalRequest.create({ data });
+
+    await this.audit.append({
+      workspaceId,
+      userId,
+      action: input.id ? 'portal_request.updated' : 'portal_request.created',
+      details: `Portal-Request (${result.type}) wurde ${input.id ? 'aktualisiert' : 'angelegt'}.`,
+      ipAddress,
+      metadata: {
+        portalRequestId: result.id,
+        type: result.type,
+        status: result.status,
+      },
+    });
+
+    return result;
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // VOLLMACHT SIGNING REQUESTS
+  // ═══════════════════════════════════════════════════════════════════════
+
+  async listVollmachtSigningRequests(
+    workspaceId: string,
+    options?: {
+      status?: string;
+      reviewStatus?: string;
+      limit?: number;
+      offset?: number;
+    }
+  ) {
+    const where: any = { workspaceId };
+    if (options?.status) where.status = options.status;
+    if (options?.reviewStatus) where.reviewStatus = options.reviewStatus;
+
+    const [items, total] = await Promise.all([
+      this.db.legalVollmachtSigningRequest.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        take: options?.limit ?? 100,
+        skip: options?.offset ?? 0,
+      }),
+      this.db.legalVollmachtSigningRequest.count({ where }),
+    ]);
+
+    return { items, total };
+  }
+
+  async getVollmachtSigningRequest(workspaceId: string, id: string) {
+    return this.db.legalVollmachtSigningRequest.findFirst({
+      where: { id, workspaceId },
+    });
+  }
+
+  async upsertVollmachtSigningRequest(params: {
+    userId: string;
+    workspaceId: string;
+    input: any;
+    ipAddress?: string;
+  }) {
+    const { userId, workspaceId, input, ipAddress } = params;
+
+    const data = {
+      workspaceId,
+      clientId: input.clientId,
+      caseId: input.caseId,
+      matterId: input.matterId,
+      portalRequestId: input.portalRequestId,
+      vollmachtId: input.vollmachtId,
+      mode: input.mode ?? 'upload',
+      provider: input.provider ?? 'none',
+      providerEnvelopeId: input.providerEnvelopeId,
+      providerStatus: input.providerStatus,
+      status: input.status ?? 'requested',
+      uploadedDocumentId: input.uploadedDocumentId,
+      reviewStatus: input.reviewStatus ?? 'pending',
+      decisionNote: input.decisionNote,
+      decidedBy: input.decidedBy,
+      decidedAt: input.decidedAt ? new Date(input.decidedAt) : undefined,
+      metadata: input.metadata,
+    };
+
+    const result = input.id
+      ? await this.db.legalVollmachtSigningRequest.upsert({
+          where: { id: input.id },
+          update: data,
+          create: { id: input.id, ...data },
+        })
+      : await this.db.legalVollmachtSigningRequest.create({ data });
+
+    await this.audit.append({
+      workspaceId,
+      userId,
+      action: input.id
+        ? 'vollmacht_signing.updated'
+        : 'vollmacht_signing.created',
+      details: `Vollmacht-Signing-Request wurde ${input.id ? 'aktualisiert' : 'angelegt'}.`,
+      ipAddress,
+      metadata: {
+        signingRequestId: result.id,
+        status: result.status,
+        reviewStatus: result.reviewStatus,
+      },
+    });
+
+    return result;
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // KYC SUBMISSIONS
+  // ═══════════════════════════════════════════════════════════════════════
+
+  async listKycSubmissions(
+    workspaceId: string,
+    options?: {
+      status?: string;
+      reviewStatus?: string;
+      limit?: number;
+      offset?: number;
+    }
+  ) {
+    const where: any = { workspaceId };
+    if (options?.status) where.status = options.status;
+    if (options?.reviewStatus) where.reviewStatus = options.reviewStatus;
+
+    const [items, total] = await Promise.all([
+      this.db.legalKycSubmission.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        take: options?.limit ?? 100,
+        skip: options?.offset ?? 0,
+      }),
+      this.db.legalKycSubmission.count({ where }),
+    ]);
+
+    return { items, total };
+  }
+
+  async getKycSubmission(workspaceId: string, id: string) {
+    return this.db.legalKycSubmission.findFirst({
+      where: { id, workspaceId },
+    });
+  }
+
+  async upsertKycSubmission(params: {
+    userId: string;
+    workspaceId: string;
+    input: any;
+    ipAddress?: string;
+  }) {
+    const { userId, workspaceId, input, ipAddress } = params;
+
+    const data = {
+      workspaceId,
+      clientId: input.clientId,
+      caseId: input.caseId,
+      matterId: input.matterId,
+      portalRequestId: input.portalRequestId,
+      status: input.status ?? 'requested',
+      uploadedDocumentIds: input.uploadedDocumentIds ?? [],
+      formData: input.formData,
+      reviewStatus: input.reviewStatus ?? 'pending',
+      decisionNote: input.decisionNote,
+      decidedBy: input.decidedBy,
+      decidedAt: input.decidedAt ? new Date(input.decidedAt) : undefined,
+      metadata: input.metadata,
+    };
+
+    const result = input.id
+      ? await this.db.legalKycSubmission.upsert({
+          where: { id: input.id },
+          update: data,
+          create: { id: input.id, ...data },
+        })
+      : await this.db.legalKycSubmission.create({ data });
+
+    await this.audit.append({
+      workspaceId,
+      userId,
+      action: input.id ? 'kyc_submission.updated' : 'kyc_submission.created',
+      details: `KYC-Submission wurde ${input.id ? 'aktualisiert' : 'angelegt'}.`,
+      ipAddress,
+      metadata: {
+        kycSubmissionId: result.id,
+        status: result.status,
+        reviewStatus: result.reviewStatus,
+      },
+    });
+
+    return result;
   }
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -738,43 +1172,36 @@ export class LegalCaseService {
     const [
       clientCount,
       matterCount,
-      openMatterCount,
-      deadlineCount,
-      overdueDeadlineCount,
-      unbilledTimeMinutes,
-      draftInvoiceCount,
+      activeDeadlineCount,
+      timeEntryCount,
+      invoiceCount,
     ] = await Promise.all([
-      this.db.legalClient.count({ where: { workspaceId, deletedAt: null } }),
-      this.db.legalMatter.count({ where: { workspaceId, trashedAt: null } }),
+      this.db.legalClient.count({
+        where: { workspaceId, deletedAt: null, archived: false },
+      }),
       this.db.legalMatter.count({
         where: { workspaceId, status: 'open', trashedAt: null },
       }),
       this.db.legalDeadline.count({
-        where: { workspaceId, status: { in: ['open', 'alerted'] } },
-      }),
-      this.db.legalDeadline.count({
         where: {
           workspaceId,
-          status: { in: ['open', 'alerted'] },
-          dueAt: { lt: new Date() },
+          status: { in: ['open', 'alerted', 'acknowledged'] },
         },
       }),
-      this.db.legalTimeEntry.aggregate({
-        where: { workspaceId, status: 'approved', invoiceId: null },
-        _sum: { durationMinutes: true },
+      this.db.legalTimeEntry.count({
+        where: { workspaceId },
       }),
-      this.db.legalInvoice.count({ where: { workspaceId, status: 'draft' } }),
+      this.db.legalInvoice.count({
+        where: { workspaceId },
+      }),
     ]);
 
     return {
       clientCount,
       matterCount,
-      openMatterCount,
-      deadlineCount,
-      overdueDeadlineCount,
-      unbilledHours:
-        Math.round((unbilledTimeMinutes._sum.durationMinutes ?? 0) / 6) / 10,
-      draftInvoiceCount,
+      activeDeadlineCount,
+      timeEntryCount,
+      invoiceCount,
     };
   }
 }

@@ -233,13 +233,23 @@ export class CasePlatformOrchestrationService extends Service {
       return false;
     }
 
-    const [clientsRes, mattersRes, deadlinesRes, timeEntriesRes, invoicesRes] =
+    const [
+      clientsRes,
+      mattersRes,
+      caseFilesRes,
+      deadlinesRes,
+      timeEntriesRes,
+      invoicesRes,
+    ] =
       await Promise.all([
         this.getLegalApi<{ items?: any[] }>(
           `/api/legal/workspaces/${encodeURIComponent(workspaceId)}/clients?limit=500`
         ),
         this.getLegalApi<{ items?: any[] }>(
           `/api/legal/workspaces/${encodeURIComponent(workspaceId)}/matters?limit=500&includeTrashed=true`
+        ),
+        this.getLegalApi<{ items?: any[] }>(
+          `/api/legal/workspaces/${encodeURIComponent(workspaceId)}/case-files?limit=1000`
         ),
         this.getLegalApi<{ items?: any[] }>(
           `/api/legal/workspaces/${encodeURIComponent(workspaceId)}/deadlines?limit=1000`
@@ -254,6 +264,7 @@ export class CasePlatformOrchestrationService extends Service {
 
     const remoteClients = clientsRes?.items ?? [];
     const remoteMatters = mattersRes?.items ?? [];
+    const remoteCaseFiles = caseFilesRes?.items ?? [];
     const remoteDeadlines = deadlinesRes?.items ?? [];
     const remoteTimeEntries = timeEntriesRes?.items ?? [];
     const remoteInvoices = invoicesRes?.items ?? [];
@@ -262,6 +273,7 @@ export class CasePlatformOrchestrationService extends Service {
     if (
       remoteClients.length === 0 &&
       remoteMatters.length === 0 &&
+      remoteCaseFiles.length === 0 &&
       remoteDeadlines.length === 0 &&
       remoteTimeEntries.length === 0 &&
       remoteInvoices.length === 0
@@ -393,6 +405,56 @@ export class CasePlatformOrchestrationService extends Service {
       }
     }
 
+    // Case files
+    let hasCaseFileChanges = false;
+    for (const c of remoteCaseFiles) {
+      const caseFileId = String(c.id);
+      const existing = nextGraph.cases[caseFileId];
+      const metadata = (c.metadata ?? {}) as Record<string, unknown>;
+
+      const caseFileRecord: CaseFile = {
+        id: caseFileId,
+        workspaceId,
+        matterId: c.matterId ? String(c.matterId) : existing?.matterId,
+        title: c.title ?? existing?.title ?? 'Fallakte',
+        summary: c.summary ?? existing?.summary,
+        externalRef:
+          typeof metadata['externalRef'] === 'string'
+            ? metadata['externalRef']
+            : existing?.externalRef,
+        actorIds: Array.isArray(metadata['actorIds'])
+          ? (metadata['actorIds'] as string[]).map(String)
+          : (existing?.actorIds ?? []),
+        issueIds: Array.isArray(metadata['issueIds'])
+          ? (metadata['issueIds'] as string[]).map(String)
+          : (existing?.issueIds ?? []),
+        deadlineIds: Array.isArray(c.deadlineIds)
+          ? c.deadlineIds.map(String)
+          : Array.isArray(metadata['deadlineIds'])
+            ? (metadata['deadlineIds'] as string[]).map(String)
+            : (existing?.deadlineIds ?? []),
+        terminIds: Array.isArray(metadata['terminIds'])
+          ? (metadata['terminIds'] as string[]).map(String)
+          : existing?.terminIds,
+        memoryEventIds: Array.isArray(metadata['memoryEventIds'])
+          ? (metadata['memoryEventIds'] as string[]).map(String)
+          : (existing?.memoryEventIds ?? []),
+        tags: Array.isArray(metadata['tags'])
+          ? (metadata['tags'] as string[]).map(String)
+          : (existing?.tags ?? []),
+        createdAt: new Date(c.createdAt ?? Date.now()).toISOString(),
+        updatedAt: new Date(c.updatedAt ?? Date.now()).toISOString(),
+      };
+
+      if (
+        !existing ||
+        JSON.stringify(existing) !== JSON.stringify(caseFileRecord)
+      ) {
+        nextGraph.cases[caseFileId] = caseFileRecord;
+        hasCaseFileChanges = true;
+      }
+    }
+
     // Deadlines + case linkage
     let hasDeadlineChanges = false;
     let hasCaseLinkageChanges = false;
@@ -473,6 +535,7 @@ export class CasePlatformOrchestrationService extends Service {
     const hasGraphChanges =
       hasClientChanges ||
       hasMatterChanges ||
+      hasCaseFileChanges ||
       hasDeadlineChanges ||
       hasCaseLinkageChanges;
 
@@ -613,6 +676,28 @@ export class CasePlatformOrchestrationService extends Service {
       tags: record.tags,
       archived: record.archived,
       identifiers: record.identifiers,
+      createdAt: record.createdAt,
+      updatedAt: record.updatedAt,
+    };
+  }
+
+  private toLegalCaseFilePayload(record: CaseFile) {
+    return {
+      id: record.id,
+      matterId: record.matterId,
+      title: record.title,
+      summary: record.summary,
+      priority: 'medium',
+      docIds: [],
+      deadlineIds: record.deadlineIds,
+      metadata: {
+        actorIds: record.actorIds,
+        issueIds: record.issueIds,
+        memoryEventIds: record.memoryEventIds,
+        terminIds: record.terminIds ?? [],
+        tags: record.tags,
+        externalRef: record.externalRef,
+      },
       createdAt: record.createdAt,
       updatedAt: record.updatedAt,
     };
@@ -1200,6 +1285,13 @@ export class CasePlatformOrchestrationService extends Service {
       createdAt: input.createdAt ?? current?.createdAt ?? now,
       updatedAt: input.updatedAt ?? now,
     };
+
+    if (record.matterId) {
+      await this.postLegalApi(
+        `/api/legal/workspaces/${encodeURIComponent(record.workspaceId)}/case-files`,
+        this.toLegalCaseFilePayload(record)
+      );
+    }
 
     await this.store.upsertCaseFile(record);
     await this.appendWorkflowEvent({

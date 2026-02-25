@@ -1651,7 +1651,8 @@ export class CopilotNlpCrudService extends Service {
         const target = this.findEntityByTitle(
           caseFile.deadlineIds.map(id => graph?.deadlines?.[id]).filter(Boolean) as CaseDeadline[],
           p['title'],
-          'title'
+          'title',
+          false
         );
 
         if (!target) {
@@ -1687,7 +1688,8 @@ export class CopilotNlpCrudService extends Service {
         const target = this.findEntityByTitle(
           caseFile.actorIds.map(id => graph?.actors?.[id]).filter(Boolean) as CaseActor[],
           p['title'],
-          'name'
+          'name',
+          false
         );
 
         if (!target) {
@@ -1715,7 +1717,8 @@ export class CopilotNlpCrudService extends Service {
         const target = this.findEntityByTitle(
           caseFile.issueIds.map(id => graph?.issues?.[id]).filter(Boolean) as CaseIssue[],
           p['title'],
-          'title'
+          'title',
+          false
         );
 
         if (!target) {
@@ -1748,7 +1751,12 @@ export class CopilotNlpCrudService extends Service {
           };
         }
 
-        const target = this.findEntityByTitle(entries, p['title'], 'description') as TimeEntry | undefined;
+        const target = this.findEntityByTitle(
+          entries,
+          p['title'],
+          'description',
+          false
+        ) as TimeEntry | undefined;
         if (!target) {
           return {
             success: false,
@@ -1934,6 +1942,24 @@ export class CopilotNlpCrudService extends Service {
     context: NlpCrudContext
   ): Promise<NlpCrudActionResult> {
     const p = parsed.parameters;
+    const hasExplicitTarget = Boolean(
+      p['title'] ||
+        p['id'] ||
+        p['description'] ||
+        p['invoiceNumber'] ||
+        p['rechnungsnummer']
+    );
+    if (!hasExplicitTarget) {
+      return {
+        success: false,
+        intent: 'delete',
+        entity: parsed.entity,
+        message:
+          'Löschen abgebrochen: Bitte gib ein eindeutiges Ziel an (z.B. exakter Titel/Name oder Rechnungsnummer).',
+        confirmationRequired: false,
+      };
+    }
+
     const graph = this.caseAssistant.graph$.value;
     const caseFile = graph?.cases?.[context.caseId];
 
@@ -2028,7 +2054,12 @@ export class CopilotNlpCrudService extends Service {
 
       case 'client': {
         const clients = Object.values(graph?.clients ?? {});
-        const target = this.findEntityByTitle(clients, p['title'], 'displayName');
+        const target = this.findEntityByTitle(
+          clients,
+          p['title'],
+          'displayName',
+          false
+        );
 
         if (!target) {
           return { success: false, intent: 'delete', entity: 'client', message: 'Kein passender Mandant gefunden.', confirmationRequired: false };
@@ -2046,7 +2077,7 @@ export class CopilotNlpCrudService extends Service {
 
       case 'matter': {
         const matters = Object.values(graph?.matters ?? {});
-        const target = this.findEntityByTitle(matters, p['title'], 'title');
+        const target = this.findEntityByTitle(matters, p['title'], 'title', false);
 
         if (!target) {
           return { success: false, intent: 'delete', entity: 'matter', message: 'Keine passende Akte gefunden.', confirmationRequired: false };
@@ -2335,10 +2366,11 @@ export class CopilotNlpCrudService extends Service {
   private findEntityByTitle<T extends Record<string, any>>(
     entities: T[],
     searchTitle: string | undefined,
-    titleField: string
+    titleField: string,
+    allowFallback: boolean = true
   ): T | undefined {
     if (!searchTitle || entities.length === 0) {
-      return entities[0]; // fallback: take first
+      return allowFallback ? entities[0] : undefined;
     }
 
     const lower = searchTitle.toLowerCase();
@@ -2376,7 +2408,7 @@ export class CopilotNlpCrudService extends Service {
       }
     }
 
-    return bestMatch ?? entities[0];
+    return bestMatch ?? (allowFallback ? entities[0] : undefined);
   }
 
   private deriveTitleFromText(text: string, fallback: string, maxLength = 96): string {

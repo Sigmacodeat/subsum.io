@@ -40,7 +40,7 @@ export class LegalAuditService {
       });
     } catch (error) {
       this.logger.error('Failed to write audit log', error as Error);
-      return null;
+      throw new Error('Audit log write failed');
     }
   }
 

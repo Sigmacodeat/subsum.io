@@ -1905,3 +1905,160 @@ model LegalConflictCheck {
   @@index([matterId])
   @@map("legal_conflict_checks")
 }
+
+enum LegalPortalRequestType {
+  vollmacht
+  kyc
+}
+
+enum LegalPortalRequestChannel {
+  email
+  whatsapp
+}
+
+enum LegalPortalRequestStatus {
+  created
+  sent
+  opened
+  completed
+  failed
+  expired
+  revoked
+}
+
+// Portal-Anfragen (Vollmacht, KYC)
+model LegalPortalRequest {
+  id          String                    @id @default(uuid()) @db.VarChar
+  workspaceId String                    @map("workspace_id") @db.VarChar
+  clientId    String                    @map("client_id") @db.VarChar
+  caseId      String?                   @map("case_id") @db.VarChar
+  matterId    String?                   @map("matter_id") @db.VarChar
+  type        LegalPortalRequestType
+  channel     LegalPortalRequestChannel @default(email)
+  status      LegalPortalRequestStatus  @default(created)
+  tokenHash   String                    @map("token_hash") @db.VarChar
+  expiresAt   DateTime                  @map("expires_at") @db.Timestamptz(3)
+  lastSentAt  DateTime?                 @map("last_sent_at") @db.Timestamptz(3)
+  openedAt    DateTime?                 @map("opened_at") @db.Timestamptz(3)
+  completedAt DateTime?                 @map("completed_at") @db.Timestamptz(3)
+  revokedAt   DateTime?                 @map("revoked_at") @db.Timestamptz(3)
+  failedAt    DateTime?                 @map("failed_at") @db.Timestamptz(3)
+  sendCount   Int                       @default(0) @map("send_count")
+  metadata    Json?                     @db.JsonB
+  createdAt   DateTime                  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime                  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  vollmachtSigningRequests LegalVollmachtSigningRequest[]
+  kycSubmissions           LegalKycSubmission[]
+
+  @@index([workspaceId, status])
+  @@index([workspaceId, type, status])
+  @@index([tokenHash])
+  @@index([expiresAt, status])
+  @@map("legal_portal_requests")
+}
+
+enum LegalVollmachtSigningMode {
+  upload
+  esign
+}
+
+enum LegalVollmachtSigningProvider {
+  none
+  docusign
+  signaturit
+  dropbox_sign
+}
+
+enum LegalVollmachtSigningStatus {
+  requested
+  email_sent
+  opened
+  uploaded
+  provider_sent
+  provider_viewed
+  provider_signed
+  provider_declined
+  review_required
+  approved
+  rejected
+  expired
+  revoked
+}
+
+enum LegalReviewStatus {
+  pending
+  approved
+  rejected
+}
+
+// Vollmacht-Signing-Requests
+model LegalVollmachtSigningRequest {
+  id                  String                        @id @default(uuid()) @db.VarChar
+  workspaceId         String                        @map("workspace_id") @db.VarChar
+  clientId            String                        @map("client_id") @db.VarChar
+  caseId              String?                       @map("case_id") @db.VarChar
+  matterId            String?                       @map("matter_id") @db.VarChar
+  portalRequestId     String?                       @map("portal_request_id") @db.VarChar
+  vollmachtId         String?                       @map("vollmacht_id") @db.VarChar
+  mode                LegalVollmachtSigningMode     @default(upload)
+  provider            LegalVollmachtSigningProvider @default(none)
+  providerEnvelopeId  String?                       @map("provider_envelope_id") @db.VarChar
+  providerStatus      String?                       @map("provider_status") @db.VarChar
+  status              LegalVollmachtSigningStatus   @default(requested)
+  uploadedDocumentId  String?                       @map("uploaded_document_id") @db.VarChar
+  reviewStatus        LegalReviewStatus             @default(pending) @map("review_status")
+  decisionNote        String?                       @map("decision_note") @db.Text
+  decidedBy           String?                       @map("decided_by") @db.VarChar
+  decidedAt           DateTime?                     @map("decided_at") @db.Timestamptz(3)
+  metadata            Json?                         @db.JsonB
+  createdAt           DateTime                      @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt           DateTime                      @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  portalRequest LegalPortalRequest? @relation(fields: [portalRequestId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, status])
+  @@index([workspaceId, reviewStatus])
+  @@index([portalRequestId])
+  @@index([providerEnvelopeId])
+  @@map("legal_vollmacht_signing_requests")
+}
+
+enum LegalKycSubmissionStatus {
+  requested
+  email_sent
+  opened
+  uploaded
+  review_required
+  approved
+  rejected
+  expired
+  revoked
+}
+
+// KYC-Submissions
+model LegalKycSubmission {
+  id                  String                   @id @default(uuid()) @db.VarChar
+  workspaceId         String                   @map("workspace_id") @db.VarChar
+  clientId            String                   @map("client_id") @db.VarChar
+  caseId              String?                  @map("case_id") @db.VarChar
+  matterId            String?                  @map("matter_id") @db.VarChar
+  portalRequestId     String?                  @map("portal_request_id") @db.VarChar
+  status              LegalKycSubmissionStatus @default(requested)
+  uploadedDocumentIds String[]                 @default([]) @map("uploaded_document_ids") @db.VarChar
+  formData            Json?                    @map("form_data") @db.JsonB
+  reviewStatus        LegalReviewStatus        @default(pending) @map("review_status")
+  decisionNote        String?                  @map("decision_note") @db.Text
+  decidedBy           String?                  @map("decided_by") @db.VarChar
+  decidedAt           DateTime?                @map("decided_at") @db.Timestamptz(3)
+  metadata            Json?                    @db.JsonB
+  createdAt           DateTime                 @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt           DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  portalRequest LegalPortalRequest? @relation(fields: [portalRequestId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, status])
+  @@index([workspaceId, reviewStatus])
+  @@index([portalRequestId])
+  @@map("legal_kyc_submissions")
+}
