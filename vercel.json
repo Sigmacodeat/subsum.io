@@ -1,6 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "installCommand": "yarn install",
+  "installCommand": "yarn install && yarn workspace @affine/server postinstall",
   "buildCommand": "yarn workspace @legalopscopilot/marketing build && rm -rf .next && cp -R packages/frontend/apps/marketing/.next .next",
   "devCommand": "yarn workspace @legalopscopilot/marketing dev"
 }
