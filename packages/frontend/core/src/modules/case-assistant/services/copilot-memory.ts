@@ -1,30 +1,187 @@
 import { LiveData, Service } from '@toeverything/infra';
 
 import type {
-  AnswerConfidence,
-  ConfidenceFactor,
-  ConfidenceLevel,
-  CopilotMemory,
-  CopilotMemoryCategory,
-  CopilotMemoryScope,
-  CopilotMemorySource,
-  CrossCheckFinding,
-  CrossCheckReport,
-  CrossCheckStatus,
-  CrossCheckTrigger,
-  FeedbackCategory,
-  FeedbackRating,
   LegalChatMode,
   LegalDocumentRecord,
   LegalFinding,
-  MessageFeedback,
-  ReasoningChain,
-  ReasoningStep,
-  ReasoningStepType,
 } from '../types';
 import type { CaseAssistantStore } from '../stores/case-assistant';
 import type { CasePlatformOrchestrationService } from './platform-orchestration';
 import type { ContradictionDetectorService } from './contradiction-detector';
+
+type CopilotMemoryScope = 'session' | 'case' | 'workspace' | 'global';
+
+type CopilotMemoryCategory =
+  | 'fact'
+  | 'preference'
+  | 'rule'
+  | 'strategy'
+  | 'entity'
+  | 'deadline'
+  | 'contradiction'
+  | 'instruction'
+  | 'learning'
+  | 'cross_check';
+
+type CopilotMemorySource =
+  | 'user_instruction'
+  | 'auto_extract'
+  | 'cross_check'
+  | 'feedback'
+  | 'manual';
+
+type CopilotMemoryStatus = 'active' | 'archived' | 'expired' | 'deleted';
+
+type CrossCheckTrigger =
+  | 'manual'
+  | 'ingestion'
+  | 'analysis'
+  | 'document_update'
+  | 'chat_command';
+type CrossCheckStatus = 'queued' | 'running' | 'completed' | 'failed';
+
+type FeedbackRating = 'positive' | 'neutral' | 'negative';
+type FeedbackCategory =
+  | 'accuracy'
+  | 'citation'
+  | 'hallucination'
+  | 'clarity'
+  | 'missing_context'
+  | 'other';
+
+type ConfidenceLevel = 'very_low' | 'low' | 'medium' | 'high' | 'very_high';
+type ReasoningStepType =
+  | 'memory'
+  | 'retrieval'
+  | 'retrieve'
+  | 'analysis'
+  | 'citation'
+  | 'verify'
+  | 'compare'
+  | 'synthesis'
+  | 'synthesize'
+  | 'validation';
+
+type ConfidenceFactor = {
+  name: string;
+  weight: number;
+  score: number;
+  description: string;
+};
+
+type AnswerConfidence = {
+  score: number;
+  level: ConfidenceLevel;
+  factors: ConfidenceFactor[];
+  supportingSources: number;
+  contradictingSources: number;
+  hasUnverifiedClaims: boolean;
+  warnings: string[];
+};
+
+type MessageFeedback = {
+  id: string;
+  messageId: string;
+  sessionId: string;
+  caseId: string;
+  workspaceId: string;
+  rating: FeedbackRating;
+  category?: FeedbackCategory;
+  comment?: string;
+  originalQuery?: string;
+  mode: LegalChatMode;
+  modelId?: string;
+  normReferences?: string[];
+  appliedToMemory?: boolean;
+  memoryId?: string;
+  createdAt: string;
+};
+
+type ReasoningStep = {
+  id: string;
+  type: ReasoningStepType;
+  label: string;
+  detail?: string;
+  sourceRefs?: Array<{ type: string; id: string; title: string }>;
+  durationMs?: number;
+  confidenceAfter?: number;
+  status: 'running' | 'complete' | 'failed';
+};
+
+type ReasoningChain = {
+  id: string;
+  messageId: string;
+  steps: ReasoningStep[];
+  totalDurationMs: number;
+  finalConfidence: number;
+  isStreaming: boolean;
+  createdAt: string;
+};
+
+type CrossCheckFinding = {
+  id: string;
+  type: 'contradiction' | 'confirmation' | 'new_info' | 'gap' | 'update';
+  severity: 'critical' | 'high' | 'medium' | 'low';
+  title: string;
+  description: string;
+  documentIds: string[];
+  excerpts: Array<{
+    documentId: string;
+    documentTitle: string;
+    text: string;
+  }>;
+  confidence: number;
+};
+
+type CrossCheckReport = {
+  id: string;
+  caseId: string;
+  workspaceId: string;
+  trigger: CrossCheckTrigger;
+  status: CrossCheckStatus;
+  newDocumentIds: string[];
+  existingDocumentIds: string[];
+  findings: CrossCheckFinding[];
+  stats: {
+    contradictionsFound: number;
+    confirmationsFound: number;
+    newInfoFound: number;
+    gapsFound: number;
+    updatesFound: number;
+    documentsCompared: number;
+    durationMs: number;
+  };
+  summary: string;
+  createdMemoryIds: string[];
+  createdAt: string;
+};
+
+type CopilotMemory = {
+  id: string;
+  workspaceId: string;
+  caseId?: string;
+  sessionId?: string;
+  scope: CopilotMemoryScope;
+  category: CopilotMemoryCategory;
+  status: CopilotMemoryStatus;
+  source: CopilotMemorySource;
+  title: string;
+  content: string;
+  keywords: string[];
+  confidence: number;
+  usageCount: number;
+  sourceDocumentIds?: string[];
+  sourceMessageId?: string;
+  sourceFindingId?: string;
+  normReferences?: string[];
+  expiresAt?: string;
+  createdBy: string;
+  editedBy?: string;
+  editedAt?: string;
+  lastUsedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+};
 
 function createId(prefix: string) {
   return `${prefix}:${Date.now().toString(36)}:${Math.random().toString(36).slice(2, 8)}`;
@@ -514,8 +671,8 @@ export class CopilotMemoryService extends Service {
     // Extract key entities mentioned
     const entityPatterns = [
       { pattern: /(?:Kläger|Beklagter|Antragsteller|Antragsgegner|Beschuldigter|Geschädigter)[:\s]+([A-ZÄÖÜ][a-zäöüß]+(?:\s+[A-ZÄÖÜ][a-zäöüß]+)*)/g, cat: 'entity' as CopilotMemoryCategory },
-      { pattern: /(?:Aktenzeichen|AZ|Az\.?)[:\s]+([A-Za-z0-9\s/\-\.]+)/g, cat: 'fact' as CopilotMemoryCategory },
-      { pattern: /(?:Streitwert|Gegenstandswert)[:\s]+([€\d\.,]+\s*(?:EUR|€)?)/g, cat: 'fact' as CopilotMemoryCategory },
+      { pattern: /(?:Aktenzeichen|AZ|Az\.?)[:\s]+([A-Za-z0-9\s/\-.]+)/g, cat: 'fact' as CopilotMemoryCategory },
+      { pattern: /(?:Streitwert|Gegenstandswert)[:\s]+([€\d.,]+\s*(?:EUR|€)?)/g, cat: 'fact' as CopilotMemoryCategory },
     ];
 
     for (const { pattern, cat } of entityPatterns) {
@@ -609,7 +766,7 @@ export class CopilotMemoryService extends Service {
     );
 
     if (newDocs.length === 0 || existingDocs.length === 0) {
-      const emptyReport: CrossCheckReport = {
+      return {
         id: reportId,
         caseId: input.caseId,
         workspaceId: input.workspaceId,
@@ -633,10 +790,6 @@ export class CopilotMemoryService extends Service {
         createdMemoryIds: [],
         createdAt: new Date().toISOString(),
       };
-      const reports = await this.store.getCrossCheckReports();
-      reports.push(emptyReport);
-      await this.store.setCrossCheckReports(reports);
-      return emptyReport;
     }
 
     // Run contradiction detection between new and existing docs
@@ -688,6 +841,7 @@ export class CopilotMemoryService extends Service {
       const existingTexts = existingDocs
         .map((d: LegalDocumentRecord) => (d.normalizedText ?? d.rawText ?? '').toLowerCase())
         .join(' ');
+      void existingTexts;
 
       // Check for new legal references
       const newRefs = (newDoc.paragraphReferences ?? []).filter(

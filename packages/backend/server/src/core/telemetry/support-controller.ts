@@ -27,7 +27,13 @@ import type {
   SupportRetentionPolicyInput,
 } from './support-types';
 
-const PERIODS: SupportAnalyticsPeriod[] = new Set(['today', '7d', '30d', '90d', 'custom']);
+const PERIODS = new Set<SupportAnalyticsPeriod>([
+  'today',
+  '7d',
+  '30d',
+  '90d',
+  'custom',
+]);
 
 function normalizePeriod(raw?: string): SupportAnalyticsPeriod {
   if (!raw) return '30d';

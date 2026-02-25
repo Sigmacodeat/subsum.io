@@ -22,12 +22,13 @@ const logger = new DebugLogger('i18n');
 
 function mapLanguageInfo(language: Language = 'en'): LanguageInfo {
   const languageInfo = SUPPORTED_LANGUAGES[language];
+  const completenessMap = i18nCompletenesses as Record<string, number>;
 
   return {
     key: language,
     name: languageInfo.name,
     originalName: languageInfo.originalName,
-    completeness: i18nCompletenesses[language],
+    completeness: completenessMap[language] ?? 0,
   };
 }
 

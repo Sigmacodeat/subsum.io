@@ -120,7 +120,6 @@ type CommitLiveMetrics = {
 };
 
 const MAX_UPLOAD_DEAD_LETTER_ITEMS = 200;
-const MAX_COMMIT_LOG_EVENTS = 200;
 
 function normalizeUploadDeadLetters(input: unknown): UploadDeadLetterItem[] {
   if (!Array.isArray(input)) {
@@ -142,33 +141,6 @@ function normalizeUploadDeadLetters(input: unknown): UploadDeadLetterItem[] {
     )
     .sort((a, b) => b.lastAttemptAt.localeCompare(a.lastAttemptAt));
   return normalized.slice(0, MAX_UPLOAD_DEAD_LETTER_ITEMS);
-}
-
-function classifyUploadCommitError(error: unknown): {
-  reasonCode: string;
-  fatalBatch: boolean;
-  details: string;
-} {
-  const message =
-    error instanceof Error ? error.message : String(error ?? 'unknown');
-  if (message === 'timeout') {
-    return {
-      reasonCode: 'intake-timeout',
-      fatalBatch: false,
-      details: message,
-    };
-  }
-  if (message.startsWith('permission-denied:')) {
-    return {
-      reasonCode: 'permission-denied',
-      fatalBatch: true,
-      details: message,
-    };
-  }
-  if (message.startsWith('content-empty:')) {
-    return { reasonCode: 'content-empty', fatalBatch: false, details: message };
-  }
-  return { reasonCode: 'intake-error', fatalBatch: false, details: message };
 }
 
 type Props = {
@@ -297,7 +269,6 @@ function classifyAuthorityReference(value: string): AuthorityRefType {
 
 type DocFilter = 'all' | 'review' | 'failed' | 'problematic';
 type ReviewDocTone = 'ready' | 'review' | 'failed' | 'unknown';
-type UploadBatchPreset = 10 | 20 | 'all';
 type PdfPrequalificationTone = 'good' | 'ocr' | 'warning';
 type UploadFailureCause =
   | 'ocr_required'
@@ -557,6 +528,8 @@ export const CaseOnboardingWizard = (props: Props) => {
   const hasAutoAdvancedAfterCommitRef = useRef(false);
   const hasAutoStep4PipelineRunRef = useRef(false);
   const hasAutoAdvancedToManualReviewRef = useRef(false);
+  const lastInitOpenRef = useRef(false);
+  const lastInitKeyRef = useRef<string>('');
   const [step, setStep] = useState<WizardStep>(1);
   const [stepDirection, setStepDirection] = useState<'forward' | 'backward'>(
     'forward'
@@ -969,12 +942,6 @@ export const CaseOnboardingWizard = (props: Props) => {
     return new Set(stagedUploadFiles.map(file => getUploadFileKey(file)));
   }, [stagedUploadFiles]);
 
-  // Dead letter map for future retry UI (currently unused)
-  const _uploadDeadLetterMap = useMemo(
-    () => new Map(uploadDeadLetters.map(item => [item.fileKey, item])),
-    [uploadDeadLetters]
-  );
-
   const retryableDeadLetterCount = useMemo(() => {
     if (uploadDeadLetters.length === 0 || stagedUploadKeySet.size === 0) {
       return 0;
@@ -1202,25 +1169,6 @@ export const CaseOnboardingWizard = (props: Props) => {
     4: 'com.affine.caseAssistant.wizard.visual.headline.4',
     5: 'com.affine.caseAssistant.wizard.visual.headline.5',
   };
-
-  const lastInitKeyRef = useRef<string | null>(null);
-  const lastInitOpenRef = useRef(false);
-
-  // Commit log event appender for future detailed upload tracking (currently unused)
-  const _appendCommitLogEvent = useCallback(
-    (event: Omit<CommitLogEvent, 'id' | 'ts'> & { ts?: number }) => {
-      const ts = event.ts ?? Date.now();
-      const id = `${ts}:${Math.random().toString(16).slice(2)}`;
-      setCommitLogEvents(prev => {
-        const next = [...prev, { ...event, ts, id } as CommitLogEvent];
-        if (next.length <= MAX_COMMIT_LOG_EVENTS) {
-          return next;
-        }
-        return next.slice(next.length - MAX_COMMIT_LOG_EVENTS);
-      });
-    },
-    []
-  );
 
   const formatCommitLogLine = useCallback((event: CommitLogEvent) => {
     const date = new Date(event.ts);

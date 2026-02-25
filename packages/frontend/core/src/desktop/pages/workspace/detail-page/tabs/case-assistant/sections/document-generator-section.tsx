@@ -47,15 +47,15 @@ type Props = {
   kanzleiName?: string;
 };
 
-const TEMPLATES_NEEDING_PARTIES: DocumentTemplate[] = new Set([
+const TEMPLATES_NEEDING_PARTIES = new Set<DocumentTemplate>([
   'klageschrift', 'klageerwiderung', 'berufungsschrift', 'widerspruch',
   'vergleichsvorschlag', 'mahnung', 'abmahnung',
   'rechtsschutzanfrage_schriftsatz', 'deckungszusage_erinnerung_schriftsatz',
 ]);
 
-const TEMPLATES_NEEDING_EMPFAENGER: DocumentTemplate[] = [
+const TEMPLATES_NEEDING_EMPFAENGER = new Set<DocumentTemplate>([
   'mandantenbrief', 'mahnung', 'kuendigung', 'mietminderungsanzeige',
-];
+]);
 
 export const DocumentGeneratorSection = memo((props: Props) => {
   const [isAutoPopulated, setIsAutoPopulated] = useState(false);
@@ -86,7 +86,7 @@ export const DocumentGeneratorSection = memo((props: Props) => {
   );
 
   const needsParties = TEMPLATES_NEEDING_PARTIES.has(props.docGenTemplate);
-  const needsEmpfaenger = TEMPLATES_NEEDING_EMPFAENGER.includes(props.docGenTemplate);
+  const needsEmpfaenger = TEMPLATES_NEEDING_EMPFAENGER.has(props.docGenTemplate);
 
   const { setSelectedDocGenMatterId } = props;
   const onSelectMatter = useCallback((matterId: string) => {

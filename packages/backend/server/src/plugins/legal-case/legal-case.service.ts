@@ -894,7 +894,7 @@ export class LegalCaseService {
     matterId?: string;
     opposingParties: string[];
   }) {
-    return this.conflicts.runCheck({
+    return this.conflicts.check({
       userId: params.userId,
       workspaceId: params.workspaceId,
       clientId: params.clientId,

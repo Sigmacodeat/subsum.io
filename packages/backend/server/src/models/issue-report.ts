@@ -3,7 +3,13 @@ import { Prisma } from '@prisma/client';
 
 import { BaseModel } from './base';
 
-type IssueReportStatus = 'new' | 'triaged' | 'in_progress' | 'resolved' | 'duplicate';
+type IssueReportStatus =
+  | 'new'
+  | 'triaged'
+  | 'in_progress'
+  | 'resolved'
+  | 'rejected'
+  | 'duplicate';
 type IssueReportSeverity = 'low' | 'medium' | 'high' | 'critical';
 type IssueReportApp = 'web' | 'electron';
 
@@ -30,8 +36,14 @@ export type CreateIssueReportInput = {
 @Injectable()
 export class IssueReportModel extends BaseModel {
   async create(input: CreateIssueReportInput) {
+    const data: Prisma.IssueReportUncheckedCreateInput = {
+      ...input,
+      diagnostics:
+        (input.diagnostics as Prisma.InputJsonValue | undefined) ?? Prisma.JsonNull,
+    };
+
     return await this.db.issueReport.create({
-      data: input,
+      data,
     });
   }
 

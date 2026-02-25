@@ -33,7 +33,7 @@ type JudikaturSearchOptions = {
 };
 
 const ALL_JURISDICTIONS: Jurisdiction[] = ['AT', 'DE', 'CH', 'FR', 'IT', 'PT', 'PL', 'EU', 'ECHR'];
-const INTERNATIONAL_JURISDICTIONS: Jurisdiction[] = new Set(['EU', 'ECHR']);
+const INTERNATIONAL_JURISDICTIONS = new Set<Jurisdiction>(['EU', 'ECHR']);
 
 function toRisDateParam(dateIsoLike: string) {
   const parsed = new Date(dateIsoLike);

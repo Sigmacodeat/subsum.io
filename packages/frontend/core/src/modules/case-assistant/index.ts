@@ -23,6 +23,7 @@ import { CaseCockpitService } from './services/cockpit';
 import { CollectiveIntelligenceService } from './services/collective-intelligence';
 import { CaseContextPackService } from './services/context-pack';
 import { ContradictionDetectorService } from './services/contradiction-detector';
+import { CopilotMemoryService } from './services/copilot-memory';
 import { CopilotNlpCrudService } from './services/copilot-nlp-crud';
 import { CostCalculatorService } from './services/cost-calculator';
 import { CreditGatewayService } from './services/credit-gateway';
@@ -766,6 +767,11 @@ export function configureCaseAssistantModule(framework: Framework) {
       CaseAssistantStore,
       CasePlatformOrchestrationService,
     ])
+    .service(CopilotMemoryService, [
+      CaseAssistantStore,
+      CasePlatformOrchestrationService,
+      ContradictionDetectorService,
+    ])
     // ── Legal AI Premium Chat ────────────────────────────────────────────────
     .service(LegalChatService, [
       CaseAssistantStore,
@@ -777,6 +783,7 @@ export function configureCaseAssistantModule(framework: Framework) {
       GegnerIntelligenceService,
       CreditGatewayService,
       WorkspaceSubscriptionService,
+      CopilotMemoryService,
     ])
     // ── Analytics & Monitoring ─────────────────────────────────────────────
     .service(AnalyticsCollectorService, [CaseAssistantStore])

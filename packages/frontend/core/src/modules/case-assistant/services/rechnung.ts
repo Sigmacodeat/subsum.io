@@ -75,7 +75,7 @@ const EDITABLE_FIELDS_AFTER_SEND = new Set<keyof RechnungRecord>([
   'updatedAt',
 ]);
 
-const OPEN_PAYMENT_STATUSES: RechnungRecord['status'][] = new Set([
+const OPEN_PAYMENT_STATUSES = new Set<RechnungRecord['status']>([
   'versendet',
   'teilbezahlt',
   'mahnung_1',
@@ -130,12 +130,26 @@ export class RechnungService extends Service {
   readonly auslagenList$ = this.auslagenMap$.pipe(map(m => Object.values(m)));
   readonly kassenbelegeList$ = this.kassenbelegeMap$.pipe(map(m => Object.values(m)));
 
+  private readonly notification: {
+    fireEvent: (
+      input: Parameters<MandantenNotificationService['fireEvent']>[0]
+    ) => Promise<unknown>;
+  };
+
   constructor(
     private readonly orchestration: CasePlatformOrchestrationService,
     private readonly timeTracking: TimeTrackingService,
-    private readonly notificationService: MandantenNotificationService
+    notificationService?: MandantenNotificationService
   ) {
     super();
+
+    this.notification =
+      notificationService ??
+      ({
+        async fireEvent() {
+          return;
+        },
+      } as const);
 
     this.subscriptions.push(
       this.orchestration.rechnungen$.subscribe(items => {
@@ -359,7 +373,7 @@ export class RechnungService extends Service {
         toStatus: input.after?.status ?? '',
         beforeIntegrityHash: beforeHash ?? '',
         afterIntegrityHash: afterHash ?? '',
-        ...(input.metadata ?? {}),
+        ...input.metadata,
       },
     });
   }
@@ -652,7 +666,7 @@ export class RechnungService extends Service {
       },
     });
 
-    await this.notificationService.fireEvent({
+    await this.notification.fireEvent({
       workspaceId: updated.workspaceId,
       caseId: updated.caseId,
       matterId: updated.matterId,
@@ -754,7 +768,7 @@ export class RechnungService extends Service {
       },
     });
 
-    await this.notificationService.fireEvent({
+    await this.notification.fireEvent({
       workspaceId: updated.workspaceId,
       caseId: updated.caseId,
       matterId: updated.matterId,

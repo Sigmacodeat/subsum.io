@@ -42,16 +42,6 @@ import { LegalCalendarEvents } from './legal-calendar-events';
 import { JournalTemplateOnboarding } from './template-onboarding';
 import { JournalTemplateSetting } from './template-setting';
 
-/**
- * @internal
- */
-const CountDisplay = ({
-  count,
-  max = 99,
-  ...attrs
-}: { count: number; max?: number } & HTMLAttributes<HTMLSpanElement>) => {
-  return <span {...attrs}>{count > max ? `${max}+` : count}</span>;
-};
 interface PageItemProps extends Omit<
   HTMLAttributes<HTMLAnchorElement>,
   'onClick'

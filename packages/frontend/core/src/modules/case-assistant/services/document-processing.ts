@@ -19,6 +19,70 @@ function createId(prefix: string) {
   return `${prefix}:${Date.now().toString(36)}:${Math.random().toString(36).slice(2, 8)}`;
 }
 
+export function computeDocumentFingerprint(
+  title: string,
+  kind: string,
+  content: string,
+  sourceRef?: string
+): string {
+  // Sample-based hashing: O(1) regardless of content size.
+  // Avoids UI freeze for large base64 files (100MB+).
+  // Uses dual hash (FNV-1a + DJB2) for 64-bit combined fingerprint.
+
+  // Guard: empty or near-empty content should NOT be deduplicated.
+  if (!content || content.trim().length < 10) {
+    const emptySample = [title, kind, 'empty', sourceRef ?? ''].join('||');
+    let fnv = 0x811c9dc5;
+    for (let i = 0; i < emptySample.length; i++) {
+      fnv ^= emptySample.charCodeAt(i);
+      fnv = Math.imul(fnv, 0x01000193) >>> 0;
+    }
+    let djb2 = 5381;
+    for (let i = 0; i < emptySample.length; i++) {
+      djb2 = (Math.imul(djb2, 33) + emptySample.charCodeAt(i)) >>> 0;
+    }
+    return `fp:empty:${fnv.toString(16).padStart(8, '0')}${djb2
+      .toString(16)
+      .padStart(8, '0')}`;
+  }
+
+  const SAMPLE = 4096;
+  const len = content.length;
+  const head = content.slice(0, SAMPLE);
+  const tail = len > SAMPLE * 2 ? content.slice(-SAMPLE) : '';
+  const mid =
+    len > SAMPLE * 3
+      ? content.slice(
+          Math.floor(len / 2) - SAMPLE / 2,
+          Math.floor(len / 2) + SAMPLE / 2
+        )
+      : '';
+  const q1 =
+    len > SAMPLE * 5
+      ? content.slice(Math.floor(len * 0.25), Math.floor(len * 0.25) + 512)
+      : '';
+  const q3 =
+    len > SAMPLE * 5
+      ? content.slice(Math.floor(len * 0.75), Math.floor(len * 0.75) + 512)
+      : '';
+  const sample = [title, kind, String(len), head, mid, tail, q1, q3, sourceRef ?? ''].join('||');
+
+  let fnv = 0x811c9dc5;
+  for (let i = 0; i < sample.length; i++) {
+    fnv ^= sample.charCodeAt(i);
+    fnv = Math.imul(fnv, 0x01000193) >>> 0;
+  }
+
+  let djb2 = 5381;
+  for (let i = 0; i < sample.length; i++) {
+    djb2 = (Math.imul(djb2, 33) + sample.charCodeAt(i)) >>> 0;
+  }
+
+  return `fp:${fnv.toString(16).padStart(8, '0')}${djb2
+    .toString(16)
+    .padStart(8, '0')}`;
+}
+
 function buildUnicodeRegex(
   pattern: string,
   flags: string,
@@ -1905,52 +1969,6 @@ export class DocumentProcessingService extends Service {
    * Compute a stable content fingerprint for deduplication.
    */
   computeFingerprint(title: string, kind: string, content: string, sourceRef?: string): string {
-    // Sample-based hashing: O(1) regardless of content size.
-    // Avoids UI freeze for large base64 files (100MB+).
-    // Uses dual hash (FNV-1a + DJB2) for 64-bit combined fingerprint
-    // to minimize birthday-paradox collisions at scale (100K+ docs).
-
-    // Guard: empty or near-empty content should NOT be deduplicated, since it can
-    // be caused by corruption, unsupported encryption, or extraction failures.
-    // Use a deterministic fingerprint prefix so callers can explicitly skip dedup.
-    if (!content || content.trim().length < 10) {
-      const emptySample = [title, kind, 'empty', sourceRef ?? ''].join('||');
-      let fnv = 0x811c9dc5;
-      for (let i = 0; i < emptySample.length; i++) {
-        fnv ^= emptySample.charCodeAt(i);
-        fnv = Math.imul(fnv, 0x01000193) >>> 0;
-      }
-      let djb2 = 5381;
-      for (let i = 0; i < emptySample.length; i++) {
-        djb2 = (Math.imul(djb2, 33) + emptySample.charCodeAt(i)) >>> 0;
-      }
-      return `fp:empty:${fnv.toString(16).padStart(8, '0')}${djb2
-        .toString(16)
-        .padStart(8, '0')}`;
-    }
-
-    const SAMPLE = 4096;
-    const len = content.length;
-    const head = content.slice(0, SAMPLE);
-    const tail = len > SAMPLE * 2 ? content.slice(-SAMPLE) : '';
-    const mid = len > SAMPLE * 3 ? content.slice(Math.floor(len / 2) - SAMPLE / 2, Math.floor(len / 2) + SAMPLE / 2) : '';
-    // Quarter-point sample for extra entropy on large files
-    const q1 = len > SAMPLE * 5 ? content.slice(Math.floor(len * 0.25), Math.floor(len * 0.25) + 512) : '';
-    const q3 = len > SAMPLE * 5 ? content.slice(Math.floor(len * 0.75), Math.floor(len * 0.75) + 512) : '';
-    const sample = [title, kind, String(len), head, mid, tail, q1, q3, sourceRef ?? ''].join('||');
-
-    // FNV-1a hash (32-bit)
-    let fnv = 0x811c9dc5;
-    for (let i = 0; i < sample.length; i++) {
-      fnv ^= sample.charCodeAt(i);
-      fnv = Math.imul(fnv, 0x01000193) >>> 0;
-    }
-    // DJB2 hash (32-bit)
-    let djb2 = 5381;
-    for (let i = 0; i < sample.length; i++) {
-      djb2 = (Math.imul(djb2, 33) + sample.charCodeAt(i)) >>> 0;
-    }
-    // Combine into 64-bit hex fingerprint
-    return `fp:${fnv.toString(16).padStart(8, '0')}${djb2.toString(16).padStart(8, '0')}`;
+    return computeDocumentFingerprint(title, kind, content, sourceRef);
   }
 }

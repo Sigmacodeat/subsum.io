@@ -56,7 +56,6 @@ export class WorkspaceIssueReportsController {
 
   @Post()
   async create(
-    @Req() req: Request,
     @CurrentUser() user: CurrentUserType,
     @Param('workspaceId') workspaceId: string,
     @Body() body: CreateIssueReportBody
@@ -86,7 +85,6 @@ export class WorkspaceIssueReportsController {
       diagnostics: (body.diagnostics as any) ?? null,
       dedupeKey: null,
       duplicateOf: null,
-      updatedAt: new Date(),
     });
 
     if (body.screenshot?.dataUrl && body.screenshot?.name) {

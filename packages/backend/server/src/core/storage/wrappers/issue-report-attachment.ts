@@ -3,7 +3,6 @@ import { Injectable, Logger } from '@nestjs/common';
 import {
   autoMetadata,
   Config,
-  EventBus,
   OnEvent,
   type StorageProvider,
   StorageProviderFactory,
@@ -30,7 +29,6 @@ export class IssueReportAttachmentStorage {
 
   constructor(
     private readonly AFFiNEConfig: Config,
-    private readonly event: EventBus,
     private readonly storageFactory: StorageProviderFactory,
     private readonly models: Models
   ) {}

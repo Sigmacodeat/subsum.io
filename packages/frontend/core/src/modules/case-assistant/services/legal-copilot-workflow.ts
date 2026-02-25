@@ -259,7 +259,7 @@ function extractStructuredMatterMetadata(
     ),
     richter: firstMatchValue(
       text,
-      /\b(?:Richter(?:in)?|Vorsitz(?:ende|ender)\s+Richter(?:in)?)\s*[:\-]?\s*([A-ZÄÖÜ][\p{L}A-Za-zÄÖÜäöüß'\-.]+(?:\s+[A-ZÄÖÜ][\p{L}A-Za-zÄÖÜäöüß'\-.]+){0,3})\b/iu
+      /\b(?:Richter(?:in)?|Vorsitz(?:ende|ender)\s+Richter(?:in)?)\s*[:-]?\s*([A-ZÄÖÜ][\p{L}A-Za-zÄÖÜäöüß'\-.]+(?:\s+[A-ZÄÖÜ][\p{L}A-Za-zÄÖÜäöüß'\-.]+){0,3})\b/iu
     ),
     gerichtsaktenzeichen: firstMatchValue(
       text,

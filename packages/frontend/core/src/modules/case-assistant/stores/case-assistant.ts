@@ -382,6 +382,18 @@ export class CaseAssistantStore extends Store {
     return `case-assistant:${this.workspaceId}:chat-messages-trash`;
   }
 
+  private get copilotMemoriesKey() {
+    return `case-assistant:${this.workspaceId}:copilot-memories`;
+  }
+
+  private get crossCheckReportsKey() {
+    return `case-assistant:${this.workspaceId}:cross-check-reports`;
+  }
+
+  private get messageFeedbackKey() {
+    return `case-assistant:${this.workspaceId}:message-feedback`;
+  }
+
   private get gegnerProfilesKey() {
     return `case-assistant:${this.workspaceId}:gegner-profiles`;
   }
@@ -1237,6 +1249,42 @@ export class CaseAssistantStore extends Store {
 
   watchChatMessages() {
     return this.watchState<LegalChatMessage[]>(this.chatMessagesKey, []);
+  }
+
+  watchCopilotMemories() {
+    return this.watchState<any[]>(this.copilotMemoriesKey, []);
+  }
+
+  async getCopilotMemories() {
+    return (await this.readState<any[]>(this.copilotMemoriesKey)) ?? [];
+  }
+
+  async setCopilotMemories(items: any[]) {
+    await this.writeState(this.copilotMemoriesKey, items);
+  }
+
+  watchCrossCheckReports() {
+    return this.watchState<any[]>(this.crossCheckReportsKey, []);
+  }
+
+  async getCrossCheckReports() {
+    return (await this.readState<any[]>(this.crossCheckReportsKey)) ?? [];
+  }
+
+  async setCrossCheckReports(items: any[]) {
+    await this.writeState(this.crossCheckReportsKey, items);
+  }
+
+  watchMessageFeedback() {
+    return this.watchState<any[]>(this.messageFeedbackKey, []);
+  }
+
+  async getMessageFeedback() {
+    return (await this.readState<any[]>(this.messageFeedbackKey)) ?? [];
+  }
+
+  async setMessageFeedback(items: any[]) {
+    await this.writeState(this.messageFeedbackKey, items);
   }
 
   // ── Gegner Intelligence ─────────────────────────────────────────────────

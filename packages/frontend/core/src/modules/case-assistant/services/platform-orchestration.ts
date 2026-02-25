@@ -284,10 +284,10 @@ export class CasePlatformOrchestrationService extends Service {
     const graph = await this.store.getGraph();
     const nextGraph = {
       ...graph,
-      clients: { ...(graph.clients ?? {}) },
-      matters: { ...(graph.matters ?? {}) },
-      deadlines: { ...(graph.deadlines ?? {}) },
-      cases: { ...(graph.cases ?? {}) },
+      clients: { ...graph.clients },
+      matters: { ...graph.matters },
+      deadlines: { ...graph.deadlines },
+      cases: { ...graph.cases },
     };
 
     let hasTimeEntryChanges = false;
@@ -838,34 +838,6 @@ export class CasePlatformOrchestrationService extends Service {
         (item: IngestionJob) => item.id === jobId
       ) ?? null
     );
-  }
-
-  private async purgeExpiredDocumentTrash() {
-    const trashedDocs = await this.store.getTrashedLegalDocuments();
-    const nowMs = Date.now();
-    const nextTrashedDocs = trashedDocs.filter(
-      doc => !doc.purgeAt || new Date(doc.purgeAt).getTime() > nowMs
-    );
-    if (nextTrashedDocs.length !== trashedDocs.length) {
-      await this.store.setTrashedLegalDocuments(nextTrashedDocs);
-    }
-  }
-
-  private async purgeExpiredMatterTrash() {
-    const graph = await this.store.getGraph();
-    const matters = Object.values(graph.matters ?? {});
-    const nowMs = Date.now();
-    const expiredMatters = matters.filter(
-      m => m.trashedAt && m.purgeAt && new Date(m.purgeAt).getTime() <= nowMs
-    );
-
-    if (expiredMatters.length === 0) {
-      return;
-    }
-
-    for (const matter of expiredMatters) {
-      await this.purgeMatter(matter.id);
-    }
   }
 
   async upsertConnector(

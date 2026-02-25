@@ -32,7 +32,7 @@ import type { CasePlatformOrchestrationService } from './platform-orchestration'
 import type { CaseProviderSettingsService } from './provider-settings';
 import type { EvidenceRegisterService } from './evidence-register';
 import type { LegalNormsService } from './legal-norms';
-import { CopilotMemoryService } from './copilot-memory';
+import type { CopilotMemoryService } from './copilot-memory';
 import type { CreditGatewayService} from './credit-gateway';
 import { CREDIT_COSTS } from './credit-gateway';
 import type { WorkspaceSubscriptionService } from '../../cloud/services/workspace-subscription';

@@ -183,6 +183,7 @@ export const actionRequiredRole: Record<CaseAssistantAction, CaseAssistantRole> 
   'connector.rotate': 'operator',
   'connector.clear_auth': 'admin',
   'connector.dispatch': 'operator',
+  'case.manage': 'operator',
   'client.manage': 'operator',
   'matter.manage': 'operator',
   'audit.export': 'admin',
