@@ -255,21 +255,10 @@ export default function Header() {
             <LanguageSwitcher />
             <a
               href={`${APP_ORIGIN}${APP_SIGN_IN_PATH}`}
-              className="text-[13px] xl:text-sm font-medium text-slate-600 hover:text-slate-900 px-3 xl:px-4 py-2 transition-colors duration-300 focus-ring rounded-lg whitespace-nowrap"
+              className="hidden xl:inline-flex items-center text-[13px] font-semibold text-slate-700 hover:text-slate-900 px-3 py-2 transition-colors duration-300 focus-ring rounded-lg whitespace-nowrap"
             >
               {t('login')}
             </a>
-            <Link
-              href={QUICK_CHECK_PATH}
-              className={clsx(
-                'inline-flex items-center rounded-full border px-3 py-1.5 text-[11px] xl:text-[11.5px] font-semibold tracking-[0.01em] transition-all duration-300 focus-ring whitespace-nowrap',
-                isActivePath(QUICK_CHECK_PATH)
-                  ? 'border-primary-300 bg-primary-100/90 text-primary-800'
-                  : 'border-primary-200/80 bg-primary-50/80 text-primary-700 hover:border-primary-300 hover:bg-primary-100/80'
-              )}
-            >
-              {t('quickCheck')}
-            </Link>
             <MagneticButton strength={0.15}>
               <a
                 href={`${APP_ORIGIN}${APP_SIGN_UP_PATH}`}
@@ -284,17 +273,6 @@ export default function Header() {
           {/* Tablet Actions */}
           <div className="hidden md:flex xl:hidden items-center gap-1.5 lg:gap-2 xl:gap-2.5 shrink-0 ml-auto">
             <LanguageSwitcher />
-            <Link
-              href={QUICK_CHECK_PATH}
-              className={clsx(
-                'hidden lg:inline-flex items-center rounded-full border px-2.5 py-1.5 text-[11px] font-semibold tracking-[0.01em] transition-all duration-300 focus-ring whitespace-nowrap',
-                isActivePath(QUICK_CHECK_PATH)
-                  ? 'border-primary-300 bg-primary-100/90 text-primary-800'
-                  : 'border-primary-200/80 bg-primary-50/80 text-primary-700 hover:border-primary-300 hover:bg-primary-100/80'
-              )}
-            >
-              {t('quickCheck')}
-            </Link>
             <a
               href={`${APP_ORIGIN}${APP_SIGN_IN_PATH}`}
               className="hidden lg:inline-flex items-center text-[12.5px] font-semibold text-slate-700 hover:text-slate-900 px-2.5 py-2 transition-colors duration-300 focus-ring rounded-lg whitespace-nowrap"
