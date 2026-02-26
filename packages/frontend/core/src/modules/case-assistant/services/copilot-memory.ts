@@ -766,6 +766,10 @@ export class CopilotMemoryService extends Service {
     );
 
     if (newDocs.length === 0 || existingDocs.length === 0) {
+      const summary = newDocs.length === 0
+        ? 'Keine neuen Dokumente zum Vergleich vorhanden.'
+        : 'Keine bestehenden Dokumente zum Vergleich vorhanden.';
+      
       return {
         id: reportId,
         caseId: input.caseId,
@@ -784,9 +788,7 @@ export class CopilotMemoryService extends Service {
           documentsCompared: 0,
           durationMs: Date.now() - startTime,
         },
-        summary: newDocs.length === 0
-          ? 'Keine neuen Dokumente zum Vergleich vorhanden.'
-          : 'Keine bestehenden Dokumente zum Vergleich vorhanden.',
+        summary,
         createdMemoryIds: [],
         createdAt: new Date().toISOString(),
       };
