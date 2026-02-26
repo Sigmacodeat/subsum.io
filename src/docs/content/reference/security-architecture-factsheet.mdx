@@ -1,0 +1,304 @@
+# Security architecture factsheet
+
+This factsheet gives legal teams, IT leads, and compliance officers a structured overview of the Subsumio security architecture, data lifecycle, and operational controls.
+
+> Audience: Managing partners, legal operations, DPOs, CISOs, and procurement/security review teams.
+
+---
+
+## 1) System objective (user-facing)
+
+Subsumio is designed so law firms can process highly sensitive legal documents with:
+
+- strong confidentiality and integrity controls,
+- verifiable auditability,
+- clear role-based access,
+- and predictable EU-compliant operations.
+
+The security model is built to protect both daily operations (uploads, search, drafting) and high-stakes workflows (evidence review, deadlines, legal strategy).
+
+## 2) Security principles
+
+- **Security-by-design**: controls are part of product architecture, not bolted on.
+- **Least privilege**: users and services get only required permissions.
+- **Defense in depth**: network, identity, application, data, and operations layers.
+- **Auditability first**: high-risk actions are logged and traceable.
+- **Data minimization**: process only what is required for legal workflows.
+- **EU-first residency**: data processing and storage anchored in EU infrastructure.
+
+## 3) High-level architecture
+
+### Layer model
+
+1. **Edge & transport layer**
+   - TLS 1.3 enforced for client-to-platform and service-to-service transport.
+   - Modern cipher suites and HSTS-style hardening.
+
+2. **Identity & access layer**
+   - Workspace-scoped identity.
+   - Role-based access control (RBAC) for read/write/export operations.
+   - Enterprise support for SSO/SAML where required.
+
+3. **Application layer**
+   - Permission checks at action boundaries.
+   - Workflow-scoped validation for uploads, processing, and retrieval.
+   - Strong request/context separation across tenants.
+
+4. **Data & storage layer**
+   - Encryption at rest (AES-256 class controls).
+   - Segregated logical data domains for matters, documents, metadata, and logs.
+   - Backup and restore strategy aligned to RPO/RTO targets.
+
+5. **Observability & governance layer**
+   - Immutable-style audit trails for security-relevant actions.
+   - Monitoring, anomaly detection, and incident response workflows.
+
+### Visual architecture diagram (review view)
+
+```text
+┌─────────────────────────────────────────────────────────────────────┐
+│  Users (Lawyers, Ops, Reviewers, Admins)                          │
+└───────────────┬─────────────────────────────────────────────────────┘
+                │ TLS 1.3
+┌───────────────▼─────────────────────────────────────────────────────┐
+│  Edge & Transport                                                   │
+│  ingress hardening · connection security · request screening        │
+└───────────────┬─────────────────────────────────────────────────────┘
+                │ authenticated context
+┌───────────────▼─────────────────────────────────────────────────────┐
+│  Identity & Access                                                  │
+│  RBAC · workspace scoping · optional SSO/SAML                      │
+└───────────────┬─────────────────────────────────────────────────────┘
+                │ policy-checked requests
+┌───────────────▼─────────────────────────────────────────────────────┐
+│  Application Workflows                                              │
+│  upload · OCR/extraction · semantic indexing · retrieval/drafting   │
+└───────────────┬─────────────────────────────────────────────────────┘
+                │ encrypted persistence + event logs
+┌───────────────▼─────────────────────────────────────────────────────┐
+│  Data Domains                                                       │
+│  matters · documents · chunks/index · operations · audit events     │
+└───────────────┬─────────────────────────────────────────────────────┘
+                │ monitoring and response loops
+┌───────────────▼─────────────────────────────────────────────────────┐
+│  Observability & Governance                                         │
+│  alerting · incident response · evidence generation                 │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Data lifecycle map (security checkpoints)
+
+| Stage      | What happens                               | Primary control focus                      |
+| ---------- | ------------------------------------------ | ------------------------------------------ |
+| Ingestion  | Files are accepted and validated           | Type/size validation, secure transport     |
+| Processing | OCR/extraction and semantic transformation | Execution safeguards, isolation boundaries |
+| Indexing   | Retrieval structures are built             | Data integrity, access scoping             |
+| Usage      | Search/analysis/drafting operations        | RBAC enforcement, source traceability      |
+| Retention  | Policy-driven storage duration             | Governance controls, reviewability         |
+| Deletion   | Controlled cleanup execution               | Authorized deletion + audit evidence       |
+
+## 4) Core user flows and security controls
+
+### A) Beginner flow (single legal professional)
+
+1. Upload case documents.
+2. Platform extracts and structures content.
+3. User asks legal questions and inspects references.
+
+Controls in path:
+
+- secure upload channel (TLS),
+- file validation and controlled processing pipeline,
+- role checks for document visibility,
+- action logging for traceability.
+
+### B) Standard team flow (law firm collaboration)
+
+1. Partner assigns matter access to team members.
+2. Team reviews evidence and generated outputs.
+3. Exports are restricted by role/policy.
+
+Controls in path:
+
+- RBAC enforcement by matter/workspace,
+- optional approval steps for high-impact actions,
+- audit trail of assignment, edits, and exports.
+
+### C) Power-user flow (enterprise governance)
+
+1. Identity federation and centralized user lifecycle.
+2. Security/compliance review and periodic control checks.
+3. Forensics-ready logging and policy-based operations.
+
+Controls in path:
+
+- SSO/SAML integration,
+- centralized access governance,
+- compliance-aligned reporting surfaces.
+
+## 5) Data model and lifecycle
+
+### Primary data domains
+
+- **Identity data**: users, roles, workspace membership.
+- **Matter data**: case metadata, participants, legal references.
+- **Document data**: originals, derivatives, extracted text/chunks.
+- **Operational data**: jobs, statuses, queue state, retries.
+- **Audit data**: security events, access events, export/change logs.
+
+### Data lifecycle (simplified)
+
+1. **Ingestion**: files received and validated.
+2. **Processing**: text extraction/OCR/chunk generation.
+3. **Indexing**: semantic retrieval structures created.
+4. **Usage**: search, analysis, drafting with source references.
+5. **Retention**: policies applied according to workspace governance.
+6. **Deletion/cleanup**: controlled removal with traceable actions.
+
+## 6) Encryption model
+
+- **In transit**: TLS 1.3 for all client and service communication.
+- **At rest**: AES-256 class encryption for persisted data.
+- **Secrets handling**: credentials/keys managed via protected runtime configuration and strict access boundaries.
+
+## 7) Access control architecture
+
+### RBAC baseline
+
+Typical capability boundaries:
+
+- **Admin**: workspace governance, members, policy operations.
+- **Lawyer/Editor**: case and document processing, analysis, drafting.
+- **Reviewer**: read/comment/review depending on policy.
+- **Restricted role**: limited visibility for least-privilege collaboration.
+
+### Access governance patterns
+
+- default-deny mindset for sensitive actions,
+- role checks on view/edit/export,
+- explicit workspace and matter scoping,
+- predictable permission propagation and revocation.
+
+## 8) Auditability and compliance evidence
+
+Security-relevant events are logged for compliance and investigation use-cases:
+
+- authentication and membership changes,
+- permission changes,
+- document intake and export actions,
+- sensitive workflow actions and status changes.
+
+Audit goals:
+
+- support internal controls,
+- support external audits,
+- preserve chain-of-custody style evidence for legal workflows.
+
+### Control matrix (quick reference)
+
+| Control area           | Practical implementation direction              | Verification signal                          |
+| ---------------------- | ----------------------------------------------- | -------------------------------------------- |
+| Transport security     | TLS 1.3 on client/service paths                 | Endpoint checks, config review               |
+| Access governance      | RBAC + least privilege + scoped membership      | Access review and role test results          |
+| Data protection        | Encryption at rest and segmented domains        | Storage/config evidence                      |
+| Workflow security      | Validation gates on upload/process/export paths | QA/security test outcomes                    |
+| Audit integrity        | Security-relevant event logging                 | Audit log inspection and traceability checks |
+| Operational resilience | Monitoring, alerting, and recovery routines     | Incident drills, recovery evidence           |
+
+## 9) Compliance posture (overview)
+
+- GDPR-oriented data handling and contractual controls.
+- SOC 2 Type II style control alignment (where applicable to service scope).
+- Ongoing security verification practices (e.g., monitoring and periodic testing).
+
+> Note: formal certifications/attestations are scope- and time-dependent. For procurement reviews, request the latest official reports from the security team.
+
+## 10) Threat scenarios and mitigations
+
+### Unauthorized data access
+
+Mitigations:
+
+- RBAC + least privilege,
+- tenant/workspace boundaries,
+- event logging and alerting.
+
+### Data interception
+
+Mitigations:
+
+- TLS 1.3 transport security,
+- hardened network/service communication.
+
+### Data tampering
+
+Mitigations:
+
+- controlled write paths,
+- audit chains and integrity-oriented logging,
+- restricted high-risk operations.
+
+### Operational outages
+
+Mitigations:
+
+- monitored workloads,
+- retry/recovery patterns,
+- backup/restore procedures.
+
+## 11) Frontend visibility: how architecture is communicated
+
+The public security experience should present controls in a way that is both credible and easy to verify.
+
+Recommended presentation structure:
+
+- **Trust cards**: GDPR, encryption, EU residency, SOC 2, RBAC, audit trail.
+- **Architecture section**: concise multi-layer model (edge, identity, app, data, ops).
+- **Factsheet CTA**: direct route to this document for security reviewers.
+- **Clear hierarchy**: headline -> proof points -> architecture -> governance details.
+
+UX requirements:
+
+- responsive on mobile/desktop,
+- readable spacing and contrast,
+- reduced-motion friendly animation behavior,
+- keyboard-accessible navigation and links.
+
+## 12) Security review checklist (quick)
+
+Use this list in internal or customer-facing reviews:
+
+- [ ] Data encrypted in transit and at rest
+- [ ] Workspace/matter access follows least privilege
+- [ ] Sensitive actions are audited
+- [ ] EU data residency controls documented
+- [ ] Incident response responsibilities defined
+- [ ] Backup/restore process validated
+- [ ] Policy and role changes are reviewable
+
+## 13) Procurement evidence package checklist
+
+For enterprise reviews, this package should be easy to provide:
+
+- [ ] Current architecture summary (layer model + data flow)
+- [ ] Access model and role governance summary
+- [ ] Encryption and key/secrets handling statement
+- [ ] Audit logging scope and retention statement
+- [ ] Incident response ownership and escalation model
+- [ ] Latest compliance/control report references
+
+## 14) Definition of done for security architecture communication
+
+This factsheet is considered complete when:
+
+1. architecture layers are explained from edge to audit,
+2. user flows map to concrete controls,
+3. data lifecycle is documented end-to-end,
+4. compliance and audit expectations are stated clearly,
+5. frontend route/CTA makes the document easy to discover.
+
+---
+
+### Need a formal security package?
+
+For detailed procurement/security assessments (questionnaires, legal annexes, formal attestations), use the contact channel and request the latest security package for your region and deployment model.
