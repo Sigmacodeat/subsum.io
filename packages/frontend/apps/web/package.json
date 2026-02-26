@@ -5,8 +5,8 @@
   "private": true,
   "browser": "src/index.tsx",
   "scripts": {
-    "build": "affine bundle",
-    "dev": "affine bundle --dev"
+    "build": "affine bundle -p @affine/web",
+    "dev": "affine bundle -p @affine/web --dev"
   },
   "dependencies": {
     "@affine/component": "workspace:*",
