@@ -39,6 +39,21 @@ import {
 type WorkerConfig = { name: string };
 type CreateWorkerTargetConfig = (pkg: Package, entry: string) => WorkerConfig;
 
+const DEFAULT_CI_BUNDLE_PARALLELISM = 2;
+
+function getBundleParallelism() {
+  const configuredParallelism = Number(process.env.BUNDLE_PARALLELISM ?? 0);
+  if (Number.isFinite(configuredParallelism) && configuredParallelism > 0) {
+    return Math.max(1, configuredParallelism);
+  }
+
+  if (process.env.CI) {
+    return Math.min(cpus().length, DEFAULT_CI_BUNDLE_PARALLELISM);
+  }
+
+  return cpus().length;
+}
+
 function assertRspackSupportedPackage(pkg: Package) {
   assertRspackSupportedPackageName(pkg.name);
 }
@@ -265,7 +280,7 @@ export class BundleCommand extends PackageCommand {
     rmSync(pkg.distPath.value, { recursive: true, force: true });
 
     const config = getWebpackBundleConfigs(pkg);
-    config.parallelism = cpus().length;
+    config.parallelism = getBundleParallelism();
 
     const compiler = webpack(config);
     if (!compiler) {
@@ -339,7 +354,7 @@ export class BundleCommand extends PackageCommand {
     logger.info(`Starting webpack dev server for ${pkg.name}...`);
 
     const config = getWebpackBundleConfigs(pkg);
-    config.parallelism = cpus().length;
+    config.parallelism = getBundleParallelism();
 
     const compiler = webpack(config);
     if (!compiler) {
@@ -364,7 +379,7 @@ export class BundleCommand extends PackageCommand {
     rmSync(pkg.distPath.value, { recursive: true, force: true });
 
     const config = getRspackBundleConfigs(pkg);
-    config.parallelism = cpus().length;
+    config.parallelism = getBundleParallelism();
 
     const compiler = rspack(config);
     if (!compiler) {
@@ -410,7 +425,7 @@ export class BundleCommand extends PackageCommand {
     logger.info(`Starting rspack dev server for ${pkg.name}...`);
 
     const config = getRspackBundleConfigs(pkg);
-    config.parallelism = cpus().length;
+    config.parallelism = getBundleParallelism();
 
     const compiler = rspack(config);
     if (!compiler) {
