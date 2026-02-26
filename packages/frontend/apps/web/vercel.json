@@ -3,6 +3,22 @@
   "outputDirectory": "dist",
   "rewrites": [
     {
+      "source": "/api/:path*",
+      "destination": "https://api.subsum.io/api/:path*"
+    },
+    {
+      "source": "/graphql",
+      "destination": "https://api.subsum.io/graphql"
+    },
+    {
+      "source": "/graphql/:path*",
+      "destination": "https://api.subsum.io/graphql/:path*"
+    },
+    {
+      "source": "/socket.io/:path*",
+      "destination": "https://api.subsum.io/socket.io/:path*"
+    },
+    {
       "source": "/((?!api/|graphql|socket.io|.*\\..*).*)",
       "destination": "/index.html"
     }
