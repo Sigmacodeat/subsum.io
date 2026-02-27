@@ -211,53 +211,9 @@ export default function SecurityContent() {
     },
   ];
 
-  const architectureDiagramNodes = [
-    { key: 'edge', layerIndex: 0, x: 126, y: 110 },
-    { key: 'identity', layerIndex: 1, x: 336, y: 80 },
-    { key: 'application', layerIndex: 2, x: 536, y: 110 },
-    { key: 'storage', layerIndex: 3, x: 466, y: 262 },
-    { key: 'observability', layerIndex: 4, x: 216, y: 262 },
-  ] as const;
-
-  const architectureDiagramEdges = [
-    ['edge', 'identity'],
-    ['identity', 'application'],
-    ['application', 'storage'],
-    ['storage', 'observability'],
-    ['observability', 'edge'],
-    ['identity', 'storage'],
-    ['edge', 'application'],
-  ] as const;
-
-  const nodeByKey = Object.fromEntries(
-    architectureDiagramNodes.map(node => [node.key, node])
-  ) as Record<
-    (typeof architectureDiagramNodes)[number]['key'],
-    (typeof architectureDiagramNodes)[number]
-  >;
-
-  const architectureDiagramLabels: Record<
-    (typeof architectureDiagramNodes)[number]['key'],
-    string
-  > = {
-    edge: 'Edge + TLS',
-    identity: 'Identity + RBAC',
-    application: 'App',
-    storage: isGerman ? 'Daten + Backup' : 'Data + Backup',
-    observability: 'Audit + SIEM',
-  };
-
   const architectureLegend = architectureLayers.map((layer, index) => ({
     ...layer,
     step: index + 1,
-    iconBg:
-      [
-        'from-cyan-400/30 to-blue-500/30',
-        'from-blue-400/30 to-indigo-500/30',
-        'from-indigo-400/30 to-violet-500/30',
-        'from-emerald-400/30 to-teal-500/30',
-        'from-amber-400/30 to-orange-500/30',
-      ][index] ?? 'from-cyan-400/30 to-blue-500/30',
     proof: isGerman
       ? [
           'Kontrollpunkt aktiv',
@@ -270,13 +226,6 @@ export default function SecurityContent() {
           'Tenant isolation enforced',
         ][index % 3],
   }));
-
-  const activeNodeKey =
-    architectureDiagramNodes.find(node => node.layerIndex === activeLayerIndex)
-      ?.key ?? 'edge';
-  const activeFlowEdge =
-    architectureDiagramEdges[activeLayerIndex] ?? architectureDiagramEdges[0];
-  const activeFlowPath = `M ${nodeByKey[activeFlowEdge[0]].x} ${nodeByKey[activeFlowEdge[0]].y} L ${nodeByKey[activeFlowEdge[1]].x} ${nodeByKey[activeFlowEdge[1]].y}`;
   const activeLayer =
     architectureLegend[activeLayerIndex] ?? architectureLegend[0];
   const activeDataFlow = dataFlow[activeLayerIndex] ?? dataFlow[0];
@@ -437,17 +386,19 @@ export default function SecurityContent() {
           <ScrollReveal direction="up" distance={20}>
             <div className="max-w-3xl">
               <span className="section-label text-cyan-100 bg-white/10 border border-white/20">
-                {isGerman ? 'System-Blueprint' : 'System Blueprint'}
+                {isGerman
+                  ? 'Sicherheits-Kontrollrahmen'
+                  : 'Security Control Framework'}
               </span>
               <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold mt-3.5 mb-3 text-balance">
                 {isGerman
-                  ? 'So ist unsere Sicherheitsarchitektur sichtbar aufgebaut'
-                  : 'How our security architecture is visibly structured'}
+                  ? 'Transparenter Kontrollrahmen für Audit und Nachweis'
+                  : 'Transparent control framework for audit and evidence'}
               </h2>
               <p className="text-slate-200/90 text-base sm:text-lg leading-relaxed text-balance">
                 {isGerman
-                  ? 'Eine klare Layer-Map zeigt, wie Schutzmechanismen von Edge bis Audit zusammenarbeiten.'
-                  : 'A clear layer map shows how protection mechanisms work from edge to audit.'}
+                  ? 'Jede Schutzschicht ist klar dokumentiert, laufend überwacht und für Prüfungen nachvollziehbar.'
+                  : 'Each protection layer is documented, continuously monitored, and verifiable during audits.'}
               </p>
             </div>
           </ScrollReveal>
@@ -455,7 +406,7 @@ export default function SecurityContent() {
           <div className="mt-5 rounded-2xl border border-cyan-200/25 bg-white/5 px-3.5 py-2.5 xl:px-3 xl:py-2 2xl:px-2.5 2xl:py-1.5 flex flex-wrap items-center justify-between gap-2.5 xl:gap-2">
             <div>
               <div className="text-[11px] uppercase tracking-[0.14em] text-cyan-100/90 font-semibold">
-                {isGerman ? 'Gerade aktiv' : 'Now active'}
+                {isGerman ? 'Aktive Kontrollschicht' : 'Active control layer'}
               </div>
               <div className="text-sm sm:text-base font-semibold text-white mt-1">
                 {activeLayer.title}
@@ -474,10 +425,10 @@ export default function SecurityContent() {
                 aria-label={
                   isAutoPlaying
                     ? isGerman
-                      ? 'Sequenz pausieren'
+                      ? 'Ablauf pausieren'
                       : 'Pause sequence'
                     : isGerman
-                      ? 'Sequenz starten'
+                      ? 'Ablauf starten'
                       : 'Start sequence'
                 }
               >
@@ -488,10 +439,10 @@ export default function SecurityContent() {
                 )}
                 {isAutoPlaying
                   ? isGerman
-                    ? 'Auto läuft'
+                    ? 'Automatik aktiv'
                     : 'Auto running'
                   : isGerman
-                    ? 'Auto pausiert'
+                    ? 'Automatik pausiert'
                     : 'Auto paused'}
               </button>
 
@@ -509,7 +460,7 @@ export default function SecurityContent() {
                         ? 'bg-gradient-to-r from-cyan-400/40 to-blue-400/35 text-white border border-cyan-100/70 shadow-[0_6px_18px_-10px_rgba(103,232,249,0.85)]'
                         : 'text-cyan-100/75 hover:bg-white/10 border border-transparent'
                     }`}
-                    aria-label={`${isGerman ? 'Schritt' : 'Step'} ${idx + 1}: ${layer.title}`}
+                    aria-label={`${isGerman ? 'Kontrollschicht' : 'Control layer'} ${idx + 1}: ${layer.title}`}
                     aria-pressed={idx === activeLayerIndex}
                   >
                     {idx + 1}
@@ -529,185 +480,62 @@ export default function SecurityContent() {
                 offsetPx={48}
               >
                 <div className="rounded-3xl border border-white/20 bg-slate-900/40 backdrop-blur-md p-3.5 sm:p-4 md:p-5 xl:p-4.5 2xl:p-4 mb-1">
-                  <svg
-                    viewBox="0 0 680 340"
-                    className="w-full h-auto"
-                    role="img"
-                    aria-label={
-                      isGerman
-                        ? 'Visuelles Sicherheitsarchitektur-Diagramm'
-                        : 'Visual security architecture diagram'
-                    }
-                  >
-                    <defs>
-                      <linearGradient
-                        id="sec-edge-line"
-                        x1="0%"
-                        y1="0%"
-                        x2="100%"
-                        y2="100%"
-                      >
-                        <stop offset="0%" stopColor="rgba(125,211,252,0.75)" />
-                        <stop offset="100%" stopColor="rgba(56,189,248,0.16)" />
-                      </linearGradient>
-                      <marker
-                        id="sec-arrow"
-                        viewBox="0 0 10 10"
-                        refX="8"
-                        refY="5"
-                        markerWidth="5"
-                        markerHeight="5"
-                        orient="auto-start-reverse"
-                      >
-                        <path
-                          d="M 0 0 L 10 5 L 0 10 z"
-                          fill="rgba(125,211,252,0.35)"
-                        />
-                      </marker>
-                    </defs>
+                  <div className="rounded-2xl border border-cyan-200/20 bg-slate-950/55 p-3.5 sm:p-4">
+                    <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+                      <div className="text-xs uppercase tracking-[0.14em] text-cyan-100/90 font-semibold">
+                        {isGerman
+                          ? 'Nachweisbarer Kontroll-Stack'
+                          : 'Evidence-ready control stack'}
+                      </div>
+                      <div className="inline-flex items-center gap-2 rounded-full border border-cyan-200/30 bg-cyan-400/10 px-3 py-1 text-[11px] text-cyan-100/90">
+                        <span className="inline-flex h-2 w-2 rounded-full bg-cyan-300" />
+                        {isGerman
+                          ? 'Aktive Kontrollschicht markiert'
+                          : 'Active control layer highlighted'}
+                      </div>
+                    </div>
 
-                    <rect
-                      x="1"
-                      y="1"
-                      width="678"
-                      height="338"
-                      rx="22"
-                      fill="rgba(15,23,42,0.38)"
-                      stroke="rgba(148,163,184,0.25)"
-                    />
-
-                    {architectureDiagramEdges.map(([from, to], edgeIndex) => {
-                      const fromNode = nodeByKey[from];
-                      const toNode = nodeByKey[to];
-                      const isActiveEdge = edgeIndex === activeLayerIndex;
-                      return (
-                        <line
-                          key={`${from}-${to}`}
-                          x1={fromNode.x}
-                          y1={fromNode.y}
-                          x2={toNode.x}
-                          y2={toNode.y}
-                          stroke="url(#sec-edge-line)"
-                          strokeWidth={isActiveEdge ? '3' : '2'}
-                          opacity={isActiveEdge ? 1 : 0.62}
-                          strokeLinecap="round"
-                          markerEnd="url(#sec-arrow)"
-                        />
-                      );
-                    })}
-
-                    {!prefersReducedMotion ? (
-                      <g key={`active-pulse-${activeLayerIndex}`}>
-                        <circle r="3.2" fill="rgba(125,211,252,0.95)">
-                          <animateMotion
-                            dur="1.85s"
-                            begin="0s"
-                            repeatCount="indefinite"
-                            path={activeFlowPath}
-                          />
-                          <animate
-                            attributeName="opacity"
-                            values="0;1;1;0"
-                            dur="1.85s"
-                            begin="0s"
-                            repeatCount="indefinite"
-                          />
-                        </circle>
-                        <circle r="6.6" fill="rgba(56,189,248,0.2)">
-                          <animateMotion
-                            dur="1.85s"
-                            begin="0s"
-                            repeatCount="indefinite"
-                            path={activeFlowPath}
-                          />
-                          <animate
-                            attributeName="opacity"
-                            values="0;0.8;0.8;0"
-                            dur="1.85s"
-                            begin="0s"
-                            repeatCount="indefinite"
-                          />
-                        </circle>
-                      </g>
-                    ) : null}
-
-                    {architectureDiagramNodes.map(node => (
-                      <g key={node.key}>
-                        <circle
-                          cx={node.x}
-                          cy={node.y}
-                          r="45"
-                          fill={
-                            node.key === activeNodeKey
-                              ? 'rgba(8,47,73,0.96)'
-                              : 'rgba(30,41,59,0.92)'
-                          }
-                          stroke={
-                            node.key === activeNodeKey
-                              ? 'rgba(103,232,249,0.95)'
-                              : 'rgba(125,211,252,0.52)'
-                          }
-                          strokeWidth={
-                            node.key === activeNodeKey ? '2.4' : '1.4'
-                          }
-                        />
-                        <circle
-                          cx={node.x}
-                          cy={node.y}
-                          r="33"
-                          fill={
-                            node.key === activeNodeKey
-                              ? 'rgba(34,211,238,0.22)'
-                              : 'rgba(14,165,233,0.14)'
-                          }
-                          stroke={
-                            node.key === activeNodeKey
-                              ? 'rgba(103,232,249,0.6)'
-                              : 'rgba(125,211,252,0.34)'
-                          }
-                          strokeWidth="1"
-                        />
-                        <text
-                          x={node.x}
-                          y={node.y + 4}
-                          fill="white"
-                          textAnchor="middle"
-                          fontSize="10"
-                          fontWeight="700"
-                          letterSpacing="0.01em"
+                    <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-5">
+                      {architectureLegend.map((layer, idx) => (
+                        <button
+                          key={`${layer.title}-stack-card`}
+                          type="button"
+                          onClick={() => {
+                            setActiveLayerIndex(idx);
+                            setIsAutoPlaying(false);
+                          }}
+                          className={`rounded-xl border px-3 py-3 text-left transition-all duration-300 focus-ring-on-dark min-h-[128px] ${
+                            idx === activeLayerIndex
+                              ? 'border-cyan-100/70 bg-cyan-400/18 shadow-[0_0_0_1px_rgba(103,232,249,0.24)]'
+                              : 'border-white/15 bg-white/5 hover:bg-white/10'
+                          }`}
+                          aria-label={`${isGerman ? 'Schutzschicht anzeigen' : 'Show security layer'}: ${layer.title}`}
+                          aria-pressed={idx === activeLayerIndex}
                         >
-                          {architectureDiagramLabels[node.key]}
-                        </text>
-                      </g>
-                    ))}
+                          <div className="inline-flex h-6 w-6 items-center justify-center rounded-lg border border-cyan-200/35 bg-cyan-400/10 mb-2">
+                            <layer.icon
+                              className="h-3.5 w-3.5 text-cyan-100"
+                              aria-hidden="true"
+                            />
+                          </div>
+                          <div className="text-[11px] uppercase tracking-[0.12em] text-cyan-100/70 mb-1">
+                            {isGerman ? 'Ebene' : 'Layer'} {layer.step}
+                          </div>
+                          <div className="text-[13px] font-semibold text-white leading-tight mb-1.5">
+                            {layer.title}
+                          </div>
+                          <div className="text-[11px] leading-relaxed text-slate-200/90">
+                            {layer.proof}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
 
-                    <text
-                      x="24"
-                      y="322"
-                      fill="rgba(186,230,253,0.88)"
-                      fontSize="12"
-                      fontWeight="600"
-                    >
-                      {isGerman
-                        ? 'Interaktive Layer-Map: gerichtete Signale + Status pro Schutzschicht'
-                        : 'Interactive layer map: directed signals + per-layer protection status'}
-                    </text>
-                  </svg>
-
-                  <div className="mt-2.5 rounded-2xl border border-cyan-200/20 bg-slate-950/45 p-3 md:p-3.5 xl:p-3 2xl:p-2.5">
-                    <div className="flex flex-wrap items-center gap-3 text-xs text-cyan-100/90">
-                      <span className="inline-flex items-center gap-2 rounded-full border border-cyan-200/30 bg-cyan-400/10 px-3 py-1">
-                        <span className="inline-flex h-2.5 w-2.5 rounded-full bg-cyan-300" />
-                        {isGerman
-                          ? 'Laufpunkt = aktives Signal'
-                          : 'Pulse = active signal'}
-                      </span>
-                      <span className="inline-flex items-center gap-2 rounded-full border border-cyan-200/30 bg-white/5 px-3 py-1">
-                        <span className="inline-flex h-[2px] w-5 bg-cyan-200/70" />
-                        {isGerman
-                          ? 'Pfeil = gesicherter Datenpfad'
-                          : 'Arrow = secured data path'}
-                      </span>
+                    <div className="mt-3 rounded-xl border border-cyan-200/20 bg-gradient-to-r from-cyan-400/10 via-blue-500/8 to-emerald-400/10 px-3 py-2.5 text-[12px] text-slate-100/95 leading-relaxed">
+                      <span className="font-semibold text-cyan-50">
+                        {isGerman ? 'Vertrauensgrenze:' : 'Trust boundary:'}
+                      </span>{' '}
+                      {activeLayer.desc}
                     </div>
                   </div>
                 </div>
@@ -719,12 +547,12 @@ export default function SecurityContent() {
             <div className="mt-5 rounded-2xl border border-cyan-200/25 bg-slate-900/60 p-3.5 sm:p-4 lg:p-5 xl:p-4.5 2xl:p-4">
               <div className="text-xs uppercase tracking-[0.14em] text-cyan-100/90 font-semibold mb-3">
                 {isGerman
-                  ? 'Datenfluss mit Kontrollen'
-                  : 'Data flow with controls'}
+                  ? 'Kontrollierter Datenfluss'
+                  : 'Controlled data flow'}
               </div>
               <div className="mb-2.5 rounded-lg border border-cyan-200/20 bg-gradient-to-r from-cyan-400/10 to-blue-400/10 px-2.5 py-1.5 2xl:py-1 text-[11px] 2xl:text-[10px] leading-relaxed 2xl:leading-snug text-cyan-50/95">
                 <span className="font-semibold tracking-[0.01em]">
-                  {isGerman ? 'Aktueller Schritt:' : 'Current step:'}
+                  {isGerman ? 'Aktive Kontrollphase:' : 'Active control phase:'}
                 </span>{' '}
                 <span className="text-cyan-50">{activeDataFlow.title}</span>
                 <span className="text-cyan-100/75">
@@ -746,7 +574,7 @@ export default function SecurityContent() {
                         ? 'border-cyan-100/60 bg-cyan-400/18 shadow-[0_0_0_1px_rgba(103,232,249,0.22)]'
                         : 'border-white/10 bg-white/5 hover:bg-white/10'
                     }`}
-                    aria-label={`${isGerman ? 'Datenfluss-Schritt anzeigen' : 'Show data flow step'}: ${step.title}`}
+                    aria-label={`${isGerman ? 'Kontrollphase anzeigen' : 'Show control phase'}: ${step.title}`}
                     aria-pressed={idx === activeLayerIndex}
                   >
                     <span className="inline-flex h-5 w-5 xl:h-4.5 xl:w-4.5 2xl:h-4 2xl:w-4 rounded-full bg-cyan-500/25 border border-cyan-200/40 items-center justify-center text-[10px] font-semibold mb-2 xl:mb-1.5 2xl:mb-1">
