@@ -772,3 +772,93 @@ Interpretation:
 
 - https://wwwimages.adobe.com/content/dam/Adobe/en/products/acrobat/axi/pdfs/bridging-the-information-worker-productivity-gap-euro-ie.pdf
 - https://www.tlie.org/resource/scheduling-errors-and-legal-malpractice
+
+---
+
+## Anhang E: Umsetzungsfahrplan (24 Monate) mit Quartalszielen
+
+### Zielbild
+
+Der Umsetzungsfahrplan verbindet F&E-Tiefe (FFG) mit skalierbarer Verwertung (aws) und macht pro Quartal überprüfbar, ob Subsumio technologisch, operativ und vertrieblich auf Kurs ist.
+
+### Quartalsplanung (Q1–Q8)
+
+| Quartal | Technischer Fokus | Markt-/Pilotfokus | Qualitäts-/Governance-Gates |
+|---|---|---|---|
+| Q1 | Core Domain Model, Workspace/RBAC, Akten-CRUD stabil | 3 Design-Partner (AT/DE) onboarded | Test-Coverage >65%, Security-Baseline aktiv |
+| Q2 | Dokumentenpipeline v1 (Upload/OCR/Parsing), Qualitätsflags | 5 Piloten mit realen Akten | OCR-Failure-Rate <10%, E2E-Flow durchgehend |
+| Q3 | Hybrid Retrieval (TF-IDF + Embeddings), Evidence Snippets | Erste zahlende Piloten | Top-3-Relevanz >75%, Zitatpflicht technisch erzwungen |
+| Q4 | Fristen-/Normen-/Widerspruchs-Engine v1 | Referenz-Case-Studies (anonymisiert) | Fristen-Erkennung >85%, Audit-Log vollständig |
+| Q5 | Data-Residency-Policies, Anonymisierung vor KI-Calls | Enterprise-Pipeline vorbereitet | Externe KI-Calls policy-gesteuert + protokolliert |
+| Q6 | Traceability-Layer, exportierbare Nachweisdossiers | Partnerkanal (IT/Legal-Ops) startet | Jede Empfehlung mit Quellenkette rückführbar |
+| Q7 | Security-Härtung, Integrationen (DATEV/BMD), Billing | Skalierung DACH Sales Motion | Pen-Test ohne kritische Findings, SLA-Runbooks |
+| Q8 | Airgap/Self-hosted Produktisierung, Rollout Playbooks | 10+ aktive Pilot-/Kundenkanzleien | Produktionsreife bestätigt, Churn-Frühindikatoren stabil |
+
+### Gate-Kriterien je Meilenstein (Definition "bestanden")
+
+- **Technik-Gate:** funktionale Vollständigkeit + reproduzierbare Tests + observability vorhanden.
+- **Qualitäts-Gate:** definierte KPI-Schwellen erreicht (z.B. OCR-Qualität, Retrieval-Relevanz, Fristen-Erkennung).
+- **Compliance-Gate:** Auditierbarkeit, Rollenmodell, Data-Residency und Exportnachweise erfüllt.
+- **Markt-Gate:** validierte Nutzung in Piloten (Aktivität, Retention, Zahlungsbereitschaft).
+
+---
+
+## Anhang F: Sensitivitätsanalyse (Planungsrobustheit)
+
+### Annahmen-Set
+
+- Basis-Modell: moderates Wachstum, kontrollierte COGS, Pilot-zu-Paid Conversion im Zielkorridor.
+- Upside-Modell: schnellere Conversion, höherer ARPU durch Enterprise/Add-ons.
+- Downside-Modell: längere Sales-Cycles, höhere KI-/OCR-Kosten, geringere Aktivierung.
+
+| Kennzahl (Ende Jahr 3) | Downside | Basis | Upside |
+|---|---:|---:|---:|
+| Aktive zahlende Kanzleien | 45 | 90 | 150 |
+| Aktive zahlende User | 900 | 2.000 | 3.500 |
+| End-MRR | €85.000 | €150.000 | €260.000 |
+| ARR | €1,02 Mio | €1,80 Mio | €3,12 Mio |
+| Gross Margin | 68% | 78% | 84% |
+| Net Revenue Retention | 92% | 104% | 118% |
+
+### Gegenmaßnahmen im Downside-Szenario
+
+1. **COGS-Bremse:** strengere Quotas, aggressive Deduplizierung, lokale OCR-Priorisierung.
+2. **Conversion-Boost:** klarer Pilot-Playbook-Funnel (Value in 14 Tagen messbar).
+3. **Produktfokus:** Priorisierung der 3 stärksten Value-Treiber (Fristen, Retrieval, Widerspruchswarnungen).
+4. **Vertriebseffizienz:** enger ICP-Fokus (Kanzleien mit hoher Dokumentenlast und klarer Fristenkritik).
+
+---
+
+## Anhang G: Executive One-Pager (für Förderstelle/Partner)
+
+### Problem
+
+Juristische Teams verlieren signifikante Zeit durch Dokumentenchaos, manuelle Fristensteuerung und fehlende Nachvollziehbarkeit von Herleitungen. Das erhöht Kosten, Risiko und Bearbeitungsdauer.
+
+### Lösung
+
+Subsumio ist eine KI-gestützte Legal-Tech-Plattform, die aus unstrukturierten Dokumenten eine auditierbare Wissensbasis erzeugt und in operative Kanzlei-Workflows überführt (Fristen, Evidenzketten, Widerspruchswarnungen, Dossier-Export).
+
+### Innovation
+
+- Domänenspezifische Extraktions- und Qualitätsmetriken für heterogene juristische Dokumente.
+- Hybrid Retrieval (TF-IDF + Embeddings) mit Quellenpflicht.
+- Evidenzketten/Traceability-by-design für prüfbare KI-gestützte Arbeitsergebnisse.
+- Data-Residency- und Airgap-Optionen für hochsensible Mandate.
+
+### Verwertung
+
+- SaaS-Rollout in DACH mit Enterprise-Erweiterung (Self-hosted/Airgap).
+- Pilot-zu-Paid Motion mit klaren KPI-Gates.
+- Ausbau über Partnernetzwerk und Integrationen (DATEV/BMD/API).
+
+### Förderlogik
+
+- **FFG:** Finanzierung technologischer Unsicherheit in F&E-Arbeitspaketen (Extraction, Retrieval, Evidenzketten, Anonymisierung).
+- **aws:** Finanzierung der Produktisierung, Markteinführung und Skalierung (Sales Motion, Enterprise-Härtung, Deployability).
+
+### 24-Monats-Ergebnisbild
+
+- Produktionsreife Plattform inkl. Auditierbarkeit und Compliance-Gates.
+- Nachweisbare Produktivitäts- und Qualitätsgewinne in realen Kanzlei-Piloten.
+- Kommerzialisierungsfähiges Go-to-Market mit belastbarer Unit-Economics-Logik.
