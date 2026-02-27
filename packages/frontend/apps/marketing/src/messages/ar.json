@@ -23,7 +23,9 @@
     "mobileMenuLabel": "التنقّل الرئيسي",
     "navigationLabel": "التنقّل",
     "closeNavigationMenu": "إغلاق التنقّل",
-    "mainNavigationAriaLabel": "التنقّل الرئيسي"
+    "mainNavigationAriaLabel": "التنقّل الرئيسي",
+    "memberProfile": "ملف العضو",
+    "dashboard": "لوحة التحكم"
   },
   "docs": {
     "pageTitle": "التوثيق",

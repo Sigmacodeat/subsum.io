@@ -23,7 +23,9 @@
     "mobileMenuLabel": "Główna nawigacja",
     "navigationLabel": "Nawigacja",
     "closeNavigationMenu": "Zamknij nawigację",
-    "mainNavigationAriaLabel": "Główna nawigacja"
+    "mainNavigationAriaLabel": "Główna nawigacja",
+    "memberProfile": "Profil członka",
+    "dashboard": "Panel"
   },
   "brand": {
     "homeAriaLabel": "Strona główna Subsumio",

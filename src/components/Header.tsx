@@ -21,9 +21,19 @@ const primaryNavLinks = [
   { href: '/systems', key: 'download' },
 ] as const;
 
-const APP_ORIGIN = 'https://app.subsum.io';
+type RemoteAuthSession = {
+  user?: {
+    name?: string | null;
+    email?: string | null;
+  } | null;
+};
+
+const APP_ORIGIN =
+  process.env.NEXT_PUBLIC_APP_ORIGIN?.trim() || 'https://app.subsum.io';
 const APP_SIGN_IN_PATH = '/sign-in';
 const APP_SIGN_UP_PATH = '/sign-in?redirect_uri=%2F&intent=signup';
+const APP_DASHBOARD_PATH = '/';
+const APP_MEMBER_PROFILE_PATH = '/settings?tab=account';
 
 export default function Header() {
   const t = useTranslations('nav');
@@ -31,9 +41,34 @@ export default function Header() {
   const pathname = usePathname();
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isAuthHydrated, setIsAuthHydrated] = useState(false);
 
   const mobileToggleRef = useRef<HTMLButtonElement>(null);
   const mobileMenuRef = useRef<HTMLDivElement>(null);
+
+  const revalidateAuthSession = useCallback(async () => {
+    try {
+      const response = await fetch(`${APP_ORIGIN}/api/auth/session`, {
+        method: 'GET',
+        credentials: 'include',
+        cache: 'no-store',
+      });
+
+      if (!response.ok) {
+        setIsAuthenticated(false);
+        setIsAuthHydrated(true);
+        return;
+      }
+
+      const session = (await response.json()) as RemoteAuthSession;
+      setIsAuthenticated(Boolean(session?.user));
+      setIsAuthHydrated(true);
+    } catch {
+      setIsAuthenticated(false);
+      setIsAuthHydrated(true);
+    }
+  }, []);
 
   const isActivePath = useCallback(
     (href: string) => pathname === href || pathname.startsWith(`${href}/`),
@@ -167,6 +202,24 @@ export default function Header() {
     };
   }, [isMobileOpen]);
 
+  useEffect(() => {
+    revalidateAuthSession();
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        revalidateAuthSession();
+      }
+    };
+
+    window.addEventListener('focus', revalidateAuthSession);
+    document.addEventListener('visibilitychange', onVisibilityChange);
+
+    return () => {
+      window.removeEventListener('focus', revalidateAuthSession);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
+  }, [revalidateAuthSession]);
+
   return (
     <header
       className={clsx(
@@ -250,32 +303,61 @@ export default function Header() {
           {/* Desktop Actions */}
           <div className="hidden xl:flex items-center gap-1.5 2xl:gap-2.5 shrink-0 ml-auto">
             <LanguageSwitcher />
-            <a
-              href={`${APP_ORIGIN}${APP_SIGN_IN_PATH}`}
-              className="text-[13px] xl:text-sm font-medium text-slate-600 hover:text-slate-900 px-3 xl:px-4 py-2 transition-colors duration-300 focus-ring rounded-lg whitespace-nowrap"
-            >
-              {t('login')}
-            </a>
-            <MagneticButton strength={0.15}>
-              <a
-                href={`${APP_ORIGIN}${APP_SIGN_UP_PATH}`}
-                className="btn-primary !px-4 xl:!px-5 !py-2.5 !text-[13px] xl:!text-sm focus-ring whitespace-nowrap inline-flex items-center gap-1.5"
-              >
-                <span>{t('startFree')}</span>
-                <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
-              </a>
-            </MagneticButton>
+            {isAuthHydrated && isAuthenticated ? (
+              <>
+                <a
+                  href={`${APP_ORIGIN}${APP_MEMBER_PROFILE_PATH}`}
+                  className="text-[13px] xl:text-sm font-medium text-slate-600 hover:text-slate-900 px-3 xl:px-4 py-2 transition-colors duration-300 focus-ring rounded-lg whitespace-nowrap"
+                >
+                  {t('memberProfile')}
+                </a>
+                <a
+                  href={`${APP_ORIGIN}${APP_DASHBOARD_PATH}`}
+                  className="btn-primary !px-4 xl:!px-5 !py-2.5 !text-[13px] xl:!text-sm focus-ring whitespace-nowrap inline-flex items-center gap-1.5"
+                >
+                  <span>{t('dashboard')}</span>
+                  <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
+                </a>
+              </>
+            ) : isAuthHydrated ? (
+              <>
+                <a
+                  href={`${APP_ORIGIN}${APP_SIGN_IN_PATH}`}
+                  className="text-[13px] xl:text-sm font-medium text-slate-600 hover:text-slate-900 px-3 xl:px-4 py-2 transition-colors duration-300 focus-ring rounded-lg whitespace-nowrap"
+                >
+                  {t('login')}
+                </a>
+                <MagneticButton strength={0.15}>
+                  <a
+                    href={`${APP_ORIGIN}${APP_SIGN_UP_PATH}`}
+                    className="btn-primary !px-4 xl:!px-5 !py-2.5 !text-[13px] xl:!text-sm focus-ring whitespace-nowrap inline-flex items-center gap-1.5"
+                  >
+                    <span>{t('startFree')}</span>
+                    <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
+                  </a>
+                </MagneticButton>
+              </>
+            ) : null}
           </div>
 
           {/* Tablet Actions */}
           <div className="hidden md:flex xl:hidden items-center gap-1.5 lg:gap-2 xl:gap-2.5 shrink-0 ml-auto">
             <LanguageSwitcher />
-            <a
-              href={`${APP_ORIGIN}${APP_SIGN_IN_PATH}`}
-              className="hidden lg:inline-flex items-center text-[12.5px] font-semibold text-slate-700 hover:text-slate-900 px-2.5 py-2 transition-colors duration-300 focus-ring rounded-lg whitespace-nowrap"
-            >
-              {t('login')}
-            </a>
+            {isAuthHydrated && isAuthenticated ? (
+              <a
+                href={`${APP_ORIGIN}${APP_DASHBOARD_PATH}`}
+                className="hidden lg:inline-flex items-center text-[12.5px] font-semibold text-slate-700 hover:text-slate-900 px-2.5 py-2 transition-colors duration-300 focus-ring rounded-lg whitespace-nowrap"
+              >
+                {t('dashboard')}
+              </a>
+            ) : isAuthHydrated ? (
+              <a
+                href={`${APP_ORIGIN}${APP_SIGN_IN_PATH}`}
+                className="hidden lg:inline-flex items-center text-[12.5px] font-semibold text-slate-700 hover:text-slate-900 px-2.5 py-2 transition-colors duration-300 focus-ring rounded-lg whitespace-nowrap"
+              >
+                {t('login')}
+              </a>
+            ) : null}
           </div>
 
           {/* Mobile Toggle */}
@@ -405,20 +487,42 @@ export default function Header() {
             }}
           >
             <LanguageSwitcher />
-            <a
-              href={`${APP_ORIGIN}${APP_SIGN_IN_PATH}`}
-              onClick={closeMobileMenu}
-              className="block text-center py-3 text-base font-semibold tracking-[-0.01em] text-slate-700 hover:text-slate-900 focus-ring rounded-lg whitespace-nowrap transition-colors duration-300"
-            >
-              {t('login')}
-            </a>
-            <a
-              href={`${APP_ORIGIN}${APP_SIGN_UP_PATH}`}
-              onClick={closeMobileMenu}
-              className="btn-primary w-full !text-base !font-semibold !tracking-[-0.01em] focus-ring whitespace-nowrap"
-            >
-              {t('startFree')}
-            </a>
+            {isAuthHydrated && isAuthenticated ? (
+              <>
+                <a
+                  href={`${APP_ORIGIN}${APP_MEMBER_PROFILE_PATH}`}
+                  onClick={closeMobileMenu}
+                  className="block text-center py-3 text-base font-semibold tracking-[-0.01em] text-slate-700 hover:text-slate-900 focus-ring rounded-lg whitespace-nowrap transition-colors duration-300"
+                >
+                  {t('memberProfile')}
+                </a>
+                <a
+                  href={`${APP_ORIGIN}${APP_DASHBOARD_PATH}`}
+                  onClick={closeMobileMenu}
+                  className="btn-primary w-full !text-base !font-semibold !tracking-[-0.01em] focus-ring whitespace-nowrap inline-flex items-center justify-center gap-1.5"
+                >
+                  <span>{t('dashboard')}</span>
+                  <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
+                </a>
+              </>
+            ) : isAuthHydrated ? (
+              <>
+                <a
+                  href={`${APP_ORIGIN}${APP_SIGN_IN_PATH}`}
+                  onClick={closeMobileMenu}
+                  className="block text-center py-3 text-base font-semibold tracking-[-0.01em] text-slate-700 hover:text-slate-900 focus-ring rounded-lg whitespace-nowrap transition-colors duration-300"
+                >
+                  {t('login')}
+                </a>
+                <a
+                  href={`${APP_ORIGIN}${APP_SIGN_UP_PATH}`}
+                  onClick={closeMobileMenu}
+                  className="btn-primary w-full !text-base !font-semibold !tracking-[-0.01em] focus-ring whitespace-nowrap"
+                >
+                  {t('startFree')}
+                </a>
+              </>
+            ) : null}
           </div>
         </div>
       </div>

@@ -311,13 +311,13 @@ export default function Header() {
                   href={`${APP_ORIGIN}${APP_MEMBER_PROFILE_PATH}`}
                   className="text-[13px] xl:text-sm font-medium text-slate-600 hover:text-slate-900 px-3 xl:px-4 py-2 transition-colors duration-300 focus-ring rounded-lg whitespace-nowrap"
                 >
-                  Memberprofil
+                  {t('memberProfile')}
                 </a>
                 <a
                   href={`${APP_ORIGIN}${APP_DASHBOARD_PATH}`}
                   className="btn-primary !px-4 xl:!px-5 !py-2.5 !text-[13px] xl:!text-sm focus-ring whitespace-nowrap inline-flex items-center gap-1.5"
                 >
-                  <span>Dashboard</span>
+                  <span>{t('dashboard')}</span>
                   <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
                 </a>
               </>
@@ -350,7 +350,7 @@ export default function Header() {
                 href={`${APP_ORIGIN}${APP_DASHBOARD_PATH}`}
                 className="hidden lg:inline-flex items-center text-[12.5px] font-semibold text-slate-700 hover:text-slate-900 px-2.5 py-2 transition-colors duration-300 focus-ring rounded-lg whitespace-nowrap"
               >
-                Dashboard
+                {t('dashboard')}
               </a>
             ) : isAuthHydrated ? (
               <a
@@ -496,14 +496,14 @@ export default function Header() {
                   onClick={closeMobileMenu}
                   className="block text-center py-3 text-base font-semibold tracking-[-0.01em] text-slate-700 hover:text-slate-900 focus-ring rounded-lg whitespace-nowrap transition-colors duration-300"
                 >
-                  Memberprofil
+                  {t('memberProfile')}
                 </a>
                 <a
                   href={`${APP_ORIGIN}${APP_DASHBOARD_PATH}`}
                   onClick={closeMobileMenu}
                   className="btn-primary w-full !text-base !font-semibold !tracking-[-0.01em] focus-ring whitespace-nowrap inline-flex items-center justify-center gap-1.5"
                 >
-                  <span>Dashboard</span>
+                  <span>{t('dashboard')}</span>
                   <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
                 </a>
               </>

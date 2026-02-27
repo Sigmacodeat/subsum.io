@@ -23,7 +23,9 @@
     "mobileMenuLabel": "メインナビゲーション",
     "navigationLabel": "ナビゲーション",
     "closeNavigationMenu": "ナビゲーションを閉じる",
-    "mainNavigationAriaLabel": "メインナビゲーション"
+    "mainNavigationAriaLabel": "メインナビゲーション",
+    "memberProfile": "メンバープロフィール",
+    "dashboard": "ダッシュボード"
   },
   "docs": {
     "pageTitle": "ドキュメント",

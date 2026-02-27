@@ -23,7 +23,9 @@
     "mobileMenuLabel": "Navigation principale",
     "navigationLabel": "Navigation",
     "closeNavigationMenu": "Fermer la navigation",
-    "mainNavigationAriaLabel": "Navigation principale"
+    "mainNavigationAriaLabel": "Navigation principale",
+    "memberProfile": "Profil membre",
+    "dashboard": "Tableau de bord"
   },
   "docs": {
     "pageTitle": "Documentation",
