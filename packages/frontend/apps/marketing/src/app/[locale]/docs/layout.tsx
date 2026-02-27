@@ -3,18 +3,36 @@ import { getTranslations, setRequestLocale } from 'next-intl/server';
 
 import { generatePageMetadata } from '@/utils/seo';
 
+async function getDocsMetaCopySafe(locale: string): Promise<{
+  pageTitle: string;
+  pageSubtitle: string;
+}> {
+  try {
+    const t = await getTranslations({ locale, namespace: 'docs' });
+    return {
+      pageTitle: t('pageTitle'),
+      pageSubtitle: t('pageSubtitle'),
+    };
+  } catch {
+    return {
+      pageTitle: 'Documentation',
+      pageSubtitle: 'Guides and reference material for Subsumio.',
+    };
+  }
+}
+
 export async function generateMetadata({
   params,
 }: {
   params: Promise<{ locale: string }>;
 }): Promise<Metadata> {
   const { locale } = await params;
-  const t = await getTranslations({ locale, namespace: 'docs' });
+  const copy = await getDocsMetaCopySafe(locale);
 
   return generatePageMetadata({
     locale,
-    title: t('pageTitle'),
-    description: t('pageSubtitle'),
+    title: copy.pageTitle,
+    description: copy.pageSubtitle,
     path: '/docs',
   });
 }

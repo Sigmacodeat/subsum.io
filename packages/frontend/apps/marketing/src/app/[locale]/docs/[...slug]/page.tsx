@@ -8,7 +8,6 @@ import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { compileMDX } from 'next-mdx-remote/rsc';
 import remarkGfm from 'remark-gfm';
 
-import { loadDocComponentBySlug } from '@/docs/content-loader';
 import { mdxComponents } from '@/docs/mdx-components';
 import {
   DOCS,
@@ -62,6 +61,47 @@ function extractTocFromSourceSafe(source: string | null) {
   }
 }
 
+type DocsUiCopy = {
+  pageTitle: string;
+  sectionGettingStarted: string;
+  sectionGuides: string;
+  sectionReference: string;
+  sectionTroubleshooting: string;
+  onThisPage: string;
+  noToc: string;
+  prev: string;
+  next: string;
+};
+
+async function getDocsUiCopySafe(locale: string): Promise<DocsUiCopy> {
+  try {
+    const t = await getTranslations({ locale, namespace: 'docs' });
+    return {
+      pageTitle: t('pageTitle'),
+      sectionGettingStarted: t('sectionGettingStarted'),
+      sectionGuides: t('sectionGuides'),
+      sectionReference: t('sectionReference'),
+      sectionTroubleshooting: t('sectionTroubleshooting'),
+      onThisPage: t('onThisPage'),
+      noToc: t('noToc'),
+      prev: t('prev'),
+      next: t('next'),
+    };
+  } catch {
+    return {
+      pageTitle: 'Documentation',
+      sectionGettingStarted: 'Getting started',
+      sectionGuides: 'Guides',
+      sectionReference: 'Reference',
+      sectionTroubleshooting: 'Troubleshooting',
+      onThisPage: 'On this page',
+      noToc: 'No sections',
+      prev: 'Previous',
+      next: 'Next',
+    };
+  }
+}
+
 export async function generateStaticParams() {
   return DOCS.map(doc => ({ slug: doc.slug }));
 }
@@ -103,20 +143,17 @@ export default async function DocsArticlePage({
   const entry = findDocEntry(slug);
   if (!entry) notFound();
 
-  const DocContent = await loadDocComponentBySlug(slug);
-
   const source = await readDocSourceSafe(entry.filePath);
-  const fallbackCompiledContent =
-    !DocContent && source ? await compileDocSourceSafe(source) : null;
-  if (!DocContent && !fallbackCompiledContent) notFound();
+  const compiledContent = source ? await compileDocSourceSafe(source) : null;
+  if (!compiledContent) notFound();
 
   const toc = extractTocFromSourceSafe(source);
   const { prev, next } = getPrevNext(slug);
 
-  const t = await getTranslations({ locale, namespace: 'docs' });
+  const copy = await getDocsUiCopySafe(locale);
 
   const breadcrumbs = buildLocaleBreadcrumbs(locale as Locale, [
-    { name: t('pageTitle'), path: '/docs' },
+    { name: copy.pageTitle, path: '/docs' },
     { name: entry.title, path: `/docs/${slug.join('/')}` },
   ]);
 
@@ -147,7 +184,7 @@ export default async function DocsArticlePage({
               href="/docs"
               className="hover:text-slate-900 transition-colors"
             >
-              {t('pageTitle')}
+              {copy.pageTitle}
             </Link>
             <span className="mx-2 text-slate-400">/</span>
             <span className="text-slate-900 font-medium">{entry.title}</span>
@@ -195,22 +232,22 @@ export default async function DocsArticlePage({
                   [
                     {
                       key: 'getting-started',
-                      title: t('sectionGettingStarted'),
+                      title: copy.sectionGettingStarted,
                       docs: groups['getting-started'],
                     },
                     {
                       key: 'guides',
-                      title: t('sectionGuides'),
+                      title: copy.sectionGuides,
                       docs: groups.guides,
                     },
                     {
                       key: 'reference',
-                      title: t('sectionReference'),
+                      title: copy.sectionReference,
                       docs: groups.reference,
                     },
                     {
                       key: 'troubleshooting',
-                      title: t('sectionTroubleshooting'),
+                      title: copy.sectionTroubleshooting,
                       docs: groups.troubleshooting,
                     },
                   ] as const
@@ -248,11 +285,7 @@ export default async function DocsArticlePage({
             {/* Article */}
             <article className="min-w-0">
               <div className="prose prose-slate max-w-none prose-headings:scroll-mt-28 prose-a:text-primary-700 prose-a:no-underline hover:prose-a:underline prose-code:font-mono">
-                {DocContent ? (
-                  <DocContent components={mdxComponents as any} />
-                ) : (
-                  fallbackCompiledContent
-                )}
+                {compiledContent}
               </div>
 
               <div className="mt-10 grid sm:grid-cols-2 gap-4">
@@ -262,7 +295,7 @@ export default async function DocsArticlePage({
                     className="glass-card p-5 rounded-2xl hover:shadow-xl transition-shadow"
                   >
                     <div className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                      {t('prev')}
+                      {copy.prev}
                     </div>
                     <div className="mt-1 font-semibold text-slate-900">
                       {prev.title}
@@ -277,7 +310,7 @@ export default async function DocsArticlePage({
                     className="glass-card p-5 rounded-2xl hover:shadow-xl transition-shadow"
                   >
                     <div className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                      {t('next')}
+                      {copy.next}
                     </div>
                     <div className="mt-1 font-semibold text-slate-900">
                       {next.title}
@@ -293,10 +326,10 @@ export default async function DocsArticlePage({
             <aside className="hidden lg:block docs-toc">
               <div className="sticky top-20 xl:top-20 rounded-2xl border border-slate-200/70 bg-white/80 backdrop-blur-sm px-3.5 py-3.5 xl:px-4 xl:py-4 shadow-sm">
                 <div className="text-[10px] xl:text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500 mb-2 xl:mb-2.5">
-                  {t('onThisPage')}
+                  {copy.onThisPage}
                 </div>
                 {tocItemsExpanded.length === 0 ? (
-                  <div className="text-sm text-slate-500">{t('noToc')}</div>
+                  <div className="text-sm text-slate-500">{copy.noToc}</div>
                 ) : (
                   <>
                     <ul className="space-y-1 xl:hidden">
