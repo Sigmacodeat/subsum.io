@@ -25,7 +25,9 @@
     "closeNavigationMenu": "إغلاق التنقّل",
     "mainNavigationAriaLabel": "التنقّل الرئيسي",
     "memberProfile": "ملف العضو",
-    "dashboard": "لوحة التحكم"
+    "dashboard": "لوحة التحكم",
+    "logout": "تسجيل الخروج",
+    "loggingOut": "جارٍ تسجيل الخروج..."
   },
   "docs": {
     "pageTitle": "التوثيق",

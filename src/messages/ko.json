@@ -25,7 +25,9 @@
     "closeNavigationMenu": "내비게이션 닫기",
     "mainNavigationAriaLabel": "메인 내비게이션",
     "memberProfile": "멤버 프로필",
-    "dashboard": "대시보드"
+    "dashboard": "대시보드",
+    "logout": "로그아웃",
+    "loggingOut": "로그아웃 중..."
   },
   "docs": {
     "pageTitle": "문서",

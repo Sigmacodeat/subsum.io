@@ -1,0 +1,64 @@
+# Kapitel 02 - Value Proposition und Produkt/Technologie
+
+## 4) Value Proposition und ROI fuer Kanzleien
+
+### 4.1 Messbarer Nutzen
+
+Subsumio reduziert Such-, Rekonstruktions- und Koordinationsaufwand durch strukturierte Aktenlogik und semantische Suche.
+
+**Konservatives ROI-Szenario (als Messhypothese):**
+
+- Zeitgewinn: 2-4 Stunden/Woche pro Anwalt
+- Wert pro Stunde: EUR 150-EUR 250
+- Potenzieller Jahresnutzen: EUR 13.800-EUR 46.000
+- Solo-Plan Kosten/Jahr: EUR 588
+
+### 4.2 Risiko- und Fehlerreduktion
+
+Fristen- und Scheduling-Fehler werden als Workflow-Risiko modelliert (nicht nur Kalenderereignis):
+
+- Dokumentstelle -> Fristableitung
+- Warnlogik -> Freigabeprozess
+- Human-in-the-loop als Pflicht
+
+### 4.3 Pilot-KPI-Framework
+
+- **Zeit/Kosten:** Median Time-to-Document, Recherchezeit pro Aufgabe
+- **Qualitaet:** Fristen-Warnungen, Evidenzluecken, Near-Miss-Faelle
+- **Adoption:** MAU, Retention, NPS
+- **Governance:** Vollstaendigkeit Audit-Log, Export-Nachvollziehbarkeit
+
+---
+
+## 5) Produkt und Technologie
+
+### 5.1 Kernfunktionen
+
+- KI-gestuetzte Dokumentanalyse (OCR, Parsing, semantische Suche)
+- Mandanten-/Aktenfuehrung mit Rollen und Auditierung
+- Fristenmanagement mit Warn- und Priorisierungslogik
+- Multi-Jurisdiktion (DE/AT/CH/EU/EGMR)
+- Billing/Export-Workflows (DATEV/BMD)
+
+### 5.2 Zielarchitektur
+
+| Layer      | Zielbild                                           |
+| ---------- | -------------------------------------------------- |
+| Frontend   | React/TypeScript, PWA, Desktop                     |
+| Backend    | Node.js (NestJS), PostgreSQL, Redis                |
+| KI         | Multi-Provider LLM + domanenspezifisches Retrieval |
+| Dokumente  | OCR + Parser + Chunking + Qualitaetsmetriken       |
+| Deployment | EU-Cloud + Self-hosted/Airgap                      |
+
+### 5.3 Governance-by-Design
+
+- Quellenpflicht fuer Ergebnisse
+- lueckenloser Audit-Trail
+- Data-Residency-Policies (Cloud/Local/Airgap)
+- kritische Entscheidungen immer Human-in-the-loop
+
+---
+
+## Kapitelabschluss
+
+Dieses Kapitel liefert die operative Produktargumentation fuer Pilotkunden und den technologischen Kern fuer FFG-Review.

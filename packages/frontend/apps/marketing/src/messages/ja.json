@@ -25,7 +25,9 @@
     "closeNavigationMenu": "ナビゲーションを閉じる",
     "mainNavigationAriaLabel": "メインナビゲーション",
     "memberProfile": "メンバープロフィール",
-    "dashboard": "ダッシュボード"
+    "dashboard": "ダッシュボード",
+    "logout": "ログアウト",
+    "loggingOut": "ログアウト中..."
   },
   "docs": {
     "pageTitle": "ドキュメント",

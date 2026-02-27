@@ -28,47 +28,105 @@ type RemoteAuthSession = {
   } | null;
 };
 
+function getCookieValue(name: string) {
+  if (typeof document === 'undefined') {
+    return undefined;
+  }
+
+  return document.cookie
+    .split('; ')
+    .find(cookie => cookie.startsWith(`${name}=`))
+    ?.split('=')[1];
+}
+
 const APP_ORIGIN =
   process.env.NEXT_PUBLIC_APP_ORIGIN?.trim() || 'https://app.subsum.io';
 const APP_SIGN_IN_PATH = '/sign-in';
 const APP_SIGN_UP_PATH = '/sign-in?redirect_uri=%2F&intent=signup';
 const APP_DASHBOARD_PATH = '/';
 const APP_MEMBER_PROFILE_PATH = '/settings?tab=account';
+const APP_SIGN_OUT_PATH = '/api/auth/sign-out';
+const APP_ORIGIN_CANDIDATES = Array.from(
+  new Set([APP_ORIGIN, 'https://app.subsumio.com', 'https://app.subsum.io'])
+);
 
 export default function Header() {
   const t = useTranslations('nav');
   const tb = useTranslations('brand');
   const pathname = usePathname();
+  const logoutLabel = t.has('logout') ? t('logout') : 'Abmelden';
+  const loggingOutLabel = t.has('loggingOut') ? t('loggingOut') : 'Abmelden...';
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isAuthHydrated, setIsAuthHydrated] = useState(false);
+  const [authOrigin, setAuthOrigin] = useState<string | null>(null);
+  const [isSigningOut, setIsSigningOut] = useState(false);
 
   const mobileToggleRef = useRef<HTMLButtonElement>(null);
   const mobileMenuRef = useRef<HTMLDivElement>(null);
 
   const revalidateAuthSession = useCallback(async () => {
+    for (const origin of APP_ORIGIN_CANDIDATES) {
+      try {
+        const response = await fetch(`${origin}/api/auth/session`, {
+          method: 'GET',
+          credentials: 'include',
+          cache: 'no-store',
+        });
+
+        if (!response.ok) {
+          continue;
+        }
+
+        const session = (await response.json()) as RemoteAuthSession;
+        if (session?.user) {
+          setIsAuthenticated(true);
+          setAuthOrigin(origin);
+          setIsAuthHydrated(true);
+          return;
+        }
+      } catch {
+        continue;
+      }
+    }
+
+    setIsAuthenticated(false);
+    setAuthOrigin(null);
+    setIsAuthHydrated(true);
+  }, []);
+
+  const handleSignOut = useCallback(async () => {
+    if (isSigningOut) {
+      return;
+    }
+
+    setIsSigningOut(true);
+    const targetOrigin = authOrigin ?? APP_ORIGIN_CANDIDATES[0];
+    const csrfToken = getCookieValue('affine_csrf_token');
+
     try {
-      const response = await fetch(`${APP_ORIGIN}/api/auth/session`, {
-        method: 'GET',
+      await fetch(`${targetOrigin}${APP_SIGN_OUT_PATH}`, {
+        method: 'POST',
         credentials: 'include',
         cache: 'no-store',
+        headers: csrfToken
+          ? {
+              'x-affine-csrf-token': csrfToken,
+            }
+          : undefined,
       });
-
-      if (!response.ok) {
-        setIsAuthenticated(false);
-        setIsAuthHydrated(true);
-        return;
-      }
-
-      const session = (await response.json()) as RemoteAuthSession;
-      setIsAuthenticated(Boolean(session?.user));
-      setIsAuthHydrated(true);
     } catch {
+      // best effort; UI state is reset below to avoid stale authenticated actions
+    } finally {
       setIsAuthenticated(false);
+      setAuthOrigin(null);
       setIsAuthHydrated(true);
+      setIsSigningOut(false);
     }
-  }, []);
+  }, [authOrigin, isSigningOut]);
+
+  const activeAppOrigin = authOrigin ?? APP_ORIGIN_CANDIDATES[0];
 
   const isActivePath = useCallback(
     (href: string) => pathname === href || pathname.startsWith(`${href}/`),
@@ -203,15 +261,15 @@ export default function Header() {
   }, [isMobileOpen]);
 
   useEffect(() => {
-    revalidateAuthSession();
+    void revalidateAuthSession();
 
     const onVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
-        revalidateAuthSession();
+        void revalidateAuthSession();
       }
     };
 
-    window.addEventListener('focus', revalidateAuthSession);
+    window.addEventListener('focus', () => void revalidateAuthSession());
     document.addEventListener('visibilitychange', onVisibilityChange);
 
     return () => {
@@ -306,30 +364,38 @@ export default function Header() {
             {isAuthHydrated && isAuthenticated ? (
               <>
                 <a
-                  href={`${APP_ORIGIN}${APP_MEMBER_PROFILE_PATH}`}
+                  href={`${activeAppOrigin}${APP_MEMBER_PROFILE_PATH}`}
                   className="text-[13px] xl:text-sm font-medium text-slate-600 hover:text-slate-900 px-3 xl:px-4 py-2 transition-colors duration-300 focus-ring rounded-lg whitespace-nowrap"
                 >
                   {t('memberProfile')}
                 </a>
                 <a
-                  href={`${APP_ORIGIN}${APP_DASHBOARD_PATH}`}
+                  href={`${activeAppOrigin}${APP_DASHBOARD_PATH}`}
                   className="btn-primary !px-4 xl:!px-5 !py-2.5 !text-[13px] xl:!text-sm focus-ring whitespace-nowrap inline-flex items-center gap-1.5"
                 >
                   <span>{t('dashboard')}</span>
                   <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
                 </a>
+                <button
+                  type="button"
+                  onClick={handleSignOut}
+                  disabled={isSigningOut}
+                  className="text-[13px] xl:text-sm font-medium text-slate-600 hover:text-slate-900 disabled:text-slate-400 px-3 xl:px-4 py-2 transition-colors duration-300 focus-ring rounded-lg whitespace-nowrap"
+                >
+                  {isSigningOut ? loggingOutLabel : logoutLabel}
+                </button>
               </>
             ) : isAuthHydrated ? (
               <>
                 <a
-                  href={`${APP_ORIGIN}${APP_SIGN_IN_PATH}`}
+                  href={`${activeAppOrigin}${APP_SIGN_IN_PATH}`}
                   className="text-[13px] xl:text-sm font-medium text-slate-600 hover:text-slate-900 px-3 xl:px-4 py-2 transition-colors duration-300 focus-ring rounded-lg whitespace-nowrap"
                 >
                   {t('login')}
                 </a>
                 <MagneticButton strength={0.15}>
                   <a
-                    href={`${APP_ORIGIN}${APP_SIGN_UP_PATH}`}
+                    href={`${activeAppOrigin}${APP_SIGN_UP_PATH}`}
                     className="btn-primary !px-4 xl:!px-5 !py-2.5 !text-[13px] xl:!text-sm focus-ring whitespace-nowrap inline-flex items-center gap-1.5"
                   >
                     <span>{t('startFree')}</span>
@@ -344,15 +410,25 @@ export default function Header() {
           <div className="hidden md:flex xl:hidden items-center gap-1.5 lg:gap-2 xl:gap-2.5 shrink-0 ml-auto">
             <LanguageSwitcher />
             {isAuthHydrated && isAuthenticated ? (
-              <a
-                href={`${APP_ORIGIN}${APP_DASHBOARD_PATH}`}
-                className="hidden lg:inline-flex items-center text-[12.5px] font-semibold text-slate-700 hover:text-slate-900 px-2.5 py-2 transition-colors duration-300 focus-ring rounded-lg whitespace-nowrap"
-              >
-                {t('dashboard')}
-              </a>
+              <>
+                <a
+                  href={`${activeAppOrigin}${APP_DASHBOARD_PATH}`}
+                  className="hidden lg:inline-flex items-center text-[12.5px] font-semibold text-slate-700 hover:text-slate-900 px-2.5 py-2 transition-colors duration-300 focus-ring rounded-lg whitespace-nowrap"
+                >
+                  {t('dashboard')}
+                </a>
+                <button
+                  type="button"
+                  onClick={handleSignOut}
+                  disabled={isSigningOut}
+                  className="hidden lg:inline-flex items-center text-[12.5px] font-semibold text-slate-700 hover:text-slate-900 disabled:text-slate-400 px-2.5 py-2 transition-colors duration-300 focus-ring rounded-lg whitespace-nowrap"
+                >
+                  {isSigningOut ? loggingOutLabel : logoutLabel}
+                </button>
+              </>
             ) : isAuthHydrated ? (
               <a
-                href={`${APP_ORIGIN}${APP_SIGN_IN_PATH}`}
+                href={`${activeAppOrigin}${APP_SIGN_IN_PATH}`}
                 className="hidden lg:inline-flex items-center text-[12.5px] font-semibold text-slate-700 hover:text-slate-900 px-2.5 py-2 transition-colors duration-300 focus-ring rounded-lg whitespace-nowrap"
               >
                 {t('login')}
@@ -490,32 +566,43 @@ export default function Header() {
             {isAuthHydrated && isAuthenticated ? (
               <>
                 <a
-                  href={`${APP_ORIGIN}${APP_MEMBER_PROFILE_PATH}`}
+                  href={`${activeAppOrigin}${APP_MEMBER_PROFILE_PATH}`}
                   onClick={closeMobileMenu}
                   className="block text-center py-3 text-base font-semibold tracking-[-0.01em] text-slate-700 hover:text-slate-900 focus-ring rounded-lg whitespace-nowrap transition-colors duration-300"
                 >
                   {t('memberProfile')}
                 </a>
                 <a
-                  href={`${APP_ORIGIN}${APP_DASHBOARD_PATH}`}
+                  href={`${activeAppOrigin}${APP_DASHBOARD_PATH}`}
                   onClick={closeMobileMenu}
                   className="btn-primary w-full !text-base !font-semibold !tracking-[-0.01em] focus-ring whitespace-nowrap inline-flex items-center justify-center gap-1.5"
                 >
                   <span>{t('dashboard')}</span>
                   <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
                 </a>
+                <button
+                  type="button"
+                  onClick={() => {
+                    closeMobileMenu();
+                    void handleSignOut();
+                  }}
+                  disabled={isSigningOut}
+                  className="w-full block text-center py-3 text-base font-semibold tracking-[-0.01em] text-slate-700 hover:text-slate-900 disabled:text-slate-400 focus-ring rounded-lg whitespace-nowrap transition-colors duration-300"
+                >
+                  {isSigningOut ? loggingOutLabel : logoutLabel}
+                </button>
               </>
             ) : isAuthHydrated ? (
               <>
                 <a
-                  href={`${APP_ORIGIN}${APP_SIGN_IN_PATH}`}
+                  href={`${activeAppOrigin}${APP_SIGN_IN_PATH}`}
                   onClick={closeMobileMenu}
                   className="block text-center py-3 text-base font-semibold tracking-[-0.01em] text-slate-700 hover:text-slate-900 focus-ring rounded-lg whitespace-nowrap transition-colors duration-300"
                 >
                   {t('login')}
                 </a>
                 <a
-                  href={`${APP_ORIGIN}${APP_SIGN_UP_PATH}`}
+                  href={`${activeAppOrigin}${APP_SIGN_UP_PATH}`}
                   onClick={closeMobileMenu}
                   className="btn-primary w-full !text-base !font-semibold !tracking-[-0.01em] focus-ring whitespace-nowrap"
                 >

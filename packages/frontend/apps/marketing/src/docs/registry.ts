@@ -31,10 +31,73 @@ export const DOCS: readonly DocEntry[] = [
   {
     slug: ['reference', 'ffg-aws-businessplan'],
     section: 'reference',
-    title: 'FFG/AWS business plan',
+    title: 'FFG/AWS business plan (Master TOC)',
     description:
-      'Funding-ready business plan for Subsumio (FFG + aws), including R&D scope, go-to-market, and financial plan.',
-    filePath: 'src/docs/content/reference/ffg-aws-businessplan.mdx',
+      'Master index for the FFG/AWS dossier with chapter-by-chapter navigation and submission workflow.',
+    filePath: 'src/docs/content/reference/ffg-aws-businessplan-master-toc.mdx',
+  },
+  {
+    slug: ['reference', 'ffg-aws-businessplan-01-executive-company-market'],
+    section: 'reference',
+    title: 'FFG/AWS Chapter 01 — Executive, Company & Market',
+    description:
+      'Executive summary, company setup, problem context, and market analysis for DACH legal-tech.',
+    filePath:
+      'src/docs/content/reference/ffg-aws-businessplan-01-executive-company-market.mdx',
+  },
+  {
+    slug: ['reference', 'ffg-aws-businessplan-02-value-product-tech'],
+    section: 'reference',
+    title: 'FFG/AWS Chapter 02 — Value Proposition & Product',
+    description:
+      'ROI logic, risk reduction value case, and core product/technology architecture.',
+    filePath:
+      'src/docs/content/reference/ffg-aws-businessplan-02-value-product-tech.mdx',
+  },
+  {
+    slug: ['reference', 'ffg-aws-businessplan-03-business-gtm-team-finance'],
+    section: 'reference',
+    title: 'FFG/AWS Chapter 03 — Business Model, GTM, Team & Finance',
+    description:
+      'Commercial model, go-to-market channels, team build-up, and financial baseline.',
+    filePath:
+      'src/docs/content/reference/ffg-aws-businessplan-03-business-gtm-team-finance.mdx',
+  },
+  {
+    slug: ['reference', 'ffg-aws-businessplan-04-project-plan'],
+    section: 'reference',
+    title: 'FFG/AWS Chapter 04 — 24-Month Project Plan',
+    description:
+      'FFG/AWS-conform project structure, work packages, milestones, and effort/cost allocation.',
+    filePath:
+      'src/docs/content/reference/ffg-aws-businessplan-04-project-plan.mdx',
+  },
+  {
+    slug: ['reference', 'ffg-aws-businessplan-05-innovation-risk-funding'],
+    section: 'reference',
+    title: 'FFG/AWS Chapter 05 — Innovation, Risk & Funding Logic',
+    description:
+      'Research thesis, risk model, and fit-to-program argumentation for FFG and aws.',
+    filePath:
+      'src/docs/content/reference/ffg-aws-businessplan-05-innovation-risk-funding.mdx',
+  },
+  {
+    slug: ['reference', 'ffg-aws-businessplan-06-annex-a-d'],
+    section: 'reference',
+    title: 'FFG/AWS Chapter 06 — Annex A-D',
+    description:
+      'Submission checklist, online/PDF process, success factors, and official resource links.',
+    filePath:
+      'src/docs/content/reference/ffg-aws-businessplan-06-annex-a-d.mdx',
+  },
+  {
+    slug: ['reference', 'ffg-aws-businessplan-07-annex-e-g'],
+    section: 'reference',
+    title: 'FFG/AWS Chapter 07 — Annex E-G',
+    description:
+      'Quarterly execution roadmap, sensitivity analysis, and executive one-pager.',
+    filePath:
+      'src/docs/content/reference/ffg-aws-businessplan-07-annex-e-g.mdx',
   },
   {
     slug: ['reference', 'supported-file-types'],

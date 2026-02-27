@@ -25,7 +25,9 @@
     "closeNavigationMenu": "Cerrar navegación",
     "mainNavigationAriaLabel": "Navegación principal",
     "memberProfile": "Perfil de miembro",
-    "dashboard": "Panel"
+    "dashboard": "Panel",
+    "logout": "Cerrar sesión",
+    "loggingOut": "Cerrando sesión..."
   },
   "docs": {
     "pageTitle": "Documentación",

@@ -25,7 +25,9 @@
     "closeNavigationMenu": "Close navigation",
     "mainNavigationAriaLabel": "Main navigation",
     "memberProfile": "Member Profile",
-    "dashboard": "Dashboard"
+    "dashboard": "Dashboard",
+    "logout": "Log Out",
+    "loggingOut": "Logging out..."
   },
   "docs": {
     "pageTitle": "Documentation",

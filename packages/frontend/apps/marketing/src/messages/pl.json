@@ -25,7 +25,9 @@
     "closeNavigationMenu": "Zamknij nawigację",
     "mainNavigationAriaLabel": "Główna nawigacja",
     "memberProfile": "Profil członka",
-    "dashboard": "Panel"
+    "dashboard": "Panel",
+    "logout": "Wyloguj się",
+    "loggingOut": "Wylogowywanie..."
   },
   "brand": {
     "homeAriaLabel": "Strona główna Subsumio",
