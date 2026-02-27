@@ -146,7 +146,7 @@ function normalizeUploadDeadLetters(input: unknown): UploadDeadLetterItem[] {
 type Props = {
   isOpen: boolean;
   onClose: () => void;
-  initialFlow: 'documents-first';
+  initialFlow: 'documents-first' | 'manual';
   caseId: string;
 
   currentRole: CaseAssistantRole;
@@ -703,6 +703,7 @@ export const CaseOnboardingWizard = (props: Props) => {
   }, [
     props.currentClient?.displayName,
     props.clientDraftName,
+    hasMatterContext,
     props.matterDraftTitle,
     props.matterDraftExternalRef,
     props.matterDraftGericht,
@@ -1566,8 +1567,8 @@ export const CaseOnboardingWizard = (props: Props) => {
       );
     }
     if (step === 2) {
-      // Step 2: Need matter title
-      return props.matterDraftTitle.trim() !== '';
+      // Step 2: existing matter context is sufficient, otherwise need matter title
+      return hasMatterContext || props.matterDraftTitle.trim() !== '';
     }
     // Step 3 and 4: Navigation handled by upload/analysis completion
     return false;
@@ -1575,6 +1576,7 @@ export const CaseOnboardingWizard = (props: Props) => {
     step,
     props.selectedClientId,
     props.clientDraftName,
+    hasMatterContext,
     props.matterDraftTitle,
   ]);
 
@@ -1589,7 +1591,12 @@ export const CaseOnboardingWizard = (props: Props) => {
       }
       goNextVisibleStep();
     } else if (step === 2) {
-      // Step 2: Validate and create matter
+      // Step 2: If matter context already exists, continue directly.
+      if (hasMatterContext) {
+        goNextVisibleStep();
+        return;
+      }
+      // Otherwise create a new matter from draft data.
       if (!props.matterDraftTitle.trim()) {
         return;
       }

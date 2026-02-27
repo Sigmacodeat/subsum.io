@@ -4444,7 +4444,7 @@ export const EditorCaseAssistantPanel = ({
       <CaseOnboardingWizard
         isOpen={isOnboardingWizardOpen}
         onClose={() => setIsOnboardingWizardOpen(false)}
-        initialFlow="documents-first"
+        initialFlow={initialOnboardingFlow ?? 'documents-first'}
         caseId={caseId}
         currentRole={currentRole}
         onRoleChange={handleRoleChange}

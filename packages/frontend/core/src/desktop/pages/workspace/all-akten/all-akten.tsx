@@ -18,6 +18,7 @@ import type {
   AnwaltProfile,
   CaseDeadline,
   ClientRecord,
+  LegalDocumentRecord,
   MatterRecord,
   MatterStatus,
 } from '../../../../modules/case-assistant/types';
@@ -208,7 +209,7 @@ export const AllAktenPage = () => {
     () => Object.values(graph.cases ?? {}),
     [graph.cases]
   );
-  const legalDocs =
+  const legalDocs: LegalDocumentRecord[] =
     useLiveData(legalCopilotWorkflowService.legalDocuments$) ?? [];
 
   const caseToMatterMap = useMemo(() => {
@@ -801,26 +802,76 @@ export const AllAktenPage = () => {
         return;
       }
 
-      showActionStatus(
-        t['com.affine.caseAssistant.allAkten.quickstart.creatingImportCase']()
-      );
-      const docRecord = docsService.createDoc();
-      await caseAssistantService.upsertCaseFile({
-        id: docRecord.id,
-        workspaceId: workspace.id,
-        title:
-          t['com.affine.caseAssistant.allAkten.quickstart.importCaseTitle'](),
-        actorIds: [],
-        issueIds: [],
-        deadlineIds: [],
-        memoryEventIds: [],
-        tags: [],
+      if (matters.length === 0) {
+        showActionStatus('Bitte zuerst eine Akte anlegen, dann Dokumente hochladen.');
+        handleCreateMatter();
+        return;
+      }
+
+      const preferredMatter =
+        [...matters]
+          .filter(matter => !matter.trashedAt)
+          .sort(
+            (a, b) =>
+              new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+          )[0] ?? null;
+
+      if (!preferredMatter) {
+        showActionStatus('Keine uploadfähige Akte gefunden. Bitte zuerst eine Akte anlegen.');
+        return;
+      }
+
+      const preferredClient = clients[preferredMatter.clientId] as
+        | ClientRecord
+        | undefined;
+
+      let targetCase = [...caseFiles]
+        .filter(caseFile => caseFile.matterId === preferredMatter.id)
+        .sort(
+          (a, b) =>
+            new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+        )[0];
+
+      if (!targetCase) {
+        showActionStatus(
+          t[
+            'com.affine.caseAssistant.allAkten.quickstart.creatingImportCase'
+          ]()
+        );
+        const docRecord = docsService.createDoc();
+        targetCase = await caseAssistantService.upsertCaseFile({
+          id: docRecord.id,
+          workspaceId: workspace.id,
+          matterId: preferredMatter.id,
+          title: `${preferredMatter.title} · Upload Eingang`,
+          actorIds: [],
+          issueIds: [],
+          deadlineIds: [],
+          memoryEventIds: [],
+          tags: [],
+        });
+      }
+
+      if (!targetCase) {
+        showActionStatus(
+          t['com.affine.caseAssistant.allAkten.quickstart.failed']()
+        );
+        return;
+      }
+
+      const params = new URLSearchParams({
+        caOnboarding: 'manual',
+        caMatterId: preferredMatter.id,
+        caCaseId: targetCase.id,
       });
+      if (preferredClient?.id) {
+        params.set('caClientId', preferredClient.id);
+      }
 
       workbench.openSidebar();
-      workbench.open(`/${docRecord.id}?caOnboarding=documents-first`);
+      workbench.open(`/${targetCase.id}?${params.toString()}`);
       showActionStatus(
-        t['com.affine.caseAssistant.allAkten.quickstart.openedWizard']()
+        `${t['com.affine.caseAssistant.allAkten.quickstart.openedWizard']()} Zielakte: ${preferredMatter.title}${preferredClient ? ` · Mandant: ${preferredClient.displayName}` : ''}.`
       );
     } catch (error) {
       console.error('[all-akten] start onboarding failed', error);
@@ -832,8 +883,12 @@ export const AllAktenPage = () => {
     }
   }, [
     caseAssistantService,
+    caseFiles,
+    clients,
     docsService,
+    handleCreateMatter,
     isStartingOnboarding,
+    matters,
     showActionStatus,
     t,
     workbench,
