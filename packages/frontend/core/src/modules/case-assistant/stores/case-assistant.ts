@@ -104,6 +104,9 @@ function sanitizeLegalDocForStore(
 }
 
 export class CaseAssistantStore extends Store {
+  private readonly watchStateCache = new Map<string, LiveData<unknown>>();
+  private readonly watchGraphCache = new Map<string, LiveData<CaseGraphRecord>>();
+
   constructor(
     private readonly workspaceService: WorkspaceService,
     private readonly globalState: GlobalState,
@@ -113,7 +116,14 @@ export class CaseAssistantStore extends Store {
   }
 
   private watchState<T>(key: string, fallback: T) {
-    return LiveData.from(this.globalState.watch<T>(key), fallback);
+    const cached = this.watchStateCache.get(key) as LiveData<T> | undefined;
+    if (cached) {
+      return cached;
+    }
+
+    const liveData = LiveData.from(this.globalState.watch<T>(key), fallback);
+    this.watchStateCache.set(key, liveData as LiveData<unknown>);
+    return liveData;
   }
 
   private async readState<T>(key: string) {
@@ -403,10 +413,19 @@ export class CaseAssistantStore extends Store {
   }
 
   watchGraph() {
-    return this.watchState<CaseGraphRecord>(this.graphKey, EMPTY_GRAPH).map(
+    const key = this.graphKey;
+    const cached = this.watchGraphCache.get(key);
+    if (cached) {
+      return cached;
+    }
+
+    const graph$ = this.watchState<CaseGraphRecord>(key, EMPTY_GRAPH).map(
       (graph: CaseGraphRecord | undefined) =>
         this.ensureGraphShape(graph ?? EMPTY_GRAPH)
     );
+
+    this.watchGraphCache.set(key, graph$);
+    return graph$;
   }
 
   async getGraph() {
