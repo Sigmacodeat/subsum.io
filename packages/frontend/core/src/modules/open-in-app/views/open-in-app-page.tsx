@@ -65,7 +65,7 @@ export const OpenInAppPage = ({
 
         <div className={styles.topNavLinks}>
           <a
-            href="https://subsumio.ai"
+            href="https://subsumio.com"
             target="_blank"
             rel="noreferrer"
             className={styles.topNavLink}
@@ -73,7 +73,7 @@ export const OpenInAppPage = ({
             Official Website
           </a>
           <a
-            href="https://subsumio.ai/blog"
+            href="https://subsumio.com/blog"
             target="_blank"
             rel="noreferrer"
             className={styles.topNavLink}
@@ -81,7 +81,7 @@ export const OpenInAppPage = ({
             Blog
           </a>
           <a
-            href="https://subsumio.ai/contact"
+            href="https://subsumio.com/contact"
             target="_blank"
             rel="noreferrer"
             className={styles.topNavLink}

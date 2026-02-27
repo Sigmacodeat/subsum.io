@@ -45,12 +45,12 @@ const getPlayList = (t: Translate): Array<PlayListItem> => [
     desc: (
       <Trans
         i18nKey="com.affine.ai-onboarding.general.5.description"
-        values={{ link: 'ai.subsumio.ai' }}
+        values={{ link: 'ai.subsumio.com' }}
         components={{
           a: (
             <a
               className={styles.link}
-              href="https://ai.subsumio.ai"
+              href="https://ai.subsumio.com"
               target="_blank"
               rel="noreferrer"
             />
@@ -209,7 +209,7 @@ export const AIOnboardingGeneral = () => {
               a: (
                 <a
                   className={styles.privacyLink}
-                  href="https://subsumio.ai/terms#ai"
+                  href="https://subsumio.com/terms#ai"
                 />
               ),
             }}

@@ -19,9 +19,9 @@ import { UpdateCheckSection } from './update-check-section';
 
 export const AboutAffine = () => {
   const t = useI18n();
-  const websiteUrl = 'https://subsumio.ai';
-  const privacyUrl = 'https://subsumio.ai/privacy';
-  const termsUrl = 'https://subsumio.ai/terms';
+  const websiteUrl = 'https://subsumio.com';
+  const privacyUrl = 'https://subsumio.com/privacy';
+  const termsUrl = 'https://subsumio.com/terms';
   const { appSettings, updateSettings } = useAppSettingHelper();
   const { toggleAutoCheck, toggleAutoDownload } = useAppUpdater();
   const channel = BUILD_CONFIG.appBuildType;

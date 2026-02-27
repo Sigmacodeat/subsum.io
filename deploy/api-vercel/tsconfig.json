@@ -1,0 +1,18 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "lib": ["ES2022"],
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "types": ["node"],
+    "baseUrl": ".",
+    "paths": {
+      "@vercel/node": ["api/vercel-node.d.ts"]
+    }
+  },
+  "include": ["api/**/*.ts", "api/**/*.d.ts"],
+  "exclude": ["node_modules"]
+}

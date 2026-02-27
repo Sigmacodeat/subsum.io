@@ -13,7 +13,7 @@ export const ShareFooter = () => {
         </div>
         <a
           className={styles.getStartLink}
-          href="https://subsumio.ai/"
+          href="https://subsumio.com/"
           target="_blank"
           rel="noreferrer"
         >

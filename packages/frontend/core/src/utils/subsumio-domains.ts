@@ -1,7 +1,10 @@
 export type SubsumioSurface = 'marketing' | 'app' | 'portal' | 'api' | 'cdn';
 
 export const SUBSUMIO_CANONICAL_ROOT_DOMAIN = 'subsum.io';
-export const SUBSUMIO_ALIAS_ROOT_DOMAINS = ['subsumio.co'] as const;
+export const SUBSUMIO_ALIAS_ROOT_DOMAINS = [
+  'subsumio.co',
+  'subsumio.com',
+] as const;
 
 export const SUBSUMIO_SURFACE_HOSTNAME: Record<SubsumioSurface, string> = {
   marketing: SUBSUMIO_CANONICAL_ROOT_DOMAIN,
@@ -11,7 +14,10 @@ export const SUBSUMIO_SURFACE_HOSTNAME: Record<SubsumioSurface, string> = {
   cdn: `cdn.${SUBSUMIO_CANONICAL_ROOT_DOMAIN}`,
 };
 
-export const SUBSUMIO_ALIAS_SURFACE_HOSTNAMES: Record<SubsumioSurface, string[]> = {
+export const SUBSUMIO_ALIAS_SURFACE_HOSTNAMES: Record<
+  SubsumioSurface,
+  string[]
+> = {
   marketing: SUBSUMIO_ALIAS_ROOT_DOMAINS.map(d => d),
   app: SUBSUMIO_ALIAS_ROOT_DOMAINS.map(d => `app.${d}`),
   portal: SUBSUMIO_ALIAS_ROOT_DOMAINS.map(d => `portal.${d}`),
@@ -19,11 +25,15 @@ export const SUBSUMIO_ALIAS_SURFACE_HOSTNAMES: Record<SubsumioSurface, string[]>
   cdn: SUBSUMIO_ALIAS_ROOT_DOMAINS.map(d => `cdn.${d}`),
 };
 
-export function getSubsumioCanonicalOrigin(surface: Exclude<SubsumioSurface, 'marketing'>) {
+export function getSubsumioCanonicalOrigin(
+  surface: Exclude<SubsumioSurface, 'marketing'>
+) {
   return `https://${SUBSUMIO_SURFACE_HOSTNAME[surface]}`;
 }
 
-export function getSubsumioAllOrigins(surface: Exclude<SubsumioSurface, 'marketing'>) {
+export function getSubsumioAllOrigins(
+  surface: Exclude<SubsumioSurface, 'marketing'>
+) {
   return [
     getSubsumioCanonicalOrigin(surface),
     ...SUBSUMIO_ALIAS_SURFACE_HOSTNAMES[surface].map(h => `https://${h}`),
@@ -51,11 +61,17 @@ export function buildSubsumioUrl(input: {
   return url.toString();
 }
 
-export function buildAppUrl(path: string, query?: Record<string, string | number | boolean | undefined | null>) {
+export function buildAppUrl(
+  path: string,
+  query?: Record<string, string | number | boolean | undefined | null>
+) {
   return buildSubsumioUrl({ surface: 'app', path, query });
 }
 
-export function buildPortalUrl(path: string, query?: Record<string, string | number | boolean | undefined | null>) {
+export function buildPortalUrl(
+  path: string,
+  query?: Record<string, string | number | boolean | undefined | null>
+) {
   return buildSubsumioUrl({ surface: 'portal', path, query });
 }
 
@@ -77,7 +93,9 @@ export function isSubsumioOrigin(origin: string) {
     if (hostnameMatchesDomain(hostname, SUBSUMIO_CANONICAL_ROOT_DOMAIN)) {
       return true;
     }
-    return SUBSUMIO_ALIAS_ROOT_DOMAINS.some(d => hostnameMatchesDomain(hostname, d));
+    return SUBSUMIO_ALIAS_ROOT_DOMAINS.some(d =>
+      hostnameMatchesDomain(hostname, d)
+    );
   } catch {
     return false;
   }
@@ -93,10 +111,7 @@ export function isSubsumioAppLikeOrigin(origin: string, baseUrl: string) {
   // Accept Subsumio official domains.
   if (isSubsumioOrigin(origin)) return true;
 
-  // Backwards-compat: allow historical AFFiNE official origins.
-  if (origin.endsWith('affine.pro')) return true;
   if (origin.endsWith('apple.getaffineapp.com')) return true;
-  if (origin.endsWith('affine.fail')) return true;
 
   return false;
 }

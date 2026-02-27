@@ -26,17 +26,17 @@ export const OthersGroup = () => {
 
       <RowLayout
         label={t['com.affine.mobile.setting.others.website']()}
-        href="https://subsumio.ai/"
+        href="https://subsumio.com/"
       />
 
       <RowLayout
         label={t['com.affine.mobile.setting.others.privacy']()}
-        href="https://subsumio.ai/privacy"
+        href="https://subsumio.com/privacy"
       />
 
       <RowLayout
         label={t['com.affine.mobile.setting.others.terms']()}
-        href="https://subsumio.ai/terms"
+        href="https://subsumio.com/terms"
       />
       <DeleteAccount />
     </SettingGroup>

@@ -24,10 +24,10 @@ function isPathInWhiteList(filepath: string) {
 }
 
 const apiBaseByBuildType: Record<typeof buildType, string> = {
-  stable: 'https://app.affine.pro',
-  beta: 'https://insider.affine.pro',
-  internal: 'https://insider.affine.pro',
-  canary: 'https://affine.fail',
+  stable: 'https://app.subsum.io',
+  beta: 'https://app.subsum.io',
+  internal: 'https://app.subsum.io',
+  canary: 'https://app.subsum.io',
 };
 
 function resolveApiBaseUrl() {

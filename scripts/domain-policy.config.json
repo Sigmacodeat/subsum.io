@@ -1,0 +1,69 @@
+{
+  "forbiddenHostSuffixes": ["affine.pro", "affine.site", "subsumio.ai"],
+  "scopes": {
+    "web": {
+      "targets": [
+        "packages/frontend/component/src/components/affine-other-page-layout",
+        "packages/frontend/component/src/components/auth-components",
+        "packages/frontend/component/src/components/page-detail-skeleton",
+        "packages/frontend/component/src/components/import-page",
+        "packages/frontend/core/src/desktop/pages/auth",
+        "packages/frontend/core/src/components/sign-in",
+        "packages/frontend/core/src/components/hooks/affine/use-selfhost-login-version-guard.tsx",
+        "packages/frontend/core/src/modules/open-in-app/views/open-in-app-page.tsx",
+        "packages/frontend/core/src/modules/template-doc/view/template-list-menu.tsx",
+        "packages/frontend/core/src/mobile/dialogs/setting/others/index.tsx",
+        "packages/frontend/core/src/components/affine/ai-onboarding",
+        "packages/frontend/core/src/components/affine/onboarding/articles/blog-link.tsx",
+        "packages/frontend/core/src/components/root-app-sidebar/index.tsx",
+        "packages/frontend/core/src/desktop/pages/workspace/share",
+        "packages/frontend/core/src/desktop/dialogs/setting/general-setting/about/index.tsx",
+        "packages/frontend/core/src/desktop/dialogs/setting/general-setting/plans/ai/ai-plan.tsx",
+        "deploy/api-vercel/api/graphql.ts"
+      ],
+      "allowedHostSuffixes": [
+        "subsumio.com",
+        "subsum.io",
+        "app.subsum.io",
+        "api.subsum.io",
+        "ai.subsumio.com"
+      ],
+      "ignoredHostSuffixes": ["www.w3.org", "github.com", "your-server.com"]
+    },
+    "electron": {
+      "targets": [
+        "packages/frontend/apps/electron/src/main/application-menu/create.ts",
+        "packages/frontend/apps/electron/src/main/security/redirect-proxy.ts",
+        "packages/frontend/apps/electron/src/main/protocol.ts",
+        "packages/frontend/apps/electron/src/main/updater/affine-update-provider.ts"
+      ],
+      "allowedHostSuffixes": ["subsumio.com", "subsum.io", "app.subsum.io"],
+      "ignoredHostSuffixes": [
+        "www.electronjs.org",
+        "github.com",
+        "client.affine.local"
+      ]
+    },
+    "backend": {
+      "targets": ["packages/backend/server/src/base/helpers/url.ts"],
+      "allowedHostSuffixes": [
+        "subsumio.com",
+        "subsum.io",
+        "google.com",
+        "stripe.com",
+        "github.com",
+        "twitter.com",
+        "discord.gg",
+        "youtube.com",
+        "t.me",
+        "reddit.com"
+      ]
+    },
+    "mobile": {
+      "targets": [
+        "packages/frontend/core/src/mobile/dialogs/setting/others/index.tsx"
+      ],
+      "allowedHostSuffixes": ["subsumio.com", "subsum.io"]
+    }
+  }
+}

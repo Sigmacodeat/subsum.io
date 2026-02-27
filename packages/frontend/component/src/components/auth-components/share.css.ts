@@ -6,10 +6,11 @@ export const authContainer = style({
   height: '100%',
   width: '100%',
   minHeight: '422px',
+  gap: '4px',
 });
 
 export const authHeaderWrapper = style({
-  marginBottom: '20px',
+  marginBottom: '22px',
 });
 globalStyle(`${authHeaderWrapper} .logo`, {
   fontSize: cssVar('fontH3'),
@@ -26,11 +27,13 @@ globalStyle(`${authHeaderWrapper} > p:first-of-type`, {
   lineHeight: '28px',
   display: 'flex',
   alignItems: 'center',
+  letterSpacing: '-0.01em',
 });
 globalStyle(`${authHeaderWrapper} > p:last-of-type`, {
   fontSize: cssVar('fontH4'),
   fontWeight: 600,
   lineHeight: '28px',
+  letterSpacing: '-0.015em',
 });
 
 export const authContent = style({
@@ -50,6 +53,15 @@ export const authInputWrapper = style({
       marginBottom: '8px',
     },
   },
+});
+
+globalStyle(`${authInputWrapper} input`, {
+  borderRadius: '12px',
+  transition: 'box-shadow 0.2s ease, border-color 0.2s ease',
+});
+
+globalStyle(`${authInputWrapper}:focus-within input`, {
+  boxShadow: `0 0 0 3px color-mix(in srgb, ${cssVar('brandColor')} 22%, transparent)`,
 });
 
 export const authFooter = style({});
@@ -141,6 +153,7 @@ export const signInPageContainer = style({
   flexDirection: 'column',
   justifyContent: 'center',
   alignItems: 'center',
+  padding: '96px 16px 24px',
 });
 export const input = style({
   width: '330px',

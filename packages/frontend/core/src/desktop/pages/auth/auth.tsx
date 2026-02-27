@@ -15,7 +15,12 @@ import { useI18n } from '@affine/i18n';
 import { useLiveData, useService } from '@toeverything/infra';
 import { useCallback } from 'react';
 import type { LoaderFunction } from 'react-router-dom';
-import { redirect, useParams, useSearchParams } from 'react-router-dom';
+import {
+  Navigate,
+  redirect,
+  useParams,
+  useSearchParams,
+} from 'react-router-dom';
 import { z } from 'zod';
 
 import { useMutation } from '../../../components/hooks/use-mutation';
@@ -96,7 +101,7 @@ export const Component = () => {
     },
     [changePassword, searchParams]
   );
-  const onOpenAffine = useCallback(() => {
+  const onOpenDashboard = useCallback(() => {
     jumpToIndex(RouteLogic.REPLACE);
   }, [jumpToIndex]);
 
@@ -107,29 +112,33 @@ export const Component = () => {
   switch (authType) {
     case 'onboarding':
       return (
-        account && <OnboardingPage user={account} onOpenAffine={onOpenAffine} />
+        account && (
+          <OnboardingPage user={account} onOpenDashboard={onOpenDashboard} />
+        )
       );
     case 'signUp': {
+      if (!account) {
+        return <Navigate to="/signIn" replace />;
+      }
+
       return (
-        account && (
-          <SignUpPage
-            user={account}
-            passwordLimits={passwordLimits}
-            onSetPassword={onSetPassword}
-            onOpenAffine={onOpenAffine}
-          />
-        )
+        <SignUpPage
+          user={account}
+          passwordLimits={passwordLimits}
+          onSetPassword={onSetPassword}
+          onOpenDashboard={onOpenDashboard}
+        />
       );
     }
     case 'signIn': {
-      return <SignInSuccessPage onOpenAffine={onOpenAffine} />;
+      return <SignInSuccessPage onOpenDashboard={onOpenDashboard} />;
     }
     case 'changePassword': {
       return (
         <ChangePasswordPage
           passwordLimits={passwordLimits}
           onSetPassword={onSetPassword}
-          onOpenAffine={onOpenAffine}
+          onOpenDashboard={onOpenDashboard}
         />
       );
     }
@@ -138,23 +147,18 @@ export const Component = () => {
         <SetPasswordPage
           passwordLimits={passwordLimits}
           onSetPassword={onSetPassword}
-          onOpenAffine={onOpenAffine}
+          onOpenDashboard={onOpenDashboard}
         />
       );
     }
     case 'changeEmail': {
-      return (
-        <ChangeEmailPage
-          onChangeEmail={onSendVerifyChangeEmail}
-          onOpenAffine={onOpenAffine}
-        />
-      );
+      return <ChangeEmailPage onChangeEmail={onSendVerifyChangeEmail} />;
     }
     case 'confirm-change-email': {
-      return <ConfirmChangeEmail onOpenAffine={onOpenAffine} />;
+      return <ConfirmChangeEmail onOpenDashboard={onOpenDashboard} />;
     }
     case 'verify-email': {
-      return <ConfirmVerifiedEmail onOpenAffine={onOpenAffine} />;
+      return <ConfirmVerifiedEmail onOpenDashboard={onOpenDashboard} />;
     }
   }
   return null;
