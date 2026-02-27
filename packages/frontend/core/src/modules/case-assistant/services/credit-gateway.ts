@@ -90,6 +90,7 @@ export const CREDIT_COSTS = {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 export class CreditGatewayService extends Service {
+  private static balancesEndpointMissing = false;
   private readonly _balances$ = new LiveData<CreditBalance[]>([]);
   private readonly _pageQuota$ = new LiveData<PlanPageQuota | null>(null);
   private readonly _currentPlan$ = new LiveData<SubscriptionPlan>('free');
@@ -97,8 +98,6 @@ export class CreditGatewayService extends Service {
   private _lastQuotaFetchedAt = 0;
   private _fetchPromise: Promise<void> | null = null;
   private _didWarnInvalidQuotaResponse = false;
-  private _balancesEndpointMissing = false;
-
   private async safeReadJson<T>(response: Response): Promise<T | null> {
     const contentType = response.headers.get('content-type') ?? '';
     if (!contentType.toLowerCase().includes('application/json')) {
@@ -304,7 +303,7 @@ export class CreditGatewayService extends Service {
    * Caches for 30 seconds to avoid excessive API calls.
    */
   async fetchBalances(force = false): Promise<CreditBalance[]> {
-    if (!force && this._balancesEndpointMissing) {
+    if (!force && CreditGatewayService.balancesEndpointMissing) {
       return this._balances$.value;
     }
 
@@ -342,14 +341,14 @@ export class CreditGatewayService extends Service {
           return;
         }
         if (response.status === 404) {
-          this._balancesEndpointMissing = true;
+          CreditGatewayService.balancesEndpointMissing = true;
           return;
         }
         console.warn('[CreditGateway] Failed to fetch balances:', response.status);
         return;
       }
 
-      this._balancesEndpointMissing = false;
+      CreditGatewayService.balancesEndpointMissing = false;
 
       const data = await this.safeReadJson<unknown>(response);
       if (!data) {
