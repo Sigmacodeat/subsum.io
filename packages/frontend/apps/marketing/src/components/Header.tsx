@@ -275,7 +275,7 @@ export default function Header() {
     document.addEventListener('visibilitychange', onVisibilityChange);
 
     return () => {
-      window.removeEventListener('focus', revalidateAuthSession);
+      window.removeEventListener('focus', () => void revalidateAuthSession());
       document.removeEventListener('visibilitychange', onVisibilityChange);
     };
   }, [revalidateAuthSession]);
