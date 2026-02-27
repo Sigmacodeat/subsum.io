@@ -118,7 +118,7 @@ export const Component = () => {
       );
     case 'signUp': {
       if (!account) {
-        return <Navigate to="/signIn" replace />;
+        return <Navigate to="/sign-in" replace />;
       }
 
       return (

@@ -22,8 +22,8 @@ const primaryNavLinks = [
 ] as const;
 
 const APP_ORIGIN = 'https://app.subsum.io';
-const APP_SIGN_IN_PATH = '/signIn';
-const APP_SIGN_UP_PATH = '/signIn?redirect_uri=%2F&intent=signup';
+const APP_SIGN_IN_PATH = '/sign-in';
+const APP_SIGN_UP_PATH = '/sign-in?redirect_uri=%2F&intent=signup';
 
 export default function Header() {
   const t = useTranslations('nav');

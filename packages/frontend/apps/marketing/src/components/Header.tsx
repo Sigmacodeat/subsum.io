@@ -24,8 +24,8 @@ const primaryNavLinks = [
 
 const APP_ORIGIN =
   process.env.NEXT_PUBLIC_APP_ORIGIN?.trim() || 'https://app.subsum.io';
-const APP_SIGN_IN_PATH = '/signIn';
-const APP_SIGN_UP_PATH = '/signIn?redirect_uri=%2F&intent=signup';
+const APP_SIGN_IN_PATH = '/sign-in';
+const APP_SIGN_UP_PATH = '/sign-in?redirect_uri=%2F&intent=signup';
 const QUICK_CHECK_PATH = '/quick-check';
 
 export default function Header() {

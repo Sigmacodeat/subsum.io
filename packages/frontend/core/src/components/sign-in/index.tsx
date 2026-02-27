@@ -14,6 +14,8 @@ export type SignInStep =
   | 'signInWithEmail'
   | 'addSelfhosted';
 
+export type AuthIntent = 'signin' | 'signup';
+
 export interface SignInState {
   step: SignInStep;
   server?: Server;
@@ -21,18 +23,23 @@ export interface SignInState {
   email?: string;
   hasPassword?: boolean;
   redirectUrl?: string;
+  intent?: AuthIntent;
 }
 
 export const SignInPanel = ({
   onSkip,
   server: initialServerBaseUrl,
   initStep,
+  redirectUrl,
+  intent = 'signin',
   onAuthenticated,
 }: {
   onAuthenticated?: (status: AuthSessionStatus) => void;
   onSkip: () => void;
   server?: string;
   initStep?: SignInStep | undefined;
+  redirectUrl?: string;
+  intent?: AuthIntent;
 }) => {
   const [state, setState] = useState<SignInState>({
     step: initStep
@@ -41,6 +48,8 @@ export const SignInPanel = ({
         ? 'addSelfhosted'
         : 'signIn',
     initialServerBaseUrl: initialServerBaseUrl,
+    redirectUrl,
+    intent,
   });
 
   const defaultServerService = useService(DefaultServerService);

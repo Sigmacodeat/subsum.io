@@ -149,7 +149,7 @@ export const topLevelRoutes = [
         lazy: () => import(/* webpackChunkName: "auth" */ './pages/auth/auth'),
       },
       {
-        path: '/sign-In',
+        path: '/sign-in',
         lazy: () =>
           import(/* webpackChunkName: "auth" */ './pages/auth/sign-in'),
       },
@@ -176,12 +176,25 @@ export const topLevelRoutes = [
           import(/* webpackChunkName: "auth" */ './pages/auth/oauth-login'),
       },
       // deprecated, keep for old client compatibility
+      // TODO(@forehalo): remove
+      {
+        path: '/sign-In',
+        loader: ({ request }) => {
+          const url = new URL(request.url);
+          const query = url.searchParams.toString();
+          return redirect(`/sign-in${query ? `?${query}` : ''}`);
+        },
+      },
+      // deprecated, keep for old client compatibility
       // use '/sign-in'
       // TODO(@forehalo): remove
       {
         path: '/signIn',
-        lazy: () =>
-          import(/* webpackChunkName: "auth" */ './pages/auth/sign-in'),
+        loader: ({ request }) => {
+          const url = new URL(request.url);
+          const query = url.searchParams.toString();
+          return redirect(`/sign-in${query ? `?${query}` : ''}`);
+        },
       },
       {
         path: '/open-app/:action',

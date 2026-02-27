@@ -471,7 +471,7 @@ export default function SemanticDatabaseContent() {
       <PrefooterCta
         title={copy.ctaTitle}
         subtitle={copy.ctaSubtitle}
-        primaryAction={{ href: 'https://app.subsum.io/signIn?redirect_uri=%2F&intent=signup', label: copy.ctaPrimary }}
+        primaryAction={{ href: 'https://app.subsum.io/sign-in?redirect_uri=%2F&intent=signup', label: copy.ctaPrimary }}
         secondaryAction={{ href: '/security', label: copy.ctaSecondary }}
         meta={
           isGerman

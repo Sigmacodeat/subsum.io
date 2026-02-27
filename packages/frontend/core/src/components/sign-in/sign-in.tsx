@@ -87,6 +87,17 @@ export const SignInStep = ({
     }
 
     setIsValidEmail(true);
+
+    if (state.intent === 'signup') {
+      changeState(prev => ({
+        ...prev,
+        email,
+        step: 'signInWithEmail',
+        hasPassword: false,
+      }));
+      return;
+    }
+
     setIsMutating(true);
 
     try {

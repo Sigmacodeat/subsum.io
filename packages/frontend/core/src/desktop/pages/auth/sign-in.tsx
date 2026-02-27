@@ -1,6 +1,7 @@
 import { notify } from '@affine/component';
 import { AffineOtherPageLayout } from '@affine/component/affine-other-page-layout';
 import { SignInPageContainer } from '@affine/component/auth-components';
+import type { AuthIntent, SignInStep } from '@affine/core/components/sign-in';
 import { SignInPanel } from '@affine/core/components/sign-in';
 import { SignInBackgroundArts } from '@affine/core/components/sign-in/background-arts';
 import type { AuthSessionStatus } from '@affine/core/modules/cloud/entities/session';
@@ -26,6 +27,9 @@ export const SignIn = ({
 
   const server = searchParams.get('server') ?? undefined;
   const error = searchParams.get('error');
+  const intent = (searchParams.get('intent')?.toLowerCase() ?? 'signin') as
+    | AuthIntent
+    | string;
 
   useEffect(() => {
     if (error) {
@@ -60,7 +64,8 @@ export const SignIn = ({
     [handleClose, navigate, redirectUrl]
   );
 
-  const initStep = server ? 'addSelfhosted' : 'signIn';
+  const authIntent: AuthIntent = intent === 'signup' ? 'signup' : 'signin';
+  const initStep: SignInStep = server ? 'addSelfhosted' : 'signIn';
 
   return (
     <SignInPageContainer>
@@ -85,6 +90,8 @@ export const SignIn = ({
           onAuthenticated={handleAuthenticated}
           initStep={initStep}
           server={server}
+          redirectUrl={redirectUrl ?? undefined}
+          intent={authIntent}
         />
       </div>
     </SignInPageContainer>
