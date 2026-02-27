@@ -14,7 +14,7 @@ import {
   CreditGatewayService,
   LegalChatService,
 } from '@affine/core/modules/case-assistant';
-import { AuthService, GraphQLService } from '@affine/core/modules/cloud';
+import { AuthService, GraphQLService, ServerService } from '@affine/core/modules/cloud';
 import {
   GlobalDialogService,
   WorkspaceDialogService,
@@ -307,15 +307,18 @@ export const RootAppSidebar = memo((): ReactElement => {
     cMDKQuickSearchService,
     authService,
     graphQLService,
+    serverService,
   } = useServices({
     WorkbenchService,
     CMDKQuickSearchService,
     AuthService,
     GraphQLService,
+    ServerService,
   });
 
   const sessionStatus = useLiveData(authService.session.status$);
   const account = useLiveData(authService.session.account$);
+  const serverFeatures = useLiveData(serverService.server.features$);
   const isAuthenticated =
     sessionStatus === 'authenticated' && Boolean(account?.id);
   const t = useI18n();
@@ -357,14 +360,14 @@ export const RootAppSidebar = memo((): ReactElement => {
   }, []);
 
   useEffect(() => {
-    if (!isAuthenticated) {
+    if (!isAuthenticated || !serverFeatures?.copilot) {
       return;
     }
 
     legalChatService.refreshAvailableModels().catch(() => {
       // no-op: fallback model list is already available
     });
-  }, [isAuthenticated, legalChatService]);
+  }, [isAuthenticated, legalChatService, serverFeatures?.copilot]);
 
   useLiveData(legalChatService.availableModels$);
   const selectedModel = legalChatService.getSelectedModel();
@@ -474,7 +477,7 @@ export const RootAppSidebar = memo((): ReactElement => {
   }, [graphQLService, isAuthenticated]);
 
   useEffect(() => {
-    if (!isAuthenticated) {
+    if (!isAuthenticated || !serverFeatures?.payment) {
       return;
     }
 
@@ -501,7 +504,7 @@ export const RootAppSidebar = memo((): ReactElement => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       globalThis.clearInterval(intervalId);
     };
-  }, [creditGateway, isAuthenticated]);
+  }, [creditGateway, isAuthenticated, serverFeatures?.payment]);
 
   return (
     <AppSidebar>
