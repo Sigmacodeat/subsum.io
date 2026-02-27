@@ -28,7 +28,7 @@
 ## 3) UI-Elemente & Interaktionen (SSOT-relevant)
 
 - **Marketing Header CTA**
-  - Click: Navigiert zu `https://app.subsum.io/signIn` bzw. `.../auth/signUp`
+  - Click: Navigiert zu `https://app.subsum.io/signIn` bzw. `.../signIn?redirect_uri=%2F&intent=signup`
 - **App Login / Auth**
   - Cookie/Session nur auf `app.subsum.io`
 - **E2E / QA**
