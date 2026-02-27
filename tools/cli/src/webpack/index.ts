@@ -23,6 +23,8 @@ const require = createRequire(import.meta.url);
 const cssnano = require('cssnano');
 
 const IN_CI = !!process.env.CI;
+const ENABLE_PRODUCTION_SOURCEMAP =
+  process.env.ENABLE_PRODUCTION_SOURCEMAP === 'true';
 
 const availableChannels = ['canary', 'beta', 'stable', 'internal'];
 function getBuildConfigFromEnv(pkg: Package) {
@@ -61,6 +63,8 @@ export function createHTMLTargetConfig(
   );
 
   const buildConfig = getBuildConfigFromEnv(pkg);
+  const enableSourceMap =
+    buildConfig.debug || (!IN_CI && ENABLE_PRODUCTION_SOURCEMAP);
 
   console.log(
     `Building [${pkg.name}] for [${buildConfig.appBuildType}] channel in [${buildConfig.debug ? 'development' : 'production'}] mode.`
@@ -100,7 +104,7 @@ export function createHTMLTargetConfig(
     },
     target: ['web', 'es2022'],
     mode: buildConfig.debug ? 'development' : 'production',
-    devtool: buildConfig.debug ? 'cheap-module-source-map' : 'source-map',
+    devtool: enableSourceMap ? 'cheap-module-source-map' : false,
     resolve: {
       symlinks: true,
       extensionAlias: {
@@ -166,7 +170,7 @@ export function createHTMLTargetConfig(
                   },
                 },
                 sourceMaps: true,
-                inlineSourcesContent: true,
+                inlineSourcesContent: enableSourceMap,
               },
             },
             {
@@ -193,7 +197,7 @@ export function createHTMLTargetConfig(
                   },
                 },
                 sourceMaps: true,
-                inlineSourcesContent: true,
+                inlineSourcesContent: enableSourceMap,
               },
             },
             {
@@ -313,7 +317,7 @@ export function createHTMLTargetConfig(
       minimizer: [
         new TerserPlugin({
           minify: TerserPlugin.swcMinify,
-          parallel: true,
+          parallel: !IN_CI,
           extractComments: true,
           terserOptions: {
             ecma: 2020,

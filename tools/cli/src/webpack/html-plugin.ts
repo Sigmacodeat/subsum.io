@@ -59,19 +59,30 @@ export const getPublicPath = (BUILD_CONFIG: BUILD_CONFIG_TYPE) => {
 const DESCRIPTION = `Subsumio is the AI-native legal workspace for modern firms: analyze, structure, and draft from one trusted case intelligence layer.`;
 
 const gitShortHash = once(() => {
-  const { GITHUB_SHA } = process.env;
-  if (GITHUB_SHA) {
-    return GITHUB_SHA.substring(0, 9);
+  const envSha = process.env.GITHUB_SHA ?? process.env.VERCEL_GIT_COMMIT_SHA;
+  if (envSha) {
+    return envSha.substring(0, 9);
   }
-  const repo = new Repository(ProjectRoot.value);
-  const shortSha = repo.head().target()?.substring(0, 9);
-  if (shortSha) {
-    return shortSha;
+
+  try {
+    const repo = new Repository(ProjectRoot.value);
+    const shortSha = repo.head().target()?.substring(0, 9);
+    if (shortSha) {
+      return shortSha;
+    }
+  } catch {
+    // Ignore git repository lookup errors in archive/CI builds.
   }
-  const sha = execSync(`git rev-parse --short HEAD`, {
-    encoding: 'utf-8',
-  }).trim();
-  return sha;
+
+  try {
+    return execSync(`git rev-parse --short HEAD`, {
+      cwd: ProjectRoot.value,
+      encoding: 'utf-8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim();
+  } catch {
+    return 'unknown';
+  }
 });
 
 const currentDir = Path.dir(import.meta.url);

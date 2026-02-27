@@ -5,7 +5,7 @@
   "private": true,
   "browser": "src/index.tsx",
   "scripts": {
-    "build": "cross-env AFFINE_BUNDLER=webpack affine bundle -p @affine/web",
+    "build": "cross-env PUBLIC_PATH=/ AFFINE_BUNDLER=webpack affine bundle -p @affine/web",
     "dev": "cross-env AFFINE_BUNDLER=webpack affine bundle -p @affine/web --dev"
   },
   "dependencies": {

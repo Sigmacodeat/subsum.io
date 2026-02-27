@@ -39,7 +39,7 @@ import {
 type WorkerConfig = { name: string };
 type CreateWorkerTargetConfig = (pkg: Package, entry: string) => WorkerConfig;
 
-const DEFAULT_CI_BUNDLE_PARALLELISM = 2;
+const DEFAULT_CI_BUNDLE_PARALLELISM = 1;
 
 function getBundleParallelism() {
   const configuredParallelism = Number(process.env.BUNDLE_PARALLELISM ?? 0);
