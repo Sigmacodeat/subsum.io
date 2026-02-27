@@ -451,9 +451,12 @@ type PendingToolApprovalRun = {
 };
 
 export class LegalChatService extends Service {
-  private readonly _availableModels$ = new LiveData<LlmModelOption[]>([...AVAILABLE_MODELS]);
+  private readonly _availableModels$ = new LiveData<LlmModelOption[]>([]);
+  private readonly _chatSessions$ = new LiveData<LegalChatSession[]>([]);
+  private readonly _chatMessages$ = new LiveData<LegalChatMessage[]>([]);
   private modelsFetchPromise: Promise<LlmModelOption[]> | null = null;
   private hasTriedTenantModelFetch = false;
+  private _tenantModelsEndpointMissing = false;
   private readonly pendingToolApprovals = new Map<string, PendingToolApprovalRun>();
 
   constructor(
@@ -540,6 +543,10 @@ export class LegalChatService extends Service {
   }
 
   async refreshAvailableModels(force = false): Promise<LlmModelOption[]> {
+    if (!force && this._tenantModelsEndpointMissing) {
+      return this.getAvailableModels();
+    }
+
     if (!force && this.hasTriedTenantModelFetch) {
       return this.getAvailableModels();
     }
@@ -558,8 +565,13 @@ export class LegalChatService extends Service {
         });
 
         if (!response.ok) {
+          if (response.status === 404) {
+            this._tenantModelsEndpointMissing = true;
+          }
           return this.getAvailableModels();
         }
+
+        this._tenantModelsEndpointMissing = false;
 
         const payload = (await response.json()) as TenantLlmModelResponse[];
         const dynamicModels = (Array.isArray(payload) ? payload : [])
