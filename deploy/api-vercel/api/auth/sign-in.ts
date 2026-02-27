@@ -40,12 +40,12 @@ async function sendVerificationEmail(
   callbackUrl: string
 ) {
   const apiKey = process.env.RESEND_API_KEY;
-  const from = process.env.AUTH_EMAIL_FROM;
+  const from = process.env.AUTH_EMAIL_FROM ?? process.env.RESEND_FROM_EMAIL;
 
   if (!apiKey || !from) {
     if (process.env.NODE_ENV === 'production') {
       throw new Error(
-        'Email provider is not configured. Missing RESEND_API_KEY or AUTH_EMAIL_FROM.'
+        'Email provider is not configured. Missing RESEND_API_KEY or RESEND_FROM_EMAIL.'
       );
     }
     return;
@@ -138,15 +138,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
   }
 
-  const otp = generateVerificationCode();
-  const pendingOtpToken = createPendingOtpToken(email, otp);
-  setPendingOtpCookie(res, pendingOtpToken);
-
   const callbackUrl = isSafeCallbackUrl(body.callbackUrl)
     ? body.callbackUrl
     : '/magic-link';
 
   try {
+    const otp = generateVerificationCode();
+    const pendingOtpToken = createPendingOtpToken(email, otp);
+    setPendingOtpCookie(res, pendingOtpToken);
+
     await sendVerificationEmail(req, email, otp, callbackUrl);
     return res.status(200).json({
       success: true,
@@ -157,10 +157,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   } catch (err) {
     console.error('[auth/sign-in] email dispatch failed', err);
     clearPendingOtpCookie(res);
-    return res.status(503).json({
-      code: 'EMAIL_DELIVERY_FAILED',
-      message:
-        'We could not send a verification email right now. Please try again shortly.',
+    const msg = err instanceof Error ? err.message : String(err);
+    const isConfigError =
+      /AUTH_OTP_SECRET|RESEND_API_KEY|RESEND_FROM_EMAIL/i.test(msg);
+    return res.status(isConfigError ? 500 : 503).json({
+      code: isConfigError
+        ? 'EMAIL_PROVIDER_NOT_CONFIGURED'
+        : 'EMAIL_DELIVERY_FAILED',
+      message: isConfigError
+        ? 'Email provider is not configured on the server.'
+        : 'We could not send a verification email right now. Please try again shortly.',
     });
   }
 }
