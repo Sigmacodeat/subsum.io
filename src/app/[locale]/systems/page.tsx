@@ -39,7 +39,6 @@ import {
 
 const STABLE_RELEASE_URL =
   'https://github.com/subsumio/subsumio/releases/latest';
-const DOWNLOAD_CENTER_URL = STABLE_RELEASE_URL;
 const ALL_RELEASES_URL = 'https://github.com/subsumio/subsumio/releases';
 const SOURCE_ARCHIVE_URL =
   'https://github.com/subsumio/subsumio/archive/refs/heads/main.zip';

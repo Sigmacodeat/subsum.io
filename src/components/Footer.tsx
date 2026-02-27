@@ -1,8 +1,7 @@
 'use client';
 
 import { ArrowRight } from 'lucide-react';
-import { useTranslations } from 'next-intl';
-import { useLocale } from 'next-intl';
+import { useTranslations, useLocale } from 'next-intl';
 import { type FormEvent, useState } from 'react';
 
 import { BRAND_COMPANY_NAME, BRAND_SUPPORT_EMAIL } from '@/brand';

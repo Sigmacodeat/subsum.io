@@ -1,0 +1,30 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "target": "ES2017",
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "jsx": "preserve",
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "verbatimModuleSyntax": false,
+    "plugins": [{ "name": "next" }],
+    "types": ["node", "react", "react-dom"],
+    "baseUrl": "..",
+    "paths": {
+      "@/*": ["src/*"],
+      "@affine/core/*": ["packages/frontend/core/src/*"]
+    }
+  },
+  "include": [
+    "../next-env.d.ts",
+    "./**/*.ts",
+    "./**/*.tsx",
+    "../.next/types/**/*.ts"
+  ],
+  "exclude": ["../node_modules"]
+}

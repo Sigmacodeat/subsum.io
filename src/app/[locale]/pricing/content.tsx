@@ -45,11 +45,9 @@ import {
   ScrollLightSweep,
   ScrollProgressBar,
   ScrollReveal,
-  ScrollScale,
   TextRevealByWord,
 } from '@/components/animations';
 import { PrefooterCta } from '@/components/prefooter-cta';
-import { PRICING_ROUTES } from '@/content/pricing-offer';
 import { Link } from '@/i18n/routing';
 
 export default function PricingContent() {
@@ -2030,7 +2028,10 @@ function CtaSection({ t }: { t: ReturnType<typeof useTranslations<'cta'>> }) {
     <PrefooterCta
       title={t('title')}
       subtitle={t('subtitle')}
-      primaryAction={{ href: 'https://app.subsum.io/signIn?redirect_uri=%2F&intent=signup', label: t('button') }}
+      primaryAction={{
+        href: 'https://app.subsum.io/signIn?redirect_uri=%2F&intent=signup',
+        label: t('button'),
+      }}
     />
   );
 }

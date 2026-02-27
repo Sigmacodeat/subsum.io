@@ -4,6 +4,11 @@
   "private": true,
   "author": "toeverything",
   "license": "MIT",
+  "dependencies": {
+    "@mdx-js/react": "^3.1.0",
+    "next-intl": "^3.25.0",
+    "next-mdx-remote": "^6.0.0"
+  },
   "workspaces": [
     ".",
     "blocksuite/**/*",

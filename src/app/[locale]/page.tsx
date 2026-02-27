@@ -38,7 +38,6 @@ import { useLocale, useTranslations } from 'next-intl';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import {
-  AnimatedCounter,
   FloatingParticles,
   GlowCard,
   GradientBlob,
@@ -1446,7 +1445,10 @@ function CtaSection() {
     <PrefooterCta
       title={t('title')}
       subtitle={t('subtitle')}
-      primaryAction={{ href: 'https://app.subsum.io/signIn?redirect_uri=%2F&intent=signup', label: t('button') }}
+      primaryAction={{
+        href: 'https://app.subsum.io/signIn?redirect_uri=%2F&intent=signup',
+        label: t('button'),
+      }}
       secondaryAction={{ href: '/pricing', label: t('details') }}
       meta={t('note')}
       titleClassName="lg:text-5xl tracking-tight text-balance leading-[1.1]"

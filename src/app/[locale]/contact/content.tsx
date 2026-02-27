@@ -1,6 +1,6 @@
 'use client';
 
-import { Clock, Mail, MapPin, Phone, Sparkles } from 'lucide-react';
+import { Sparkles } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { type FormEvent, useState } from 'react';
