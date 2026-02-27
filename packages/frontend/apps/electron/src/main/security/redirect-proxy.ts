@@ -3,10 +3,10 @@ import { isAllowedRedirectTarget } from '@toeverything/infra/utils';
 import { buildType, isDev } from '../config';
 
 const API_BASE_BY_BUILD_TYPE: Record<typeof buildType, string> = {
-  stable: 'https://app.affine.pro',
-  beta: 'https://insider.affine.pro',
-  internal: 'https://insider.affine.pro',
-  canary: 'https://affine.fail',
+  stable: 'https://app.subsum.io',
+  beta: 'https://app.subsum.io',
+  internal: 'https://app.subsum.io',
+  canary: 'https://app.subsum.io',
 };
 
 function resolveCurrentHostnameForRedirectAllowlist() {
@@ -19,7 +19,7 @@ function resolveCurrentHostnameForRedirectAllowlist() {
   try {
     return new URL(base).hostname;
   } catch {
-    return 'app.affine.pro';
+    return 'app.subsum.io';
   }
 }
 

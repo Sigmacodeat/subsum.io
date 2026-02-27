@@ -9,6 +9,18 @@ export const root = style({
   position: 'relative',
   backgroundColor: cssVar('backgroundPrimaryColor'),
   backgroundSize: 'cover',
+  overflow: 'hidden',
+  selectors: {
+    '&::before': {
+      content: '""',
+      position: 'absolute',
+      inset: 0,
+      pointerEvents: 'none',
+      background:
+        'radial-gradient(circle at 14% 18%, rgba(14, 165, 164, 0.18), transparent 35%), radial-gradient(circle at 82% 12%, rgba(30, 64, 175, 0.2), transparent 40%)',
+      zIndex: 0,
+    },
+  },
 });
 export const affineLogo = style({
   color: 'inherit',

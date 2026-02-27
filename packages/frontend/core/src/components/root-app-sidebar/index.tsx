@@ -1,9 +1,4 @@
 import {
-  CREDIT_COSTS,
-  CreditGatewayService,
-  LegalChatService,
-} from '@affine/core/modules/case-assistant';
-import {
   AddPageButton,
   AppDownloadButton,
   AppSidebar,
@@ -15,16 +10,18 @@ import {
 } from '@affine/core/modules/app-sidebar/views';
 import { ExternalMenuLinkItem } from '@affine/core/modules/app-sidebar/views/menu-item/external-menu-link-item';
 import {
-  AuthService,
-  GraphQLService,
-} from '@affine/core/modules/cloud';
+  CREDIT_COSTS,
+  CreditGatewayService,
+  LegalChatService,
+} from '@affine/core/modules/case-assistant';
+import { AuthService, GraphQLService } from '@affine/core/modules/cloud';
 import {
   GlobalDialogService,
   WorkspaceDialogService,
 } from '@affine/core/modules/dialogs';
 import { CMDKQuickSearchService } from '@affine/core/modules/quicksearch/services/cmdk';
-import type { GraphQLQuery } from '@affine/graphql';
 import type { Workspace } from '@affine/core/modules/workspace';
+import type { GraphQLQuery } from '@affine/graphql';
 import { useI18n } from '@affine/i18n';
 import { track } from '@affine/track';
 import type { Store } from '@blocksuite/affine/store';
@@ -33,17 +30,13 @@ import {
   AllDocsIcon,
   CollaborationIcon,
   DateTimeIcon,
-  FolderIcon,
   ExportIcon,
+  FolderIcon,
   ImportIcon,
   JournalIcon,
   SettingsIcon,
 } from '@blocksuite/icons/rc';
-import {
-  useLiveData,
-  useService,
-  useServices,
-} from '@toeverything/infra';
+import { useLiveData, useService, useServices } from '@toeverything/infra';
 import type { ReactElement } from 'react';
 import { memo, useCallback, useEffect, useState } from 'react';
 
@@ -143,7 +136,7 @@ const OrganizationSwitcher = ({
         if (isCancelled) return;
         // expected when auth is temporarily unavailable (e.g. signed out/dev reload)
       }
-    })();
+    })().catch(console.error);
     return () => {
       isCancelled = true;
     };
@@ -219,7 +212,11 @@ const MandantenButton = () => {
   );
 
   return (
-    <MenuLinkItem icon={<CollaborationIcon />} active={mandantenActive} to={'/mandanten'}>
+    <MenuLinkItem
+      icon={<CollaborationIcon />}
+      active={mandantenActive}
+      to={'/mandanten'}
+    >
       <span data-testid="all-mandanten">Mandanten</span>
     </MenuLinkItem>
   );
@@ -233,7 +230,11 @@ const FristenButton = () => {
   );
 
   return (
-    <MenuLinkItem icon={<DateTimeIcon />} active={fristenActive} to={'/fristen'}>
+    <MenuLinkItem
+      icon={<DateTimeIcon />}
+      active={fristenActive}
+      to={'/fristen'}
+    >
       <span data-testid="all-fristen">Fristen</span>
     </MenuLinkItem>
   );
@@ -247,7 +248,11 @@ const TermineButton = () => {
   );
 
   return (
-    <MenuLinkItem icon={<DateTimeIcon />} active={termineActive} to={'/termine'}>
+    <MenuLinkItem
+      icon={<DateTimeIcon />}
+      active={termineActive}
+      to={'/termine'}
+    >
       <span data-testid="all-termine">Termine</span>
     </MenuLinkItem>
   );
@@ -284,7 +289,9 @@ const AIChatButton = () => {
 
   return (
     <MenuLinkItem icon={<AiOutlineIcon />} active={aiChatActive} to={'/chat'}>
-      <span data-testid="ai-chat">{t['com.affine.workspaceSubPath.chat']()}</span>
+      <span data-testid="ai-chat">
+        {t['com.affine.workspaceSubPath.chat']()}
+      </span>
     </MenuLinkItem>
   );
 };
@@ -300,14 +307,12 @@ export const RootAppSidebar = memo((): ReactElement => {
     cMDKQuickSearchService,
     authService,
     graphQLService,
-  } = useServices(
-    {
-      WorkbenchService,
-      CMDKQuickSearchService,
-      AuthService,
-      GraphQLService,
-    }
-  );
+  } = useServices({
+    WorkbenchService,
+    CMDKQuickSearchService,
+    AuthService,
+    GraphQLService,
+  });
 
   const sessionStatus = useLiveData(authService.session.status$);
   const account = useLiveData(authService.session.account$);
@@ -459,11 +464,13 @@ export const RootAppSidebar = memo((): ReactElement => {
         code: ref,
         source: 'pricing-url',
       },
-    }).catch(() => {
-      // expected during auth transitions (signed-out / session revalidation)
-    }).finally(() => {
-      localStorage.removeItem(AFFILIATE_REF_STORAGE_KEY);
-    });
+    })
+      .catch(() => {
+        // expected during auth transitions (signed-out / session revalidation)
+      })
+      .finally(() => {
+        localStorage.removeItem(AFFILIATE_REF_STORAGE_KEY);
+      });
   }, [graphQLService, isAuthenticated]);
 
   useEffect(() => {
@@ -569,7 +576,9 @@ export const RootAppSidebar = memo((): ReactElement => {
                 icon={<ExportIcon />}
                 onClick={onOpenWorkspaceExport}
               >
-                <span data-testid="workspace-export-trigger">{t['Full Backup']()}</span>
+                <span data-testid="workspace-export-trigger">
+                  {t['Full Backup']()}
+                </span>
               </MenuItem>
             </>
           ) : (
@@ -592,14 +601,18 @@ export const RootAppSidebar = memo((): ReactElement => {
           <InviteMembersButton />
           <TemplateDocEntrance />
           <ExternalMenuLinkItem
-            href="https://subsumio.ai/blog?tag=Release+Note"
+            href="https://subsumio.com/blog?tag=Release+Note"
             icon={<JournalIcon />}
             label={t['com.affine.app-sidebar.learn-more']()}
           />
         </CollapsibleSection>
       </SidebarScrollableContainer>
       <SidebarContainer className={bottomContainer}>
-        <section className={aiCreditsCard} aria-live="polite" aria-label="AI Credits Übersicht">
+        <section
+          className={aiCreditsCard}
+          aria-live="polite"
+          aria-label="AI Credits Übersicht"
+        >
           <div className={aiCreditsHeader}>
             <span>AI Credits</span>
             <span className={aiCreditsTier}>{selectedModel.costTier}</span>

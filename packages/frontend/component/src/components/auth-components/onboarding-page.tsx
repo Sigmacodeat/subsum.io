@@ -74,7 +74,7 @@ export const ScrollableLayout = ({
         <div className={styles.linkGroup}>
           <a
             className={styles.link}
-            href="https://subsumio.ai/terms"
+            href="https://subsumio.com/terms"
             target="_blank"
             rel="noreferrer"
           >
@@ -83,7 +83,7 @@ export const ScrollableLayout = ({
           <Divider orientation="vertical" />
           <a
             className={styles.link}
-            href="https://subsumio.ai/privacy"
+            href="https://subsumio.com/privacy"
             target="_blank"
             rel="noreferrer"
           >
@@ -97,10 +97,10 @@ export const ScrollableLayout = ({
 
 export const OnboardingPage = ({
   user,
-  onOpenAffine,
+  onOpenDashboard,
 }: {
   user: User;
-  onOpenAffine: () => void;
+  onOpenDashboard: () => void;
 }) => {
   const location = useLocation();
   const navigate = useNavigate();
@@ -250,14 +250,14 @@ export const OnboardingPage = ({
           you once again for your supports.
         </p>
         <Button
-          className={clsx(styles.button, styles.openAFFiNEButton)}
+          className={clsx(styles.button, styles.openDashboardButton)}
           variant="primary"
           size="extraLarge"
           onClick={() => {
             if (callbackUrl) {
               navigate(callbackUrl);
             } else {
-              onOpenAffine();
+              onOpenDashboard();
             }
           }}
           suffix={<ArrowRightSmallIcon />}

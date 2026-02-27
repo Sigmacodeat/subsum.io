@@ -40,7 +40,7 @@ export const EditorLoading = ({
                   1: (
                     <a
                       style={{ color: 'var(--affine-primary-color)' }}
-                      href="https://community.affine.pro"
+                      href="https://subsumio.com/contact"
                       target="__blank"
                     />
                   ),

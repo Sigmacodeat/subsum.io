@@ -13,12 +13,12 @@ export const SignUpPage: FC<{
   user: { email?: string };
   onSetPassword: (password: string) => Promise<void>;
   openButtonText?: string;
-  onOpenAffine: () => void;
+  onOpenDashboard: () => void;
 }> = ({
   passwordLimits,
   user: { email },
   onSetPassword: propsOnSetPassword,
-  onOpenAffine,
+  onOpenDashboard,
   openButtonText,
 }) => {
   const t = useI18n();
@@ -63,7 +63,7 @@ export const SignUpPage: FC<{
       }
     >
       {hasSetUp ? (
-        <Button variant="primary" size="large" onClick={onOpenAffine}>
+        <Button variant="primary" size="large" onClick={onOpenDashboard}>
           {openButtonText ?? t['com.affine.auth.open.affine']()}
         </Button>
       ) : (

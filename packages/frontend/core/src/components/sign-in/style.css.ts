@@ -6,6 +6,11 @@ export const authMessage = style({
   color: cssVar('textSecondaryColor'),
   fontSize: cssVar('fontXs'),
   lineHeight: '20px',
+  padding: '10px 12px',
+  borderRadius: 10,
+  background:
+    'color-mix(in srgb, var(--affine-background-overlay-panel-color) 72%, transparent)',
+  border: `1px solid ${cssVarV2('layer/insideBorder/border')}`,
 });
 
 globalStyle(`${authMessage} a`, {
@@ -36,6 +41,8 @@ export const linkButton = style({
   fontSize: cssVar('fontXs'),
   lineHeight: '22px',
   userSelect: 'none',
+  fontWeight: 600,
+  cursor: 'pointer',
 });
 
 export const addSelfhostedButton = style({
@@ -62,6 +69,9 @@ export const skipDividerLine = style({
 export const skipDividerText = style({
   color: cssVarV2('text/secondary'),
   fontSize: cssVar('fontXs'),
+  textTransform: 'uppercase',
+  letterSpacing: '0.06em',
+  fontWeight: 600,
 });
 
 export const skipText = style({
@@ -90,5 +100,20 @@ export const authInput = style({
 });
 
 export const signInButton = style({
-  backgroundColor: cssVarV2.button.signinbutton.background,
+  background:
+    'linear-gradient(96deg, color-mix(in srgb, var(--affine-primary-color) 90%, #0ea5a4) 0%, var(--affine-primary-color) 58%, color-mix(in srgb, var(--affine-primary-color) 80%, #1d4ed8) 100%)',
+  border: 'none',
+  boxShadow:
+    '0 12px 28px color-mix(in srgb, var(--affine-primary-color) 28%, transparent)',
+  transition: 'transform 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease',
+  selectors: {
+    '&:hover': {
+      filter: 'brightness(1.04)',
+      boxShadow:
+        '0 16px 32px color-mix(in srgb, var(--affine-primary-color) 34%, transparent)',
+    },
+    '&:active': {
+      transform: 'translateY(1px)',
+    },
+  },
 });

@@ -64,7 +64,22 @@ export const SignIn = ({
 
   return (
     <SignInPageContainer>
-      <div style={{ maxWidth: '400px', width: '100%', zIndex: 1 }}>
+      <div
+        style={{
+          maxWidth: '420px',
+          width: '100%',
+          zIndex: 1,
+          padding: '28px 24px',
+          borderRadius: 20,
+          border:
+            '1px solid color-mix(in srgb, var(--affine-primary-color) 16%, var(--affine-border-color))',
+          background:
+            'color-mix(in srgb, var(--affine-background-overlay-panel-color) 86%, transparent)',
+          boxShadow:
+            '0 24px 60px color-mix(in srgb, var(--affine-primary-color) 18%, transparent)',
+          backdropFilter: 'blur(10px)',
+        }}
+      >
         <SignInPanel
           onSkip={handleClose}
           onAuthenticated={handleAuthenticated}
