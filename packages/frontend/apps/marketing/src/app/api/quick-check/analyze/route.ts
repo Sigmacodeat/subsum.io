@@ -2,14 +2,14 @@ import { createHmac, randomUUID } from 'node:crypto';
 
 import { NextResponse } from 'next/server';
 
+import { DEFAULT_APP_ORIGIN } from '@/utils/app-auth';
+
 type Usage = 'single' | 'recurring' | 'team';
 type Urgency = 'today' | 'week' | 'flexible';
 type Depth = 'quick' | 'strategy' | 'full';
 
 const MAX_FILES = 80;
 const MAX_TOTAL_BYTES = 500 * 1024 * 1024;
-const DEFAULT_APP_ORIGIN =
-  process.env.NEXT_PUBLIC_APP_ORIGIN?.trim() || 'https://app.subsum.io';
 const DEFAULT_UPSTREAM_TIMEOUT_MS = 12_000;
 const DEFAULT_UPSTREAM_RETRIES = 2;
 const DEFAULT_RETRY_DELAY_MS = 350;

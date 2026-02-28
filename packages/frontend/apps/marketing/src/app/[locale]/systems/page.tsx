@@ -29,6 +29,7 @@ import {
 import { PrefooterCta } from '@/components/prefooter-cta';
 import type { Locale } from '@/i18n/config';
 import { Link } from '@/i18n/routing';
+import { getConfiguredAppOrigin } from '@/utils/app-auth';
 import { buildLocaleBreadcrumbs } from '@/utils/breadcrumb-labels';
 import { generatePageMetadata } from '@/utils/seo';
 import {
@@ -43,8 +44,7 @@ const DOWNLOAD_CENTER_URL = STABLE_RELEASE_URL;
 const ALL_RELEASES_URL = 'https://github.com/subsumio/subsumio/releases';
 const SOURCE_ARCHIVE_URL =
   'https://github.com/subsumio/subsumio/archive/refs/heads/main.zip';
-const WEB_APP_URL =
-  process.env.NEXT_PUBLIC_APP_ORIGIN?.trim() || 'https://app.subsum.io';
+const WEB_APP_URL = getConfiguredAppOrigin();
 const GITHUB_LATEST_RELEASE_API =
   'https://api.github.com/repos/subsumio/subsumio/releases/latest';
 const IOS_STORE_URL_RAW =
