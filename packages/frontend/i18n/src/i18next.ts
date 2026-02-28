@@ -86,6 +86,11 @@ export const getOrCreateI18n = (): i18n => {
         fallbackLng: code => {
           // always fallback to english
           const fallbacks: string[] = [defaultLng];
+
+          if (!code) {
+            return fallbacks;
+          }
+
           const langPart = code.split('-')[0];
 
           // fallback xx-YY to xx, e.g. es-AR to es
