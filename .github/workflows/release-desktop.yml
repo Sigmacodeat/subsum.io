@@ -163,7 +163,7 @@ jobs:
     needs: package-distribution-windows-x64
     uses: ./.github/workflows/windows-signer.yml
     with:
-      files: ${{ needs['package-distribution-windows-x64'].outputs['files_to_be_signed'] }}
+      files: ${{ needs['package-distribution-windows-x64'].outputs['FILES_TO_BE_SIGNED_x64'] }}
       artifact-name: packaged-win32-x64
 
   sign-packaged-artifacts-windows_arm64:
@@ -171,7 +171,7 @@ jobs:
     needs: package-distribution-windows-arm64
     uses: ./.github/workflows/windows-signer.yml
     with:
-      files: ${{ needs['package-distribution-windows-arm64'].outputs['files_to_be_signed'] }}
+      files: ${{ needs['package-distribution-windows-arm64'].outputs['FILES_TO_BE_SIGNED_arm64'] }}
       artifact-name: packaged-win32-arm64
 
   make-windows-installer:

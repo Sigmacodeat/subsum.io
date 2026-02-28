@@ -2340,7 +2340,7 @@ const ChatBubble = ({ message, isChatBusy, onRegenerate, onDelete, onSaveInsight
   const undoInsight = useCallback(
     async (undoToken: string) => {
       if (!onUndoInsight) return;
-      await onUndoInsight(undoToken);
+      void onUndoInsight(undoToken);
       setSaveState(current =>
         current
           ? {
@@ -2462,7 +2462,7 @@ const ChatBubble = ({ message, isChatBusy, onRegenerate, onDelete, onSaveInsight
   const undoSuggestion = useCallback(
     async (suggestionId: string, undoToken: string) => {
       if (!onUndoInsight) return;
-      await onUndoInsight(undoToken);
+      void onUndoInsight(undoToken);
       setSavedSuggestions(prev => ({
         ...prev,
         [suggestionId]: { status: 'saved' },
