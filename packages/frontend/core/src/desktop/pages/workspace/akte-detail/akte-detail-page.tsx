@@ -1939,6 +1939,54 @@ export const AkteDetailPage = () => {
   const mainTabListId = `akte-detail-main-tabs-${matterId}`;
   const getMainTabId = (tab: ActiveTab) => `${mainTabListId}-tab-${tab}`;
   const getMainPanelId = (tab: ActiveTab) => `${mainTabListId}-panel-${tab}`;
+  const mainTabs: ReadonlyArray<{
+    key: ActiveTab;
+    label: string;
+    count: number;
+  }> = [
+    {
+      key: 'documents',
+      label: t['com.affine.caseAssistant.akteDetail.tabs.documents'](),
+      count: matterDocs.length,
+    },
+    {
+      key: 'pages',
+      label: t['com.affine.caseAssistant.akteDetail.tabs.pages'](),
+      count: linkedPageIds.length,
+    },
+    {
+      key: 'semantic',
+      label: t['com.affine.caseAssistant.akteDetail.tabs.semantic'](),
+      count: matterChunks.length,
+    },
+  ];
+
+  const documentViewOptions: ReadonlyArray<{
+    key: DocumentViewMode;
+    label: string;
+  }> = [
+    { key: 'cards', label: 'Karten' },
+    { key: 'list', label: 'Liste' },
+  ];
+
+  const documentReviewOptions: ReadonlyArray<{
+    key: DocumentReviewFilter;
+    label: string;
+    count: number;
+  }> = [
+    { key: 'all', label: 'Alle', count: docReviewCounts.all },
+    { key: 'open', label: 'Offen', count: docReviewCounts.open },
+    {
+      key: 'reviewed',
+      label: 'Abgleich OK',
+      count: docReviewCounts.reviewed,
+    },
+    {
+      key: 'attention',
+      label: 'Prüfen',
+      count: docReviewCounts.attention,
+    },
+  ];
 
   const sideTabListId = `akte-detail-side-tabs-${matterId}`;
   const getSideTabId = (tab: SidePanelTab) => `${sideTabListId}-tab-${tab}`;
@@ -2497,7 +2545,7 @@ export const AkteDetailPage = () => {
           <div className={styles.akteHeader}>
             <div className={styles.akteHeaderTop}>
               <div className={styles.akteHeaderLeft}>
-                <div className={styles.akteTitle}>{matter.title}</div>
+                <h1 className={styles.akteTitle}>{matter.title}</h1>
                 <div className={styles.akteSubtitle}>
                   {client ? (
                     <button
@@ -3036,58 +3084,27 @@ export const AkteDetailPage = () => {
                 <div
                   className={styles.tabBar}
                   role="tablist"
-                  aria-label={t[
-                    'com.affine.caseAssistant.akteDetail.tabs.documents'
-                  ]()}
+                  aria-label="Akte Inhalte"
                   id={mainTabListId}
                   onKeyDown={handleMainTabsKeyDown}
                 >
-                  <button
-                    type="button"
-                    className={styles.tab}
-                    data-active={activeTab === 'documents'}
-                    role="tab"
-                    id={getMainTabId('documents')}
-                    aria-selected={activeTab === 'documents'}
-                    aria-controls={getMainPanelId('documents')}
-                    tabIndex={activeTab === 'documents' ? 0 : -1}
-                    onClick={() => setActiveTab('documents')}
-                  >
-                    {t['com.affine.caseAssistant.akteDetail.tabs.documents']()}
-                    <span className={styles.tabCount}>{matterDocs.length}</span>
-                  </button>
-                  <button
-                    type="button"
-                    className={styles.tab}
-                    data-active={activeTab === 'pages'}
-                    role="tab"
-                    id={getMainTabId('pages')}
-                    aria-selected={activeTab === 'pages'}
-                    aria-controls={getMainPanelId('pages')}
-                    tabIndex={activeTab === 'pages' ? 0 : -1}
-                    onClick={() => setActiveTab('pages')}
-                  >
-                    {t['com.affine.caseAssistant.akteDetail.tabs.pages']()}
-                    <span className={styles.tabCount}>
-                      {linkedPageIds.length}
-                    </span>
-                  </button>
-                  <button
-                    type="button"
-                    className={styles.tab}
-                    data-active={activeTab === 'semantic'}
-                    role="tab"
-                    id={getMainTabId('semantic')}
-                    aria-selected={activeTab === 'semantic'}
-                    aria-controls={getMainPanelId('semantic')}
-                    tabIndex={activeTab === 'semantic' ? 0 : -1}
-                    onClick={() => setActiveTab('semantic')}
-                  >
-                    {t['com.affine.caseAssistant.akteDetail.tabs.semantic']()}
-                    <span className={styles.tabCount}>
-                      {matterChunks.length}
-                    </span>
-                  </button>
+                  {mainTabs.map(tab => (
+                    <button
+                      key={tab.key}
+                      type="button"
+                      className={styles.tab}
+                      data-active={activeTab === tab.key}
+                      role="tab"
+                      id={getMainTabId(tab.key)}
+                      aria-selected={activeTab === tab.key}
+                      aria-controls={getMainPanelId(tab.key)}
+                      tabIndex={activeTab === tab.key ? 0 : -1}
+                      onClick={() => setActiveTab(tab.key)}
+                    >
+                      {tab.label}
+                      <span className={styles.tabCount}>{tab.count}</span>
+                    </button>
+                  ))}
                 </div>
 
                 {/* Search Toolbar */}
@@ -3108,57 +3125,43 @@ export const AkteDetailPage = () => {
                     <span className={styles.docListCount}>
                       {filteredDocs.length} von {matterDocs.length}
                     </span>
-                    <div className={styles.alertFilterGroup}>
-                      <button
-                        type="button"
-                        className={styles.alertFilterChip}
-                        data-active={docViewMode === 'cards' ? 'true' : undefined}
-                        onClick={() => setDocViewMode('cards')}
-                      >
-                        Karten
-                      </button>
-                      <button
-                        type="button"
-                        className={styles.alertFilterChip}
-                        data-active={docViewMode === 'list' ? 'true' : undefined}
-                        onClick={() => setDocViewMode('list')}
-                      >
-                        Liste
-                      </button>
+                    <div
+                      className={styles.alertFilterGroup}
+                      role="group"
+                      aria-label="Darstellung"
+                    >
+                      {documentViewOptions.map(option => (
+                        <button
+                          key={option.key}
+                          type="button"
+                          className={styles.alertFilterChip}
+                          data-active={docViewMode === option.key ? 'true' : undefined}
+                          aria-pressed={docViewMode === option.key}
+                          onClick={() => setDocViewMode(option.key)}
+                        >
+                          {option.label}
+                        </button>
+                      ))}
                     </div>
-                    <div className={styles.alertFilterGroup}>
-                      <button
-                        type="button"
-                        className={styles.alertFilterChip}
-                        data-active={docReviewFilter === 'all' ? 'true' : undefined}
-                        onClick={() => setDocReviewFilter('all')}
-                      >
-                        Alle {docReviewCounts.all}
-                      </button>
-                      <button
-                        type="button"
-                        className={styles.alertFilterChip}
-                        data-active={docReviewFilter === 'open' ? 'true' : undefined}
-                        onClick={() => setDocReviewFilter('open')}
-                      >
-                        Offen {docReviewCounts.open}
-                      </button>
-                      <button
-                        type="button"
-                        className={styles.alertFilterChip}
-                        data-active={docReviewFilter === 'reviewed' ? 'true' : undefined}
-                        onClick={() => setDocReviewFilter('reviewed')}
-                      >
-                        Abgleich OK {docReviewCounts.reviewed}
-                      </button>
-                      <button
-                        type="button"
-                        className={styles.alertFilterChip}
-                        data-active={docReviewFilter === 'attention' ? 'true' : undefined}
-                        onClick={() => setDocReviewFilter('attention')}
-                      >
-                        Prüfen {docReviewCounts.attention}
-                      </button>
+                    <div
+                      className={styles.alertFilterGroup}
+                      role="group"
+                      aria-label="Prüfstatus"
+                    >
+                      {documentReviewOptions.map(option => (
+                        <button
+                          key={option.key}
+                          type="button"
+                          className={styles.alertFilterChip}
+                          data-active={
+                            docReviewFilter === option.key ? 'true' : undefined
+                          }
+                          aria-pressed={docReviewFilter === option.key}
+                          onClick={() => setDocReviewFilter(option.key)}
+                        >
+                          {option.label} {option.count}
+                        </button>
+                      ))}
                     </div>
                     {bulkSelection.selectedIds.size > 0 ? (
                       <div className={styles.alertFilterGroup}>
@@ -3274,26 +3277,25 @@ export const AkteDetailPage = () => {
                         </div>
 
                         {compareDoc ? (
-                          <section className={styles.alertCenter}>
-                            <div className={styles.alertCardMeta}>
+                          <section className={styles.docComparePanel}>
+                            <div className={styles.docComparePanelHeader}>
                               <strong>OCR-Abgleich aktiv:</strong> {compareDoc.title}
                             </div>
-                            <div className={styles.alertGrid}>
-                              <div className={styles.alertCard}>
-                                <div className={styles.alertColumnTitle}>
+                            <div className={styles.docComparePanelGrid}>
+                              <div className={styles.docComparePane}>
+                                <div className={styles.docComparePaneTitle}>
                                   Original (PDF/Quelle)
                                 </div>
                                 {isPreviewableSourceRef(compareDoc.sourceRef) &&
                                 !comparePreviewFailed ? (
                                   <iframe
                                     title={`Quelle ${compareDoc.title}`}
-                                    className={styles.searchInput}
+                                    className={styles.docCompareIframe}
                                     src={compareDoc.sourceRef}
-                                    style={{ minHeight: 320, maxWidth: '100%' }}
                                     onError={() => setComparePreviewFailed(true)}
                                   />
                                 ) : (
-                                  <div className={styles.alertEmpty}>
+                                  <div className={styles.docComparePlaceholder}>
                                     {comparePreviewFailed
                                       ? 'Vorschau konnte nicht geladen werden. Bitte Quelle direkt öffnen.'
                                       : 'Keine direkte Vorschau-URL verfügbar. Bitte Original über Repository/Quelle öffnen.'}
@@ -3313,11 +3315,11 @@ export const AkteDetailPage = () => {
                                   Quelle im neuen Tab öffnen
                                 </button>
                               </div>
-                              <div className={styles.alertCard}>
-                                <div className={styles.alertColumnTitle}>
+                              <div className={styles.docComparePane}>
+                                <div className={styles.docComparePaneTitle}>
                                   Semantischer Arbeitsstand (Akte-Doc)
                                 </div>
-                                <div className={styles.alertEmpty}>
+                                <div className={styles.docComparePlaceholder}>
                                   Die semantische Version wird in der verknüpften Seite geöffnet.
                                   Nutze die Checkliste „Abgleich-Checkliste“ im Dokument und speichere
                                   dort deine Bearbeitung.
@@ -3375,19 +3377,13 @@ export const AkteDetailPage = () => {
                                   );
                                   const digest = documentDigestById.get(doc.id);
                                   return (
-                                    <article
+                                    <button
                                       key={doc.id}
+                                      type="button"
                                       className={styles.docCard}
+                                      aria-label={`Dokument öffnen: ${doc.title}`}
                                       onClick={() => {
                                         handleOpenDocument(doc).catch(() => {});
-                                      }}
-                                      role="button"
-                                      tabIndex={0}
-                                      onKeyDown={e => {
-                                        if (e.key === 'Enter' || e.key === ' ') {
-                                          e.preventDefault();
-                                          handleOpenDocument(doc).catch(() => {});
-                                        }
                                       }}
                                     >
                                       <div className={styles.docCardThumb}>
@@ -3429,28 +3425,23 @@ export const AkteDetailPage = () => {
                                           </span>
                                         </div>
                                       </div>
-                                    </article>
+                                    </button>
                                   );
                                 })}
                               </div>
                             ) : (
-                              folderGroups.map(([folder, docs]) => (
-                                <div
-                                  key={folder}
-                                  className={styles.folderSection}
-                                >
-                                <div
+                              folderGroups.map(([folder, docs]) => {
+                                const folderPanelId = `${mainTabListId}-folder-${folder
+                                  .replace(/[^a-zA-Z0-9_-]/g, '-')
+                                  .toLowerCase()}`;
+                                return (
+                                <div key={folder} className={styles.folderSection}>
+                                <button
+                                  type="button"
                                   className={styles.folderHeader}
                                   onClick={() => toggleFolder(folder)}
-                                  role="button"
-                                  tabIndex={0}
                                   aria-expanded={expandedFolders.has(folder)}
-                                  onKeyDown={e => {
-                                    if (e.key === 'Enter' || e.key === ' ') {
-                                      e.preventDefault();
-                                      toggleFolder(folder);
-                                    }
-                                  }}
+                                  aria-controls={folderPanelId}
                                 >
                                   <span
                                     className={styles.folderChevron}
@@ -3468,10 +3459,13 @@ export const AkteDetailPage = () => {
                                   <span className={styles.folderCount}>
                                     {docs.length}
                                   </span>
-                                </div>
+                                </button>
 
                                 {expandedFolders.has(folder) && (
-                                  <div className={styles.folderContent}>
+                                  <div
+                                    id={folderPanelId}
+                                    className={styles.folderContent}
+                                  >
                                     {/* Header */}
                                     <div className={styles.docHeaderRow}>
                                       <span className={styles.docSelectCell}>
@@ -3773,7 +3767,8 @@ export const AkteDetailPage = () => {
                                   </div>
                                 )}
                                 </div>
-                              ))
+                              );
+                              })
                             )}
                           </>
                         )}
@@ -3997,7 +3992,9 @@ export const AkteDetailPage = () => {
 
           {/* Action Status Toast */}
           {actionStatus && (
-            <div className={styles.actionStatus}>{actionStatus}</div>
+            <div className={styles.actionStatus} role="status" aria-live="polite">
+              {actionStatus}
+            </div>
           )}
         </div>
       </ViewBody>

@@ -76,6 +76,9 @@ export const docCardGrid = style({
 });
 
 export const docCard = style({
+  appearance: 'none',
+  width: '100%',
+  textAlign: 'left',
   borderRadius: 12,
   border: borderSubtle,
   background: surfaceBase,
@@ -894,6 +897,7 @@ export const docListContainer = style({
 export const docListToolbar = style({
   display: 'flex',
   gap: sp(2),
+  rowGap: sp(1),
   padding: `${sp(2)} ${gutter}px`,
   alignItems: 'center',
   flexWrap: 'wrap',
@@ -1291,6 +1295,11 @@ export const folderSection = style({
 });
 
 export const folderHeader = style({
+  appearance: 'none',
+  width: '100%',
+  border: 0,
+  background: 'transparent',
+  textAlign: 'left',
   display: 'flex',
   alignItems: 'center',
   gap: sp(1),
@@ -1305,6 +1314,10 @@ export const folderHeader = style({
     '&:hover': {
       background: cssVarV2('layer/background/hoverOverlay'),
       color: cssVarV2('text/primary'),
+    },
+    '&:focus-visible': {
+      outline: `2px solid ${cssVarV2('button/primary')}`,
+      outlineOffset: 1,
     },
   },
 });
