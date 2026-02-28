@@ -296,14 +296,6 @@ function buildLegalDocumentHydrationMarkdown(input: {
     `- Verarbeitung: ${processingInfo}`,
     `- Qualitäts-Score: ${qualityInfo}`,
     '',
-    '## Abgleich-Checkliste (wichtig)',
-    '',
-    '- [ ] Vollständigkeit prüfen: Alle relevanten Seiten/Abschnitte im OCR-Text enthalten?',
-    '- [ ] Zahlen/Fakten abgleichen: Beträge, Daten, Aktenzeichen, Namen gegen Originaldatei validieren.',
-    '- [ ] Fristenkontrolle: Fristdaten und Rechtsmittel-Fristen explizit gegen Quelle prüfen.',
-    '- [ ] Risiko-Scan: OCR-Artefakte, abgeschnittene Passagen oder unleserliche Stellen markieren.',
-    '- [ ] Abschluss: Fehlende Inhalte als Notiz ergänzen und Review-Entscheidung dokumentieren.',
-    '',
     '## Seiten- & Chunk-Abdeckung',
     '',
     ...buildChunkCoverageMarkdown({
@@ -3321,8 +3313,8 @@ export const AkteDetailPage = () => {
                                 </div>
                                 <div className={styles.docComparePlaceholder}>
                                   Die semantische Version wird in der verknüpften Seite geöffnet.
-                                  Nutze die Checkliste „Abgleich-Checkliste“ im Dokument und speichere
-                                  dort deine Bearbeitung.
+                                  Dort findest du Metadaten, Chunk-Abdeckung und den extrahierten OCR-Inhalt
+                                  für die weitere Bearbeitung.
                                 </div>
                                 <button
                                   type="button"
