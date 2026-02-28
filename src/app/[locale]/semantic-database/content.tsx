@@ -472,7 +472,7 @@ export default function SemanticDatabaseContent() {
         title={copy.ctaTitle}
         subtitle={copy.ctaSubtitle}
         primaryAction={{
-          href: 'https://app.subsum.io/auth/signUp',
+          href: 'https://app.subsum.io/sign-in?intent=signup',
           label: copy.ctaPrimary,
         }}
         secondaryAction={{ href: '/security', label: copy.ctaSecondary }}

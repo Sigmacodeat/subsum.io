@@ -239,7 +239,7 @@ export default async function FeatureDetailPage({
 
           <div className="mt-8 flex flex-col sm:flex-row gap-3">
             <a
-              href="https://app.subsum.io/auth/signUp"
+              href="https://app.subsum.io/sign-in?intent=signup"
               className="btn-primary !px-8 !py-4"
             >
               {td('ctaPrimary')}

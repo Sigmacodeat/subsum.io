@@ -199,7 +199,7 @@ export default function AboutContent() {
         title={t('ctaTitle')}
         subtitle={t('ctaDesc')}
         primaryAction={{
-          href: 'https://app.subsum.io/auth/signUp',
+          href: 'https://app.subsum.io/sign-in?intent=signup',
           label: t('ctaButton'),
         }}
       />

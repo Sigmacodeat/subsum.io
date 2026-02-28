@@ -177,7 +177,7 @@ function HeroSection() {
             <div className="flex w-full flex-col sm:flex-row sm:flex-wrap items-center justify-center gap-3 sm:gap-4 lg:gap-5 mb-5">
               <MagneticButton strength={0.12}>
                 <a
-                  href="https://app.subsum.io/auth/signUp"
+                  href="https://app.subsum.io/sign-in?intent=signup"
                   className="btn-primary inline-flex items-center justify-center gap-2 w-full sm:w-auto sm:min-w-[220px] text-lg !px-10 !py-5"
                 >
                   {t('ctaPrimary')}
@@ -1446,7 +1446,7 @@ function CtaSection() {
       title={t('title')}
       subtitle={t('subtitle')}
       primaryAction={{
-        href: 'https://app.subsum.io/auth/signUp',
+        href: 'https://app.subsum.io/sign-in?intent=signup',
         label: t('button'),
       }}
       secondaryAction={{ href: '/pricing', label: t('details') }}

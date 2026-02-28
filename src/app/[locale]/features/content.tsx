@@ -687,7 +687,7 @@ export default function FeaturesContent() {
         title={tCta('title')}
         subtitle={tCta('subtitle')}
         primaryAction={{
-          href: 'https://app.subsum.io/auth/signUp',
+          href: 'https://app.subsum.io/sign-in?intent=signup',
           label: tCta('button'),
         }}
         secondaryAction={{ href: '/pricing', label: tCta('details') }}

@@ -374,7 +374,7 @@ function PricingCardsSection({
       tokens: t('soloTokensMonth'),
       features: soloFeats,
       cta: t('ctaSolo'),
-      ctaHref: 'https://app.subsum.io/auth/signUp',
+      ctaHref: 'https://app.subsum.io/sign-in?intent=signup',
       icon: Users,
       maxUsers: 1,
       highlighted: false,
@@ -393,7 +393,7 @@ function PricingCardsSection({
       tokens: t('kanzleiTokensMonth'),
       features: kanzleiFeats,
       cta: t('ctaKanzlei'),
-      ctaHref: 'https://app.subsum.io/auth/signUp',
+      ctaHref: 'https://app.subsum.io/sign-in?intent=signup',
       icon: Building2,
       maxUsers: 10,
       highlighted: true,
@@ -412,7 +412,7 @@ function PricingCardsSection({
       tokens: t('businessTokensMonth'),
       features: businessFeats,
       cta: t('ctaBusiness'),
-      ctaHref: 'https://app.subsum.io/auth/signUp',
+      ctaHref: 'https://app.subsum.io/sign-in?intent=signup',
       icon: TrendingUp,
       maxUsers: 50,
       highlighted: false,
@@ -1464,7 +1464,7 @@ function StickyCtaBar({
             </button>
 
             <a
-              href="https://app.subsum.io/auth/signUp"
+              href="https://app.subsum.io/sign-in?intent=signup"
               className="btn-primary !py-2 !px-4 !text-sm"
             >
               {t('ctaKanzlei')}
@@ -1677,7 +1677,7 @@ function PlanQuizSection({
               <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
                 <MagneticButton strength={0.1}>
                   <Link
-                    href={rec?.href ?? 'https://app.subsum.io/auth/signUp'}
+                    href={rec?.href ?? 'https://app.subsum.io/sign-in?intent=signup'}
                     className="btn-primary"
                   >
                     {t('quizResultCta')} <ArrowRight className="w-4 h-4 ml-1" />
@@ -1816,7 +1816,7 @@ function InteractiveRoiCalculator({
               </div>
               <MagneticButton strength={0.1}>
                 <a
-                  href="https://app.subsum.io/auth/signUp"
+                  href="https://app.subsum.io/sign-in?intent=signup"
                   className="btn-primary w-full text-center text-lg !py-4"
                 >
                   {t('calcCta')} <ArrowRight className="w-5 h-5 ml-2" />
@@ -2026,7 +2026,7 @@ function CtaSection({ t }: { t: ReturnType<typeof useTranslations<'cta'>> }) {
       title={t('title')}
       subtitle={t('subtitle')}
       primaryAction={{
-        href: 'https://app.subsum.io/auth/signUp',
+        href: 'https://app.subsum.io/sign-in?intent=signup',
         label: t('button'),
       }}
     />
