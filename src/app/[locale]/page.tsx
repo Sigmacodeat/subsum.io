@@ -54,6 +54,7 @@ import {
 import { AppDashboardPreview } from '@/components/app-dashboard-preview';
 import { PrefooterCta } from '@/components/prefooter-cta';
 import { Link } from '@/i18n/routing';
+import { APP_SIGN_UP_URL } from '@/utils/app-auth';
 import { buildHomepageJsonLd } from '@/utils/seo-schema';
 
 const sectionHeadingClass =
@@ -177,7 +178,7 @@ function HeroSection() {
             <div className="flex w-full flex-col sm:flex-row sm:flex-wrap items-center justify-center gap-3 sm:gap-4 lg:gap-5 mb-5">
               <MagneticButton strength={0.12}>
                 <a
-                  href="https://app.subsum.io/sign-in?intent=signup"
+                  href={APP_SIGN_UP_URL}
                   className="btn-primary inline-flex items-center justify-center gap-2 w-full sm:w-auto sm:min-w-[220px] text-lg !px-10 !py-5"
                 >
                   {t('ctaPrimary')}
@@ -1446,7 +1447,7 @@ function CtaSection() {
       title={t('title')}
       subtitle={t('subtitle')}
       primaryAction={{
-        href: 'https://app.subsum.io/sign-in?intent=signup',
+        href: APP_SIGN_UP_URL,
         label: t('button'),
       }}
       secondaryAction={{ href: '/pricing', label: t('details') }}

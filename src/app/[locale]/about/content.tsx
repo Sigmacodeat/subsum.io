@@ -15,6 +15,7 @@ import {
   TextRevealByWord,
 } from '@/components/animations';
 import { PrefooterCta } from '@/components/prefooter-cta';
+import { APP_SIGN_UP_URL } from '@/utils/app-auth';
 
 export default function AboutContent() {
   const t = useTranslations('about');
@@ -199,7 +200,7 @@ export default function AboutContent() {
         title={t('ctaTitle')}
         subtitle={t('ctaDesc')}
         primaryAction={{
-          href: 'https://app.subsum.io/sign-in?intent=signup',
+          href: APP_SIGN_UP_URL,
           label: t('ctaButton'),
         }}
       />

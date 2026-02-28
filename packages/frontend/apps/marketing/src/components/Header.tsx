@@ -7,6 +7,15 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { BRAND_TAGLINE } from '@/brand';
 import { Link, usePathname } from '@/i18n/routing';
+import {
+  APP_DASHBOARD_PATH,
+  APP_MEMBER_PROFILE_PATH,
+  APP_SIGN_IN_PATH,
+  APP_SIGN_OUT_PATH,
+  APP_SIGN_UP_PATH,
+  DEFAULT_APP_ORIGIN,
+  getConfiguredAppOrigin,
+} from '@/utils/app-auth';
 
 import { MagneticButton } from './animations';
 import BrandWordmark from './BrandWordmark';
@@ -40,15 +49,9 @@ function getCookieValue(name: string) {
     ?.split('=')[1];
 }
 
-const APP_ORIGIN =
-  process.env.NEXT_PUBLIC_APP_ORIGIN?.trim() || 'https://app.subsum.io';
-const APP_SIGN_IN_PATH = '/sign-in';
-const APP_SIGN_UP_PATH = '/sign-in?intent=signup';
-const APP_DASHBOARD_PATH = '/';
-const APP_MEMBER_PROFILE_PATH = '/settings?tab=account';
-const APP_SIGN_OUT_PATH = '/api/auth/sign-out';
+const APP_ORIGIN = getConfiguredAppOrigin();
 const APP_ORIGIN_CANDIDATES_BASE = Array.from(
-  new Set([APP_ORIGIN, 'https://app.subsum.io'])
+  new Set([APP_ORIGIN, DEFAULT_APP_ORIGIN])
 ).filter(origin => !origin.includes('subsumio.com'));
 const QUICK_CHECK_PATH = '/quick-check';
 

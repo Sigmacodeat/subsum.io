@@ -28,6 +28,7 @@ import {
 } from '@/components/animations';
 import { PrefooterCta } from '@/components/prefooter-cta';
 import { Link } from '@/i18n/routing';
+import { APP_SIGN_UP_URL } from '@/utils/app-auth';
 
 export default function SemanticDatabaseContent() {
   const locale = useLocale();
@@ -472,7 +473,7 @@ export default function SemanticDatabaseContent() {
         title={copy.ctaTitle}
         subtitle={copy.ctaSubtitle}
         primaryAction={{
-          href: 'https://app.subsum.io/sign-in?intent=signup',
+          href: APP_SIGN_UP_URL,
           label: copy.ctaPrimary,
         }}
         secondaryAction={{ href: '/security', label: copy.ctaSecondary }}

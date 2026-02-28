@@ -7,6 +7,7 @@ import { findDocEntry, slugToPath } from '@/docs/registry';
 import { FEATURE_DETAILS, findFeature } from '@/features/registry';
 import type { Locale } from '@/i18n/config';
 import { Link } from '@/i18n/routing';
+import { APP_SIGN_UP_URL } from '@/utils/app-auth';
 import { buildLocaleBreadcrumbs } from '@/utils/breadcrumb-labels';
 import { generatePageMetadata } from '@/utils/seo';
 import { buildBreadcrumbJsonLd, buildFaqPageJsonLd } from '@/utils/seo-schema';
@@ -238,10 +239,7 @@ export default async function FeatureDetailPage({
           </p>
 
           <div className="mt-8 flex flex-col sm:flex-row gap-3">
-            <a
-              href="https://app.subsum.io/sign-in?intent=signup"
-              className="btn-primary !px-8 !py-4"
-            >
+            <a href={APP_SIGN_UP_URL} className="btn-primary !px-8 !py-4">
               {td('ctaPrimary')}
             </a>
             <Link href="/pricing" className="btn-secondary !px-8 !py-4">
