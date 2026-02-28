@@ -5,10 +5,6 @@
       "source": "/(.*)",
       "headers": [
         {
-          "key": "Access-Control-Allow-Origin",
-          "value": "https://app.subsum.io"
-        },
-        {
           "key": "Access-Control-Allow-Methods",
           "value": "GET,POST,PUT,PATCH,DELETE,OPTIONS"
         },
@@ -21,6 +17,83 @@
         { "key": "X-Content-Type-Options", "value": "nosniff" },
         { "key": "X-Frame-Options", "value": "DENY" },
         { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" }
+      ]
+    },
+    {
+      "source": "/(.*)",
+      "has": [
+        { "type": "header", "key": "origin", "value": "https://app.subsum.io" }
+      ],
+      "headers": [
+        {
+          "key": "Access-Control-Allow-Origin",
+          "value": "https://app.subsum.io"
+        }
+      ]
+    },
+    {
+      "source": "/(.*)",
+      "has": [
+        { "type": "header", "key": "origin", "value": "https://subsum.io" }
+      ],
+      "headers": [
+        { "key": "Access-Control-Allow-Origin", "value": "https://subsum.io" }
+      ]
+    },
+    {
+      "source": "/(.*)",
+      "has": [
+        { "type": "header", "key": "origin", "value": "https://www.subsum.io" }
+      ],
+      "headers": [
+        {
+          "key": "Access-Control-Allow-Origin",
+          "value": "https://www.subsum.io"
+        }
+      ]
+    },
+    {
+      "source": "/(.*)",
+      "has": [
+        {
+          "type": "header",
+          "key": "origin",
+          "value": "https://app.subsumio.com"
+        }
+      ],
+      "headers": [
+        {
+          "key": "Access-Control-Allow-Origin",
+          "value": "https://app.subsumio.com"
+        }
+      ]
+    },
+    {
+      "source": "/(.*)",
+      "has": [
+        { "type": "header", "key": "origin", "value": "https://subsumio.com" }
+      ],
+      "headers": [
+        {
+          "key": "Access-Control-Allow-Origin",
+          "value": "https://subsumio.com"
+        }
+      ]
+    },
+    {
+      "source": "/(.*)",
+      "has": [
+        {
+          "type": "header",
+          "key": "origin",
+          "value": "https://www.subsumio.com"
+        }
+      ],
+      "headers": [
+        {
+          "key": "Access-Control-Allow-Origin",
+          "value": "https://www.subsumio.com"
+        }
       ]
     }
   ],

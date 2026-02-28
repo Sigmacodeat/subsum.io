@@ -42,8 +42,8 @@ function getCookieValue(name: string) {
 
 const APP_ORIGIN =
   process.env.NEXT_PUBLIC_APP_ORIGIN?.trim() || 'https://app.subsum.io';
-const APP_SIGN_IN_PATH = '/signIn';
-const APP_SIGN_UP_PATH = '/auth/signUp';
+const APP_SIGN_IN_PATH = '/sign-in';
+const APP_SIGN_UP_PATH = '/sign-in?intent=signup';
 const APP_DASHBOARD_PATH = '/';
 const APP_MEMBER_PROFILE_PATH = '/settings?tab=account';
 const APP_SIGN_OUT_PATH = '/api/auth/sign-out';
