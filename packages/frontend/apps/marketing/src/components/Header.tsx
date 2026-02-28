@@ -42,15 +42,32 @@ function getCookieValue(name: string) {
 
 const APP_ORIGIN =
   process.env.NEXT_PUBLIC_APP_ORIGIN?.trim() || 'https://app.subsum.io';
-const APP_SIGN_IN_PATH = '/sign-in';
-const APP_SIGN_UP_PATH = '/sign-in?redirect_uri=%2F&intent=signup';
+const APP_SIGN_IN_PATH = '/signIn';
+const APP_SIGN_UP_PATH = '/auth/signUp';
 const APP_DASHBOARD_PATH = '/';
 const APP_MEMBER_PROFILE_PATH = '/settings?tab=account';
 const APP_SIGN_OUT_PATH = '/api/auth/sign-out';
-const APP_ORIGIN_CANDIDATES = Array.from(
+const APP_ORIGIN_CANDIDATES_BASE = Array.from(
   new Set([APP_ORIGIN, 'https://app.subsumio.com', 'https://app.subsum.io'])
 );
 const QUICK_CHECK_PATH = '/quick-check';
+
+function getAppOriginCandidates() {
+  if (typeof window === 'undefined') {
+    return APP_ORIGIN_CANDIDATES_BASE;
+  }
+
+  const hostname = window.location.hostname;
+  const preferredOrigin = hostname.endsWith('subsumio.com')
+    ? 'https://app.subsumio.com'
+    : hostname.endsWith('subsum.io')
+      ? 'https://app.subsum.io'
+      : null;
+
+  return preferredOrigin
+    ? Array.from(new Set([preferredOrigin, ...APP_ORIGIN_CANDIDATES_BASE]))
+    : APP_ORIGIN_CANDIDATES_BASE;
+}
 
 export default function Header() {
   const t = useTranslations('nav');
@@ -64,71 +81,85 @@ export default function Header() {
   const [isAuthHydrated, setIsAuthHydrated] = useState(false);
   const [authOrigin, setAuthOrigin] = useState<string | null>(null);
   const [isSigningOut, setIsSigningOut] = useState(false);
+  const appOriginCandidates = useMemo(() => getAppOriginCandidates(), []);
 
   const mobileToggleRef = useRef<HTMLButtonElement>(null);
   const mobileMenuRef = useRef<HTMLDivElement>(null);
 
-  const revalidateAuthSession = useCallback(async () => {
-    for (const origin of APP_ORIGIN_CANDIDATES) {
-      try {
-        const response = await fetch(`${origin}/api/auth/session`, {
-          method: 'GET',
-          credentials: 'include',
-          cache: 'no-store',
-        });
+  const revalidateAuthSession = useCallback(() => {
+    (async () => {
+      for (const origin of appOriginCandidates) {
+        try {
+          const response = await fetch(`${origin}/api/auth/session`, {
+            method: 'GET',
+            credentials: 'include',
+            cache: 'no-store',
+          });
 
-        if (!response.ok) {
+          if (!response.ok) {
+            continue;
+          }
+
+          const session = (await response.json()) as RemoteAuthSession;
+          if (session?.user) {
+            setIsAuthenticated(true);
+            setAuthOrigin(origin);
+            setIsAuthHydrated(true);
+            return;
+          }
+        } catch {
           continue;
         }
-
-        const session = (await response.json()) as RemoteAuthSession;
-        if (session?.user) {
-          setIsAuthenticated(true);
-          setAuthOrigin(origin);
-          setIsAuthHydrated(true);
-          return;
-        }
-      } catch {
-        continue;
       }
-    }
 
-    setIsAuthenticated(false);
-    setAuthOrigin(null);
-    setIsAuthHydrated(true);
-  }, []);
+      setIsAuthenticated(false);
+      setAuthOrigin(null);
+      setIsAuthHydrated(true);
+    })().catch(() => {
+      setIsAuthenticated(false);
+      setAuthOrigin(null);
+      setIsAuthHydrated(true);
+    });
+  }, [appOriginCandidates]);
 
-  const handleSignOut = useCallback(async () => {
+  const handleSignOut = useCallback(() => {
     if (isSigningOut) {
       return;
     }
 
     setIsSigningOut(true);
-    const targetOrigin = authOrigin ?? APP_ORIGIN_CANDIDATES[0];
+    const targetOrigin = authOrigin ?? appOriginCandidates[0];
     const csrfToken = getCookieValue('affine_csrf_token');
 
-    try {
-      await fetch(`${targetOrigin}${APP_SIGN_OUT_PATH}`, {
-        method: 'POST',
-        credentials: 'include',
-        cache: 'no-store',
-        headers: csrfToken
-          ? {
-              'x-affine-csrf-token': csrfToken,
-            }
-          : undefined,
-      });
-    } catch {
-      // best effort; UI state is reset below to avoid stale authenticated actions
-    } finally {
+    void (async () => {
+      try {
+        await fetch(`${targetOrigin}${APP_SIGN_OUT_PATH}`, {
+          method: 'POST',
+          credentials: 'include',
+          cache: 'no-store',
+          headers: csrfToken
+            ? {
+                'x-affine-csrf-token': csrfToken,
+              }
+            : undefined,
+        });
+      } catch {
+        // best effort; UI state is reset below to avoid stale authenticated actions
+      } finally {
+        setIsAuthenticated(false);
+        setAuthOrigin(null);
+        setIsAuthHydrated(true);
+        setIsSigningOut(false);
+      }
+    })().catch(() => {
       setIsAuthenticated(false);
       setAuthOrigin(null);
       setIsAuthHydrated(true);
       setIsSigningOut(false);
-    }
-  }, [authOrigin, isSigningOut]);
+    });
+  }, [appOriginCandidates, authOrigin, isSigningOut]);
 
-  const activeAppOrigin = authOrigin ?? APP_ORIGIN_CANDIDATES[0];
+  const activeAppOrigin = authOrigin ?? appOriginCandidates[0];
 
   const isActivePath = useCallback(
     (href: string) => pathname === href || pathname.startsWith(`${href}/`),
@@ -263,19 +294,23 @@ export default function Header() {
   }, [isMobileOpen]);
 
   useEffect(() => {
-    void revalidateAuthSession();
+    revalidateAuthSession();
 
     const onVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
-        void revalidateAuthSession();
+        revalidateAuthSession();
       }
     };
 
-    window.addEventListener('focus', () => void revalidateAuthSession());
+    const onFocus = () => {
+      revalidateAuthSession();
+    };
+
+    window.addEventListener('focus', onFocus);
     document.addEventListener('visibilitychange', onVisibilityChange);
 
     return () => {
-      window.removeEventListener('focus', () => void revalidateAuthSession());
+      window.removeEventListener('focus', onFocus);
       document.removeEventListener('visibilitychange', onVisibilityChange);
     };
   }, [revalidateAuthSession]);
@@ -380,7 +415,7 @@ export default function Header() {
                 </a>
                 <button
                   type="button"
-                  onClick={() => void handleSignOut()}
+                  onClick={handleSignOut}
                   disabled={isSigningOut}
                   className="text-[13px] xl:text-sm font-medium text-slate-600 hover:text-slate-900 disabled:text-slate-400 px-3 xl:px-4 py-2 transition-colors duration-300 focus-ring rounded-lg whitespace-nowrap"
                 >
@@ -421,7 +456,7 @@ export default function Header() {
                 </a>
                 <button
                   type="button"
-                  onClick={() => void handleSignOut()}
+                  onClick={handleSignOut}
                   disabled={isSigningOut}
                   className="hidden lg:inline-flex items-center text-[12.5px] font-semibold text-slate-700 hover:text-slate-900 disabled:text-slate-400 px-2.5 py-2 transition-colors duration-300 focus-ring rounded-lg whitespace-nowrap"
                 >
@@ -586,7 +621,7 @@ export default function Header() {
                   type="button"
                   onClick={() => {
                     closeMobileMenu();
-                    void handleSignOut();
+                    handleSignOut();
                   }}
                   disabled={isSigningOut}
                   className="w-full block text-center py-3 text-base font-semibold tracking-[-0.01em] text-slate-700 hover:text-slate-900 disabled:text-slate-400 focus-ring rounded-lg whitespace-nowrap transition-colors duration-300"

@@ -41,14 +41,31 @@ function getCookieValue(name: string) {
 
 const APP_ORIGIN =
   process.env.NEXT_PUBLIC_APP_ORIGIN?.trim() || 'https://app.subsum.io';
-const APP_SIGN_IN_PATH = '/sign-in';
-const APP_SIGN_UP_PATH = '/sign-in?redirect_uri=%2F&intent=signup';
+const APP_SIGN_IN_PATH = '/signIn';
+const APP_SIGN_UP_PATH = '/auth/signUp';
 const APP_DASHBOARD_PATH = '/';
 const APP_MEMBER_PROFILE_PATH = '/settings?tab=account';
 const APP_SIGN_OUT_PATH = '/api/auth/sign-out';
-const APP_ORIGIN_CANDIDATES = Array.from(
+const APP_ORIGIN_CANDIDATES_BASE = Array.from(
   new Set([APP_ORIGIN, 'https://app.subsumio.com', 'https://app.subsum.io'])
 );
+
+function getAppOriginCandidates() {
+  if (typeof window === 'undefined') {
+    return APP_ORIGIN_CANDIDATES_BASE;
+  }
+
+  const hostname = window.location.hostname;
+  const preferredOrigin = hostname.endsWith('subsumio.com')
+    ? 'https://app.subsumio.com'
+    : hostname.endsWith('subsum.io')
+      ? 'https://app.subsum.io'
+      : null;
+
+  return preferredOrigin
+    ? Array.from(new Set([preferredOrigin, ...APP_ORIGIN_CANDIDATES_BASE]))
+    : APP_ORIGIN_CANDIDATES_BASE;
+}
 
 export default function Header() {
   const t = useTranslations('nav');
@@ -62,12 +79,13 @@ export default function Header() {
   const [isAuthHydrated, setIsAuthHydrated] = useState(false);
   const [authOrigin, setAuthOrigin] = useState<string | null>(null);
   const [isSigningOut, setIsSigningOut] = useState(false);
+  const appOriginCandidates = useMemo(() => getAppOriginCandidates(), []);
 
   const mobileToggleRef = useRef<HTMLButtonElement>(null);
   const mobileMenuRef = useRef<HTMLDivElement>(null);
 
   const revalidateAuthSession = useCallback(async () => {
-    for (const origin of APP_ORIGIN_CANDIDATES) {
+    for (const origin of appOriginCandidates) {
       try {
         const response = await fetch(`${origin}/api/auth/session`, {
           method: 'GET',
@@ -94,7 +112,7 @@ export default function Header() {
     setIsAuthenticated(false);
     setAuthOrigin(null);
     setIsAuthHydrated(true);
-  }, []);
+  }, [appOriginCandidates]);
 
   const handleSignOut = useCallback(async () => {
     if (isSigningOut) {
@@ -102,7 +120,7 @@ export default function Header() {
     }
 
     setIsSigningOut(true);
-    const targetOrigin = authOrigin ?? APP_ORIGIN_CANDIDATES[0];
+    const targetOrigin = authOrigin ?? appOriginCandidates[0];
     const csrfToken = getCookieValue('affine_csrf_token');
 
     try {
@@ -124,9 +142,9 @@ export default function Header() {
       setIsAuthHydrated(true);
       setIsSigningOut(false);
     }
-  }, [authOrigin, isSigningOut]);
+  }, [appOriginCandidates, authOrigin, isSigningOut]);
 
-  const activeAppOrigin = authOrigin ?? APP_ORIGIN_CANDIDATES[0];
+  const activeAppOrigin = authOrigin ?? appOriginCandidates[0];
 
   const isActivePath = useCallback(
     (href: string) => pathname === href || pathname.startsWith(`${href}/`),
