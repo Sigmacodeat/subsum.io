@@ -312,7 +312,7 @@ function buildLegalDocumentHydrationMarkdown(input: {
     '## Seiten- & Chunk-Abdeckung',
     '',
     ...buildChunkCoverageMarkdown({
-      chunks: input.chunks,
+      chunks: sortedChunks,
       pageCount: input.doc.pageCount,
     }),
     '',
