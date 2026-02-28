@@ -48,8 +48,8 @@ const APP_DASHBOARD_PATH = '/';
 const APP_MEMBER_PROFILE_PATH = '/settings?tab=account';
 const APP_SIGN_OUT_PATH = '/api/auth/sign-out';
 const APP_ORIGIN_CANDIDATES_BASE = Array.from(
-  new Set([APP_ORIGIN, 'https://app.subsumio.com', 'https://app.subsum.io'])
-);
+  new Set([APP_ORIGIN, 'https://app.subsum.io'])
+).filter(origin => !origin.includes('subsumio.com'));
 const QUICK_CHECK_PATH = '/quick-check';
 
 function getAppOriginCandidates() {
@@ -58,11 +58,9 @@ function getAppOriginCandidates() {
   }
 
   const hostname = window.location.hostname;
-  const preferredOrigin = hostname.endsWith('subsumio.com')
-    ? 'https://app.subsumio.com'
-    : hostname.endsWith('subsum.io')
-      ? 'https://app.subsum.io'
-      : null;
+  const preferredOrigin = hostname.endsWith('subsum.io')
+    ? 'https://app.subsum.io'
+    : null;
 
   return preferredOrigin
     ? Array.from(new Set([preferredOrigin, ...APP_ORIGIN_CANDIDATES_BASE]))

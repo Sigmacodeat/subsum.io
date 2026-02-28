@@ -51,50 +51,6 @@
           "value": "https://www.subsum.io"
         }
       ]
-    },
-    {
-      "source": "/(.*)",
-      "has": [
-        {
-          "type": "header",
-          "key": "origin",
-          "value": "https://app.subsumio.com"
-        }
-      ],
-      "headers": [
-        {
-          "key": "Access-Control-Allow-Origin",
-          "value": "https://app.subsumio.com"
-        }
-      ]
-    },
-    {
-      "source": "/(.*)",
-      "has": [
-        { "type": "header", "key": "origin", "value": "https://subsumio.com" }
-      ],
-      "headers": [
-        {
-          "key": "Access-Control-Allow-Origin",
-          "value": "https://subsumio.com"
-        }
-      ]
-    },
-    {
-      "source": "/(.*)",
-      "has": [
-        {
-          "type": "header",
-          "key": "origin",
-          "value": "https://www.subsumio.com"
-        }
-      ],
-      "headers": [
-        {
-          "key": "Access-Control-Allow-Origin",
-          "value": "https://www.subsumio.com"
-        }
-      ]
     }
   ],
   "rewrites": [
