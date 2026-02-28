@@ -2,6 +2,11 @@
 
 > In order to make a stable/beta release, you need to get authorization from the AFFiNE test team.
 
+For full multi-platform update operations (Desktop + iOS + Android), use:
+
+- `docs/UPDATE-PIPELINE-RUNBOOK.md`
+- `.windsurf/workflows/release-update-pipeline.md`
+
 ## Who Can Make a Release?
 
 The AFFiNE core team grants release authorization and enforces the following requirements:

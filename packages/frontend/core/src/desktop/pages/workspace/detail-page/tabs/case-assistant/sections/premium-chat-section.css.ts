@@ -1416,6 +1416,23 @@ export const citationPanel = style({ marginTop: 6, padding: '10px 14px', backgro
 export const citationSectionTitle = style({ fontSize: 11, fontWeight: 700, marginBottom: 4, color: cssVarV2('text/secondary') });
 export const citationRow = style({ fontSize: 12, padding: '4px 0', borderBottom: `0.5px solid ${glassStroke}` });
 export const citationMeta = style({ fontSize: 11, color: cssVarV2('text/secondary'), marginTop: 2 });
+export const citationSourceMetaRow = style({
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: 8,
+  marginTop: 6,
+});
+export const citationCaseBadge = style({
+  display: 'inline-flex',
+  alignItems: 'center',
+  padding: '2px 8px',
+  borderRadius: 999,
+  border: `1px solid ${glassStroke}`,
+  background: cssVarV2('layer/background/primary'),
+  fontSize: 11,
+  color: cssVarV2('text/secondary'),
+});
 export const findingRow = style({ fontSize: 12, padding: '3px 0', display: 'flex', alignItems: 'center', gap: 6 });
 export const severityDot = style({ vars: { [severityColorVar]: cssVarV2('text/secondary') }, display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: severityColorVar });
 

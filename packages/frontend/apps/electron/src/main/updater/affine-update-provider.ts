@@ -1,5 +1,7 @@
 // credits: migrated from https://github.com/electron-userland/electron-builder/blob/master/packages/electron-updater/src/providers/GitHubProvider.ts
 
+import { createHash, randomUUID } from 'node:crypto';
+
 import {
   CancellationToken,
   type CustomPublishOptions,
@@ -15,7 +17,28 @@ import {
 } from 'electron-updater/out/providers/Provider';
 
 import type { buildType } from '../config';
+import { globalCacheStorage } from '../shared-storage/storage';
 import { isSquirrelBuild } from './utils';
+
+const ROLLOUT_COHORT_ID_KEY = 'updater.rollout-cohort-id';
+
+function getOrCreateRolloutCohortId() {
+  const existing = globalCacheStorage.get<string>(ROLLOUT_COHORT_ID_KEY);
+  if (existing) {
+    return existing;
+  }
+
+  const next = randomUUID();
+  globalCacheStorage.set(ROLLOUT_COHORT_ID_KEY, next);
+  return next;
+}
+
+function computeRolloutBucket(cohortId: string, channel: string) {
+  const digest = createHash('sha256')
+    .update(`${cohortId}:${channel}`)
+    .digest();
+  return (digest.readUInt32BE(0) % 100) + 1;
+}
 
 interface GithubUpdateInfo extends UpdateInfo {
   tag: string;
@@ -62,8 +85,15 @@ export class AFFiNEUpdateProvider extends Provider<GithubUpdateInfo> {
 
   get feedUrl(): URL {
     const url = new URL(this.options.feedUrl);
+    const cohortId = getOrCreateRolloutCohortId();
+    const rolloutBucket = computeRolloutBucket(cohortId, this.options.channel);
+
     url.searchParams.set('channel', this.options.channel);
     url.searchParams.set('minimal', 'true');
+    url.searchParams.set('cohortId', cohortId);
+    url.searchParams.set('rolloutBucket', String(rolloutBucket));
+    url.searchParams.set('platform', process.platform);
+    url.searchParams.set('arch', process.arch);
 
     return url;
   }

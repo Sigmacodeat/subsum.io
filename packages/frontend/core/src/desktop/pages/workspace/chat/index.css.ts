@@ -92,6 +92,32 @@ export const statusMeta = style({
   color: cssVarV2('text/secondary'),
 });
 
+export const scopeCaseList = style({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 6,
+  marginTop: 6,
+  maxHeight: 160,
+  overflowY: 'auto',
+});
+
+export const scopeCaseItem = style({
+  display: 'grid',
+  gridTemplateColumns: '14px 1fr',
+  alignItems: 'center',
+  gap: 8,
+  fontSize: 12,
+  lineHeight: '16px',
+  color: cssVarV2('text/secondary'),
+  selectors: {
+    '& input': {
+      width: 14,
+      height: 14,
+      accentColor: cssVarV2('button/primary'),
+    },
+  },
+});
+
 export const statusSessionList = style({
   display: 'flex',
   flexDirection: 'column',

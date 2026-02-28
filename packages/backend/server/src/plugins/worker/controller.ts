@@ -46,6 +46,124 @@ const MAX_REDIRECTS = 3;
 const FETCH_TIMEOUT_MS = 10_000;
 const IMAGE_PROXY_MAX_BYTES = 10 * 1024 * 1024;
 const LINK_PREVIEW_MAX_BYTES = 2 * 1024 * 1024;
+const GITHUB_RELEASES_API_URL =
+  'https://api.github.com/repos/toeverything/AFFiNE/releases?per_page=30';
+
+type ReleaseChannel = 'stable' | 'beta' | 'canary';
+
+type WorkerReleaseAsset = {
+  name: string;
+  url: string;
+  size: number;
+};
+
+type WorkerRelease = {
+  url: string;
+  name: string;
+  tag_name: string;
+  body: string;
+  draft: boolean;
+  prerelease: boolean;
+  published_at: string;
+  assets: WorkerReleaseAsset[];
+};
+
+type GithubReleaseAsset = {
+  name: string;
+  size: number;
+  browser_download_url: string;
+};
+
+type GithubRelease = {
+  html_url: string;
+  name: string;
+  tag_name: string;
+  body: string;
+  draft: boolean;
+  prerelease: boolean;
+  published_at: string;
+  assets: GithubReleaseAsset[];
+};
+
+type ReleaseQuery = {
+  channel: ReleaseChannel;
+  minimal: boolean;
+  rolloutBucket?: number;
+};
+
+function parseBoolean(input: unknown, fallback: boolean) {
+  if (typeof input !== 'string') {
+    return fallback;
+  }
+  return input.toLowerCase() === 'true';
+}
+
+function parseReleaseQuery(query: ExpressRequest['query']): ReleaseQuery {
+  const channelRaw = query.channel;
+  const channel =
+    typeof channelRaw === 'string' &&
+    ['stable', 'beta', 'canary'].includes(channelRaw)
+      ? (channelRaw as ReleaseChannel)
+      : 'stable';
+
+  const minimal = parseBoolean(query.minimal, false);
+
+  const rolloutBucketRaw = query.rolloutBucket;
+  if (rolloutBucketRaw == null) {
+    return { channel, minimal };
+  }
+
+  const rolloutBucket = Number(rolloutBucketRaw);
+  if (
+    !Number.isInteger(rolloutBucket) ||
+    rolloutBucket < 1 ||
+    rolloutBucket > 100
+  ) {
+    throw new BadRequest('Invalid rolloutBucket: expected integer in range 1..100');
+  }
+
+  return { channel, minimal, rolloutBucket };
+}
+
+function isStableReleaseTag(tag: string) {
+  return /^v\d+\.\d+\.\d+$/i.test(tag);
+}
+
+function isBetaReleaseTag(tag: string) {
+  return /^v\d+\.\d+\.\d+-beta\.\d+$/i.test(tag);
+}
+
+function isCanaryReleaseTag(tag: string) {
+  return /^v\d+\.\d+\.\d+-canary\.[0-9a-f]+$/i.test(tag);
+}
+
+function matchesChannel(release: GithubRelease, channel: ReleaseChannel) {
+  const tag = release.tag_name;
+  if (channel === 'stable') {
+    return isStableReleaseTag(tag) && !release.prerelease;
+  }
+  if (channel === 'beta') {
+    return isBetaReleaseTag(tag) && release.prerelease;
+  }
+  return isCanaryReleaseTag(tag) && release.prerelease;
+}
+
+function toWorkerRelease(release: GithubRelease): WorkerRelease {
+  return {
+    url: release.html_url,
+    name: release.name,
+    tag_name: release.tag_name,
+    body: release.body,
+    draft: release.draft,
+    prerelease: release.prerelease,
+    published_at: release.published_at,
+    assets: release.assets.map(asset => ({
+      name: asset.name,
+      url: asset.browser_download_url,
+      size: asset.size,
+    })),
+  };
+}
 
 function toBadRequestReason(reason: SSRFBlockReason) {
   switch (reason) {
@@ -77,6 +195,155 @@ export class WorkerController {
 
   private get allowedOrigin() {
     return this.service.allowedOrigins;
+  }
+
+  @Options('/releases')
+  releasesOption(@Req() request: ExpressRequest, @Res() resp: ExpressResponse) {
+    const origin = request.headers.origin;
+    return resp
+      .status(204)
+      .header({
+        ...getCorsHeaders(origin),
+        'Access-Control-Allow-Methods': 'GET, OPTIONS',
+      })
+      .send();
+  }
+
+  private async fetchChannelReleases(channel: ReleaseChannel) {
+    const cacheKey = `worker:releases:channel:${channel}`;
+    const cached = await this.cache.get<WorkerRelease[]>(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
+    const response = await safeFetch(
+      GITHUB_RELEASES_API_URL,
+      {
+        method: 'GET',
+        headers: {
+          Accept: 'application/json',
+          'Cache-Control': 'no-cache',
+          'User-Agent': 'subsumio-worker-releases',
+        },
+      },
+      { timeoutMs: FETCH_TIMEOUT_MS, maxRedirects: MAX_REDIRECTS }
+    );
+
+    if (!response.ok) {
+      this.logger.error('Failed to fetch GitHub releases', {
+        status: response.status,
+      });
+      throw new BadRequest('Failed to fetch releases');
+    }
+
+    const allReleases = (await response.json()) as GithubRelease[];
+    const channelReleases = allReleases
+      .filter(release => !release.draft)
+      .filter(release => matchesChannel(release, channel))
+      .map(toWorkerRelease);
+
+    await this.cache.set(cacheKey, channelReleases, { ttl: CACHE_TTL });
+
+    return channelReleases;
+  }
+
+  private async readDesktopRolloutPercentage(release: WorkerRelease) {
+    const goNoGoAsset = release.assets.find(
+      asset =>
+        asset.name === 'go-no-go.json' || asset.name === 'release-go-no-go.json'
+    );
+    if (!goNoGoAsset) {
+      return 100;
+    }
+
+    const cacheKey = `worker:releases:rollout:${release.tag_name}`;
+    const cached = await this.cache.get<number>(cacheKey);
+    if (cached != null) {
+      return cached;
+    }
+
+    try {
+      const response = await safeFetch(
+        goNoGoAsset.url,
+        {
+          method: 'GET',
+          headers: {
+            Accept: 'application/json',
+            'Cache-Control': 'no-cache',
+            'User-Agent': 'subsumio-worker-releases',
+          },
+        },
+        { timeoutMs: FETCH_TIMEOUT_MS, maxRedirects: MAX_REDIRECTS }
+      );
+
+      if (!response.ok) {
+        return 100;
+      }
+
+      const data = (await response.json()) as {
+        releaseInputs?: { desktopRolloutPercentage?: string };
+      };
+      const percentage = Number(data.releaseInputs?.desktopRolloutPercentage);
+      if (!Number.isInteger(percentage) || percentage < 1 || percentage > 100) {
+        return 100;
+      }
+
+      await this.cache.set(cacheKey, percentage, { ttl: CACHE_TTL });
+      return percentage;
+    } catch {
+      return 100;
+    }
+  }
+
+  private async filterReleasesByRollout(
+    releases: WorkerRelease[],
+    query: ReleaseQuery
+  ) {
+    if (query.channel !== 'stable' || query.rolloutBucket == null) {
+      return releases;
+    }
+
+    const eligible: WorkerRelease[] = [];
+    for (const release of releases) {
+      const rolloutPercentage = await this.readDesktopRolloutPercentage(release);
+      if (query.rolloutBucket <= rolloutPercentage) {
+        eligible.push(release);
+      }
+    }
+
+    return eligible;
+  }
+
+  @Get('/releases')
+  async releases(@Req() req: ExpressRequest, @Res() resp: ExpressResponse) {
+    const origin = req.headers.origin;
+    const query = parseReleaseQuery(req.query);
+
+    const cacheKey = `worker:releases:result:${query.channel}:${query.rolloutBucket ?? 'none'}:${query.minimal ? '1' : '0'}`;
+    const cached = await this.cache.get<string>(cacheKey);
+    if (cached) {
+      return resp
+        .status(200)
+        .header({
+          'content-type': 'application/json;charset=UTF-8',
+          ...getCorsHeaders(origin),
+        })
+        .send(cached);
+    }
+
+    const releases = await this.fetchChannelReleases(query.channel);
+    const filtered = await this.filterReleasesByRollout(releases, query);
+    const payload = JSON.stringify(query.minimal ? filtered.slice(0, 1) : filtered);
+
+    await this.cache.set(cacheKey, payload, { ttl: CACHE_TTL });
+
+    return resp
+      .status(200)
+      .header({
+        'content-type': 'application/json;charset=UTF-8',
+        ...getCorsHeaders(origin),
+      })
+      .send(payload);
   }
 
   @Options('/image-proxy')

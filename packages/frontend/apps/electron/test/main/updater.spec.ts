@@ -39,8 +39,32 @@ describe('testing for client update', () => {
   ];
 
   const basicRequestHandlers = [
-    http.get('https://affine.pro/api/worker/releases', async ({ request }) => {
+    http.get('https://app.subsum.io/api/worker/releases', async ({ request }) => {
       const url = new URL(request.url);
+      const cohortId = url.searchParams.get('cohortId');
+      const rolloutBucket = Number(url.searchParams.get('rolloutBucket'));
+      const platform = url.searchParams.get('platform');
+      const arch = url.searchParams.get('arch');
+
+      if (!cohortId || Number.isNaN(rolloutBucket)) {
+        return HttpResponse.json(
+          { error: 'missing rollout cohort metadata' },
+          { status: 400 }
+        );
+      }
+      if (rolloutBucket < 1 || rolloutBucket > 100) {
+        return HttpResponse.json(
+          { error: 'invalid rollout bucket' },
+          { status: 400 }
+        );
+      }
+      if (!platform || !arch) {
+        return HttpResponse.json(
+          { error: 'missing platform metadata' },
+          { status: 400 }
+        );
+      }
+
       const buffer = await fs.readFile(
         path.join(
           __dirname,

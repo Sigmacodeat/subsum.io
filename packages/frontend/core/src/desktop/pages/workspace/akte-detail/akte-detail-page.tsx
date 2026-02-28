@@ -4,6 +4,7 @@ import {
   LEGAL_UPLOAD_ACCEPT_ATTR,
   prepareLegalUploadFiles,
 } from '@affine/core/modules/case-assistant';
+import { insertFromMarkdown } from '@affine/core/blocksuite/utils';
 import { useLiveData, useService } from '@toeverything/infra';
 import {
   type ChangeEvent,
@@ -53,8 +54,12 @@ type ActiveTab = 'documents' | 'pages' | 'semantic';
 type SidePanelTab = 'copilot' | 'info' | 'deadlines';
 type AlertTierFilter = 'all' | 'P1' | 'P2' | 'P3';
 type AlertKindFilter = 'all' | 'deadline' | 'finding';
+type DocumentReviewFilter = 'all' | 'open' | 'reviewed' | 'attention';
+type DocumentViewMode = 'list' | 'cards';
 
 const AKTE_CHAT_UPLOAD_CHUNK_SIZE = 20;
+const DOC_REVIEW_DONE_TAG = '__review_done';
+const DOC_REVIEW_ATTENTION_TAG = '__review_attention';
 
 const STATUS_STYLE: Record<MatterStatus, string> = {
   open: styles.statusOpen,
@@ -175,6 +180,162 @@ function buildDocumentToc(input: {
     .flatMap(chunk => chunk.keywords ?? [])
     .filter(Boolean);
   return [...new Set(keywords)].slice(0, 4);
+}
+
+function normalizeOcrTextForPage(value: string | undefined): string {
+  if (!value) {
+    return '';
+  }
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return '';
+  }
+  if (
+    trimmed === '[binary-in-ocr-cache]' ||
+    (/\bbinary\b/i.test(trimmed) &&
+      /placeholder|verworfen|discarded|ocr-cache/i.test(trimmed))
+  ) {
+    return '';
+  }
+  return trimmed;
+}
+
+function clipForMarkdown(value: string, maxChars: number): string {
+  if (value.length <= maxChars) {
+    return value;
+  }
+  return `${value.slice(0, maxChars)}\n\n[... gekürzt für bessere Editor-Performance ...]`;
+}
+
+function buildChunkCoverageMarkdown(input: {
+  chunks: SemanticChunk[];
+  pageCount?: number;
+}): string[] {
+  const sorted = [...input.chunks].sort((a, b) => a.index - b.index);
+  if (sorted.length === 0) {
+    return ['- Keine Chunks vorhanden. Manuelle OCR-Prüfung erforderlich.'];
+  }
+
+  const pageSet = new Set<number>();
+  for (const chunk of sorted) {
+    if (typeof chunk.pageNumber === 'number' && Number.isFinite(chunk.pageNumber)) {
+      pageSet.add(chunk.pageNumber);
+    }
+  }
+
+  const pages = [...pageSet].sort((a, b) => a - b);
+  const missingPages: number[] = [];
+  if (typeof input.pageCount === 'number' && input.pageCount > 0 && pages.length > 0) {
+    for (let page = 1; page <= input.pageCount; page++) {
+      if (!pageSet.has(page)) {
+        missingPages.push(page);
+      }
+    }
+  }
+
+  const previewLines = sorted.slice(0, 12).map(chunk => {
+    const page =
+      typeof chunk.pageNumber === 'number' && Number.isFinite(chunk.pageNumber)
+        ? `S. ${chunk.pageNumber}`
+        : 'S. ?';
+    const snippet = chunk.text.replace(/\s+/g, ' ').trim().slice(0, 90);
+    return `- ${page} · Chunk ${chunk.index + 1}: ${snippet}${chunk.text.length > 90 ? '…' : ''}`;
+  });
+
+  const lines: string[] = [
+    `- Chunks gesamt: ${sorted.length}`,
+    pages.length > 0
+      ? `- Seiten mit OCR-Inhalt: ${pages.join(', ')}`
+      : '- Keine Seitenzuordnung in Chunks vorhanden.',
+  ];
+  if (missingPages.length > 0) {
+    lines.push(`- Potenziell fehlende Seiten: ${missingPages.join(', ')}`);
+  }
+  lines.push(...previewLines);
+  if (sorted.length > previewLines.length) {
+    lines.push(`- ... ${sorted.length - previewLines.length} weitere Chunks verfügbar.`);
+  }
+  return lines;
+}
+
+function buildLegalDocumentHydrationMarkdown(input: {
+  doc: LegalDocumentRecord;
+  chunks: SemanticChunk[];
+}): string {
+  const normalizedText = normalizeOcrTextForPage(input.doc.normalizedText);
+  const rawText = normalizeOcrTextForPage(input.doc.rawText);
+  const chunkText = input.chunks
+    .sort((a, b) => a.index - b.index)
+    .map(chunk => chunk.text?.trim())
+    .filter((text): text is string => Boolean(text))
+    .join('\n\n');
+  const bestTextSource = normalizedText || chunkText || rawText;
+  const clippedBody = bestTextSource
+    ? clipForMarkdown(bestTextSource, 120_000)
+    : '⚠️ Kein verwertbarer OCR-Text gefunden. Bitte Originaldatei prüfen und OCR ggf. erneut ausführen.';
+
+  const pageCountInfo =
+    typeof input.doc.pageCount === 'number' && input.doc.pageCount > 0
+      ? `${input.doc.pageCount}`
+      : 'unbekannt';
+  const processingInfo = input.doc.processingStatus ?? 'unknown';
+  const qualityInfo =
+    typeof input.doc.overallQualityScore === 'number'
+      ? `${Math.round(input.doc.overallQualityScore)} / 100`
+      : 'nicht vorhanden';
+  const sourceRefInfo = input.doc.sourceRef
+    ? `- Quelle: ${input.doc.sourceRef}`
+    : '- Quelle: nicht hinterlegt';
+
+  return [
+    `## OCR-Import: ${input.doc.title}`,
+    '',
+    `- Dokument-ID: ${input.doc.id}`,
+    sourceRefInfo,
+    `- Seiten: ${pageCountInfo}`,
+    `- Verarbeitung: ${processingInfo}`,
+    `- Qualitäts-Score: ${qualityInfo}`,
+    '',
+    '## Abgleich-Checkliste (wichtig)',
+    '',
+    '- [ ] Vollständigkeit prüfen: Alle relevanten Seiten/Abschnitte im OCR-Text enthalten?',
+    '- [ ] Zahlen/Fakten abgleichen: Beträge, Daten, Aktenzeichen, Namen gegen Originaldatei validieren.',
+    '- [ ] Fristenkontrolle: Fristdaten und Rechtsmittel-Fristen explizit gegen Quelle prüfen.',
+    '- [ ] Risiko-Scan: OCR-Artefakte, abgeschnittene Passagen oder unleserliche Stellen markieren.',
+    '- [ ] Abschluss: Fehlende Inhalte als Notiz ergänzen und Review-Entscheidung dokumentieren.',
+    '',
+    '## Seiten- & Chunk-Abdeckung',
+    '',
+    ...buildChunkCoverageMarkdown({
+      chunks: input.chunks,
+      pageCount: input.doc.pageCount,
+    }),
+    '',
+    '---',
+    '',
+    '## Extrahierter OCR-Inhalt',
+    '',
+    clippedBody,
+  ].join('\n');
+}
+
+function hasDocWorkflowTag(doc: LegalDocumentRecord, tag: string): boolean {
+  return Array.isArray(doc.tags) && doc.tags.includes(tag);
+}
+
+function upsertDocTag(tags: string[], tag: string, enabled: boolean): string[] {
+  const deduped = [...new Set(tags)];
+  if (enabled) {
+    return deduped.includes(tag) ? deduped : [...deduped, tag];
+  }
+  return deduped.filter(existing => existing !== tag);
+}
+
+function isPreviewableSourceRef(value?: string): boolean {
+  if (!value) {
+    return false;
+  }
+  return /^(https?:\/\/|blob:|data:application\/pdf)/i.test(value.trim());
 }
 
 function daysUntil(dateStr: string): number {
@@ -478,6 +639,11 @@ export const AkteDetailPage = () => {
   const [activeTab, setActiveTab] = useState<ActiveTab>('documents');
   const [sidePanelTab, setSidePanelTab] = useState<SidePanelTab>('copilot');
   const [docSearch, setDocSearch] = useState('');
+  const [docReviewFilter, setDocReviewFilter] =
+    useState<DocumentReviewFilter>('all');
+  const [docViewMode, setDocViewMode] = useState<DocumentViewMode>('cards');
+  const [compareDocId, setCompareDocId] = useState<string | null>(null);
+  const [comparePreviewFailed, setComparePreviewFailed] = useState(false);
   const [actionStatus, setActionStatus] = useState<string | null>(null);
   const [isIntakeRunning, setIsIntakeRunning] = useState(false);
   const [intakeProgress, setIntakeProgress] = useState(0);
@@ -591,15 +757,54 @@ export const AkteDetailPage = () => {
 
   // ═══ Filter & Group Documents ═══
   const filteredDocs = useMemo(() => {
-    if (!docSearch.trim()) return matterDocs;
-    const q = docSearch.toLowerCase();
-    return matterDocs.filter(
-      d =>
+    const q = docSearch.trim().toLowerCase();
+    return matterDocs.filter(d => {
+      const matchesSearch =
+        q.length === 0 ||
         d.title.toLowerCase().includes(q) ||
         d.folderPath?.toLowerCase().includes(q) ||
-        d.tags.some(t => t.toLowerCase().includes(q))
-    );
-  }, [matterDocs, docSearch]);
+        d.tags.some(tag => tag.toLowerCase().includes(q));
+
+      const isReviewed = hasDocWorkflowTag(d, DOC_REVIEW_DONE_TAG);
+      const needsAttention = hasDocWorkflowTag(d, DOC_REVIEW_ATTENTION_TAG);
+      const matchesReviewFilter =
+        docReviewFilter === 'all'
+          ? true
+          : docReviewFilter === 'reviewed'
+            ? isReviewed
+            : docReviewFilter === 'attention'
+              ? needsAttention
+              : !isReviewed && !needsAttention;
+
+      return matchesSearch && matchesReviewFilter;
+    });
+  }, [matterDocs, docReviewFilter, docSearch]);
+
+  const docReviewCounts = useMemo(() => {
+    let reviewed = 0;
+    let attention = 0;
+    for (const doc of matterDocs) {
+      if (hasDocWorkflowTag(doc, DOC_REVIEW_DONE_TAG)) {
+        reviewed++;
+      }
+      if (hasDocWorkflowTag(doc, DOC_REVIEW_ATTENTION_TAG)) {
+        attention++;
+      }
+    }
+    return {
+      all: matterDocs.length,
+      reviewed,
+      attention,
+      open: Math.max(0, matterDocs.length - reviewed - attention),
+    };
+  }, [matterDocs]);
+
+  const reviewCoveragePercent = useMemo(() => {
+    if (docReviewCounts.all <= 0) {
+      return 0;
+    }
+    return Math.round((docReviewCounts.reviewed / docReviewCounts.all) * 100);
+  }, [docReviewCounts]);
 
   const folderGroups = useMemo(() => {
     const groups = new Map<string, LegalDocumentRecord[]>();
@@ -616,6 +821,23 @@ export const AkteDetailPage = () => {
     });
     return sorted;
   }, [filteredDocs]);
+
+  const sortedFilteredDocs = useMemo(
+    () =>
+      [...filteredDocs].sort(
+        (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+      ),
+    [filteredDocs]
+  );
+
+  const compareDoc = useMemo(
+    () => (compareDocId ? matterDocs.find(doc => doc.id === compareDocId) ?? null : null),
+    [compareDocId, matterDocs]
+  );
+
+  useEffect(() => {
+    setComparePreviewFailed(false);
+  }, [compareDocId]);
 
   const documentDigestById = useMemo(() => {
     const chunksByDocId = new Map<string, SemanticChunk[]>();
@@ -1019,6 +1241,72 @@ export const AkteDetailPage = () => {
     t,
   ]);
 
+  const handleBulkReviewUpdate = useCallback(
+    async (mode: 'reviewed' | 'attention') => {
+      const ids = Array.from(bulkSelection.selectedIds);
+      if (ids.length === 0) {
+        return;
+      }
+      const selectedDocs = matterDocs.filter(doc => ids.includes(doc.id));
+      if (selectedDocs.length === 0) {
+        return;
+      }
+
+      const now = new Date().toISOString();
+      await Promise.all(
+        selectedDocs.map(async doc => {
+          const withReviewed = upsertDocTag(
+            doc.tags ?? [],
+            DOC_REVIEW_DONE_TAG,
+            mode === 'reviewed'
+          );
+          const nextTags = upsertDocTag(
+            withReviewed,
+            DOC_REVIEW_ATTENTION_TAG,
+            mode === 'attention'
+          );
+          await casePlatformOrchestrationService.upsertLegalDocument({
+            ...doc,
+            tags: nextTags,
+            updatedAt: now,
+          });
+        })
+      );
+
+      const workspaceForAudit = selectedDocs[0]?.workspaceId ?? workspaceId;
+      await casePlatformOrchestrationService.appendAuditEntry({
+        caseId: selectedDocs[0]?.caseId,
+        workspaceId: workspaceForAudit,
+        action:
+          mode === 'reviewed'
+            ? 'document.review.bulk.completed'
+            : 'document.review.bulk.attention',
+        severity: mode === 'reviewed' ? 'info' : 'warning',
+        details:
+          mode === 'reviewed'
+            ? `${selectedDocs.length} Dokument(e) als Abgleich OK markiert.`
+            : `${selectedDocs.length} Dokument(e) als Prüfen markiert.`,
+        metadata: {
+          count: String(selectedDocs.length),
+          documentIds: selectedDocs.map(doc => doc.id).join(','),
+        },
+      });
+
+      showStatus(
+        mode === 'reviewed'
+          ? `${selectedDocs.length} Dokument(e) als Abgleich OK markiert.`
+          : `${selectedDocs.length} Dokument(e) als Prüfen markiert.`
+      );
+    },
+    [
+      bulkSelection.selectedIds,
+      casePlatformOrchestrationService,
+      matterDocs,
+      showStatus,
+      workspaceId,
+    ]
+  );
+
   const timelineEvents = useMemo(() => {
     const actorLabel = (actor: string) =>
       actor === 'user'
@@ -1283,9 +1571,70 @@ export const AkteDetailPage = () => {
         }
       };
 
+      const hydrateLinkedPageIfEmpty = async (
+        pageId: string,
+        sourceDoc: LegalDocumentRecord
+      ) => {
+        const markdown = buildLegalDocumentHydrationMarkdown({
+          doc: sourceDoc,
+          chunks: matterChunks.filter(chunk => chunk.documentId === sourceDoc.id),
+        });
+
+        let releaseDoc: (() => void) | null = null;
+        let disposePriority: (() => void) | null = null;
+        try {
+          const opened = docsService.open(pageId);
+          releaseDoc = opened.release;
+          disposePriority = opened.doc.addPriorityLoad(10);
+          await opened.doc.waitForSyncReady();
+          disposePriority();
+          disposePriority = null;
+
+          const bsDoc = opened.doc.blockSuiteDoc;
+          const noteBlock = bsDoc.getBlocksByFlavour('affine:note')[0];
+          if (!noteBlock) {
+            return;
+          }
+
+          const noteModel = noteBlock.model as {
+            children?: Array<{
+              props?: {
+                text?: {
+                  length?: number;
+                };
+              };
+            }>;
+          };
+          const children = noteModel.children ?? [];
+          const onlyChildTextLength = children[0]?.props?.text?.length ?? 0;
+          const hasUserContent =
+            children.length > 1 ||
+            (children.length === 1 && Number(onlyChildTextLength) > 0);
+
+          if (hasUserContent) {
+            return;
+          }
+
+          await insertFromMarkdown(undefined, markdown, bsDoc, noteBlock.id, 0);
+        } catch (error) {
+          console.error('[akte-detail] OCR hydration failed', {
+            pageId,
+            documentId: sourceDoc.id,
+            error,
+          });
+          showStatus(
+            `Hinweis: OCR-Inhalt für "${sourceDoc.title}" konnte nicht automatisch eingefügt werden.`
+          );
+        } finally {
+          disposePriority?.();
+          releaseDoc?.();
+        }
+      };
+
       const openLinkedPage = async () => {
         if (doc.linkedPageId) {
           await ensureMatterLinkedPage(doc.linkedPageId);
+          await hydrateLinkedPageIfEmpty(doc.linkedPageId, doc);
           openPage(doc.linkedPageId);
           return true;
         }
@@ -1301,6 +1650,11 @@ export const AkteDetailPage = () => {
           ...doc,
           linkedPageId,
           updatedAt: new Date().toISOString(),
+        });
+
+        await hydrateLinkedPageIfEmpty(linkedPageId, {
+          ...doc,
+          linkedPageId,
         });
 
         showStatus(`Arbeitsseite erstellt: ${doc.title}`);
@@ -1336,9 +1690,78 @@ export const AkteDetailPage = () => {
       matter,
       matterId,
       matter?.clientId,
+      matterChunks,
       showStatus,
       workbench,
     ]
+  );
+
+  const handleMarkDocumentReviewed = useCallback(
+    async (doc: LegalDocumentRecord, reviewed: boolean) => {
+      const withReview = upsertDocTag(
+        doc.tags ?? [],
+        DOC_REVIEW_DONE_TAG,
+        reviewed
+      );
+      const nextTags = reviewed
+        ? upsertDocTag(withReview, DOC_REVIEW_ATTENTION_TAG, false)
+        : withReview;
+
+      await casePlatformOrchestrationService.upsertLegalDocument({
+        ...doc,
+        tags: nextTags,
+        updatedAt: new Date().toISOString(),
+      });
+
+      await casePlatformOrchestrationService.appendAuditEntry({
+        caseId: doc.caseId,
+        workspaceId: doc.workspaceId,
+        action: reviewed ? 'document.review.completed' : 'document.review.reset',
+        severity: 'info',
+        details: reviewed
+          ? `Abgleich als abgeschlossen markiert: ${doc.title}`
+          : `Abgleich zurückgesetzt: ${doc.title}`,
+        metadata: {
+          documentId: doc.id,
+          title: doc.title,
+        },
+      });
+
+      showStatus(
+        reviewed
+          ? `Abgleich abgeschlossen: ${doc.title}`
+          : `Abgleich zurückgesetzt: ${doc.title}`
+      );
+    },
+    [casePlatformOrchestrationService, showStatus]
+  );
+
+  const handleToggleDocumentAttention = useCallback(
+    async (doc: LegalDocumentRecord) => {
+      const currentlyAttention = hasDocWorkflowTag(doc, DOC_REVIEW_ATTENTION_TAG);
+      const nextAttention = !currentlyAttention;
+      const withAttention = upsertDocTag(
+        doc.tags ?? [],
+        DOC_REVIEW_ATTENTION_TAG,
+        nextAttention
+      );
+      const nextTags = nextAttention
+        ? upsertDocTag(withAttention, DOC_REVIEW_DONE_TAG, false)
+        : withAttention;
+
+      await casePlatformOrchestrationService.upsertLegalDocument({
+        ...doc,
+        tags: nextTags,
+        updatedAt: new Date().toISOString(),
+      });
+
+      showStatus(
+        nextAttention
+          ? `Prüfhinweis gesetzt: ${doc.title}`
+          : `Prüfhinweis entfernt: ${doc.title}`
+      );
+    },
+    [casePlatformOrchestrationService, showStatus]
   );
 
   const handleBulkDeleteDocuments = useCallback(() => {
@@ -2140,6 +2563,28 @@ export const AkteDetailPage = () => {
                       {openDeadlines.length}
                     </span>
                   )}
+                  <span className={styles.akteMetaBadge}>
+                    <span className={styles.akteMetaBadgeLabel}>Review</span>
+                    {reviewCoveragePercent}%
+                  </span>
+                  <span className={styles.akteMetaBadge}>
+                    <span className={styles.akteMetaBadgeLabel}>Abgleich OK</span>
+                    {docReviewCounts.reviewed}
+                  </span>
+                  <span
+                    className={`${styles.akteMetaBadge} ${
+                      docReviewCounts.attention > 0
+                        ? styles.akteMetaBadgeUrgent
+                        : ''
+                    }`}
+                  >
+                    <span className={styles.akteMetaBadgeLabel}>Prüfen</span>
+                    {docReviewCounts.attention}
+                  </span>
+                  <span className={styles.akteMetaBadge}>
+                    <span className={styles.akteMetaBadgeLabel}>Offen</span>
+                    {docReviewCounts.open}
+                  </span>
                 </div>
                 {latestCaseSummary ? (
                   <div className={styles.caseSummaryInline}>
@@ -2663,6 +3108,105 @@ export const AkteDetailPage = () => {
                     <span className={styles.docListCount}>
                       {filteredDocs.length} von {matterDocs.length}
                     </span>
+                    <div className={styles.alertFilterGroup}>
+                      <button
+                        type="button"
+                        className={styles.alertFilterChip}
+                        data-active={docViewMode === 'cards' ? 'true' : undefined}
+                        onClick={() => setDocViewMode('cards')}
+                      >
+                        Karten
+                      </button>
+                      <button
+                        type="button"
+                        className={styles.alertFilterChip}
+                        data-active={docViewMode === 'list' ? 'true' : undefined}
+                        onClick={() => setDocViewMode('list')}
+                      >
+                        Liste
+                      </button>
+                    </div>
+                    <div className={styles.alertFilterGroup}>
+                      <button
+                        type="button"
+                        className={styles.alertFilterChip}
+                        data-active={docReviewFilter === 'all' ? 'true' : undefined}
+                        onClick={() => setDocReviewFilter('all')}
+                      >
+                        Alle {docReviewCounts.all}
+                      </button>
+                      <button
+                        type="button"
+                        className={styles.alertFilterChip}
+                        data-active={docReviewFilter === 'open' ? 'true' : undefined}
+                        onClick={() => setDocReviewFilter('open')}
+                      >
+                        Offen {docReviewCounts.open}
+                      </button>
+                      <button
+                        type="button"
+                        className={styles.alertFilterChip}
+                        data-active={docReviewFilter === 'reviewed' ? 'true' : undefined}
+                        onClick={() => setDocReviewFilter('reviewed')}
+                      >
+                        Abgleich OK {docReviewCounts.reviewed}
+                      </button>
+                      <button
+                        type="button"
+                        className={styles.alertFilterChip}
+                        data-active={docReviewFilter === 'attention' ? 'true' : undefined}
+                        onClick={() => setDocReviewFilter('attention')}
+                      >
+                        Prüfen {docReviewCounts.attention}
+                      </button>
+                    </div>
+                    {bulkSelection.selectedIds.size > 0 ? (
+                      <div className={styles.alertFilterGroup}>
+                        <button
+                          type="button"
+                          className={styles.alertFilterChip}
+                          onClick={() => {
+                            handleBulkReviewUpdate('reviewed').catch(() => {
+                              showStatus('Bulk-Abgleichstatus konnte nicht gespeichert werden.');
+                            });
+                          }}
+                        >
+                          ✓ Auswahl als Abgleich OK
+                        </button>
+                        <button
+                          type="button"
+                          className={styles.alertFilterChip}
+                          onClick={() => {
+                            handleBulkReviewUpdate('attention').catch(() => {
+                              showStatus('Bulk-Prüfhinweis konnte nicht gespeichert werden.');
+                            });
+                          }}
+                        >
+                          ⚠︎ Auswahl als Prüfen
+                        </button>
+                      </div>
+                    ) : null}
+                    {compareDoc ? (
+                      <div className={styles.alertFilterGroup}>
+                        <button
+                          type="button"
+                          className={styles.alertFilterChip}
+                          data-active="true"
+                          onClick={() => {
+                            handleOpenDocument(compareDoc).catch(() => {});
+                          }}
+                        >
+                          Abgleich: {compareDoc.title}
+                        </button>
+                        <button
+                          type="button"
+                          className={styles.alertFilterChip}
+                          onClick={() => setCompareDocId(null)}
+                        >
+                          Schließen
+                        </button>
+                      </div>
+                    ) : null}
                   </div>
                 )}
 
@@ -2729,6 +3273,69 @@ export const AkteDetailPage = () => {
                           />
                         </div>
 
+                        {compareDoc ? (
+                          <section className={styles.alertCenter}>
+                            <div className={styles.alertCardMeta}>
+                              <strong>OCR-Abgleich aktiv:</strong> {compareDoc.title}
+                            </div>
+                            <div className={styles.alertGrid}>
+                              <div className={styles.alertCard}>
+                                <div className={styles.alertColumnTitle}>
+                                  Original (PDF/Quelle)
+                                </div>
+                                {isPreviewableSourceRef(compareDoc.sourceRef) &&
+                                !comparePreviewFailed ? (
+                                  <iframe
+                                    title={`Quelle ${compareDoc.title}`}
+                                    className={styles.searchInput}
+                                    src={compareDoc.sourceRef}
+                                    style={{ minHeight: 320, maxWidth: '100%' }}
+                                    onError={() => setComparePreviewFailed(true)}
+                                  />
+                                ) : (
+                                  <div className={styles.alertEmpty}>
+                                    {comparePreviewFailed
+                                      ? 'Vorschau konnte nicht geladen werden. Bitte Quelle direkt öffnen.'
+                                      : 'Keine direkte Vorschau-URL verfügbar. Bitte Original über Repository/Quelle öffnen.'}
+                                  </div>
+                                )}
+                                <button
+                                  type="button"
+                                  className={styles.inlineCreateButton}
+                                  onClick={() => {
+                                    if (!compareDoc.sourceRef) {
+                                      showStatus('Keine Quell-Referenz vorhanden.');
+                                      return;
+                                    }
+                                    window.open(compareDoc.sourceRef, '_blank', 'noopener,noreferrer');
+                                  }}
+                                >
+                                  Quelle im neuen Tab öffnen
+                                </button>
+                              </div>
+                              <div className={styles.alertCard}>
+                                <div className={styles.alertColumnTitle}>
+                                  Semantischer Arbeitsstand (Akte-Doc)
+                                </div>
+                                <div className={styles.alertEmpty}>
+                                  Die semantische Version wird in der verknüpften Seite geöffnet.
+                                  Nutze die Checkliste „Abgleich-Checkliste“ im Dokument und speichere
+                                  dort deine Bearbeitung.
+                                </div>
+                                <button
+                                  type="button"
+                                  className={styles.inlineCreateButton}
+                                  onClick={() => {
+                                    handleOpenDocument(compareDoc).catch(() => {});
+                                  }}
+                                >
+                                  Semantische Seite öffnen
+                                </button>
+                              </div>
+                            </div>
+                          </section>
+                        ) : null}
+
                         {filteredDocs.length === 0 ? (
                           <div className={styles.emptyState}>
                             <div className={styles.emptyIcon}></div>
@@ -2754,11 +3361,84 @@ export const AkteDetailPage = () => {
                         ) : (
                           <>
                             {/* Document List Grouped by Folder */}
-                            {folderGroups.map(([folder, docs]) => (
-                              <div
-                                key={folder}
-                                className={styles.folderSection}
-                              >
+                            {docViewMode === 'cards' ? (
+                              <div className={styles.docCardGrid}>
+                                {sortedFilteredDocs.map(doc => {
+                                  const statusInfo = getDocStatusInfo(doc.status, t);
+                                  const isReviewDone = hasDocWorkflowTag(
+                                    doc,
+                                    DOC_REVIEW_DONE_TAG
+                                  );
+                                  const needsAttention = hasDocWorkflowTag(
+                                    doc,
+                                    DOC_REVIEW_ATTENTION_TAG
+                                  );
+                                  const digest = documentDigestById.get(doc.id);
+                                  return (
+                                    <article
+                                      key={doc.id}
+                                      className={styles.docCard}
+                                      onClick={() => {
+                                        handleOpenDocument(doc).catch(() => {});
+                                      }}
+                                      role="button"
+                                      tabIndex={0}
+                                      onKeyDown={e => {
+                                        if (e.key === 'Enter' || e.key === ' ') {
+                                          e.preventDefault();
+                                          handleOpenDocument(doc).catch(() => {});
+                                        }
+                                      }}
+                                    >
+                                      <div className={styles.docCardThumb}>
+                                        <span className={styles.docCardThumbTitle}>
+                                          {(doc.title || 'D').slice(0, 2).toUpperCase()}
+                                        </span>
+                                        <span className={styles.docCardThumbMeta}>
+                                          {doc.pageCount ? `${doc.pageCount} S.` : 'Seiten ?'}
+                                        </span>
+                                      </div>
+                                      <div className={styles.docCardBody}>
+                                        <div className={styles.docTitle}>{doc.title}</div>
+                                        <div className={styles.docDigestSummary}>
+                                          {digest?.summary ??
+                                            'Semantische Vorschau wird aus Chunks aufgebaut.'}
+                                        </div>
+                                        <div className={styles.docDigestToc}>
+                                          <span
+                                            className={`${styles.docStatusBadge} ${statusInfo.className}`}
+                                          >
+                                            {statusInfo.label}
+                                          </span>
+                                          {isReviewDone ? (
+                                            <span
+                                              className={`${styles.docStatusBadge} ${styles.docStatusReady}`}
+                                            >
+                                              Abgleich OK
+                                            </span>
+                                          ) : null}
+                                          {needsAttention ? (
+                                            <span
+                                              className={`${styles.docStatusBadge} ${styles.docStatusPending}`}
+                                            >
+                                              Prüfen
+                                            </span>
+                                          ) : null}
+                                          <span className={styles.docKindBadge}>
+                                            {doc.chunkCount ?? 0} Chunks
+                                          </span>
+                                        </div>
+                                      </div>
+                                    </article>
+                                  );
+                                })}
+                              </div>
+                            ) : (
+                              folderGroups.map(([folder, docs]) => (
+                                <div
+                                  key={folder}
+                                  className={styles.folderSection}
+                                >
                                 <div
                                   className={styles.folderHeader}
                                   onClick={() => toggleFolder(folder)}
@@ -2874,6 +3554,14 @@ export const AkteDetailPage = () => {
                                         const statusInfo = getDocStatusInfo(
                                           doc.status,
                                           t
+                                        );
+                                        const isReviewDone = hasDocWorkflowTag(
+                                          doc,
+                                          DOC_REVIEW_DONE_TAG
+                                        );
+                                        const needsAttention = hasDocWorkflowTag(
+                                          doc,
+                                          DOC_REVIEW_ATTENTION_TAG
                                         );
                                         const digest = documentDigestById.get(
                                           doc.id
@@ -2999,11 +3687,84 @@ export const AkteDetailPage = () => {
                                                 t
                                               )}
                                             </span>
-                                            <span>
-                                              <span
-                                                className={`${styles.docStatusBadge} ${statusInfo.className}`}
-                                              >
-                                                {statusInfo.label}
+                                            <span className={styles.docMeta}>
+                                              <span className={styles.docDigestToc}>
+                                                <span
+                                                  className={`${styles.docStatusBadge} ${statusInfo.className}`}
+                                                >
+                                                  {statusInfo.label}
+                                                </span>
+                                                {isReviewDone ? (
+                                                  <span
+                                                    className={`${styles.docStatusBadge} ${styles.docStatusReady}`}
+                                                  >
+                                                    Abgleich OK
+                                                  </span>
+                                                ) : null}
+                                                {needsAttention ? (
+                                                  <span
+                                                    className={`${styles.docStatusBadge} ${styles.docStatusPending}`}
+                                                  >
+                                                    Prüfen
+                                                  </span>
+                                                ) : null}
+                                              </span>
+                                              <span className={styles.docRowActions}>
+                                                <button
+                                                  type="button"
+                                                  className={styles.docActionButton}
+                                                  onClick={e => {
+                                                    e.stopPropagation();
+                                                    handleMarkDocumentReviewed(
+                                                      doc,
+                                                      !isReviewDone
+                                                    ).catch(() => {
+                                                      showStatus(
+                                                        `Abgleichstatus konnte nicht gespeichert werden: ${doc.title}`
+                                                      );
+                                                    });
+                                                  }}
+                                                  aria-label={
+                                                    isReviewDone
+                                                      ? `Abgleich zurücksetzen für ${doc.title}`
+                                                      : `Abgleich als abgeschlossen markieren für ${doc.title}`
+                                                  }
+                                                >
+                                                  {isReviewDone ? '↺' : '✓'}
+                                                </button>
+                                                <button
+                                                  type="button"
+                                                  className={styles.docActionButton}
+                                                  onClick={e => {
+                                                    e.stopPropagation();
+                                                    handleToggleDocumentAttention(doc).catch(
+                                                      () => {
+                                                        showStatus(
+                                                          `Prüfhinweis konnte nicht gespeichert werden: ${doc.title}`
+                                                        );
+                                                      }
+                                                    );
+                                                  }}
+                                                  aria-label={
+                                                    needsAttention
+                                                      ? `Prüfhinweis entfernen für ${doc.title}`
+                                                      : `Prüfhinweis setzen für ${doc.title}`
+                                                  }
+                                                >
+                                                  ⚠︎
+                                                </button>
+                                                <button
+                                                  type="button"
+                                                  className={styles.docActionButton}
+                                                  onClick={e => {
+                                                    e.stopPropagation();
+                                                    setCompareDocId(doc.id);
+                                                    handleOpenDocument(doc).catch(() => {});
+                                                  }}
+                                                  aria-label={`Abgleichsansicht öffnen für ${doc.title}`}
+                                                >
+                                                  ⇄
+                                                </button>
                                               </span>
                                             </span>
                                           </div>
@@ -3011,8 +3772,9 @@ export const AkteDetailPage = () => {
                                       })}
                                   </div>
                                 )}
-                              </div>
-                            ))}
+                                </div>
+                              ))
+                            )}
                           </>
                         )}
                       </div>

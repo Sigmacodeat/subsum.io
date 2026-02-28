@@ -20,6 +20,11 @@ class Redis extends IORedis implements OnModuleInit, OnModuleDestroy {
   }
 
   async onModuleDestroy() {
+    if (process.env.TEST_MODE === 'e2e') {
+      this.disconnect();
+      return;
+    }
+
     try {
       await this.quit();
     } catch {

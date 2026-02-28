@@ -382,6 +382,14 @@ type Props = {
     decision: 'approved' | 'rejected',
     fields?: Record<string, string>
   ) => Promise<void> | void;
+  sourceCitationCaseByDocId?: Record<
+    string,
+    {
+      caseId: string;
+      caseTitle: string;
+    }
+  >;
+  onJumpToCaseFromCitation?: (caseId: string) => void;
 };
 
 export const PremiumChatSection = ({
@@ -421,6 +429,8 @@ export const PremiumChatSection = ({
   onDeleteMessage,
   onSaveArtifactToAkte,
   onResolveToolApproval,
+  sourceCitationCaseByDocId,
+  onJumpToCaseFromCitation,
 }: Props) => {
   const [inputValue, setInputValue] = useState('');
   const [showSlashMenu, setShowSlashMenu] = useState(false);
@@ -612,7 +622,7 @@ export const PremiumChatSection = ({
 
   const onPickCase = useCallback(
     (caseId: string) => {
-      onSelectCase?.(caseId);
+      void onSelectCase?.(caseId);
       setShowCasePicker(false);
       setCaseQuery('');
       setShowSessionList(false);
@@ -646,7 +656,7 @@ export const PremiumChatSection = ({
     ) {
       return;
     }
-    onSendMessage(trimmed, attachedFiles);
+    void onSendMessage(trimmed, attachedFiles);
     setInputValue('');
     setShowSlashMenu(false);
     setAttachedFiles([]);
@@ -816,7 +826,7 @@ export const PremiumChatSection = ({
           setAttachmentError(`${prepared.rejected.length} Datei(en) im Ordner wurden übersprungen (nicht unterstützt, zu groß oder Lesefehler).`);
         }
 
-        onSendMessage(
+        void onSendMessage(
           'Bitte analysiere die aus meinem lokalen Ordner importierten Dokumente priorisiert nach Relevanz für die aktuelle Akte und erstelle eine strukturierte Risiko- und Maßnahmenübersicht.',
           uploads
         );
@@ -860,7 +870,7 @@ export const PremiumChatSection = ({
 
   const handleFinishRename = useCallback(() => {
     if (editingSessionId && editingTitle.trim()) {
-      onRenameSession(editingSessionId, editingTitle.trim());
+      void onRenameSession(editingSessionId, editingTitle.trim());
     }
     setEditingSessionId(null);
     setEditingTitle('');
@@ -926,14 +936,14 @@ export const PremiumChatSection = ({
     if (!hasSelectedCase || !activeSession || isChatBusy || isPreparingAttachments) {
       return;
     }
-    onSendMessage('/ocr');
+    void onSendMessage('/ocr');
   }, [activeSession, hasSelectedCase, isChatBusy, isPreparingAttachments, onSendMessage]);
 
   const onRunAnalyzeQuickAction = useCallback(() => {
     if (!hasSelectedCase || !activeSession || isChatBusy || isPreparingAttachments) {
       return;
     }
-    onSendMessage('/analyse');
+    void onSendMessage('/analyse');
   }, [activeSession, hasSelectedCase, isChatBusy, isPreparingAttachments, onSendMessage]);
 
   const greetingTitle = useMemo(() => {
@@ -1104,7 +1114,9 @@ export const PremiumChatSection = ({
           ) : null}
           <button
             type="button"
-            onClick={() => onCreateSession(activeMode)}
+            onClick={() => {
+              void onCreateSession(activeMode);
+            }}
             className={localStyles.newChatCta}
             title="Neuen Chat starten"
             aria-label="Neuen Chat starten"
@@ -1260,7 +1272,7 @@ export const PremiumChatSection = ({
                         type="button"
                         onClick={e => {
                           e.stopPropagation();
-                          onTogglePinSession(session.id);
+                          void onTogglePinSession(session.id);
                           setSwipedSessionId(null);
                         }}
                         className={localStyles.iconButton}
@@ -1285,7 +1297,7 @@ export const PremiumChatSection = ({
                         type="button"
                         onClick={e => {
                           e.stopPropagation();
-                          onDeleteSession(session.id);
+                          void onDeleteSession(session.id);
                           setSwipedSessionId(null);
                         }}
                         className={`${localStyles.iconButton} ${localStyles.iconButtonDanger}`}
@@ -1355,9 +1367,9 @@ export const PremiumChatSection = ({
                   className={localStyles.suggestionCard}
                   onClick={() => {
                     if (item.mode !== activeMode) {
-                      onSwitchMode(item.mode);
+                      void onSwitchMode(item.mode);
                     }
-                    onSendMessage(item.prompt);
+                    void onSendMessage(item.prompt);
                   }}
                 >
                   <div className={localStyles.suggestionTitle}>{item.label}</div>
@@ -1382,6 +1394,8 @@ export const PremiumChatSection = ({
               onUndoInsight={onUndoInsight}
               onSaveArtifactToAkte={onSaveArtifactToAkte}
               onResolveToolApproval={onResolveToolApproval}
+              sourceCitationCaseByDocId={sourceCitationCaseByDocId}
+              onJumpToCaseFromCitation={onJumpToCaseFromCitation}
             />
           ))
         )}
@@ -1398,7 +1412,9 @@ export const PremiumChatSection = ({
               <button
                 key={cmd.command}
                 type="button"
-                onClick={() => handleSlashCommand(cmd.command)}
+                onClick={() => {
+                  void handleSlashCommand(cmd.command);
+                }}
                 className={localStyles.slashCommandButton}
                 title={cmd.example}
               >
@@ -1454,7 +1470,9 @@ export const PremiumChatSection = ({
               <button
                 type="button"
                 className={localStyles.modelPickerButton}
-                onClick={() => setShowModelPicker(prev => !prev)}
+                onClick={() => {
+                  void setShowModelPicker(prev => !prev);
+                }}
                 aria-haspopup="listbox"
                 aria-expanded={showModelPicker}
                 disabled={!hasSelectedCase || !activeSession || isChatBusy}
@@ -1486,8 +1504,8 @@ export const PremiumChatSection = ({
                               model.id === selectedModel?.id && localStyles.modelPickerItemActive
                             )}
                             onClick={() => {
-                              onSelectModel?.(model.id);
-                              setShowModelPicker(false);
+                              void onSelectModel?.(model.id);
+                              void setShowModelPicker(false);
                             }}
                           >
                             <div className={localStyles.modelPickerItemLabel}>
@@ -1523,8 +1541,8 @@ export const PremiumChatSection = ({
                               model.id === selectedModel?.id && localStyles.modelPickerItemActive
                             )}
                             onClick={() => {
-                              onSelectModel?.(model.id);
-                              setShowModelPicker(false);
+                              void onSelectModel?.(model.id);
+                              void setShowModelPicker(false);
                             }}
                           >
                             <div className={localStyles.modelPickerItemLabel}>
@@ -1577,7 +1595,9 @@ export const PremiumChatSection = ({
               <button
                 key={`${file.name}:${file.size}:${index}`}
                 type="button"
-                onClick={() => onRemoveAttachment(index)}
+                onClick={() => {
+                  void onRemoveAttachment(index);
+                }}
                 style={{
                   border: `0.5px solid color-mix(in srgb, rgba(255, 255, 255, 0.3) 32%, rgba(148, 163, 184, 0.35))`,
                   borderRadius: 999,
@@ -2125,7 +2145,9 @@ const ArtifactCards = ({
             <button
               type="button"
               className={localStyles.artifactActionButton}
-              onClick={() => handleDownload(artifact)}
+              onClick={() => {
+                void handleDownload(artifact);
+              }}
               title="Herunterladen"
               aria-label={`${artifact.title} herunterladen`}
               disabled={disableInteractions}
@@ -2199,7 +2221,7 @@ const StreamingIndicator = () => (
   </span>
 );
 
-const ChatBubble = ({ message, isChatBusy, onRegenerate, onDelete, onSaveInsight, onUndoInsight, onSaveArtifactToAkte, onResolveToolApproval }: {
+const ChatBubble = ({ message, isChatBusy, onRegenerate, onDelete, onSaveInsight, onUndoInsight, onSaveArtifactToAkte, onResolveToolApproval, sourceCitationCaseByDocId, onJumpToCaseFromCitation }: {
   message: LegalChatMessage;
   isChatBusy?: boolean;
   onRegenerate?: (messageId: string) => void;
@@ -2218,6 +2240,14 @@ const ChatBubble = ({ message, isChatBusy, onRegenerate, onDelete, onSaveInsight
     decision: 'approved' | 'rejected',
     fields?: Record<string, string>
   ) => Promise<void> | void;
+  sourceCitationCaseByDocId?: Record<
+    string,
+    {
+      caseId: string;
+      caseTitle: string;
+    }
+  >;
+  onJumpToCaseFromCitation?: (caseId: string) => void;
 }) => {
   const isUser = message.role === 'user';
   const isPending = message.status === 'pending';
@@ -2505,7 +2535,9 @@ const ChatBubble = ({ message, isChatBusy, onRegenerate, onDelete, onSaveInsight
             {onRegenerate && (
               <button
                 type="button"
-                onClick={() => onRegenerate(message.id)}
+                onClick={() => {
+                  void onRegenerate(message.id);
+                }}
                 className={localStyles.bubbleActionButton}
                 title="Antwort neu generieren"
               >
@@ -2515,7 +2547,9 @@ const ChatBubble = ({ message, isChatBusy, onRegenerate, onDelete, onSaveInsight
             {onDelete && (
               <button
                 type="button"
-                onClick={() => onDelete(message.id)}
+                onClick={() => {
+                  void onDelete(message.id);
+                }}
                 className={`${localStyles.bubbleActionButton} ${localStyles.bubbleActionButtonDanger}`}
                 title="Nachricht löschen"
               >
@@ -2527,7 +2561,7 @@ const ChatBubble = ({ message, isChatBusy, onRegenerate, onDelete, onSaveInsight
                 <button
                   type="button"
                   onClick={() => {
-                    saveInsight('issue').catch(() => {});
+                    void saveInsight('issue');
                   }}
                   className={localStyles.bubbleActionButton}
                   disabled={saveState?.status === 'saving'}
@@ -2538,7 +2572,7 @@ const ChatBubble = ({ message, isChatBusy, onRegenerate, onDelete, onSaveInsight
                 <button
                   type="button"
                   onClick={() => {
-                    saveInsight('actor').catch(() => {});
+                    void saveInsight('actor');
                   }}
                   className={localStyles.bubbleActionButton}
                   disabled={saveState?.status === 'saving'}
@@ -2549,7 +2583,7 @@ const ChatBubble = ({ message, isChatBusy, onRegenerate, onDelete, onSaveInsight
                 <button
                   type="button"
                   onClick={() => {
-                    saveInsight('memory_event').catch(() => {});
+                    void saveInsight('memory_event');
                   }}
                   className={localStyles.bubbleActionButton}
                   disabled={saveState?.status === 'saving'}
@@ -2601,7 +2635,7 @@ const ChatBubble = ({ message, isChatBusy, onRegenerate, onDelete, onSaveInsight
                   type="button"
                   className={localStyles.conflictActionButtonRecommended}
                   onClick={() => {
-                    resolveConflict(saveState.conflict!.recommendedStrategy!).catch(() => {});
+                    void resolveConflict(saveState.conflict!.recommendedStrategy!);
                   }}
                 >
                   ✓{' '}
@@ -2617,7 +2651,7 @@ const ChatBubble = ({ message, isChatBusy, onRegenerate, onDelete, onSaveInsight
                   type="button"
                   className={localStyles.conflictActionButton}
                   onClick={() => {
-                    resolveConflict('merge').catch(() => {});
+                    void resolveConflict('merge');
                   }}
                 >
                   Zusammenführen
@@ -2628,7 +2662,7 @@ const ChatBubble = ({ message, isChatBusy, onRegenerate, onDelete, onSaveInsight
                   type="button"
                   className={localStyles.conflictActionButton}
                   onClick={() => {
-                    resolveConflict('replace').catch(() => {});
+                    void resolveConflict('replace');
                   }}
                 >
                   Ersetzen
@@ -2639,7 +2673,7 @@ const ChatBubble = ({ message, isChatBusy, onRegenerate, onDelete, onSaveInsight
                   type="button"
                   className={localStyles.conflictActionButton}
                   onClick={() => {
-                    resolveConflict('create_new').catch(() => {});
+                    void resolveConflict('create_new');
                   }}
                 >
                   Neu anlegen
@@ -2688,7 +2722,7 @@ const ChatBubble = ({ message, isChatBusy, onRegenerate, onDelete, onSaveInsight
                       className={localStyles.reviewQueueSaveButton}
                       disabled={status === 'saving' || status === 'saved'}
                       onClick={() => {
-                        saveSuggestion(item).catch(() => {});
+                        void saveSuggestion(item);
                       }}
                     >
                       {status === 'saved'
@@ -2702,7 +2736,7 @@ const ChatBubble = ({ message, isChatBusy, onRegenerate, onDelete, onSaveInsight
                         type="button"
                         className={localStyles.reviewQueueUndoButton}
                         onClick={() => {
-                          undoSuggestion(item.id, undoToken).catch(() => {});
+                          void undoSuggestion(item.id, undoToken);
                         }}
                       >
                         Rückgängig
@@ -2718,9 +2752,7 @@ const ChatBubble = ({ message, isChatBusy, onRegenerate, onDelete, onSaveInsight
                             type="button"
                             className={localStyles.reviewQueueConflictButtonRecommended}
                             onClick={() => {
-                              resolveSuggestionConflict(item, conflict, conflict.recommendedStrategy!).catch(
-                                () => {}
-                              );
+                              void resolveSuggestionConflict(item, conflict, conflict.recommendedStrategy!);
                             }}
                           >
                             ✓{' '}
@@ -2736,7 +2768,7 @@ const ChatBubble = ({ message, isChatBusy, onRegenerate, onDelete, onSaveInsight
                             type="button"
                             className={localStyles.reviewQueueConflictButton}
                             onClick={() => {
-                              resolveSuggestionConflict(item, conflict, 'merge').catch(() => {});
+                              void resolveSuggestionConflict(item, conflict, 'merge');
                             }}
                           >
                             Merge
@@ -2747,7 +2779,7 @@ const ChatBubble = ({ message, isChatBusy, onRegenerate, onDelete, onSaveInsight
                             type="button"
                             className={localStyles.reviewQueueConflictButton}
                             onClick={() => {
-                              resolveSuggestionConflict(item, conflict, 'replace').catch(() => {});
+                              void resolveSuggestionConflict(item, conflict, 'replace');
                             }}
                           >
                             Replace
@@ -2758,7 +2790,7 @@ const ChatBubble = ({ message, isChatBusy, onRegenerate, onDelete, onSaveInsight
                             type="button"
                             className={localStyles.reviewQueueConflictButton}
                             onClick={() => {
-                              resolveSuggestionConflict(item, conflict, 'create_new').catch(() => {});
+                              void resolveSuggestionConflict(item, conflict, 'create_new');
                             }}
                           >
                             Neu
@@ -2791,15 +2823,55 @@ const ChatBubble = ({ message, isChatBusy, onRegenerate, onDelete, onSaveInsight
               {message.sourceCitations.length > 0 && (
                 <div>
                   <div className={localStyles.citationSectionTitle}>Dokument-Quellen</div>
-                  {message.sourceCitations.map((c, i) => (
-                    <div key={i} className={localStyles.citationRow}>
-                      <strong>{c.documentTitle}</strong>
-                      {c.category && <span className={localStyles.slashCommandDesc}> ({c.category})</span>}
-                      <div className={localStyles.citationMeta}>
-                        &quot;{c.quote.slice(0, 120)}…&quot;
+                  {message.sourceCitations.map((c, i) => {
+                    const citationCase = sourceCitationCaseByDocId?.[c.documentId];
+                    return (
+                      <div key={i} className={localStyles.citationRow}>
+                        <strong>{c.documentTitle}</strong>
+                        {c.category && <span className={localStyles.slashCommandDesc}> ({c.category})</span>}
+                        <div className={localStyles.citationMeta}>
+                          &quot;{c.quote.slice(0, 120)}…&quot;
+                        </div>
+                        {citationCase ? (
+                          <div
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              gap: 8,
+                              marginTop: 6,
+                            }}
+                          >
+                            <span
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                padding: '2px 8px',
+                                borderRadius: 999,
+                                border: `1px solid ${cssVarV2('layer/insideBorder/border')}`,
+                                background: cssVarV2('layer/background/primary'),
+                                fontSize: 11,
+                                color: cssVarV2('text/secondary'),
+                              }}
+                            >
+                              Akte: {citationCase.caseTitle}
+                            </span>
+                            {onJumpToCaseFromCitation ? (
+                              <button
+                                type="button"
+                                className={localStyles.bubbleActionButton}
+                                onClick={() => {
+                                  void onJumpToCaseFromCitation(citationCase.caseId);
+                                }}
+                              >
+                                Akte öffnen
+                              </button>
+                            ) : null}
+                          </div>
+                        ) : null}
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
 

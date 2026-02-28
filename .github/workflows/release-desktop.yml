@@ -27,6 +27,11 @@ on:
         required: false
         default: true
         type: boolean
+      desktop-rollout-percentage:
+        description: 'Desktop rollout percentage metadata (1-100)'
+        required: false
+        default: '100'
+        type: string
 
 permissions:
   actions: write
@@ -158,7 +163,7 @@ jobs:
     needs: package-distribution-windows-x64
     uses: ./.github/workflows/windows-signer.yml
     with:
-      files: ${{ needs.package-distribution-windows-x64.outputs.files_to_be_signed }}
+      files: ${{ needs['package-distribution-windows-x64'].outputs['files_to_be_signed'] }}
       artifact-name: packaged-win32-x64
 
   sign-packaged-artifacts-windows_arm64:
@@ -166,7 +171,7 @@ jobs:
     needs: package-distribution-windows-arm64
     uses: ./.github/workflows/windows-signer.yml
     with:
-      files: ${{ needs.package-distribution-windows-arm64.outputs.files_to_be_signed }}
+      files: ${{ needs['package-distribution-windows-arm64'].outputs['files_to_be_signed'] }}
       artifact-name: packaged-win32-arm64
 
   make-windows-installer:
@@ -403,6 +408,16 @@ jobs:
           cp ./.docker/selfhost/compose.yml ./release/docker-compose.yml
           cp ./.docker/selfhost/.env.example ./release/.env.example
           cp ./.docker/selfhost/schema.json ./release/config.schema.json
+      - name: Generate Desktop Rollout Metadata
+        shell: bash
+        run: |
+          cat > ./release/release-go-no-go.json <<JSON
+          {
+            "releaseInputs": {
+              "desktopRolloutPercentage": "${{ inputs.desktop-rollout-percentage }}"
+            }
+          }
+          JSON
       - name: Generate Release yml
         run: |
           node ./scripts/generate-release-yml.mjs

@@ -35,6 +35,26 @@ on:
         description: 'iOS App Store Version (Optional, use tag version if empty)'
         required: false
         type: string
+      ios-release-to-appstore:
+        description: 'Promote stable iOS build to App Store candidate (phased-ready)'
+        required: true
+        type: boolean
+        default: false
+      android-promote-track:
+        description: 'Android track promotion target after internal upload (none|alpha|beta|production)'
+        required: false
+        type: string
+        default: 'none'
+      android-rollout-fraction:
+        description: 'Android rollout fraction for promoted track (0.01-1.0)'
+        required: false
+        type: string
+        default: '1.0'
+      desktop-rollout-percentage:
+        description: 'Desktop rollout percentage for release sign-off metadata (1-100)'
+        required: false
+        type: string
+        default: '100'
 
 permissions:
   contents: write
@@ -122,6 +142,89 @@ jobs:
             core.info(`Latest canary tag ${lastCanary.name} -> ${lastCanary.commit.sha}; current ${currentSha}; should_release=${shouldRelease}`)
             core.setOutput('SHOULD_RELEASE', shouldRelease ? 'true' : 'false')
 
+  release-readiness:
+    name: Release Readiness Artifact
+    runs-on: ubuntu-latest
+    needs:
+      - prepare
+      - canary-gate
+    if: ${{ needs.canary-gate.outputs.SHOULD_RELEASE == 'true' }}
+    steps:
+      - name: Generate go/no-go artifact
+        shell: bash
+        run: |
+          mkdir -p release-readiness
+          GENERATED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          cat > release-readiness/go-no-go.json <<JSON
+          {
+            "version": "${{ needs.prepare.outputs.APP_VERSION }}",
+            "buildType": "${{ needs.prepare.outputs.BUILD_TYPE }}",
+            "gitShortHash": "${{ needs.prepare.outputs.GIT_SHORT_HASH }}",
+            "generatedAt": "$GENERATED_AT",
+            "releaseInputs": {
+              "web": "${{ github.event_name != 'workflow_dispatch' || inputs.web }}",
+              "desktopMacos": "${{ github.event_name != 'workflow_dispatch' || inputs.desktop_macos }}",
+              "desktopWindows": "${{ github.event_name != 'workflow_dispatch' || inputs.desktop_windows }}",
+              "desktopLinux": "${{ github.event_name != 'workflow_dispatch' || inputs.desktop_linux }}",
+              "mobile": "${{ github.event_name != 'workflow_dispatch' || inputs.mobile }}",
+              "iosReleaseToAppStore": "${{ inputs.ios-release-to-appstore }}",
+              "androidPromoteTrack": "${{ inputs.android-promote-track }}",
+              "androidRolloutFraction": "${{ inputs.android-rollout-fraction }}",
+              "desktopRolloutPercentage": "${{ inputs.desktop-rollout-percentage }}"
+            },
+            "gates": {
+              "canaryGatePassed": "${{ needs.canary-gate.outputs.SHOULD_RELEASE == 'true' }}",
+              "status": "go"
+            }
+          }
+          JSON
+
+          cat > release-readiness/go-no-go.md <<'MD'
+          # Release Go/No-Go
+
+          - Version: `${{ needs.prepare.outputs.APP_VERSION }}`
+          - Build Type: `${{ needs.prepare.outputs.BUILD_TYPE }}`
+          - Commit: `${{ needs.prepare.outputs.GIT_SHORT_HASH }}`
+          - Desktop rollout metadata: `${{ inputs.desktop-rollout-percentage }}%`
+          - Android promote track: `${{ inputs.android-promote-track }}`
+          - Android rollout fraction: `${{ inputs.android-rollout-fraction }}`
+          - iOS App Store promotion: `${{ inputs.ios-release-to-appstore }}`
+
+          Status: **GO**
+          MD
+      - name: Upload go/no-go artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-go-no-go-${{ needs.prepare.outputs.APP_VERSION }}
+          path: release-readiness
+
+  desktop-rollout-gate:
+    name: Desktop Rollout Gate
+    runs-on: ubuntu-latest
+    needs:
+      - prepare
+      - canary-gate
+    if: ${{ needs.canary-gate.outputs.SHOULD_RELEASE == 'true' }}
+    steps:
+      - name: Rollout gate precheck
+        run: echo "Desktop rollout gate precheck passed"
+      - name: Wait for desktop rollout approval
+        if: ${{ needs.prepare.outputs.BUILD_TYPE == 'stable' && (github.event_name != 'workflow_dispatch' || inputs.desktop_macos || inputs.desktop_windows || inputs.desktop_linux) }}
+        uses: trstringer/manual-approval@v1
+        with:
+          secret: ${{ secrets.GITHUB_TOKEN }}
+          approvers: darkskygit
+          minimum-approvals: 1
+          fail-on-denial: true
+          issue-title: Desktop rollout approval for ${{ needs.prepare.outputs.APP_VERSION }}
+          issue-body: |
+            Build type: ${{ needs.prepare.outputs.BUILD_TYPE }}
+            Desktop rollout metadata: ${{ inputs.desktop-rollout-percentage }}%
+            Commit: ${{ needs.prepare.outputs.GIT_SHORT_HASH }}
+
+            > comment with "approve", "approved", "lgtm", "yes" to approve
+            > comment with "deny", "denied", "no" to deny
+
   cloud:
     name: Release Cloud
     if: ${{ inputs.web || github.event_name != 'workflow_dispatch' }}
@@ -141,6 +244,7 @@ jobs:
     needs:
       - prepare
       - canary-gate
+      - release-readiness
       - cloud
     steps:
       - uses: trstringer/manual-approval@v1
@@ -186,6 +290,8 @@ jobs:
     needs:
       - prepare
       - canary-gate
+      - release-readiness
+      - desktop-rollout-gate
     uses: ./.github/workflows/release-desktop.yml
     secrets: inherit
     with:
@@ -195,12 +301,14 @@ jobs:
       desktop_macos: ${{ github.event_name != 'workflow_dispatch' || inputs.desktop_macos }}
       desktop_windows: ${{ github.event_name != 'workflow_dispatch' || inputs.desktop_windows }}
       desktop_linux: ${{ github.event_name != 'workflow_dispatch' || inputs.desktop_linux }}
+      desktop-rollout-percentage: ${{ inputs.desktop-rollout-percentage }}
 
   mobile:
     name: Release Mobile
-    if: ${{ inputs.mobile }}
+    if: ${{ inputs.mobile || github.event_name != 'workflow_dispatch' }}
     needs:
       - prepare
+      - release-readiness
     uses: ./.github/workflows/release-mobile.yml
     secrets: inherit
     with:
@@ -208,3 +316,86 @@ jobs:
       app-version: ${{ needs.prepare.outputs.APP_VERSION }}
       git-short-hash: ${{ needs.prepare.outputs.GIT_SHORT_HASH }}
       ios-app-version: ${{ inputs.ios-app-version }}
+      ios-release-to-appstore: ${{ inputs.ios-release-to-appstore }}
+      android-promote-track: ${{ inputs.android-promote-track }}
+      android-rollout-fraction: ${{ inputs.android-rollout-fraction }}
+
+  observability-gate:
+    name: Observability Gate
+    runs-on: ubuntu-latest
+    needs:
+      - prepare
+      - release-readiness
+    if: ${{ always() && needs.prepare.outputs.BUILD_TYPE == 'stable' }}
+    steps:
+      - name: Verify Sentry release exists
+        env:
+          SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
+          SENTRY_PROJECT: affine
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          RELEASE_VERSION: ${{ needs.prepare.outputs.APP_VERSION }}
+        shell: bash
+        run: |
+          if [ -z "$SENTRY_ORG" ] || [ -z "$SENTRY_AUTH_TOKEN" ]; then
+            echo "Sentry secrets are not configured; skipping observability gate."
+            exit 0
+          fi
+
+          STATUS_CODE=$(curl -sS -o /tmp/sentry-release.json -w "%{http_code}" \
+            -H "Authorization: Bearer $SENTRY_AUTH_TOKEN" \
+            -H "Content-Type: application/json" \
+            "https://sentry.io/api/0/organizations/$SENTRY_ORG/releases/$RELEASE_VERSION/")
+
+          if [ "$STATUS_CODE" -ge 200 ] && [ "$STATUS_CODE" -lt 300 ]; then
+            echo "Sentry release $RELEASE_VERSION found."
+            exit 0
+          fi
+
+          echo "Sentry release check failed with status $STATUS_CODE"
+          cat /tmp/sentry-release.json || true
+          exit 1
+
+  auto-freeze-on-observability-failure:
+    name: Auto Freeze on Observability Failure
+    runs-on: ubuntu-latest
+    needs:
+      - prepare
+      - observability-gate
+    if: ${{ always() && needs.prepare.outputs.BUILD_TYPE == 'stable' && needs['observability-gate'].result == 'failure' }}
+    steps:
+      - name: Create release freeze incident issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = `Release freeze: observability gate failed for v${{ needs.prepare.outputs.APP_VERSION }}`
+            const body = [
+              'Automatic release freeze triggered.',
+              '',
+              `- Version: \\`${{ needs.prepare.outputs.APP_VERSION }}\\``,
+              `- Build type: \\`${{ needs.prepare.outputs.BUILD_TYPE }}\\``,
+              `- Commit: \\`${{ needs.prepare.outputs.GIT_SHORT_HASH }}\\``,
+              `- Workflow run: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+              '',
+              'Required actions:',
+              '1. Stop further promotion.',
+              '2. Assess Sentry release and telemetry health.',
+              '3. Decide rollback or hotfix before resuming rollout.',
+            ].join('\n')
+
+            const labels = ['release-freeze', 'incident', 'priority:high']
+            const issuePayload = {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title,
+              body,
+            }
+
+            try {
+              await github.rest.issues.create({
+                ...issuePayload,
+                labels,
+              })
+            } catch (error) {
+              core.warning(`Issue label assignment failed, retrying without labels: ${error}`)
+              await github.rest.issues.create(issuePayload)
+            }

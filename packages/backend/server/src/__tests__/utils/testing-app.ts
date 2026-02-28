@@ -33,6 +33,7 @@ import { initTestingDB, TEST_LOG_LEVEL } from './utils';
 interface TestingAppMetadata extends ModuleMetadata {
   tapModule?(m: TestingModuleBuilder): void;
   tapApp?(app: INestApplication): void;
+  disableWebSocketAdapter?: boolean;
 }
 
 export type TestUser = Omit<User, 'password'> & { password: string };
@@ -63,7 +64,9 @@ export async function createTestingApp(
   );
 
   app.use(cookieParser());
-  app.useWebSocketAdapter(new SocketIoAdapter(app));
+  if (!moduleDef.disableWebSocketAdapter) {
+    app.useWebSocketAdapter(new SocketIoAdapter(app));
+  }
 
   app.useGlobalGuards(app.get(AuthGuard), app.get(CloudThrottlerGuard));
 

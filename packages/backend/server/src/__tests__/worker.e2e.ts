@@ -2,6 +2,7 @@ import { LookupAddress } from 'node:dns';
 
 import type { ExecutionContext, TestFn } from 'ava';
 import ava from 'ava';
+import { PrismaClient } from '@prisma/client';
 import Sinon from 'sinon';
 import type { Response } from 'supertest';
 
@@ -10,6 +11,7 @@ import {
   __setDnsLookupForTests,
   type DnsLookup,
 } from '../base/utils/ssrf';
+import { debugProcessHolding } from './utils/utils';
 import { createTestingApp, TestingApp } from './utils';
 
 type TestContext = {
@@ -33,7 +35,9 @@ test.before(async t => {
   // Avoid relying on real DNS during tests. SSRF protection uses dns.lookup().
   __setDnsLookupForTests(LookupAddressStub);
 
-  const app = await createTestingApp();
+  const app = await createTestingApp({
+    disableWebSocketAdapter: true,
+  });
 
   t.context.app = app;
 });
@@ -41,7 +45,21 @@ test.before(async t => {
 test.after.always(async t => {
   Sinon.restore();
   __resetDnsLookupForTests();
+
+  const prisma = t.context.app.get(PrismaClient, { strict: false });
+  if (prisma) {
+    await prisma.$disconnect();
+  }
+
+  const server = t.context.app.getHttpServer();
+  server.closeAllConnections?.();
+  server.closeIdleConnections?.();
+
   await t.context.app.close();
+
+  if (process.env.DEBUG_TEST_HOLDING === '1') {
+    debugProcessHolding();
+  }
 });
 
 const assertAndSnapshotRaw = async (
@@ -137,6 +155,75 @@ test('should proxy image', async t => {
     );
 
     fetchSpy.restore();
+  }
+});
+
+test('should serve releases with rollout filtering', async t => {
+  const fakeGitHubReleases = [
+    {
+      html_url: 'https://github.com/toeverything/AFFiNE/releases/tag/v1.0.0',
+      name: '1.0.0',
+      tag_name: 'v1.0.0',
+      body: 'stable release 1',
+      draft: false,
+      prerelease: false,
+      published_at: '2026-02-28T00:00:00Z',
+      assets: [
+        {
+          name: 'release-go-no-go.json',
+          size: 88,
+          browser_download_url: 'https://example.com/release-go-no-go-v1.0.0.json',
+        },
+      ],
+    },
+    {
+      html_url: 'https://github.com/toeverything/AFFiNE/releases/tag/v0.9.0',
+      name: '0.9.0',
+      tag_name: 'v0.9.0',
+      body: 'stable release 0.9.0',
+      draft: false,
+      prerelease: false,
+      published_at: '2026-02-20T00:00:00Z',
+      assets: [],
+    },
+  ];
+
+  const fetchStub = Sinon.stub(global, 'fetch').callsFake((input: any) => {
+    const url = typeof input === 'string' ? input : input.toString();
+    if (url.includes('/repos/toeverything/AFFiNE/releases')) {
+      return Promise.resolve(
+        new Response(JSON.stringify(fakeGitHubReleases), { status: 200 })
+      );
+    }
+    if (url === 'https://example.com/release-go-no-go-v1.0.0.json') {
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            releaseInputs: { desktopRolloutPercentage: '10' },
+          }),
+          { status: 200 }
+        )
+      );
+    }
+
+    return Promise.resolve(new Response('not found', { status: 404 }));
+  });
+
+  const { app } = t.context;
+  try {
+    const invalidRollout = await app
+      .GET('/api/worker/releases?channel=stable&rolloutBucket=101')
+      .expect(400);
+    t.true((invalidRollout.body?.message ?? '').includes('Invalid rolloutBucket'));
+
+    const filtered = await app
+      .GET('/api/worker/releases?channel=stable&minimal=true&rolloutBucket=50')
+      .expect(200);
+    t.is(Array.isArray(filtered.body), true);
+    t.is(filtered.body.length, 1);
+    t.is(filtered.body[0]?.tag_name, 'v0.9.0');
+  } finally {
+    fetchStub.restore();
   }
 });
 

@@ -15,6 +15,18 @@ on:
       ios-app-version:
         type: string
         required: false
+      ios-release-to-appstore:
+        type: boolean
+        required: false
+        default: false
+      android-promote-track:
+        type: string
+        required: false
+        default: 'none'
+      android-rollout-fraction:
+        type: string
+        required: false
+        default: '1.0'
 
 env:
   BUILD_TYPE: ${{ inputs.build-type }}
@@ -140,6 +152,68 @@ jobs:
           APPLE_STORE_CONNECT_API_ISSUER_ID: ${{ secrets.APPLE_STORE_CONNECT_API_ISSUER_ID }}
           APPLE_STORE_CONNECT_API_KEY: ${{ secrets.APPLE_STORE_CONNECT_API_KEY }}
 
+  ios-appstore:
+    if: ${{ inputs.ios-release-to-appstore && inputs.build-type == 'stable' }}
+    runs-on: 'macos-15'
+    needs:
+      - ios
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Version
+        uses: ./.github/actions/setup-version
+        with:
+          app-version: ${{ inputs.app-version }}
+          ios-app-version: ${{ inputs.ios-app-version }}
+      - name: 'Update Code Sign Identity'
+        shell: bash
+        run: ./packages/frontend/apps/ios/update_code_sign_identity.sh
+      - name: Download mobile artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ios
+          path: packages/frontend/apps/ios/dist
+      - name: Setup Node.js
+        uses: ./.github/actions/setup-node
+        timeout-minutes: 10
+        with:
+          extra-flags: workspaces focus @affine/ios
+          playwright-install: false
+          electron-install: false
+          hard-link-nm: false
+          enableScripts: false
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: 26.2
+      - name: Install Swiftformat
+        run: brew install swiftformat
+      - name: Cap sync
+        run: yarn workspace @affine/ios sync
+      - name: Signing By Apple Developer ID
+        uses: apple-actions/import-codesign-certs@v5
+        with:
+          p12-file-base64: ${{ secrets.CERTIFICATES_P12_MOBILE }}
+          p12-password: ${{ secrets.CERTIFICATES_P12_PASSWORD_MOBILE }}
+      - name: Setup Rust
+        uses: ./.github/actions/build-rust
+        with:
+          target: 'aarch64-apple-ios'
+          package: 'affine_mobile_native'
+          no-build: 'true'
+      - name: App Store Candidate
+        working-directory: packages/frontend/apps/ios/App
+        run: |
+          echo -n "${{ env.BUILD_PROVISION_PROFILE }}" | base64 --decode -o $PP_PATH
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          cp $PP_PATH ~/Library/MobileDevice/Provisioning\ Profiles
+          fastlane appstore
+        env:
+          BUILD_TARGET: distribution
+          BUILD_PROVISION_PROFILE: ${{ secrets.BUILD_PROVISION_PROFILE }}
+          PP_PATH: ${{ runner.temp }}/build_pp.mobileprovision
+          APPLE_STORE_CONNECT_API_KEY_ID: ${{ secrets.APPLE_STORE_CONNECT_API_KEY_ID }}
+          APPLE_STORE_CONNECT_API_ISSUER_ID: ${{ secrets.APPLE_STORE_CONNECT_API_ISSUER_ID }}
+          APPLE_STORE_CONNECT_API_KEY: ${{ secrets.APPLE_STORE_CONNECT_API_KEY }}
+
   android:
     runs-on: ubuntu-latest
     permissions:
@@ -219,3 +293,52 @@ jobs:
           track: internal
           status: draft
           existingEditId: ${{ steps.bump.outputs.EDIT_ID }}
+      - name: Upload signed AAB artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-aab
+          path: packages/frontend/apps/android/App/app/build/outputs/bundle/${{ env.BUILD_TYPE }}Release/app-${{ env.BUILD_TYPE }}-release-signed.aab
+
+  android-promote:
+    if: ${{ inputs.android-promote-track != 'none' && inputs.build-type == 'stable' }}
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: 'write'
+    needs:
+      - android
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download signed AAB artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: android-aab
+          path: ./android-aab
+      - name: Auth gcloud
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: 'projects/${{ secrets.GCP_PROJECT_NUMBER }}/locations/global/workloadIdentityPools/github-actions/providers/github-actions-helm-deploy'
+          service_account: '${{ secrets.GCP_HELM_DEPLOY_SERVICE_ACCOUNT }}'
+          token_format: 'access_token'
+          project_id: '${{ secrets.GCP_PROJECT_ID }}'
+          access_token_scopes: 'https://www.googleapis.com/auth/androidpublisher'
+      - name: Resolve rollout status
+        id: rollout
+        shell: bash
+        run: |
+          FRACTION='${{ inputs.android-rollout-fraction }}'
+          if [ "$FRACTION" = "1" ] || [ "$FRACTION" = "1.0" ]; then
+            echo "STATUS=completed" >> "$GITHUB_OUTPUT"
+          else
+            echo "STATUS=inProgress" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Promote to target track
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJson: ${{ steps.auth.outputs.credentials_file_path }}
+          packageName: app.affine.pro
+          releaseName: ${{ inputs.app-version }}
+          releaseFiles: ./android-aab/app-${{ env.BUILD_TYPE }}-release-signed.aab
+          track: ${{ inputs.android-promote-track }}
+          status: ${{ steps.rollout.outputs.STATUS }}
+          userFraction: ${{ inputs.android-rollout-fraction }}

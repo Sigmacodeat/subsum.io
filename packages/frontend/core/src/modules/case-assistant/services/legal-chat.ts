@@ -1290,6 +1290,7 @@ export class LegalChatService extends Service {
 
   async buildContextSnapshot(input: {
     caseId: string;
+    scopeCaseIds?: string[];
     workspaceId: string;
     mode: LegalChatMode;
     userQuery: string;
@@ -1304,12 +1305,33 @@ export class LegalChatService extends Service {
 
     const activeJurisdiction = this.store.getActiveJurisdiction();
 
+    const selectedScopeCaseIds = Array.from(
+      new Set(
+        [caseId, ...(input.scopeCaseIds ?? [])]
+          .map(value => value.trim())
+          .filter(Boolean)
+      )
+    );
+    const matterScopedCaseIds = caseRecord?.matterId
+      ? Object.values(graph?.cases ?? {})
+          .filter(
+            item =>
+              item.workspaceId === workspaceId && item.matterId === caseRecord.matterId
+          )
+          .map(item => item.id)
+      : [];
+    const scopeCaseIds = Array.from(
+      new Set([...selectedScopeCaseIds, ...matterScopedCaseIds])
+    );
+    const scopeCaseIdSet = new Set(scopeCaseIds);
+
     const caseChunks = semanticChunks.filter(
-      (c: SemanticChunk) => c.caseId === caseId && c.workspaceId === workspaceId
+      (c: SemanticChunk) =>
+        c.workspaceId === workspaceId && scopeCaseIdSet.has(c.caseId)
     );
     const allCaseDocs = legalDocs.filter(
       (d: LegalDocumentRecord) =>
-        d.caseId === caseId && d.workspaceId === workspaceId
+        d.workspaceId === workspaceId && scopeCaseIdSet.has(d.caseId)
     );
     const caseDocs = allCaseDocs.filter(
       (d: LegalDocumentRecord) => d.status === 'indexed'
@@ -1335,7 +1357,8 @@ export class LegalChatService extends Service {
     const effectiveDocs = filteredDocs.length > 0 ? filteredDocs : caseDocs;
     const effectiveChunks = filteredChunks.length > 0 ? filteredChunks : caseChunks;
     const caseFindings = findings.filter(
-      (f: LegalFinding) => f.caseId === caseId && f.workspaceId === workspaceId
+      (f: LegalFinding) =>
+        f.workspaceId === workspaceId && scopeCaseIdSet.has(f.caseId)
     );
     const allSuggestions = this.orchestration.judikaturSuggestions$.value ?? [];
     const caseSuggestions = allSuggestions.filter(
@@ -1439,6 +1462,7 @@ export class LegalChatService extends Service {
 
     return {
       caseId,
+      scopeCaseIds,
       workspaceId,
       mode,
       relevantChunks,
@@ -1924,11 +1948,12 @@ export class LegalChatService extends Service {
   async sendMessage(input: {
     sessionId: string;
     caseId: string;
+    contextCaseIds?: string[];
     workspaceId: string;
     content: string;
     mode: LegalChatMode;
   }): Promise<LegalChatMessage> {
-    const { sessionId, caseId, workspaceId, content, mode } = input;
+    const { sessionId, caseId, contextCaseIds, workspaceId, content, mode } = input;
     const startTime = Date.now();
     const now = new Date().toISOString();
     const selectedModel = this.getSelectedModel(sessionId);
@@ -2051,6 +2076,7 @@ export class LegalChatService extends Service {
 
     const context = await this.buildContextSnapshot({
       caseId,
+      scopeCaseIds: contextCaseIds,
       workspaceId,
       mode,
       userQuery: content,

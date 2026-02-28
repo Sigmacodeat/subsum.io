@@ -86,6 +86,7 @@ export const Component = () => {
     useLiveData(casePlatformOrchestrationService.courtDecisions$) ?? [];
 
   const [selectedCaseId, setSelectedCaseId] = useState<string>('');
+  const [comparisonCaseIds, setComparisonCaseIds] = useState<string[]>([]);
   const [activeChatSessionId, setActiveChatSessionId] = useState<string | null>(null);
   const [activeChatMode, setActiveChatMode] = useState<LegalChatMode>('general');
   const [isChatBusy, setIsChatBusy] = useState(false);
@@ -223,6 +224,26 @@ export const Component = () => {
     [caseFiles, graph?.clients, graph?.matters]
   );
 
+  const comparisonCaseOptions = useMemo(
+    () => caseOptions.filter(option => option.id !== selectedCaseId),
+    [caseOptions, selectedCaseId]
+  );
+
+  const scopedContextCaseIds = useMemo(
+    () =>
+      Array.from(new Set([selectedCaseId, ...comparisonCaseIds].filter(Boolean))),
+    [comparisonCaseIds, selectedCaseId]
+  );
+
+  useEffect(() => {
+    setComparisonCaseIds(prev => prev.filter(caseId => caseId !== selectedCaseId));
+  }, [selectedCaseId]);
+
+  const scopedCaseIdSet = useMemo(
+    () => new Set(scopedContextCaseIds),
+    [scopedContextCaseIds]
+  );
+
   const caseChatSessions = useMemo(
     () =>
       selectedCaseId
@@ -261,6 +282,38 @@ export const Component = () => {
     [legalFindings, selectedCaseId, workspaceId]
   );
 
+  const scopedDocuments = useMemo(
+    () =>
+      legalDocuments.filter(
+        document => document.workspaceId === workspaceId && scopedCaseIdSet.has(document.caseId)
+      ),
+    [legalDocuments, scopedCaseIdSet, workspaceId]
+  );
+
+  const scopedFindings = useMemo(
+    () =>
+      legalFindings.filter(
+        finding => finding.workspaceId === workspaceId && scopedCaseIdSet.has(finding.caseId)
+      ),
+    [legalFindings, scopedCaseIdSet, workspaceId]
+  );
+
+  const caseTitleById = useMemo(
+    () => new Map(caseFiles.map(caseFile => [caseFile.id, caseFile.title])),
+    [caseFiles]
+  );
+
+  const sourceCitationCaseByDocId = useMemo(() => {
+    const mapping: Record<string, { caseId: string; caseTitle: string }> = {};
+    for (const doc of scopedDocuments) {
+      mapping[doc.id] = {
+        caseId: doc.caseId,
+        caseTitle: caseTitleById.get(doc.caseId) ?? doc.caseId,
+      };
+    }
+    return mapping;
+  }, [caseTitleById, scopedDocuments]);
+
   const caseJudikaturSuggestions = useMemo(
     () =>
       judikaturSuggestions
@@ -282,11 +335,66 @@ export const Component = () => {
     return courtDecisions.filter(item => decisionIds.has(item.id));
   }, [caseJudikaturSuggestions, courtDecisions]);
 
-  const indexedCount = caseDocuments.filter(document => document.status === 'indexed').length;
-  const ocrPendingCount = caseDocuments.filter(document => document.status === 'ocr_pending').length;
-  const totalChunks = caseDocuments.reduce(
+  const scopedIndexedCount = scopedDocuments.filter(
+    document => document.status === 'indexed'
+  ).length;
+  const scopedOcrPendingCount = scopedDocuments.filter(
+    document => document.status === 'ocr_pending'
+  ).length;
+  const scopedChunks = scopedDocuments.reduce(
     (sum, document) => sum + (document.chunkCount ?? 0),
     0
+  );
+
+  const toggleComparisonCase = useCallback((caseId: string) => {
+    setComparisonCaseIds(prev =>
+      prev.includes(caseId)
+        ? prev.filter(existing => existing !== caseId)
+        : [...prev, caseId]
+    );
+  }, []);
+
+  const applyScopePreset = useCallback(
+    (preset: 'active' | 'matter' | 'ocr_open') => {
+      if (!selectedCaseId) {
+        return;
+      }
+
+      if (preset === 'active') {
+        setComparisonCaseIds([]);
+        return;
+      }
+
+      if (preset === 'matter') {
+        if (!selectedCase?.matterId) {
+          setComparisonCaseIds([]);
+          return;
+        }
+        const related = caseFiles
+          .filter(
+            caseFile =>
+              caseFile.id !== selectedCaseId &&
+              caseFile.matterId === selectedCase.matterId
+          )
+          .map(caseFile => caseFile.id);
+        setComparisonCaseIds(related);
+        return;
+      }
+
+      const caseIdsWithOpenOcr = new Set(
+        legalDocuments
+          .filter(doc => doc.workspaceId === workspaceId && doc.status === 'ocr_pending')
+          .map(doc => doc.caseId)
+      );
+      const related = caseFiles
+        .filter(
+          caseFile =>
+            caseFile.id !== selectedCaseId && caseIdsWithOpenOcr.has(caseFile.id)
+        )
+        .map(caseFile => caseFile.id);
+      setComparisonCaseIds(related);
+    },
+    [caseFiles, legalDocuments, selectedCase?.matterId, selectedCaseId, workspaceId]
   );
 
 
@@ -306,7 +414,7 @@ export const Component = () => {
     setCaseContextStatus('Kontext wird geladen…');
     const timeout = globalThis.setTimeout(() => {
       setCaseContextStatus(
-        `Kontext bereit · ${caseDocuments.length} Dokumente · ${caseFindings.length} Findings · ${ocrPendingCount} OCR offen`
+        `Kontext bereit · ${scopedContextCaseIds.length} Akten · ${scopedDocuments.length} Dokumente · ${scopedFindings.length} Findings · ${scopedOcrPendingCount} OCR offen`
       );
     }, 240);
 
@@ -314,9 +422,10 @@ export const Component = () => {
       globalThis.clearTimeout(timeout);
     };
   }, [
-    caseDocuments.length,
-    caseFindings.length,
-    ocrPendingCount,
+    scopedContextCaseIds.length,
+    scopedDocuments.length,
+    scopedFindings.length,
+    scopedOcrPendingCount,
     routeClient?.displayName,
     routeContext.clientId,
     selectedCaseId,
@@ -328,6 +437,35 @@ export const Component = () => {
       setStatusText(current => (current === text ? null : current));
     }, 5000);
   }, []);
+
+  const onJumpToCaseFromCitation = useCallback(
+    (caseId: string) => {
+      if (!caseId || caseId === selectedCaseId) {
+        return;
+      }
+
+      const replaceScope = window.confirm(
+        'Zitierte Akte als Hauptakte öffnen?\n\nOK = Hauptakte wechseln (Scope ersetzen)\nAbbrechen = Aktuellen Fall behalten und zitierte Akte zusätzlich im Scope halten'
+      );
+
+      if (replaceScope) {
+        setSelectedCaseId(caseId);
+        setActiveChatSessionId(null);
+        setComparisonCaseIds([]);
+        setTransientStatus('Kontext auf zitierte Akte umgestellt (Scope ersetzt).');
+        return;
+      }
+
+      setComparisonCaseIds(prev => {
+        if (prev.includes(caseId)) {
+          return prev;
+        }
+        return [...prev, caseId];
+      });
+      setTransientStatus('Zitierte Akte wurde dem Scope hinzugefügt.');
+    },
+    [selectedCaseId, setTransientStatus]
+  );
 
   useEffect(() => {
     if (!hasExplicitRouteContext) {
@@ -591,7 +729,7 @@ export const Component = () => {
             tone: 'professional',
             additionalInstructions:
               summaryHint ||
-              `Bitte berücksichtige: ${caseFindings.length} Findings, ${caseDocuments.length} Dokumente, ${ocrPendingCount} OCR offen.`,
+              `Bitte berücksichtige: ${scopedFindings.length} Findings, ${scopedDocuments.length} Dokumente, ${scopedOcrPendingCount} OCR offen.`,
             requestedBy: actorId,
           });
 
@@ -1337,6 +1475,7 @@ export const Component = () => {
         await legalChatService.sendMessage({
           sessionId: activeChatSessionId,
           caseId: selectedCaseId,
+          contextCaseIds: scopedContextCaseIds,
           workspaceId,
           content: effectiveContent,
           mode: effectiveMode,
@@ -1370,6 +1509,7 @@ export const Component = () => {
       selectedCase,
       selectedCase?.matterId,
       selectedCaseId,
+      scopedContextCaseIds,
       selectedClient?.displayName,
       selectedMatter?.externalRef,
       selectedMatter?.gericht,
@@ -1467,6 +1607,7 @@ export const Component = () => {
         await legalChatService.sendMessage({
           sessionId: activeChatSessionId,
           caseId: selectedCaseId,
+          contextCaseIds: scopedContextCaseIds,
           workspaceId,
           content: previousUser.content,
           mode: activeChatMode,
@@ -1475,7 +1616,15 @@ export const Component = () => {
         setIsChatBusy(false);
       }
     },
-    [activeChatMode, activeChatSessionId, isChatBusy, legalChatService, selectedCaseId, workspaceId]
+    [
+      activeChatMode,
+      activeChatSessionId,
+      isChatBusy,
+      legalChatService,
+      scopedContextCaseIds,
+      selectedCaseId,
+      workspaceId,
+    ]
   );
 
   const onSwitchMode = useCallback(
@@ -1649,11 +1798,11 @@ export const Component = () => {
             requiresCaseSelection={caseFiles.length > 1}
             caseContextStatus={caseContextStatus}
             contextStats={{
-              documents: caseDocuments.length,
-              indexed: indexedCount,
-              ocrPending: ocrPendingCount,
-              findings: caseFindings.length,
-              chunks: totalChunks,
+              documents: scopedDocuments.length,
+              indexed: scopedIndexedCount,
+              ocrPending: scopedOcrPendingCount,
+              findings: scopedFindings.length,
+              chunks: scopedChunks,
             }}
             pendingNlpActionId={pendingNlpActionId}
             availableModels={availableModels}
@@ -1698,9 +1847,9 @@ export const Component = () => {
             onSaveArtifactToAkte={(messageId, artifact) =>
               onSaveArtifactToAkte(messageId, artifact)
             }
-            onResolveToolApproval={(messageId, toolCallId, decision, fields) =>
-              onResolveToolApproval(messageId, toolCallId, decision, fields)
-            }
+            onResolveToolApproval={onResolveToolApproval}
+            sourceCitationCaseByDocId={sourceCitationCaseByDocId}
+            onJumpToCaseFromCitation={onJumpToCaseFromCitation}
           />
         </div>
       </ViewBody>
@@ -1713,15 +1862,58 @@ export const Component = () => {
               <p className={styles.statusValue}>{selectedCase?.title ?? '—'}</p>
               <p className={styles.statusMeta}>{selectedMatter?.title ?? 'Keine Matter-Verknüpfung'}</p>
               <p className={styles.statusMeta}>{selectedClient?.displayName ?? 'Kein Mandant verknüpft'}</p>
+              <p className={styles.statusMeta}>
+                Scope: {scopedContextCaseIds.length} Akte(n) im Chat-Kontext
+              </p>
+              {selectedCaseId ? (
+                <div className={styles.scopeCaseList}>
+                  <div className={styles.statusSessionActions}>
+                    <button
+                      type="button"
+                      className={styles.statusMiniAction}
+                      onClick={() => applyScopePreset('active')}
+                    >
+                      Nur aktiv
+                    </button>
+                    <button
+                      type="button"
+                      className={styles.statusMiniAction}
+                      onClick={() => applyScopePreset('matter')}
+                    >
+                      Matter-Scope
+                    </button>
+                    <button
+                      type="button"
+                      className={styles.statusMiniAction}
+                      onClick={() => applyScopePreset('ocr_open')}
+                    >
+                      OCR-offen
+                    </button>
+                  </div>
+                  {comparisonCaseOptions.slice(0, 8).map(option => {
+                    const checked = comparisonCaseIds.includes(option.id);
+                    return (
+                      <label key={option.id} className={styles.scopeCaseItem}>
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => toggleComparisonCase(option.id)}
+                        />
+                        <span>{option.label}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              ) : null}
             </section>
 
             <section className={styles.statusCard} aria-live="polite">
               <h4 className={styles.statusTitle}>Analyse-Status</h4>
-              <p className={styles.statusMeta}>Dokumente: {caseDocuments.length}</p>
-              <p className={styles.statusMeta}>Indexiert: {indexedCount}</p>
-              <p className={styles.statusMeta}>OCR offen: {ocrPendingCount}</p>
-              <p className={styles.statusMeta}>Chunks: {totalChunks}</p>
-              <p className={styles.statusMeta}>Findings: {caseFindings.length}</p>
+              <p className={styles.statusMeta}>Dokumente: {scopedDocuments.length}</p>
+              <p className={styles.statusMeta}>Indexiert: {scopedIndexedCount}</p>
+              <p className={styles.statusMeta}>OCR offen: {scopedOcrPendingCount}</p>
+              <p className={styles.statusMeta}>Chunks: {scopedChunks}</p>
+              <p className={styles.statusMeta}>Findings: {scopedFindings.length}</p>
               <p className={styles.statusMeta}>Kontext: {caseContextStatus}</p>
               <p className={styles.statusMeta}>Letzte Aktion: {statusText ?? 'Bereit'}</p>
             </section>

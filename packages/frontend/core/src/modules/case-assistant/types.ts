@@ -2169,6 +2169,8 @@ export interface LegalChatSession {
 
 export interface LegalChatContextSnapshot {
   caseId: string;
+  /** Full case scope used for retrieval (primary case + linked/selected comparison cases). */
+  scopeCaseIds?: string[];
   workspaceId: string;
   mode: LegalChatMode;
   /** Relevant semantic chunks injected into context */

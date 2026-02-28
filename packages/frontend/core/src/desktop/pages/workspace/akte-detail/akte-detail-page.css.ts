@@ -69,6 +69,155 @@ export const akteHeader = style({
   },
 });
 
+export const docCardGrid = style({
+  display: 'grid',
+  gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
+  gap: sp(3),
+});
+
+export const docCard = style({
+  borderRadius: 12,
+  border: borderSubtle,
+  background: surfaceBase,
+  overflow: 'hidden',
+  cursor: 'pointer',
+  transition: interactionTransition,
+  display: 'flex',
+  flexDirection: 'column',
+  minHeight: 220,
+  selectors: {
+    '&:hover': {
+      borderColor: accentBorder,
+      transform: 'translateY(-1px)',
+    },
+    '&:focus-visible': {
+      outline: `2px solid ${cssVarV2('button/primary')}`,
+      outlineOffset: 2,
+    },
+  },
+});
+
+export const docCardThumb = style({
+  minHeight: 96,
+  padding: `${sp(2)} ${sp(3)}`,
+  background:
+    'linear-gradient(145deg, color-mix(in srgb, var(--affine-primary-color) 16%, transparent), color-mix(in srgb, var(--affine-primary-color) 8%, var(--affine-background-secondary-color)))',
+  borderBottom: borderSubtle,
+  display: 'flex',
+  alignItems: 'flex-end',
+  justifyContent: 'space-between',
+});
+
+export const docCardThumbTitle = style({
+  fontSize: 18,
+  lineHeight: '22px',
+  fontWeight: 700,
+  color: cssVarV2('text/primary'),
+  letterSpacing: '-0.01em',
+});
+
+export const docCardThumbMeta = style({
+  fontSize: 11,
+  lineHeight: '16px',
+  color: cssVarV2('text/secondary'),
+  fontWeight: 600,
+});
+
+export const docCardBody = style({
+  padding: `${sp(2)} ${sp(3)}`,
+  display: 'flex',
+  flexDirection: 'column',
+  gap: sp(2),
+  minHeight: 0,
+});
+
+export const docComparePanel = style({
+  marginTop: sp(3),
+  borderRadius: 12,
+  border: borderSubtle,
+  background: surfaceBase,
+  padding: `${sp(2)} ${sp(3)}`,
+  display: 'flex',
+  flexDirection: 'column',
+  gap: sp(2),
+});
+
+export const docComparePanelHeader = style({
+  fontSize: 12,
+  lineHeight: '18px',
+  color: cssVarV2('text/secondary'),
+});
+
+export const docComparePanelGrid = style({
+  display: 'grid',
+  gridTemplateColumns: '1fr 1fr',
+  gap: sp(2),
+  '@container': {
+    'akte-detail-body (width <= 900px)': {
+      gridTemplateColumns: '1fr',
+    },
+  },
+});
+
+export const docComparePane = style({
+  borderRadius: 10,
+  border: borderSubtle,
+  background: surfaceRaised,
+  padding: `${sp(2)} ${sp(2)}`,
+  display: 'flex',
+  flexDirection: 'column',
+  gap: sp(2),
+  minHeight: 220,
+});
+
+export const docComparePaneTitle = style({
+  fontSize: 12,
+  lineHeight: '16px',
+  fontWeight: 700,
+  color: cssVarV2('text/primary'),
+});
+
+export const docCompareIframe = style({
+  width: '100%',
+  minHeight: 320,
+  border: borderSubtle,
+  borderRadius: 8,
+  background: surfaceBase,
+});
+
+export const docComparePlaceholder = style({
+  borderRadius: 8,
+  border: `1px dashed color-mix(in srgb, ${cssVarV2('layer/insideBorder/border')} 55%, transparent)`,
+  background: surfaceBase,
+  padding: `${sp(2)} ${sp(2)}`,
+  fontSize: 12,
+  lineHeight: '18px',
+  color: cssVarV2('text/secondary'),
+  minHeight: 120,
+});
+
+export const docReviewDoneBadge = style({
+  background: 'rgba(52, 199, 89, 0.14)',
+  color: 'rgb(52, 199, 89)',
+  selectors: {
+    '[data-theme="dark"] &': {
+      background: 'rgba(52, 199, 89, 0.2)',
+      color: 'rgb(74, 222, 111)',
+    },
+  },
+});
+
+export const docReviewAttentionBadge = style({
+  background: 'rgba(255, 159, 10, 0.16)',
+  color: 'rgb(220, 140, 20)',
+  selectors: {
+    '[data-theme="dark"] &': {
+      background: 'rgba(255, 179, 64, 0.2)',
+      color: 'rgb(255, 179, 64)',
+    },
+  },
+});
+
 export const docSelectCell = style({
   display: 'flex',
   alignItems: 'center',
@@ -1004,6 +1153,21 @@ export const sidePanelEmptyState = style({
   borderRadius: 10,
   border: `1px dashed color-mix(in srgb, ${cssVarV2('layer/insideBorder/border')} 50%, transparent)`,
   background: surfaceRaised,
+});
+
+export const docStatusCell = style({
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'flex-start',
+  gap: 4,
+  minWidth: 0,
+});
+
+export const docStatusInlineRow = style({
+  display: 'flex',
+  alignItems: 'center',
+  gap: sp(1),
+  flexWrap: 'wrap',
 });
 
 export const deadlineRow = style({
