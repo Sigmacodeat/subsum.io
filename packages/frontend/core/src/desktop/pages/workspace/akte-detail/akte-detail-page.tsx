@@ -264,12 +264,19 @@ function buildLegalDocumentHydrationMarkdown(input: {
 }): string {
   const normalizedText = normalizeOcrTextForPage(input.doc.normalizedText);
   const rawText = normalizeOcrTextForPage(input.doc.rawText);
-  const chunkText = input.chunks
-    .sort((a, b) => a.index - b.index)
+  const sortedChunks = [...input.chunks].sort((a, b) => a.index - b.index);
+  const chunkText = sortedChunks
     .map(chunk => chunk.text?.trim())
     .filter((text): text is string => Boolean(text))
     .join('\n\n');
   const bestTextSource = normalizedText || chunkText || rawText;
+  const textSourceLabel = normalizedText
+    ? 'normalizedText'
+    : chunkText
+      ? 'semanticChunks'
+      : rawText
+        ? 'rawText'
+        : 'none';
   const clippedBody = bestTextSource
     ? clipForMarkdown(bestTextSource, 120_000)
     : '⚠️ Kein verwertbarer OCR-Text gefunden. Bitte Originaldatei prüfen und OCR ggf. erneut ausführen.';
@@ -292,9 +299,15 @@ function buildLegalDocumentHydrationMarkdown(input: {
     '',
     `- Dokument-ID: ${input.doc.id}`,
     sourceRefInfo,
+    `- Source-SHA256: ${input.doc.sourceSha256 ?? 'nicht vorhanden'}`,
+    `- Content-Fingerprint: ${input.doc.contentFingerprint ?? 'nicht vorhanden'}`,
+    `- Extraktions-Engine: ${input.doc.extractionEngine ?? input.doc.ocrEngine ?? 'unknown'}`,
+    `- Dokument-Revision: ${input.doc.documentRevision ?? 1}`,
     `- Seiten: ${pageCountInfo}`,
     `- Verarbeitung: ${processingInfo}`,
     `- Qualitäts-Score: ${qualityInfo}`,
+    `- OCR-Textquelle: ${textSourceLabel}`,
+    `- Chunks: ${sortedChunks.length}`,
     '',
     '## Seiten- & Chunk-Abdeckung',
     '',
