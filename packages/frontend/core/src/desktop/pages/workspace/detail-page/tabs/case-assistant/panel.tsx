@@ -2121,25 +2121,6 @@ export const EditorCaseAssistantPanel = ({
     const failedCount = caseDocuments.filter(
       doc => doc.status === 'failed'
     ).length;
-    const uploadedCount = caseDocuments.filter(
-      doc => doc.status === 'uploaded'
-    ).length;
-    const ocrCompletedCount = caseDocuments.filter(
-      doc => doc.status === 'ocr_completed'
-    ).length;
-
-    const totalCount = caseDocuments.length;
-    const inFlightCount =
-      uploadedCount + ocrCompletedCount + ocrPendingCount + ocrRunningCount;
-    const processedCount = indexedCount + failedCount;
-    const accountedCount = Math.min(totalCount, processedCount + inFlightCount);
-    const unaccountedCount = Math.max(0, totalCount - accountedCount);
-    const fallbackProgress =
-      totalCount === 0
-        ? 0
-        : inFlightCount > 0
-          ? Math.max(55, Math.round((processedCount / totalCount) * 100))
-          : Math.round((accountedCount / totalCount) * 100);
 
     const defaultPhaseLabel =
       ocrRunningCount > 0
@@ -2154,15 +2135,11 @@ export const EditorCaseAssistantPanel = ({
       phaseLabel: latestJob
         ? `${latestJob.sourceType === 'folder' ? 'Ordner-Upload' : 'Upload'} · ${jobStatusLabel[latestJob.status] ?? latestJob.status}`
         : defaultPhaseLabel,
-      progress: latestJob?.progress ?? fallbackProgress,
+      progress: latestJob?.progress ?? 0,
       active: Boolean(
         latestJob &&
         (latestJob.status === 'queued' || latestJob.status === 'running')
       ),
-      totalCount,
-      processedCount,
-      inFlightCount,
-      unaccountedCount,
       indexedCount,
       ocrPendingCount,
       ocrRunningCount,
@@ -3454,11 +3431,6 @@ export const EditorCaseAssistantPanel = ({
                 caseMatter?.authorityReferences ?? []
               }
               caseDocuments={caseDocuments}
-              caseAuditEntries={auditEntries.filter(
-                entry =>
-                  entry.workspaceId === workspaceId &&
-                  (!entry.caseId || entry.caseId === caseId)
-              )}
               caseFindingsCount={caseFindings.length}
               ocrRunningCount={ocrRunningCount}
               ocrFailedCount={ocrFailedCount}
@@ -3472,8 +3444,6 @@ export const EditorCaseAssistantPanel = ({
               onProcessOcr={onProcessOcr}
               onAnalyzeCase={onAnalyzeCase}
               onRunFullWorkflow={onRunFullWorkflow}
-              onRetryFailedDocument={onRetryFailedDocument}
-              onRemoveFailedDocument={onRemoveFailedDocument}
               onExportGeneratedDocumentPdf={onExportGeneratedDocumentPdf}
               generatedDoc={generatedDoc}
               folderQuery={folderQuery}
@@ -3795,11 +3765,6 @@ export const EditorCaseAssistantPanel = ({
                     caseMatter?.authorityReferences ?? []
                   }
                   caseDocuments={caseDocuments}
-                  caseAuditEntries={auditEntries.filter(
-                    entry =>
-                      entry.workspaceId === workspaceId &&
-                      (!entry.caseId || entry.caseId === caseId)
-                  )}
                   caseFindingsCount={caseFindings.length}
                   ocrRunningCount={ocrRunningCount}
                   ocrFailedCount={ocrFailedCount}
@@ -3813,8 +3778,6 @@ export const EditorCaseAssistantPanel = ({
                   onProcessOcr={onProcessOcr}
                   onAnalyzeCase={onAnalyzeCase}
                   onRunFullWorkflow={onRunFullWorkflow}
-                  onRetryFailedDocument={onRetryFailedDocument}
-                  onRemoveFailedDocument={onRemoveFailedDocument}
                   onExportGeneratedDocumentPdf={onExportGeneratedDocumentPdf}
                   generatedDoc={generatedDoc}
                   folderQuery={folderQuery}

@@ -1,7 +1,6 @@
 import { Button } from '@affine/component';
 import type {
   CaseAssistantAction,
-  ComplianceAuditEntry,
   GeneratedDocument,
   LegalDocumentRecord,
 } from '@affine/core/modules/case-assistant';
@@ -10,14 +9,10 @@ import { useMemo, useState } from 'react';
 
 import * as styles from '../../case-assistant.css';
 import type { MobileDockAction } from '../panel-types';
-import {
-  legalDocumentKindLabel,
-  legalDocumentStatusLabel,
-} from '../panel-types';
+import { legalDocumentKindLabel, legalDocumentStatusLabel } from '../panel-types';
 import { formatDateTime, sanitizeDisplayText } from '../utils';
 import {
   FileUploadZone,
-  type PipelineFailureItem,
   type UploadedFile,
   type UploadTelemetryAlert,
 } from './file-upload-zone';
@@ -29,7 +24,6 @@ type Props = {
   caseMatterTitle: string | null;
   caseMatterAuthorityReferences: string[];
   caseDocuments: LegalDocumentRecord[];
-  caseAuditEntries?: ComplianceAuditEntry[];
   caseFindingsCount: number;
   ocrRunningCount: number;
   ocrFailedCount: number;
@@ -38,10 +32,7 @@ type Props = {
 
   canAction: (action: CaseAssistantAction) => boolean;
   isWorkflowBusy: boolean;
-  runAsyncUiAction: (
-    action: () => void | Promise<unknown>,
-    errorContext: string
-  ) => void;
+  runAsyncUiAction: (action: () => void | Promise<unknown>, errorContext: string) => void;
 
   onProcessOcr: () => Promise<void>;
   onAnalyzeCase: () => Promise<void>;
@@ -59,30 +50,21 @@ type Props = {
     phaseLabel: string;
     progress: number;
     active: boolean;
-    totalCount?: number;
-    processedCount?: number;
-    inFlightCount?: number;
-    unaccountedCount?: number;
     indexedCount: number;
     ocrPendingCount: number;
     ocrRunningCount: number;
     failedCount: number;
   };
-  onRetryFailedDocument?: (documentId: string) => Promise<boolean>;
-  onRemoveFailedDocument?: (documentId: string) => Promise<boolean>;
 
   onUploadFiles: (files: UploadedFile[]) => Promise<number>;
-  onUploadTelemetryAlert?: (
-    alert: UploadTelemetryAlert
-  ) => void | Promise<void>;
+  onUploadTelemetryAlert?: (alert: UploadTelemetryAlert) => void | Promise<void>;
   onFolderSearch: () => Promise<void>;
   onFolderSummarize: () => Promise<void>;
   onSaveOcrProviderSettings: () => Promise<void>;
 };
 
 export const LegalWorkflowSection = (props: Props) => {
-  const normalizeAuthorityRef = (value: string) =>
-    value.replace(/\s+/g, ' ').trim();
+  const normalizeAuthorityRef = (value: string) => value.replace(/\s+/g, ' ').trim();
 
   const extractAuthorityRefsFromText = (text: string): string[] => {
     const matches = [
@@ -90,18 +72,14 @@ export const LegalWorkflowSection = (props: Props) => {
         /\b(?:AZ|Aktenzeichen|Gesch\.?\s*Z\.?|GZ)\s*[:#-]?\s*([A-Z0-9][A-Z0-9\-/.]{3,40})\b/gi
       ),
     ];
-    const out = matches
-      .map(m => normalizeAuthorityRef(String(m[1] ?? '')))
-      .filter(Boolean);
+    const out = matches.map(m => normalizeAuthorityRef(String(m[1] ?? ''))).filter(Boolean);
     return Array.from(new Set(out.map(v => v.toLowerCase()))).map(lower => {
       const original = out.find(v => v.toLowerCase() === lower);
       return original ?? lower;
     });
   };
 
-  const deriveRelatedMatch = (
-    doc: LegalDocumentRecord
-  ): { matchedRef: string } | null => {
+  const deriveRelatedMatch = (doc: LegalDocumentRecord): { matchedRef: string } | null => {
     const matterRefs = (props.caseMatterAuthorityReferences ?? [])
       .map(normalizeAuthorityRef)
       .filter(Boolean);
@@ -139,13 +117,11 @@ export const LegalWorkflowSection = (props: Props) => {
 
     if (has('vollmacht')) return 'Vollmacht';
     if (has('gutachten')) return 'Gutachten';
-    if (has('ermittlungsakt') || has('ermittlungs akt'))
-      return 'Ermittlungsakt';
+    if (has('ermittlungsakt') || has('ermittlungs akt')) return 'Ermittlungsakt';
     if (has('anzeige')) return 'Anzeige';
     if (has('protokoll') || has('niederschrift')) return 'Protokoll';
     if (has('ladung') || has('termin')) return 'Ladung/Termin';
-    if (has('beschluss') || has('verfügung') || has('verfuegung'))
-      return 'Beschluss/Verfügung';
+    if (has('beschluss') || has('verfügung') || has('verfuegung')) return 'Beschluss/Verfügung';
     if (has('urteil') || has('entscheidung')) return 'Urteil/Entscheidung';
 
     if (
@@ -166,14 +142,8 @@ export const LegalWorkflowSection = (props: Props) => {
     }
 
     if (has('vertrag')) return 'Beilage (Vertrag)';
-    if (has('rechnung') || has('honorar') || has('faktura'))
-      return 'Beilage (Rechnung)';
-    if (
-      has('kontoauszug') ||
-      has('bank') ||
-      has('überweisung') ||
-      has('ueberweisung')
-    ) {
+    if (has('rechnung') || has('honorar') || has('faktura')) return 'Beilage (Rechnung)';
+    if (has('kontoauszug') || has('bank') || has('überweisung') || has('ueberweisung')) {
       return 'Beilage (Finanz)';
     }
     if (has('beilage') || has('anlage')) return 'Beilage';
@@ -186,9 +156,7 @@ export const LegalWorkflowSection = (props: Props) => {
   const hasClient = !!props.caseClientName;
   const hasMatter = !!props.caseMatterTitle;
   const hasDocuments = props.caseDocuments.length > 0;
-  const hasIndexedDocuments = props.caseDocuments.some(
-    item => item.status === 'indexed'
-  );
+  const hasIndexedDocuments = props.caseDocuments.some(item => item.status === 'indexed');
   const hasFindings = props.caseFindingsCount > 0;
   const canRunCasePipeline = hasClient && hasMatter;
 
@@ -202,28 +170,17 @@ export const LegalWorkflowSection = (props: Props) => {
   const progressPercent = Math.round(
     (readinessSteps.filter(s => s.done).length / readinessSteps.length) * 100
   );
-  const uploadedCount = props.caseDocuments.filter(
-    item => item.status === 'uploaded'
-  ).length;
-  const ocrPendingCount = props.caseDocuments.filter(
-    item => item.status === 'ocr_pending'
-  ).length;
-  const ocrRunningCount = props.caseDocuments.filter(
-    item => item.status === 'ocr_running'
-  ).length;
-  const indexedCount = props.caseDocuments.filter(
-    item => item.status === 'indexed'
-  ).length;
-  const failedCount = props.caseDocuments.filter(
-    item => item.status === 'failed'
-  ).length;
-  const ocrCompletedCount = props.caseDocuments.filter(
-    item => item.status === 'ocr_completed'
-  ).length;
+  const uploadedCount = props.caseDocuments.filter(item => item.status === 'uploaded').length;
+  const ocrPendingCount = props.caseDocuments.filter(item => item.status === 'ocr_pending').length;
+  const ocrRunningCount = props.caseDocuments.filter(item => item.status === 'ocr_running').length;
+  const indexedCount = props.caseDocuments.filter(item => item.status === 'indexed').length;
+  const failedCount = props.caseDocuments.filter(item => item.status === 'failed').length;
+  const ocrCompletedCount = props.caseDocuments.filter(item => item.status === 'ocr_completed').length;
   const parsedReadyCount = indexedCount + ocrCompletedCount;
   const totalDocuments = props.caseDocuments.length;
-  const dataQualityPercent =
-    totalDocuments > 0 ? Math.round((indexedCount / totalDocuments) * 100) : 0;
+  const dataQualityPercent = totalDocuments > 0
+    ? Math.round((indexedCount / totalDocuments) * 100)
+    : 0;
   const canFinalizeCaseData =
     totalDocuments > 0 &&
     failedCount === 0 &&
@@ -231,69 +188,11 @@ export const LegalWorkflowSection = (props: Props) => {
     ocrRunningCount === 0 &&
     indexedCount > 0;
 
-  const pipelineFailures = useMemo<PipelineFailureItem[]>(() => {
-    const retryActionMap: Record<
-      string,
-      'success' | 'still_failed' | 'crashed' | 'no_content'
-    > = {
-      'document.retry.success': 'success',
-      'document.retry.still_failed': 'still_failed',
-      'document.retry.crashed': 'crashed',
-      'document.retry.no_content': 'no_content',
-    };
-
-    const retryEventsByDocument = new Map<
-      string,
-      Array<{
-        action: 'success' | 'still_failed' | 'crashed' | 'no_content';
-        createdAt: string;
-      }>
-    >();
-
-    for (const entry of props.caseAuditEntries ?? []) {
-      const action = retryActionMap[entry.action];
-      if (!action) continue;
-      const documentId = entry.metadata?.documentId;
-      if (!documentId) continue;
-      const bucket = retryEventsByDocument.get(documentId) ?? [];
-      bucket.push({ action, createdAt: entry.createdAt });
-      retryEventsByDocument.set(documentId, bucket);
-    }
-
-    return props.caseDocuments
-      .filter(
-        doc => doc.status === 'failed' || doc.processingStatus === 'failed'
-      )
-      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
-      .map(doc => {
-        const retryHistory = (retryEventsByDocument.get(doc.id) ?? [])
-          .slice()
-          .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-        return {
-          documentId: doc.id,
-          title: doc.title,
-          processingError:
-            doc.processingError?.trim() ||
-            `Verarbeitung fehlgeschlagen (Status: ${doc.processingStatus ?? doc.status}).`,
-          extractionEngine: doc.extractionEngine,
-          updatedAt: doc.updatedAt,
-          retryCount: retryHistory.length,
-          lastRetryAt: retryHistory[0]?.createdAt,
-          lastRetryOutcome: retryHistory[0]?.action,
-          retryHistory,
-        };
-      });
-  }, [props.caseAuditEntries, props.caseDocuments]);
-
   const [docSearchQuery, setDocSearchQuery] = useState('');
   const [docTypeFilter, setDocTypeFilter] = useState<string>('all');
   const [docStatusFilter, setDocStatusFilter] = useState<string>('all');
-  const [docProblemFilter, setDocProblemFilter] = useState<
-    'all' | 'problematic'
-  >('all');
-  const [docRelatedFilter, setDocRelatedFilter] = useState<'all' | 'related'>(
-    'all'
-  );
+  const [docProblemFilter, setDocProblemFilter] = useState<'all' | 'problematic'>('all');
+  const [docRelatedFilter, setDocRelatedFilter] = useState<'all' | 'related'>('all');
 
   const typeOptions = useMemo(() => {
     const set = new Set<string>();
@@ -325,15 +224,12 @@ export const LegalWorkflowSection = (props: Props) => {
 
     return props.caseDocuments
       .filter(doc => {
-        if (docRelatedFilter === 'related' && !deriveRelatedMatch(doc))
-          return false;
+        if (docRelatedFilter === 'related' && !deriveRelatedMatch(doc)) return false;
         if (!matchStatus(doc)) return false;
         if (!matchType(doc)) return false;
-        if (docProblemFilter === 'problematic' && !isProblematic(doc))
-          return false;
+        if (docProblemFilter === 'problematic' && !isProblematic(doc)) return false;
         if (!query) return true;
-        const haystack =
-          `${doc.title ?? ''} ${doc.internalFileNumber ?? ''}`.toLowerCase();
+        const haystack = `${doc.title ?? ''} ${doc.internalFileNumber ?? ''}`.toLowerCase();
         return haystack.includes(query);
       })
       .slice()
@@ -342,14 +238,7 @@ export const LegalWorkflowSection = (props: Props) => {
         const tb = new Date(b.updatedAt).getTime();
         return tb - ta;
       });
-  }, [
-    props.caseDocuments,
-    docProblemFilter,
-    docRelatedFilter,
-    docSearchQuery,
-    docStatusFilter,
-    docTypeFilter,
-  ]);
+  }, [props.caseDocuments, docProblemFilter, docRelatedFilter, docSearchQuery, docStatusFilter, docTypeFilter]);
 
   const newVersionDocumentIds = useMemo(() => {
     // Conservative: only when same base filename exists within related docs and sha differs.
@@ -370,19 +259,12 @@ export const LegalWorkflowSection = (props: Props) => {
     const out = new Set<string>();
     for (const list of groups.values()) {
       if (list.length < 2) continue;
-      const shaSet = new Set(
-        list
-          .map(d => d.sourceSha256 ?? d.contentFingerprint ?? '')
-          .filter(Boolean)
-      );
+      const shaSet = new Set(list.map(d => d.sourceSha256 ?? d.contentFingerprint ?? '').filter(Boolean));
       if (shaSet.size < 2) continue;
       // Mark all but the oldest as "newer versions"
       const sorted = list
         .slice()
-        .sort(
-          (a, b) =>
-            new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime()
-        );
+        .sort((a, b) => new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime());
       for (let i = 1; i < sorted.length; i++) {
         out.add(sorted[i]!.id);
       }
@@ -415,33 +297,17 @@ export const LegalWorkflowSection = (props: Props) => {
     ).slice(0, 6);
 
     const blockers: string[] = [];
-    const ocrBacklog = docs.filter(
-      d => d.status === 'ocr_pending' || d.status === 'ocr_running'
-    ).length;
-    const failedDocs = docs.filter(
-      d => d.status === 'failed' || d.processingStatus === 'failed'
-    ).length;
-    const needsReviewDocs = docs.filter(
-      d => d.processingStatus === 'needs_review'
-    ).length;
-    if (ocrBacklog > 0)
-      blockers.push(`${ocrBacklog} Dokument(e) befinden sich noch in OCR`);
-    if (failedDocs > 0)
-      blockers.push(`${failedDocs} Dokument(e) sind fehlgeschlagen`);
+    const ocrBacklog = docs.filter(d => d.status === 'ocr_pending' || d.status === 'ocr_running').length;
+    const failedDocs = docs.filter(d => d.status === 'failed' || d.processingStatus === 'failed').length;
+    const needsReviewDocs = docs.filter(d => d.processingStatus === 'needs_review').length;
+    if (ocrBacklog > 0) blockers.push(`${ocrBacklog} Dokument(e) befinden sich noch in OCR`);
+    if (failedDocs > 0) blockers.push(`${failedDocs} Dokument(e) sind fehlgeschlagen`);
 
     const nextSteps: string[] = [];
-    if (failedDocs > 0)
-      nextSteps.push('Fehler bereinigen (Retry failed only / Quelle prüfen)');
-    if (ocrBacklog > 0)
-      nextSteps.push(
-        'OCR-Rückstand abarbeiten (damit Inhalte durchsuchbar sind)'
-      );
-    if (needsReviewDocs > 0)
-      nextSteps.push('Review-Dokumente prüfen und freigeben');
-    if (docs.length === 0)
-      nextSteps.push(
-        'Dokumente hochladen, damit die Akte automatisch befüllt werden kann'
-      );
+    if (failedDocs > 0) nextSteps.push('Fehler bereinigen (Retry failed only / Quelle prüfen)');
+    if (ocrBacklog > 0) nextSteps.push('OCR-Rückstand abarbeiten (damit Inhalte durchsuchbar sind)');
+    if (needsReviewDocs > 0) nextSteps.push('Review-Dokumente prüfen und freigeben');
+    if (docs.length === 0) nextSteps.push('Dokumente hochladen, damit die Akte automatisch befüllt werden kann');
 
     const missing: string[] = [];
     if (!props.caseClientName) missing.push('Mandant zuordnen');
@@ -460,6 +326,7 @@ export const LegalWorkflowSection = (props: Props) => {
 
   return (
     <section ref={props.sectionRef} className={styles.section}>
+
       {/* ── Header ── */}
       <div className={styles.headerRow}>
         <h3 className={styles.sectionTitle}>Dokumenten-Workflow</h3>
@@ -473,10 +340,7 @@ export const LegalWorkflowSection = (props: Props) => {
           {' · '}
           Akte: <strong>{props.caseMatterTitle ?? '—'}</strong>
         </div>
-        <ol
-          className={styles.governanceList}
-          aria-label="Workflow-Bereitschaft"
-        >
+        <ol className={styles.governanceList} aria-label="Workflow-Bereitschaft">
           {readinessSteps.map(step => (
             <li key={step.label} className={styles.governanceItem}>
               <span aria-hidden="true">{step.done ? '✓' : '○'}</span>{' '}
@@ -486,37 +350,19 @@ export const LegalWorkflowSection = (props: Props) => {
         </ol>
       </div>
 
-      <div
-        className={localStyles.intakeQualityGate}
-        role="status"
-        aria-live="polite"
-      >
+      <div className={localStyles.intakeQualityGate} role="status" aria-live="polite">
         <div className={localStyles.intakeQualityHeader}>
           <strong>Daten-Einspielung (Quality Gate)</strong>
           <span>{dataQualityPercent}% indexiert</span>
         </div>
         <div className={localStyles.intakeQualityGrid}>
-          <div className={localStyles.intakeMetricChip}>
-            Gesamt: <strong>{totalDocuments}</strong>
-          </div>
-          <div className={localStyles.intakeMetricChip}>
-            Hochgeladen: <strong>{uploadedCount}</strong>
-          </div>
-          <div className={localStyles.intakeMetricChip}>
-            Verarbeitet: <strong>{parsedReadyCount}</strong>
-          </div>
-          <div className={localStyles.intakeMetricChip}>
-            OCR ausstehend: <strong>{ocrPendingCount}</strong>
-          </div>
-          <div className={localStyles.intakeMetricChip}>
-            OCR läuft: <strong>{ocrRunningCount}</strong>
-          </div>
-          <div className={localStyles.intakeMetricChip}>
-            Indiziert: <strong>{indexedCount}</strong>
-          </div>
-          <div className={localStyles.intakeMetricChip}>
-            Fehler: <strong>{failedCount}</strong>
-          </div>
+          <div className={localStyles.intakeMetricChip}>Gesamt: <strong>{totalDocuments}</strong></div>
+          <div className={localStyles.intakeMetricChip}>Hochgeladen: <strong>{uploadedCount}</strong></div>
+          <div className={localStyles.intakeMetricChip}>Verarbeitet: <strong>{parsedReadyCount}</strong></div>
+          <div className={localStyles.intakeMetricChip}>OCR ausstehend: <strong>{ocrPendingCount}</strong></div>
+          <div className={localStyles.intakeMetricChip}>OCR läuft: <strong>{ocrRunningCount}</strong></div>
+          <div className={localStyles.intakeMetricChip}>Indiziert: <strong>{indexedCount}</strong></div>
+          <div className={localStyles.intakeMetricChip}>Fehler: <strong>{failedCount}</strong></div>
         </div>
         <div className={localStyles.intakeQualityHint}>
           {canFinalizeCaseData
@@ -527,30 +373,15 @@ export const LegalWorkflowSection = (props: Props) => {
           <div className={localStyles.intakeQualityActions}>
             <Button
               variant="plain"
-              disabled={
-                !canRunCasePipeline ||
-                !props.canAction('document.ocr') ||
-                props.isWorkflowBusy
-              }
-              onClick={() =>
-                props.runAsyncUiAction(props.onProcessOcr, 'process ocr failed')
-              }
+              disabled={!canRunCasePipeline || !props.canAction('document.ocr') || props.isWorkflowBusy}
+              onClick={() => props.runAsyncUiAction(props.onProcessOcr, 'process ocr failed')}
             >
               OCR-Rückstand abarbeiten
             </Button>
             <Button
               variant="secondary"
-              disabled={
-                !canRunCasePipeline ||
-                !props.canAction('copilot.execute') ||
-                props.isWorkflowBusy
-              }
-              onClick={() =>
-                props.runAsyncUiAction(
-                  props.onAnalyzeCase,
-                  'analyze case failed'
-                )
-              }
+              disabled={!canRunCasePipeline || !props.canAction('copilot.execute') || props.isWorkflowBusy}
+              onClick={() => props.runAsyncUiAction(props.onAnalyzeCase, 'analyze case failed')}
             >
               Datenqualität prüfen
             </Button>
@@ -560,8 +391,7 @@ export const LegalWorkflowSection = (props: Props) => {
 
       {!canRunCasePipeline ? (
         <div className={styles.warningBanner} role="alert">
-          Bitte zuerst Mandant und Akte unter „Werkzeuge“ → Mandanten &amp;
-          Akten zuordnen.
+          Bitte zuerst Mandant und Akte unter „Werkzeuge“ → Mandanten &amp; Akten zuordnen.
         </div>
       ) : null}
 
@@ -575,10 +405,7 @@ export const LegalWorkflowSection = (props: Props) => {
             props.isWorkflowBusy
           }
           onClick={() =>
-            props.runAsyncUiAction(
-              props.onRunFullWorkflow,
-              'full workflow failed'
-            )
+            props.runAsyncUiAction(props.onRunFullWorkflow, 'full workflow failed')
           }
           className={localStyles.fullWidthButton}
         >
@@ -596,16 +423,10 @@ export const LegalWorkflowSection = (props: Props) => {
         <div className={localStyles.uploadZoneWrap}>
           <FileUploadZone
             onFilesReady={files =>
-              props.runAsyncUiAction(
-                () => props.onUploadFiles(files),
-                'file upload failed'
-              )
+              props.runAsyncUiAction(() => props.onUploadFiles(files), 'file upload failed')
             }
             onUploadTelemetryAlert={props.onUploadTelemetryAlert}
             pipelineProgress={props.pipelineProgress}
-            pipelineFailures={pipelineFailures}
-            onRetryFailedDocument={props.onRetryFailedDocument}
-            onRemoveFailedDocument={props.onRemoveFailedDocument}
             disabled={
               !canRunCasePipeline ||
               !props.canAction('document.upload') ||
@@ -640,12 +461,8 @@ export const LegalWorkflowSection = (props: Props) => {
             OCR ausführen
           </Button>
         </div>
-        <details
-          className={`${styles.toolAccordion} ${localStyles.ocrProviderWrap}`}
-        >
-          <summary className={styles.toolAccordionSummary}>
-            OCR-Provider konfigurieren
-          </summary>
+        <details className={`${styles.toolAccordion} ${localStyles.ocrProviderWrap}`}>
+          <summary className={styles.toolAccordionSummary}>OCR-Provider konfigurieren</summary>
           <div className={styles.formGrid}>
             <label className={styles.formLabel}>
               Endpoint
@@ -675,9 +492,7 @@ export const LegalWorkflowSection = (props: Props) => {
           <div className={styles.buttonRow}>
             <Button
               variant="plain"
-              disabled={
-                !props.canAction('document.ocr') || props.isWorkflowBusy
-              }
+              disabled={!props.canAction('document.ocr') || props.isWorkflowBusy}
               onClick={() =>
                 props.runAsyncUiAction(
                   props.onSaveOcrProviderSettings,
@@ -693,12 +508,9 @@ export const LegalWorkflowSection = (props: Props) => {
 
       {/* ── Phase 3: Analyse ── */}
       <details className={styles.toolAccordion}>
-        <summary className={styles.toolAccordionSummary}>
-          Phase 3 — Fall analysieren
-        </summary>
+        <summary className={styles.toolAccordionSummary}>Phase 3 — Fall analysieren</summary>
         <p className={styles.previewMeta}>
-          Startet die KI-Analyse aller indexierten Dokumente und erstellt
-          Findings.
+          Startet die KI-Analyse aller indexierten Dokumente und erstellt Findings.
         </p>
         <div className={styles.buttonRow}>
           <Button
@@ -719,9 +531,7 @@ export const LegalWorkflowSection = (props: Props) => {
 
       {/* ── Phase 4: Export ── */}
       <details className={styles.toolAccordion}>
-        <summary className={styles.toolAccordionSummary}>
-          Phase 4 — Als PDF exportieren
-        </summary>
+        <summary className={styles.toolAccordionSummary}>Phase 4 — Als PDF exportieren</summary>
         <p className={styles.previewMeta}>
           {props.generatedDoc
             ? `Bereit: „${sanitizeDisplayText(props.generatedDoc.title) || 'Generiertes Dokument'}"`
@@ -745,9 +555,7 @@ export const LegalWorkflowSection = (props: Props) => {
 
       {/* ── Dokument-Liste ── */}
       <div className={`${styles.headerRow} ${localStyles.docsHeaderTop}`}>
-        <h4
-          className={`${styles.sectionTitle} ${localStyles.docsTitleCompact}`}
-        >
+        <h4 className={`${styles.sectionTitle} ${localStyles.docsTitleCompact}`}>
           Akten-Dokumente
         </h4>
         <span className={styles.jobMeta}>
@@ -760,15 +568,9 @@ export const LegalWorkflowSection = (props: Props) => {
         </div>
       ) : (
         <>
-          <div
-            className={localStyles.caseCockpitCard}
-            role="region"
-            aria-label="Akten-Cockpit"
-          >
+          <div className={localStyles.caseCockpitCard} role="region" aria-label="Akten-Cockpit">
             <div className={localStyles.caseCockpitHeader}>
-              <div className={localStyles.caseCockpitTitle}>
-                Akte auf einen Blick
-              </div>
+              <div className={localStyles.caseCockpitTitle}>Akte auf einen Blick</div>
               <span className={styles.jobMeta}>
                 {cockpit.blockers.length > 0
                   ? `${cockpit.blockers.length} Blocker`
@@ -784,28 +586,18 @@ export const LegalWorkflowSection = (props: Props) => {
                 <div className={localStyles.caseCockpitChipRow}>
                   {cockpit.typeChips.length > 0 ? (
                     cockpit.typeChips.map(chip => (
-                      <span
-                        key={chip}
-                        className={localStyles.caseCockpitChip}
-                        title={chip}
-                      >
+                      <span key={chip} className={localStyles.caseCockpitChip} title={chip}>
                         {chip}
                       </span>
                     ))
                   ) : (
-                    <span className={localStyles.caseCockpitChip}>
-                      Noch keine Signale
-                    </span>
+                    <span className={localStyles.caseCockpitChip}>Noch keine Signale</span>
                   )}
                 </div>
                 {cockpit.uniqueAuthorityRefs.length > 0 ? (
                   <div className={localStyles.caseCockpitChipRow}>
                     {cockpit.uniqueAuthorityRefs.map(ref => (
-                      <span
-                        key={ref}
-                        className={localStyles.caseCockpitChip}
-                        title={ref}
-                      >
+                      <span key={ref} className={localStyles.caseCockpitChip} title={ref}>
                         {ref}
                       </span>
                     ))}
@@ -814,9 +606,7 @@ export const LegalWorkflowSection = (props: Props) => {
               </div>
 
               <div className={localStyles.caseCockpitPanel}>
-                <div className={localStyles.caseCockpitPanelTitle}>
-                  Fehlt / Next Steps
-                </div>
+                <div className={localStyles.caseCockpitPanelTitle}>Fehlt / Next Steps</div>
                 {cockpit.missing.length > 0 || cockpit.nextSteps.length > 0 ? (
                   <ol className={localStyles.caseCockpitList}>
                     {cockpit.missing.map(item => (
@@ -827,26 +617,19 @@ export const LegalWorkflowSection = (props: Props) => {
                     ))}
                   </ol>
                 ) : (
-                  <div className={styles.previewMeta}>
-                    Keine offenen Punkte erkannt.
-                  </div>
+                  <div className={styles.previewMeta}>Keine offenen Punkte erkannt.</div>
                 )}
               </div>
             </div>
 
             {cockpit.blockers.length > 0 ? (
               <div className={styles.warningBanner} role="alert">
-                <strong>Konflikte/Blocker:</strong>{' '}
-                {cockpit.blockers.join(' · ')}
+                <strong>Konflikte/Blocker:</strong> {cockpit.blockers.join(' · ')}
               </div>
             ) : null}
           </div>
 
-          <div
-            className={localStyles.docFilterBar}
-            role="region"
-            aria-label="Dokument-Filter"
-          >
+          <div className={localStyles.docFilterBar} role="region" aria-label="Dokument-Filter">
             <div className={localStyles.docFilterGroup}>
               <input
                 className={`${styles.input} ${localStyles.docFilterInput}`}
@@ -883,13 +666,9 @@ export const LegalWorkflowSection = (props: Props) => {
                 <option value="failed">Fehlgeschlagen</option>
               </select>
               <Button
-                variant={
-                  docProblemFilter === 'problematic' ? 'secondary' : 'plain'
-                }
+                variant={docProblemFilter === 'problematic' ? 'secondary' : 'plain'}
                 onClick={() =>
-                  setDocProblemFilter(prev =>
-                    prev === 'problematic' ? 'all' : 'problematic'
-                  )
+                  setDocProblemFilter(prev => (prev === 'problematic' ? 'all' : 'problematic'))
                 }
                 aria-pressed={docProblemFilter === 'problematic'}
               >
@@ -897,19 +676,13 @@ export const LegalWorkflowSection = (props: Props) => {
               </Button>
               <Button
                 variant={docRelatedFilter === 'related' ? 'secondary' : 'plain'}
-                onClick={() =>
-                  setDocRelatedFilter(prev =>
-                    prev === 'related' ? 'all' : 'related'
-                  )
-                }
+                onClick={() => setDocRelatedFilter(prev => (prev === 'related' ? 'all' : 'related'))}
                 aria-pressed={docRelatedFilter === 'related'}
               >
                 Related
               </Button>
             </div>
-            <span className={styles.jobMeta}>
-              {filteredDocuments.length} Treffer
-            </span>
+            <span className={styles.jobMeta}>{filteredDocuments.length} Treffer</span>
           </div>
 
           <ul className={styles.documentList} aria-label="Akten-Dokumente">
@@ -920,8 +693,7 @@ export const LegalWorkflowSection = (props: Props) => {
               return (
                 <li className={styles.documentItem} key={document.id}>
                   <div className={styles.documentTitle}>
-                    {sanitizeDisplayText(document.title) ||
-                      'Unbenanntes Dokument'}
+                    {sanitizeDisplayText(document.title) || 'Unbenanntes Dokument'}
                   </div>
                   <div className={styles.documentMeta}>
                     <span>{legalDocumentKindLabel[document.kind]}</span>
@@ -929,11 +701,7 @@ export const LegalWorkflowSection = (props: Props) => {
                     <span>{legalDocumentStatusLabel[document.status]}</span>
                     <span>{formatDateTime(document.updatedAt)}</span>
                     {related ? (
-                      <span
-                        title={`Behördenreferenz match: ${related.matchedRef}`}
-                      >
-                        Related
-                      </span>
+                      <span title={`Behördenreferenz match: ${related.matchedRef}`}>Related</span>
                     ) : null}
                     {isNewVersion ? (
                       <span title="Neue Fassung (gleicher Dateiname + related + anderer Hash)">
@@ -941,31 +709,21 @@ export const LegalWorkflowSection = (props: Props) => {
                       </span>
                     ) : null}
                     {document.internalFileNumber ? (
-                      <span title="Interne Aktennummer">
-                        AZ: {document.internalFileNumber}
-                      </span>
+                      <span title="Interne Aktennummer">AZ: {document.internalFileNumber}</span>
                     ) : null}
                     {document.documentRevision ? (
-                      <span title="Dokumentrevision">
-                        Rev: {document.documentRevision}
-                      </span>
+                      <span title="Dokumentrevision">Rev: {document.documentRevision}</span>
                     ) : null}
                   </div>
-                  {document.paragraphReferences &&
-                  document.paragraphReferences.length > 0 ? (
-                    <div
-                      className={`${styles.documentMeta} ${localStyles.documentMetaTop}`}
-                    >
+                  {document.paragraphReferences && document.paragraphReferences.length > 0 ? (
+                    <div className={`${styles.documentMeta} ${localStyles.documentMetaTop}`}>
                       <span title="Normbezüge">
-                        Normen:{' '}
-                        {document.paragraphReferences.slice(0, 3).join(', ')}
+                        Normen: {document.paragraphReferences.slice(0, 3).join(', ')}
                       </span>
                     </div>
                   ) : null}
                   {document.contentFingerprint ? (
-                    <div
-                      className={`${styles.documentMeta} ${localStyles.documentMetaTop}`}
-                    >
+                    <div className={`${styles.documentMeta} ${localStyles.documentMetaTop}`}>
                       <span title="Integritätsfingerprint">
                         Hash: {document.contentFingerprint.slice(0, 14)}
                       </span>
@@ -980,9 +738,7 @@ export const LegalWorkflowSection = (props: Props) => {
 
       {/* ── Erweitert: Ordner-Suche ── */}
       <details className={styles.toolAccordion}>
-        <summary className={styles.toolAccordionSummary}>
-          Erweitert — Ordner durchsuchen
-        </summary>
+        <summary className={styles.toolAccordionSummary}>Erweitert — Ordner durchsuchen</summary>
         <div className={styles.formGrid}>
           <label className={styles.formLabel}>
             Ordner-Pfad
@@ -999,30 +755,23 @@ export const LegalWorkflowSection = (props: Props) => {
             variant="plain"
             disabled={!props.canAction('folder.search') || props.isWorkflowBusy}
             onClick={() =>
-              props.runAsyncUiAction(
-                props.onFolderSearch,
-                'folder search failed'
-              )
+              props.runAsyncUiAction(props.onFolderSearch, 'folder search failed')
             }
           >
             Ordner durchsuchen
           </Button>
           <Button
             variant="plain"
-            disabled={
-              !props.canAction('folder.summarize') || props.isWorkflowBusy
-            }
+            disabled={!props.canAction('folder.summarize') || props.isWorkflowBusy}
             onClick={() =>
-              props.runAsyncUiAction(
-                props.onFolderSummarize,
-                'folder summarize failed'
-              )
+              props.runAsyncUiAction(props.onFolderSummarize, 'folder summarize failed')
             }
           >
             Ordner zusammenfassen
           </Button>
         </div>
       </details>
+
     </section>
   );
 };

@@ -1,10 +1,10 @@
 import { useConfirmModal } from '@affine/component';
-import { insertFromMarkdown } from '@affine/core/blocksuite/utils';
+import { useI18n } from '@affine/i18n';
 import {
   LEGAL_UPLOAD_ACCEPT_ATTR,
   prepareLegalUploadFiles,
 } from '@affine/core/modules/case-assistant';
-import { useI18n } from '@affine/i18n';
+import { insertFromMarkdown } from '@affine/core/blocksuite/utils';
 import { useLiveData, useService } from '@toeverything/infra';
 import {
   type ChangeEvent,
@@ -44,7 +44,6 @@ import { WorkbenchService } from '../../../../modules/workbench';
 import { ViewSidebarTab } from '../../../../modules/workbench/view/view-islands';
 import {
   FileUploadZone,
-  type PipelineFailureItem,
   type UploadedFile,
 } from '../detail-page/tabs/case-assistant/sections/file-upload-zone';
 import { BulkActionBar } from '../layouts/bulk-action-bar';
@@ -219,21 +218,14 @@ function buildChunkCoverageMarkdown(input: {
 
   const pageSet = new Set<number>();
   for (const chunk of sorted) {
-    if (
-      typeof chunk.pageNumber === 'number' &&
-      Number.isFinite(chunk.pageNumber)
-    ) {
+    if (typeof chunk.pageNumber === 'number' && Number.isFinite(chunk.pageNumber)) {
       pageSet.add(chunk.pageNumber);
     }
   }
 
   const pages = [...pageSet].sort((a, b) => a - b);
   const missingPages: number[] = [];
-  if (
-    typeof input.pageCount === 'number' &&
-    input.pageCount > 0 &&
-    pages.length > 0
-  ) {
+  if (typeof input.pageCount === 'number' && input.pageCount > 0 && pages.length > 0) {
     for (let page = 1; page <= input.pageCount; page++) {
       if (!pageSet.has(page)) {
         missingPages.push(page);
@@ -261,9 +253,7 @@ function buildChunkCoverageMarkdown(input: {
   }
   lines.push(...previewLines);
   if (sorted.length > previewLines.length) {
-    lines.push(
-      `- ... ${sorted.length - previewLines.length} weitere Chunks verfügbar.`
-    );
+    lines.push(`- ... ${sorted.length - previewLines.length} weitere Chunks verfügbar.`);
   }
   return lines;
 }
@@ -697,8 +687,6 @@ export const AkteDetailPage = () => {
     const activeCount =
       uploadedCount + ocrCompletedCount + ocrPendingCount + ocrRunningCount;
     const completedCount = indexedCount + failedCount;
-    const accountedCount = Math.min(total, completedCount + activeCount);
-    const unaccountedCount = Math.max(0, total - accountedCount);
 
     const progress = isIntakeRunning
       ? intakeProgress
@@ -706,7 +694,7 @@ export const AkteDetailPage = () => {
         ? 0
         : activeCount > 0
           ? Math.max(55, Math.round((completedCount / total) * 100))
-          : Math.round((accountedCount / total) * 100);
+          : 100;
 
     const phaseLabel = isIntakeRunning
       ? t['com.affine.caseAssistant.akteDetail.pipeline.phase.upload']()
@@ -714,12 +702,10 @@ export const AkteDetailPage = () => {
         ? t['com.affine.caseAssistant.akteDetail.pipeline.phase.ocrRunning']()
         : ocrPendingCount > 0
           ? t['com.affine.caseAssistant.akteDetail.pipeline.phase.ocrPending']()
-          : failedCount > 0
-            ? t['com.affine.caseAssistant.akteDetail.pipeline.phase.failed']()
-            : indexedCount > 0
-              ? t[
-                  'com.affine.caseAssistant.akteDetail.pipeline.phase.indexed'
-                ]()
+          : indexedCount > 0
+            ? t['com.affine.caseAssistant.akteDetail.pipeline.phase.indexed']()
+            : failedCount > 0
+              ? t['com.affine.caseAssistant.akteDetail.pipeline.phase.failed']()
               : t['com.affine.caseAssistant.akteDetail.pipeline.phase.idle']();
 
     return {
@@ -730,31 +716,8 @@ export const AkteDetailPage = () => {
       ocrPendingCount,
       ocrRunningCount,
       failedCount,
-      totalCount: total,
-      processedCount: completedCount,
-      inFlightCount: activeCount,
-      unaccountedCount,
     };
   }, [isIntakeRunning, intakeProgress, matterDocs, t]);
-
-  const pipelineFailures = useMemo<PipelineFailureItem[]>(
-    () =>
-      matterDocs
-        .filter(
-          doc => doc.status === 'failed' || doc.processingStatus === 'failed'
-        )
-        .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
-        .map(doc => ({
-          documentId: doc.id,
-          title: doc.title,
-          processingError:
-            doc.processingError?.trim() ||
-            `Verarbeitung fehlgeschlagen (Status: ${doc.processingStatus ?? doc.status}).`,
-          extractionEngine: doc.extractionEngine,
-          updatedAt: doc.updatedAt,
-        })),
-    [matterDocs]
-  );
 
   // ═══ Chat State ═══
   const [activeChatSessionId, setActiveChatSessionId] = useState<string | null>(
@@ -862,17 +825,13 @@ export const AkteDetailPage = () => {
   const sortedFilteredDocs = useMemo(
     () =>
       [...filteredDocs].sort(
-        (a, b) =>
-          new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+        (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
       ),
     [filteredDocs]
   );
 
   const compareDoc = useMemo(
-    () =>
-      compareDocId
-        ? (matterDocs.find(doc => doc.id === compareDocId) ?? null)
-        : null,
+    () => (compareDocId ? matterDocs.find(doc => doc.id === compareDocId) ?? null : null),
     [compareDocId, matterDocs]
   );
 
@@ -1348,47 +1307,6 @@ export const AkteDetailPage = () => {
     ]
   );
 
-  const onRetryFailedDocument = useCallback(
-    async (documentId: string): Promise<boolean> => {
-      try {
-        const ok = await copilotWorkflowService.retryFailedDocument(documentId);
-        showStatus(
-          ok
-            ? 'Dokument erfolgreich erneut verarbeitet.'
-            : 'Retry fehlgeschlagen — Dokument konnte nicht verarbeitet werden.'
-        );
-        return ok;
-      } catch (error) {
-        showStatus(
-          `Retry-Fehler: ${error instanceof Error ? error.message : 'Unbekannter Fehler'}`
-        );
-        return false;
-      }
-    },
-    [copilotWorkflowService, showStatus]
-  );
-
-  const onRemoveFailedDocument = useCallback(
-    async (documentId: string): Promise<boolean> => {
-      try {
-        const ok =
-          await copilotWorkflowService.removeFailedDocument(documentId);
-        showStatus(
-          ok
-            ? 'Dokument wurde aus dem Akt entfernt.'
-            : 'Dokument konnte nicht entfernt werden.'
-        );
-        return ok;
-      } catch (error) {
-        showStatus(
-          `Entfernen-Fehler: ${error instanceof Error ? error.message : 'Unbekannter Fehler'}`
-        );
-        return false;
-      }
-    },
-    [copilotWorkflowService, showStatus]
-  );
-
   const timelineEvents = useMemo(() => {
     const actorLabel = (actor: string) =>
       actor === 'user'
@@ -1659,9 +1577,7 @@ export const AkteDetailPage = () => {
       ) => {
         const markdown = buildLegalDocumentHydrationMarkdown({
           doc: sourceDoc,
-          chunks: matterChunks.filter(
-            chunk => chunk.documentId === sourceDoc.id
-          ),
+          chunks: matterChunks.filter(chunk => chunk.documentId === sourceDoc.id),
         });
 
         let releaseDoc: (() => void) | null = null;
@@ -1800,9 +1716,7 @@ export const AkteDetailPage = () => {
       await casePlatformOrchestrationService.appendAuditEntry({
         caseId: doc.caseId,
         workspaceId: doc.workspaceId,
-        action: reviewed
-          ? 'document.review.completed'
-          : 'document.review.reset',
+        action: reviewed ? 'document.review.completed' : 'document.review.reset',
         severity: 'info',
         details: reviewed
           ? `Abgleich als abgeschlossen markiert: ${doc.title}`
@@ -1824,10 +1738,7 @@ export const AkteDetailPage = () => {
 
   const handleToggleDocumentAttention = useCallback(
     async (doc: LegalDocumentRecord) => {
-      const currentlyAttention = hasDocWorkflowTag(
-        doc,
-        DOC_REVIEW_ATTENTION_TAG
-      );
+      const currentlyAttention = hasDocWorkflowTag(doc, DOC_REVIEW_ATTENTION_TAG);
       const nextAttention = !currentlyAttention;
       const withAttention = upsertDocTag(
         doc.tags ?? [],
@@ -2372,13 +2283,12 @@ export const AkteDetailPage = () => {
           let jobId: string | null = null;
 
           try {
-            const job =
-              await casePlatformOrchestrationService.enqueueIngestionJob({
-                caseId,
-                workspaceId,
-                sourceType: 'upload',
-                sourceRef,
-              });
+            const job = await casePlatformOrchestrationService.enqueueIngestionJob({
+              caseId,
+              workspaceId,
+              sourceType: 'upload',
+              sourceRef,
+            });
             jobId = job.id;
 
             await casePlatformOrchestrationService.updateJobStatus({
@@ -2658,9 +2568,7 @@ export const AkteDetailPage = () => {
                     {reviewCoveragePercent}%
                   </span>
                   <span className={styles.akteMetaBadge}>
-                    <span className={styles.akteMetaBadgeLabel}>
-                      Abgleich OK
-                    </span>
+                    <span className={styles.akteMetaBadgeLabel}>Abgleich OK</span>
                     {docReviewCounts.reviewed}
                   </span>
                   <span
@@ -3204,9 +3112,7 @@ export const AkteDetailPage = () => {
                       <button
                         type="button"
                         className={styles.alertFilterChip}
-                        data-active={
-                          docViewMode === 'cards' ? 'true' : undefined
-                        }
+                        data-active={docViewMode === 'cards' ? 'true' : undefined}
                         onClick={() => setDocViewMode('cards')}
                       >
                         Karten
@@ -3214,9 +3120,7 @@ export const AkteDetailPage = () => {
                       <button
                         type="button"
                         className={styles.alertFilterChip}
-                        data-active={
-                          docViewMode === 'list' ? 'true' : undefined
-                        }
+                        data-active={docViewMode === 'list' ? 'true' : undefined}
                         onClick={() => setDocViewMode('list')}
                       >
                         Liste
@@ -3226,9 +3130,7 @@ export const AkteDetailPage = () => {
                       <button
                         type="button"
                         className={styles.alertFilterChip}
-                        data-active={
-                          docReviewFilter === 'all' ? 'true' : undefined
-                        }
+                        data-active={docReviewFilter === 'all' ? 'true' : undefined}
                         onClick={() => setDocReviewFilter('all')}
                       >
                         Alle {docReviewCounts.all}
@@ -3236,9 +3138,7 @@ export const AkteDetailPage = () => {
                       <button
                         type="button"
                         className={styles.alertFilterChip}
-                        data-active={
-                          docReviewFilter === 'open' ? 'true' : undefined
-                        }
+                        data-active={docReviewFilter === 'open' ? 'true' : undefined}
                         onClick={() => setDocReviewFilter('open')}
                       >
                         Offen {docReviewCounts.open}
@@ -3246,9 +3146,7 @@ export const AkteDetailPage = () => {
                       <button
                         type="button"
                         className={styles.alertFilterChip}
-                        data-active={
-                          docReviewFilter === 'reviewed' ? 'true' : undefined
-                        }
+                        data-active={docReviewFilter === 'reviewed' ? 'true' : undefined}
                         onClick={() => setDocReviewFilter('reviewed')}
                       >
                         Abgleich OK {docReviewCounts.reviewed}
@@ -3256,9 +3154,7 @@ export const AkteDetailPage = () => {
                       <button
                         type="button"
                         className={styles.alertFilterChip}
-                        data-active={
-                          docReviewFilter === 'attention' ? 'true' : undefined
-                        }
+                        data-active={docReviewFilter === 'attention' ? 'true' : undefined}
                         onClick={() => setDocReviewFilter('attention')}
                       >
                         Prüfen {docReviewCounts.attention}
@@ -3271,9 +3167,7 @@ export const AkteDetailPage = () => {
                           className={styles.alertFilterChip}
                           onClick={() => {
                             handleBulkReviewUpdate('reviewed').catch(() => {
-                              showStatus(
-                                'Bulk-Abgleichstatus konnte nicht gespeichert werden.'
-                              );
+                              showStatus('Bulk-Abgleichstatus konnte nicht gespeichert werden.');
                             });
                           }}
                         >
@@ -3284,9 +3178,7 @@ export const AkteDetailPage = () => {
                           className={styles.alertFilterChip}
                           onClick={() => {
                             handleBulkReviewUpdate('attention').catch(() => {
-                              showStatus(
-                                'Bulk-Prüfhinweis konnte nicht gespeichert werden.'
-                              );
+                              showStatus('Bulk-Prüfhinweis konnte nicht gespeichert werden.');
                             });
                           }}
                         >
@@ -3378,17 +3270,13 @@ export const AkteDetailPage = () => {
                             maxFiles={80}
                             onFilesReady={handlePreparedFiles}
                             pipelineProgress={pipelineProgress}
-                            pipelineFailures={pipelineFailures}
-                            onRetryFailedDocument={onRetryFailedDocument}
-                            onRemoveFailedDocument={onRemoveFailedDocument}
                           />
                         </div>
 
                         {compareDoc ? (
                           <section className={styles.alertCenter}>
                             <div className={styles.alertCardMeta}>
-                              <strong>OCR-Abgleich aktiv:</strong>{' '}
-                              {compareDoc.title}
+                              <strong>OCR-Abgleich aktiv:</strong> {compareDoc.title}
                             </div>
                             <div className={styles.alertGrid}>
                               <div className={styles.alertCard}>
@@ -3402,9 +3290,7 @@ export const AkteDetailPage = () => {
                                     className={styles.searchInput}
                                     src={compareDoc.sourceRef}
                                     style={{ minHeight: 320, maxWidth: '100%' }}
-                                    onError={() =>
-                                      setComparePreviewFailed(true)
-                                    }
+                                    onError={() => setComparePreviewFailed(true)}
                                   />
                                 ) : (
                                   <div className={styles.alertEmpty}>
@@ -3418,16 +3304,10 @@ export const AkteDetailPage = () => {
                                   className={styles.inlineCreateButton}
                                   onClick={() => {
                                     if (!compareDoc.sourceRef) {
-                                      showStatus(
-                                        'Keine Quell-Referenz vorhanden.'
-                                      );
+                                      showStatus('Keine Quell-Referenz vorhanden.');
                                       return;
                                     }
-                                    window.open(
-                                      compareDoc.sourceRef,
-                                      '_blank',
-                                      'noopener,noreferrer'
-                                    );
+                                    window.open(compareDoc.sourceRef, '_blank', 'noopener,noreferrer');
                                   }}
                                 >
                                   Quelle im neuen Tab öffnen
@@ -3438,18 +3318,15 @@ export const AkteDetailPage = () => {
                                   Semantischer Arbeitsstand (Akte-Doc)
                                 </div>
                                 <div className={styles.alertEmpty}>
-                                  Die semantische Version wird in der
-                                  verknüpften Seite geöffnet. Nutze die
-                                  Checkliste „Abgleich-Checkliste“ im Dokument
-                                  und speichere dort deine Bearbeitung.
+                                  Die semantische Version wird in der verknüpften Seite geöffnet.
+                                  Nutze die Checkliste „Abgleich-Checkliste“ im Dokument und speichere
+                                  dort deine Bearbeitung.
                                 </div>
                                 <button
                                   type="button"
                                   className={styles.inlineCreateButton}
                                   onClick={() => {
-                                    handleOpenDocument(compareDoc).catch(
-                                      () => {}
-                                    );
+                                    handleOpenDocument(compareDoc).catch(() => {});
                                   }}
                                 >
                                   Semantische Seite öffnen
@@ -3487,10 +3364,7 @@ export const AkteDetailPage = () => {
                             {docViewMode === 'cards' ? (
                               <div className={styles.docCardGrid}>
                                 {sortedFilteredDocs.map(doc => {
-                                  const statusInfo = getDocStatusInfo(
-                                    doc.status,
-                                    t
-                                  );
+                                  const statusInfo = getDocStatusInfo(doc.status, t);
                                   const isReviewDone = hasDocWorkflowTag(
                                     doc,
                                     DOC_REVIEW_DONE_TAG
@@ -3510,40 +3384,23 @@ export const AkteDetailPage = () => {
                                       role="button"
                                       tabIndex={0}
                                       onKeyDown={e => {
-                                        if (
-                                          e.key === 'Enter' ||
-                                          e.key === ' '
-                                        ) {
+                                        if (e.key === 'Enter' || e.key === ' ') {
                                           e.preventDefault();
-                                          handleOpenDocument(doc).catch(
-                                            () => {}
-                                          );
+                                          handleOpenDocument(doc).catch(() => {});
                                         }
                                       }}
                                     >
                                       <div className={styles.docCardThumb}>
-                                        <span
-                                          className={styles.docCardThumbTitle}
-                                        >
-                                          {(doc.title || 'D')
-                                            .slice(0, 2)
-                                            .toUpperCase()}
+                                        <span className={styles.docCardThumbTitle}>
+                                          {(doc.title || 'D').slice(0, 2).toUpperCase()}
                                         </span>
-                                        <span
-                                          className={styles.docCardThumbMeta}
-                                        >
-                                          {doc.pageCount
-                                            ? `${doc.pageCount} S.`
-                                            : 'Seiten ?'}
+                                        <span className={styles.docCardThumbMeta}>
+                                          {doc.pageCount ? `${doc.pageCount} S.` : 'Seiten ?'}
                                         </span>
                                       </div>
                                       <div className={styles.docCardBody}>
-                                        <div className={styles.docTitle}>
-                                          {doc.title}
-                                        </div>
-                                        <div
-                                          className={styles.docDigestSummary}
-                                        >
+                                        <div className={styles.docTitle}>{doc.title}</div>
+                                        <div className={styles.docDigestSummary}>
                                           {digest?.summary ??
                                             'Semantische Vorschau wird aus Chunks aufgebaut.'}
                                         </div>
@@ -3582,363 +3439,339 @@ export const AkteDetailPage = () => {
                                   key={folder}
                                   className={styles.folderSection}
                                 >
-                                  <div
-                                    className={styles.folderHeader}
-                                    onClick={() => toggleFolder(folder)}
-                                    role="button"
-                                    tabIndex={0}
-                                    aria-expanded={expandedFolders.has(folder)}
-                                    onKeyDown={e => {
-                                      if (e.key === 'Enter' || e.key === ' ') {
-                                        e.preventDefault();
-                                        toggleFolder(folder);
-                                      }
-                                    }}
+                                <div
+                                  className={styles.folderHeader}
+                                  onClick={() => toggleFolder(folder)}
+                                  role="button"
+                                  tabIndex={0}
+                                  aria-expanded={expandedFolders.has(folder)}
+                                  onKeyDown={e => {
+                                    if (e.key === 'Enter' || e.key === ' ') {
+                                      e.preventDefault();
+                                      toggleFolder(folder);
+                                    }
+                                  }}
+                                >
+                                  <span
+                                    className={styles.folderChevron}
+                                    data-open={expandedFolders.has(folder)}
                                   >
-                                    <span
-                                      className={styles.folderChevron}
-                                      data-open={expandedFolders.has(folder)}
-                                    >
-                                      ›
-                                    </span>
-                                    <span className={styles.folderName}>
-                                      {folder === '/'
-                                        ? t[
-                                            'com.affine.caseAssistant.akteDetail.documents.folder.root'
-                                          ]()
-                                        : folder}
-                                    </span>
-                                    <span className={styles.folderCount}>
-                                      {docs.length}
-                                    </span>
-                                  </div>
+                                    ›
+                                  </span>
+                                  <span className={styles.folderName}>
+                                    {folder === '/'
+                                      ? t[
+                                          'com.affine.caseAssistant.akteDetail.documents.folder.root'
+                                        ]()
+                                      : folder}
+                                  </span>
+                                  <span className={styles.folderCount}>
+                                    {docs.length}
+                                  </span>
+                                </div>
 
-                                  {expandedFolders.has(folder) && (
-                                    <div className={styles.folderContent}>
-                                      {/* Header */}
-                                      <div className={styles.docHeaderRow}>
-                                        <span className={styles.docSelectCell}>
-                                          <input
-                                            className={styles.docSelectCheckbox}
-                                            type="checkbox"
-                                            checked={
-                                              docs.length > 0 &&
-                                              docs.every(d =>
-                                                bulkSelection.selectedIds.has(
-                                                  d.id
-                                                )
+                                {expandedFolders.has(folder) && (
+                                  <div className={styles.folderContent}>
+                                    {/* Header */}
+                                    <div className={styles.docHeaderRow}>
+                                      <span className={styles.docSelectCell}>
+                                        <input
+                                          className={styles.docSelectCheckbox}
+                                          type="checkbox"
+                                          checked={
+                                            docs.length > 0 &&
+                                            docs.every(d =>
+                                              bulkSelection.selectedIds.has(
+                                                d.id
                                               )
-                                            }
-                                            ref={el => {
-                                              if (!el) return;
-                                              const anySelected = docs.some(d =>
+                                            )
+                                          }
+                                          ref={el => {
+                                            if (!el) return;
+                                            const anySelected = docs.some(d =>
+                                              bulkSelection.selectedIds.has(
+                                                d.id
+                                              )
+                                            );
+                                            el.indeterminate =
+                                              anySelected &&
+                                              !docs.every(d =>
                                                 bulkSelection.selectedIds.has(
                                                   d.id
                                                 )
                                               );
-                                              el.indeterminate =
-                                                anySelected &&
-                                                !docs.every(d =>
-                                                  bulkSelection.selectedIds.has(
-                                                    d.id
-                                                  )
-                                                );
-                                            }}
-                                            onChange={e => {
-                                              for (const doc of docs) {
-                                                bulkSelection.toggle(
-                                                  doc.id,
-                                                  e.currentTarget.checked
-                                                );
-                                              }
-                                            }}
-                                            aria-label={
-                                              folder === '/'
-                                                ? t[
-                                                    'com.affine.caseAssistant.akteDetail.documents.selectAll.root'
-                                                  ]()
-                                                : t.t(
-                                                    'com.affine.caseAssistant.akteDetail.documents.selectAll.folder',
-                                                    {
-                                                      folder,
-                                                    }
-                                                  )
+                                          }}
+                                          onChange={e => {
+                                            for (const doc of docs) {
+                                              bulkSelection.toggle(
+                                                doc.id,
+                                                e.currentTarget.checked
+                                              );
                                             }
-                                          />
-                                        </span>
-                                        <span>
-                                          {t[
-                                            'com.affine.caseAssistant.akteDetail.documents.table.document'
-                                          ]()}
-                                        </span>
-                                        <span>
-                                          {t[
-                                            'com.affine.caseAssistant.akteDetail.documents.table.type'
-                                          ]()}
-                                        </span>
-                                        <span className={styles.docMeta}>
-                                          {t[
-                                            'com.affine.caseAssistant.akteDetail.documents.table.date'
-                                          ]()}
-                                        </span>
-                                        <span>
-                                          {t[
-                                            'com.affine.caseAssistant.akteDetail.documents.table.status'
-                                          ]()}
-                                        </span>
-                                      </div>
-                                      {docs
-                                        .sort(
-                                          (a, b) =>
-                                            new Date(b.updatedAt).getTime() -
-                                            new Date(a.updatedAt).getTime()
-                                        )
-                                        .map(doc => {
-                                          const statusInfo = getDocStatusInfo(
-                                            doc.status,
-                                            t
-                                          );
-                                          const isReviewDone =
-                                            hasDocWorkflowTag(
-                                              doc,
-                                              DOC_REVIEW_DONE_TAG
-                                            );
-                                          const needsAttention =
-                                            hasDocWorkflowTag(
-                                              doc,
-                                              DOC_REVIEW_ATTENTION_TAG
-                                            );
-                                          const digest = documentDigestById.get(
-                                            doc.id
-                                          );
-                                          return (
-                                            <div
-                                              key={doc.id}
-                                              className={styles.docRow}
-                                              data-selected={bulkSelection.isSelected(
-                                                doc.id
-                                              )}
-                                              onClick={() => {
+                                          }}
+                                          aria-label={
+                                            folder === '/'
+                                              ? t[
+                                                  'com.affine.caseAssistant.akteDetail.documents.selectAll.root'
+                                                ]()
+                                              : t.t(
+                                                  'com.affine.caseAssistant.akteDetail.documents.selectAll.folder',
+                                                  {
+                                                    folder,
+                                                  }
+                                                )
+                                          }
+                                        />
+                                      </span>
+                                      <span>
+                                        {t[
+                                          'com.affine.caseAssistant.akteDetail.documents.table.document'
+                                        ]()}
+                                      </span>
+                                      <span>
+                                        {t[
+                                          'com.affine.caseAssistant.akteDetail.documents.table.type'
+                                        ]()}
+                                      </span>
+                                      <span className={styles.docMeta}>
+                                        {t[
+                                          'com.affine.caseAssistant.akteDetail.documents.table.date'
+                                        ]()}
+                                      </span>
+                                      <span>
+                                        {t[
+                                          'com.affine.caseAssistant.akteDetail.documents.table.status'
+                                        ]()}
+                                      </span>
+                                    </div>
+                                    {docs
+                                      .sort(
+                                        (a, b) =>
+                                          new Date(b.updatedAt).getTime() -
+                                          new Date(a.updatedAt).getTime()
+                                      )
+                                      .map(doc => {
+                                        const statusInfo = getDocStatusInfo(
+                                          doc.status,
+                                          t
+                                        );
+                                        const isReviewDone = hasDocWorkflowTag(
+                                          doc,
+                                          DOC_REVIEW_DONE_TAG
+                                        );
+                                        const needsAttention = hasDocWorkflowTag(
+                                          doc,
+                                          DOC_REVIEW_ATTENTION_TAG
+                                        );
+                                        const digest = documentDigestById.get(
+                                          doc.id
+                                        );
+                                        return (
+                                          <div
+                                            key={doc.id}
+                                            className={styles.docRow}
+                                            data-selected={bulkSelection.isSelected(
+                                              doc.id
+                                            )}
+                                            onClick={() => {
+                                              handleOpenDocument(doc).catch(
+                                                () => {
+                                                  // fallback handling happens inside handleOpenDocument
+                                                }
+                                              );
+                                            }}
+                                            role="button"
+                                            tabIndex={0}
+                                            onKeyDown={e => {
+                                              if (
+                                                e.key === 'Enter' ||
+                                                e.key === ' '
+                                              ) {
+                                                e.preventDefault();
                                                 handleOpenDocument(doc).catch(
                                                   () => {
                                                     // fallback handling happens inside handleOpenDocument
                                                   }
                                                 );
-                                              }}
-                                              role="button"
-                                              tabIndex={0}
-                                              onKeyDown={e => {
-                                                if (
-                                                  e.key === 'Enter' ||
-                                                  e.key === ' '
-                                                ) {
-                                                  e.preventDefault();
-                                                  handleOpenDocument(doc).catch(
-                                                    () => {
-                                                      // fallback handling happens inside handleOpenDocument
+                                              }
+                                            }}
+                                          >
+                                            <span
+                                              className={styles.docSelectCell}
+                                            >
+                                              <input
+                                                className={
+                                                  styles.docSelectCheckbox
+                                                }
+                                                type="checkbox"
+                                                checked={bulkSelection.isSelected(
+                                                  doc.id
+                                                )}
+                                                onClick={e => {
+                                                  e.stopPropagation();
+                                                }}
+                                                onChange={e => {
+                                                  bulkSelection.toggleWithRange(
+                                                    doc.id,
+                                                    {
+                                                      shiftKey: (
+                                                        e.nativeEvent as any
+                                                      ).shiftKey,
                                                     }
                                                   );
-                                                }
-                                              }}
-                                            >
-                                              <span
-                                                className={styles.docSelectCell}
-                                              >
-                                                <input
-                                                  className={
-                                                    styles.docSelectCheckbox
+                                                }}
+                                                aria-label={t.t(
+                                                  'com.affine.caseAssistant.akteDetail.documents.selectOne.aria',
+                                                  {
+                                                    title: doc.title,
                                                   }
-                                                  type="checkbox"
-                                                  checked={bulkSelection.isSelected(
-                                                    doc.id
-                                                  )}
-                                                  onClick={e => {
-                                                    e.stopPropagation();
-                                                  }}
-                                                  onChange={e => {
-                                                    bulkSelection.toggleWithRange(
-                                                      doc.id,
-                                                      {
-                                                        shiftKey: (
-                                                          e.nativeEvent as any
-                                                        ).shiftKey,
-                                                      }
-                                                    );
-                                                  }}
-                                                  aria-label={t.t(
-                                                    'com.affine.caseAssistant.akteDetail.documents.selectOne.aria',
-                                                    {
-                                                      title: doc.title,
-                                                    }
-                                                  )}
-                                                />
-                                              </span>
-                                              <div
-                                                className={styles.docTitleCol}
-                                              >
-                                                <div
-                                                  className={styles.docTitle}
-                                                >
-                                                  {doc.title}
-                                                  {doc.chunkCount ? (
-                                                    <span
-                                                      className={
-                                                        styles.docKindBadge
-                                                      }
-                                                    >
-                                                      {doc.chunkCount} Chunks
-                                                    </span>
-                                                  ) : null}
-                                                </div>
-                                                {digest?.summary ? (
-                                                  <div
+                                                )}
+                                              />
+                                            </span>
+                                            <div className={styles.docTitleCol}>
+                                              <div className={styles.docTitle}>
+                                                {doc.title}
+                                                {doc.chunkCount ? (
+                                                  <span
                                                     className={
-                                                      styles.docDigestSummary
+                                                      styles.docKindBadge
                                                     }
                                                   >
-                                                    {digest.summary}
-                                                  </div>
-                                                ) : null}
-                                                {digest?.toc &&
-                                                digest.toc.length > 0 ? (
-                                                  <div
-                                                    className={
-                                                      styles.docDigestToc
-                                                    }
-                                                  >
-                                                    {digest.toc.map(item => (
-                                                      <span
-                                                        key={`${doc.id}:${item}`}
-                                                        className={
-                                                          styles.docDigestTocItem
-                                                        }
-                                                      >
-                                                        {item}
-                                                      </span>
-                                                    ))}
-                                                  </div>
+                                                    {doc.chunkCount} Chunks
+                                                  </span>
                                                 ) : null}
                                               </div>
-                                              <span>
-                                                <span
+                                              {digest?.summary ? (
+                                                <div
                                                   className={
-                                                    styles.docKindBadge
+                                                    styles.docDigestSummary
                                                   }
                                                 >
-                                                  {docKindLabel[
-                                                    (doc.kind ??
-                                                      'other') as keyof typeof docKindLabel
-                                                  ] ?? docKindLabel.other}
-                                                </span>
-                                              </span>
-                                              <span className={styles.docMeta}>
-                                                {relativeTime(
-                                                  doc.updatedAt,
-                                                  language,
-                                                  t
-                                                )}
-                                              </span>
-                                              <span className={styles.docMeta}>
-                                                <span
+                                                  {digest.summary}
+                                                </div>
+                                              ) : null}
+                                              {digest?.toc &&
+                                              digest.toc.length > 0 ? (
+                                                <div
                                                   className={
                                                     styles.docDigestToc
                                                   }
                                                 >
-                                                  <span
-                                                    className={`${styles.docStatusBadge} ${statusInfo.className}`}
-                                                  >
-                                                    {statusInfo.label}
-                                                  </span>
-                                                  {isReviewDone ? (
+                                                  {digest.toc.map(item => (
                                                     <span
-                                                      className={`${styles.docStatusBadge} ${styles.docStatusReady}`}
+                                                      key={`${doc.id}:${item}`}
+                                                      className={
+                                                        styles.docDigestTocItem
+                                                      }
                                                     >
-                                                      Abgleich OK
+                                                      {item}
                                                     </span>
-                                                  ) : null}
-                                                  {needsAttention ? (
-                                                    <span
-                                                      className={`${styles.docStatusBadge} ${styles.docStatusPending}`}
-                                                    >
-                                                      Prüfen
-                                                    </span>
-                                                  ) : null}
-                                                </span>
+                                                  ))}
+                                                </div>
+                                              ) : null}
+                                            </div>
+                                            <span>
+                                              <span
+                                                className={styles.docKindBadge}
+                                              >
+                                                {docKindLabel[
+                                                  (doc.kind ??
+                                                    'other') as keyof typeof docKindLabel
+                                                ] ?? docKindLabel.other}
+                                              </span>
+                                            </span>
+                                            <span className={styles.docMeta}>
+                                              {relativeTime(
+                                                doc.updatedAt,
+                                                language,
+                                                t
+                                              )}
+                                            </span>
+                                            <span className={styles.docMeta}>
+                                              <span className={styles.docDigestToc}>
                                                 <span
-                                                  className={
-                                                    styles.docRowActions
+                                                  className={`${styles.docStatusBadge} ${statusInfo.className}`}
+                                                >
+                                                  {statusInfo.label}
+                                                </span>
+                                                {isReviewDone ? (
+                                                  <span
+                                                    className={`${styles.docStatusBadge} ${styles.docStatusReady}`}
+                                                  >
+                                                    Abgleich OK
+                                                  </span>
+                                                ) : null}
+                                                {needsAttention ? (
+                                                  <span
+                                                    className={`${styles.docStatusBadge} ${styles.docStatusPending}`}
+                                                  >
+                                                    Prüfen
+                                                  </span>
+                                                ) : null}
+                                              </span>
+                                              <span className={styles.docRowActions}>
+                                                <button
+                                                  type="button"
+                                                  className={styles.docActionButton}
+                                                  onClick={e => {
+                                                    e.stopPropagation();
+                                                    handleMarkDocumentReviewed(
+                                                      doc,
+                                                      !isReviewDone
+                                                    ).catch(() => {
+                                                      showStatus(
+                                                        `Abgleichstatus konnte nicht gespeichert werden: ${doc.title}`
+                                                      );
+                                                    });
+                                                  }}
+                                                  aria-label={
+                                                    isReviewDone
+                                                      ? `Abgleich zurücksetzen für ${doc.title}`
+                                                      : `Abgleich als abgeschlossen markieren für ${doc.title}`
                                                   }
                                                 >
-                                                  <button
-                                                    type="button"
-                                                    className={
-                                                      styles.docActionButton
-                                                    }
-                                                    onClick={e => {
-                                                      e.stopPropagation();
-                                                      handleMarkDocumentReviewed(
-                                                        doc,
-                                                        !isReviewDone
-                                                      ).catch(() => {
-                                                        showStatus(
-                                                          `Abgleichstatus konnte nicht gespeichert werden: ${doc.title}`
-                                                        );
-                                                      });
-                                                    }}
-                                                    aria-label={
-                                                      isReviewDone
-                                                        ? `Abgleich zurücksetzen für ${doc.title}`
-                                                        : `Abgleich als abgeschlossen markieren für ${doc.title}`
-                                                    }
-                                                  >
-                                                    {isReviewDone ? '↺' : '✓'}
-                                                  </button>
-                                                  <button
-                                                    type="button"
-                                                    className={
-                                                      styles.docActionButton
-                                                    }
-                                                    onClick={e => {
-                                                      e.stopPropagation();
-                                                      handleToggleDocumentAttention(
-                                                        doc
-                                                      ).catch(() => {
+                                                  {isReviewDone ? '↺' : '✓'}
+                                                </button>
+                                                <button
+                                                  type="button"
+                                                  className={styles.docActionButton}
+                                                  onClick={e => {
+                                                    e.stopPropagation();
+                                                    handleToggleDocumentAttention(doc).catch(
+                                                      () => {
                                                         showStatus(
                                                           `Prüfhinweis konnte nicht gespeichert werden: ${doc.title}`
                                                         );
-                                                      });
-                                                    }}
-                                                    aria-label={
-                                                      needsAttention
-                                                        ? `Prüfhinweis entfernen für ${doc.title}`
-                                                        : `Prüfhinweis setzen für ${doc.title}`
-                                                    }
-                                                  >
-                                                    ⚠︎
-                                                  </button>
-                                                  <button
-                                                    type="button"
-                                                    className={
-                                                      styles.docActionButton
-                                                    }
-                                                    onClick={e => {
-                                                      e.stopPropagation();
-                                                      setCompareDocId(doc.id);
-                                                      handleOpenDocument(
-                                                        doc
-                                                      ).catch(() => {});
-                                                    }}
-                                                    aria-label={`Abgleichsansicht öffnen für ${doc.title}`}
-                                                  >
-                                                    ⇄
-                                                  </button>
-                                                </span>
+                                                      }
+                                                    );
+                                                  }}
+                                                  aria-label={
+                                                    needsAttention
+                                                      ? `Prüfhinweis entfernen für ${doc.title}`
+                                                      : `Prüfhinweis setzen für ${doc.title}`
+                                                  }
+                                                >
+                                                  ⚠︎
+                                                </button>
+                                                <button
+                                                  type="button"
+                                                  className={styles.docActionButton}
+                                                  onClick={e => {
+                                                    e.stopPropagation();
+                                                    setCompareDocId(doc.id);
+                                                    handleOpenDocument(doc).catch(() => {});
+                                                  }}
+                                                  aria-label={`Abgleichsansicht öffnen für ${doc.title}`}
+                                                >
+                                                  ⇄
+                                                </button>
                                               </span>
-                                            </div>
-                                          );
-                                        })}
-                                    </div>
-                                  )}
+                                            </span>
+                                          </div>
+                                        );
+                                      })}
+                                  </div>
+                                )}
                                 </div>
                               ))
                             )}
@@ -4506,13 +4339,7 @@ const AkteChatPanel = ({
     setInputValue('');
     setAttachedFiles([]);
     setAttachmentError(null);
-  }, [
-    attachedFiles,
-    inputValue,
-    isBusy,
-    isPreparingAttachments,
-    onSendMessage,
-  ]);
+  }, [attachedFiles, inputValue, isBusy, isPreparingAttachments, onSendMessage]);
 
   const onOpenFilePicker = useCallback(() => {
     if (isBusy || isPreparingAttachments) return;
@@ -4556,9 +4383,7 @@ const AkteChatPanel = ({
 
           setAttachedFiles(prev => {
             const seen = new Set(
-              prev.map(
-                item => `${item.name}:${item.size}:${item.lastModifiedAt}`
-              )
+              prev.map(item => `${item.name}:${item.size}:${item.lastModifiedAt}`)
             );
             const merged = [...prev];
             for (const file of accepted) {
@@ -4607,22 +4432,22 @@ const AkteChatPanel = ({
     [activeSessionId, isBusy, isPreparingAttachments, onAttachmentInputChange]
   );
 
-  const onDragOverSection = useCallback(
+  const onDragOverSection = useCallback((event: DragEvent<HTMLElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!isDragOver) {
+      setIsDragOver(true);
+    }
+  }, [isDragOver]);
+
+  const onDragLeaveSection = useCallback(
     (event: DragEvent<HTMLElement>) => {
       event.preventDefault();
       event.stopPropagation();
-      if (!isDragOver) {
-        setIsDragOver(true);
-      }
+      setIsDragOver(false);
     },
-    [isDragOver]
+    []
   );
-
-  const onDragLeaveSection = useCallback((event: DragEvent<HTMLElement>) => {
-    event.preventDefault();
-    event.stopPropagation();
-    setIsDragOver(false);
-  }, []);
 
   const onRemoveAttachment = useCallback((index: number) => {
     setAttachedFiles(prev => prev.filter((_, idx) => idx !== index));

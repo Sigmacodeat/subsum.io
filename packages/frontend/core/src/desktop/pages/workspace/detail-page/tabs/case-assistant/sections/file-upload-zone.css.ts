@@ -31,10 +31,7 @@ const breathe = keyframes({
 
 const dropPulse = keyframes({
   '0%, 100%': { borderColor: 'var(--affine-primary-color, #6366f1)' },
-  '50%': {
-    borderColor:
-      'color-mix(in srgb, var(--affine-primary-color, #6366f1) 40%, transparent)',
-  },
+  '50%': { borderColor: 'color-mix(in srgb, var(--affine-primary-color, #6366f1) 40%, transparent)' },
 });
 
 /* ═══════════════ Root ═══════════════ */
@@ -142,8 +139,7 @@ export const dropZone = style({
   background: `linear-gradient(135deg, color-mix(in srgb, ${cssVarV2('layer/background/secondary')} 96%, transparent), color-mix(in srgb, ${cssVarV2('layer/background/secondary')} 90%, transparent))`,
   outline: 'none',
   opacity: opacityVar,
-  transition:
-    'border-color 0.25s ease, box-shadow 0.25s ease, background 0.25s ease, transform 0.18s ease',
+  transition: 'border-color 0.25s ease, box-shadow 0.25s ease, background 0.25s ease, transform 0.18s ease',
   '@media': {
     '(max-width: 760px)': {
       padding: '22px 16px',
@@ -163,11 +159,9 @@ export const dropZone = style({
   },
   selectors: {
     '&:hover': {
-      borderColor:
-        'color-mix(in srgb, var(--affine-primary-color) 50%, var(--affine-border-color))',
+      borderColor: 'color-mix(in srgb, var(--affine-primary-color) 50%, var(--affine-border-color))',
       background: `linear-gradient(135deg, color-mix(in srgb, ${cssVarV2('layer/background/secondary')} 92%, var(--affine-primary-color, transparent)), color-mix(in srgb, ${cssVarV2('layer/background/secondary')} 88%, transparent))`,
-      boxShadow:
-        '0 0 0 1px color-mix(in srgb, var(--affine-primary-color) 12%, transparent), 0 4px 16px rgba(0,0,0,0.08)',
+      boxShadow: '0 0 0 1px color-mix(in srgb, var(--affine-primary-color) 12%, transparent), 0 4px 16px rgba(0,0,0,0.08)',
       transform: 'translateY(-1px)',
     },
     '&:focus-visible': {
@@ -181,8 +175,7 @@ export const dropZoneActive = style({
   borderStyle: 'solid',
   borderColor: 'var(--affine-primary-color, #6366f1)',
   background: `linear-gradient(135deg, color-mix(in srgb, var(--affine-primary-color, #6366f1) 6%, ${cssVarV2('layer/background/secondary')}), color-mix(in srgb, var(--affine-primary-color, #6366f1) 3%, ${cssVarV2('layer/background/secondary')}))`,
-  boxShadow:
-    '0 0 0 2px color-mix(in srgb, var(--affine-primary-color) 18%, transparent), 0 8px 24px rgba(0,0,0,0.12)',
+  boxShadow: '0 0 0 2px color-mix(in srgb, var(--affine-primary-color) 18%, transparent), 0 8px 24px rgba(0,0,0,0.12)',
   animation: `${dropPulse} 1.5s ease-in-out infinite`,
   transform: 'translateY(-2px)',
 });
@@ -422,10 +415,8 @@ export const glassCardLive = style({
   position: 'sticky',
   top: 4,
   zIndex: 3,
-  borderColor:
-    'color-mix(in srgb, var(--affine-primary-color) 40%, var(--affine-border-color))',
-  boxShadow:
-    '0 1px 0 rgba(255,255,255,0.04) inset, 0 8px 28px rgba(0,0,0,0.14)',
+  borderColor: 'color-mix(in srgb, var(--affine-primary-color) 40%, var(--affine-border-color))',
+  boxShadow: '0 1px 0 rgba(255,255,255,0.04) inset, 0 8px 28px rgba(0,0,0,0.14)',
   animation: `${fadeIn} 0.35s ease both, ${pulseGlow} 2.5s ease-in-out infinite`,
 });
 
@@ -461,8 +452,7 @@ export const progressFillShimmer = style({
       position: 'absolute',
       inset: '0',
       borderRadius: '999px',
-      background:
-        'linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.25) 50%, transparent 100%)',
+      background: 'linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.25) 50%, transparent 100%)',
       backgroundSize: '200% 100%',
       animation: `${shimmer} 1.8s ease-in-out infinite`,
     },
@@ -549,12 +539,6 @@ export const chipError = style({
   background: `color-mix(in srgb, ${cssVarV2('status/error')} 6%, ${cssVarV2('layer/background/primary')})`,
 });
 
-export const chipWarning = style({
-  color: `color-mix(in srgb, ${cssVarV2('status/error')} 78%, ${cssVarV2('text/primary')})`,
-  borderColor: `color-mix(in srgb, ${cssVarV2('status/error')} 22%, transparent)`,
-  background: `color-mix(in srgb, ${cssVarV2('status/error')} 4%, ${cssVarV2('layer/background/primary')})`,
-});
-
 /* ═══════════════ Live Indicator ═══════════════ */
 
 export const liveDot = style({
@@ -638,115 +622,6 @@ export const integrityHint = style({
   border: `0.5px solid ${cssVarV2('layer/insideBorder/border')}`,
   background: `color-mix(in srgb, ${cssVarV2('layer/background/secondary')} 75%, transparent)`,
   lineHeight: 1.45,
-});
-
-export const resultWindow = style({
-  display: 'flex',
-  flexDirection: 'column',
-  gap: 10,
-  borderRadius: 12,
-  border: `0.5px solid ${cssVarV2('layer/insideBorder/border')}`,
-  background: `linear-gradient(135deg, color-mix(in srgb, ${cssVarV2('layer/background/secondary')} 95%, transparent), color-mix(in srgb, ${cssVarV2('layer/background/secondary')} 88%, transparent))`,
-  boxShadow: '0 10px 28px rgba(0,0,0,0.18)',
-  padding: '12px',
-});
-
-export const resultWindowHeader = style({
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  gap: 8,
-  flexWrap: 'wrap',
-});
-
-export const resultWindowTitle = style({
-  fontSize: 12,
-  fontWeight: 700,
-  color: cssVarV2('text/primary'),
-});
-
-export const resultWindowList = style({
-  display: 'flex',
-  flexDirection: 'column',
-  gap: 8,
-  maxHeight: 260,
-  overflowY: 'auto',
-  paddingRight: 2,
-});
-
-export const resultWindowItem = style({
-  display: 'flex',
-  flexDirection: 'column',
-  gap: 6,
-  borderRadius: 8,
-  border: `0.5px solid ${cssVarV2('layer/insideBorder/border')}`,
-  background: cssVarV2('layer/background/primary'),
-  padding: '8px',
-});
-
-export const resultWindowItemTitle = style({
-  fontSize: 11,
-  fontWeight: 700,
-  color: cssVarV2('text/primary'),
-});
-
-export const resultWindowItemMeta = style({
-  fontSize: 10,
-  color: cssVarV2('text/secondary'),
-  lineHeight: 1.45,
-});
-
-export const resultWindowMetaRow = style({
-  display: 'flex',
-  alignItems: 'center',
-  gap: 6,
-  flexWrap: 'wrap',
-});
-
-export const resultWindowRecommendation = style({
-  fontSize: 10,
-  color: cssVarV2('text/secondary'),
-  lineHeight: 1.4,
-  borderRadius: 6,
-  border: `0.5px solid ${cssVarV2('layer/insideBorder/border')}`,
-  background: `color-mix(in srgb, ${cssVarV2('layer/background/secondary')} 75%, transparent)`,
-  padding: '4px 6px',
-});
-
-export const resultWindowTimeline = style({
-  display: 'flex',
-  flexDirection: 'column',
-  gap: 4,
-  borderRadius: 6,
-  border: `0.5px dashed ${cssVarV2('layer/insideBorder/border')}`,
-  background: `color-mix(in srgb, ${cssVarV2('layer/background/secondary')} 70%, transparent)`,
-  padding: '6px',
-});
-
-export const resultWindowTimelineItem = style({
-  display: 'flex',
-  justifyContent: 'space-between',
-  alignItems: 'center',
-  gap: 8,
-  fontSize: 10,
-  color: cssVarV2('text/secondary'),
-});
-
-export const resultWindowTimelineLabel = style({
-  color: cssVarV2('text/primary'),
-  fontWeight: 600,
-});
-
-export const resultWindowTimelineTime = style({
-  color: cssVarV2('text/secondary'),
-  fontVariantNumeric: 'tabular-nums',
-});
-
-export const resultWindowActions = style({
-  display: 'flex',
-  alignItems: 'center',
-  gap: 8,
-  flexWrap: 'wrap',
 });
 
 /* ═══════════════ Staged Summary ═══════════════ */
@@ -864,11 +739,9 @@ export const stagedItem = style({
       background: `color-mix(in srgb, ${cssVarV2('layer/background/secondary')} 80%, transparent)`,
     },
     '&[data-selected="true"]': {
-      borderColor:
-        'color-mix(in srgb, var(--affine-primary-color) 55%, transparent)',
+      borderColor: 'color-mix(in srgb, var(--affine-primary-color) 55%, transparent)',
       background: `linear-gradient(135deg, color-mix(in srgb, var(--affine-primary-color) 10%, ${cssVarV2('layer/background/secondary')}), color-mix(in srgb, ${cssVarV2('layer/background/secondary')} 92%, transparent))`,
-      boxShadow:
-        '0 0 0 1px color-mix(in srgb, var(--affine-primary-color) 12%, transparent)',
+      boxShadow: '0 0 0 1px color-mix(in srgb, var(--affine-primary-color) 12%, transparent)',
     },
     '&[data-selected="true"]:hover': {
       background: `linear-gradient(135deg, color-mix(in srgb, var(--affine-primary-color) 14%, ${cssVarV2('layer/background/secondary')}), color-mix(in srgb, ${cssVarV2('layer/background/secondary')} 90%, transparent))`,
@@ -940,11 +813,7 @@ export const scanHint = style({
 
 export const progressList = style({ display: 'none' });
 export const progressRow = style({ display: 'none' });
-export const ellipsis = style({
-  overflow: 'hidden',
-  textOverflow: 'ellipsis',
-  whiteSpace: 'nowrap',
-});
+export const ellipsis = style({ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' });
 export const prepareSummaryCard = glassCard;
 export const prepareSummaryCardLive = glassCardLive;
 export const prepareSummaryHeader = cardHeader;
