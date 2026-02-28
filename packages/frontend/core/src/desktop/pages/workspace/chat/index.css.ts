@@ -1,5 +1,5 @@
 import { cssVarV2 } from '@toeverything/theme/v2';
-import { keyframes, style } from '@vanilla-extract/css';
+import { globalStyle, keyframes, style } from '@vanilla-extract/css';
 
 import { glassFill, glassStroke } from '../layouts/workspace-list-shared-styles';
 
@@ -109,13 +109,12 @@ export const scopeCaseItem = style({
   fontSize: 12,
   lineHeight: '16px',
   color: cssVarV2('text/secondary'),
-  selectors: {
-    '& input': {
-      width: 14,
-      height: 14,
-      accentColor: cssVarV2('button/primary'),
-    },
-  },
+});
+
+globalStyle(`${scopeCaseItem} input`, {
+  width: 14,
+  height: 14,
+  accentColor: cssVarV2('button/primary'),
 });
 
 export const statusSessionList = style({
