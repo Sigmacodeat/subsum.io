@@ -2617,11 +2617,17 @@ export const AkteDetailPage = () => {
                     </span>
                   )}
                   <span className={styles.akteMetaBadge}>
-                    <span className={styles.akteMetaBadgeLabel}>Review</span>
+                    <span className={styles.akteMetaBadgeLabel}>
+                      {t[
+                        'com.affine.caseAssistant.akteDetail.meta.reviewCoverage'
+                      ]()}
+                    </span>
                     {reviewCoveragePercent}%
                   </span>
                   <span className={styles.akteMetaBadge}>
-                    <span className={styles.akteMetaBadgeLabel}>Abgleich OK</span>
+                    <span className={styles.akteMetaBadgeLabel}>
+                      {t['com.affine.caseAssistant.akteDetail.meta.matchOk']()}
+                    </span>
                     {docReviewCounts.reviewed}
                   </span>
                   <span
@@ -2631,17 +2637,26 @@ export const AkteDetailPage = () => {
                         : ''
                     }`}
                   >
-                    <span className={styles.akteMetaBadgeLabel}>Prüfen</span>
+                    <span className={styles.akteMetaBadgeLabel}>
+                      {t['com.affine.caseAssistant.akteDetail.meta.needsReview']()}
+                    </span>
                     {docReviewCounts.attention}
                   </span>
                   <span className={styles.akteMetaBadge}>
-                    <span className={styles.akteMetaBadgeLabel}>Offen</span>
+                    <span className={styles.akteMetaBadgeLabel}>
+                      {t['com.affine.caseAssistant.akteDetail.meta.open']()}
+                    </span>
                     {docReviewCounts.open}
                   </span>
                 </div>
                 {latestCaseSummary ? (
                   <div className={styles.caseSummaryInline}>
-                    <strong>Akten-Kurzlage:</strong> {latestCaseSummary}
+                    <strong>
+                      {t[
+                        'com.affine.caseAssistant.akteDetail.caseSummary.inlinePrefix'
+                      ]()}
+                    </strong>{' '}
+                    {latestCaseSummary}
                   </div>
                 ) : null}
               </div>

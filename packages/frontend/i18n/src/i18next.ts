@@ -9,7 +9,7 @@ import { SUPPORTED_LANGUAGES } from './resources';
 
 const logger = new DebugLogger('i18n');
 
-const defaultLng: Language = 'en';
+const defaultLng: Language = 'de';
 
 const rewriteSettingBrand = (value: string) => {
   return value
