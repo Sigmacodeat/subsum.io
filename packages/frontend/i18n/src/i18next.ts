@@ -11,6 +11,16 @@ const logger = new DebugLogger('i18n');
 
 const defaultLng: Language = 'de';
 
+const defaultResource = SUPPORTED_LANGUAGES[defaultLng].resource;
+const bundledDefaultResources =
+  typeof defaultResource === 'function'
+    ? undefined
+    : {
+        [defaultLng]: {
+          translation: defaultResource,
+        },
+      };
+
 const rewriteSettingBrand = (value: string) => {
   return value
     .replaceAll('AFFiNE.Pro', 'subsumio.ai')
@@ -94,11 +104,7 @@ export const getOrCreateI18n = (): i18n => {
         supportedLngs: Object.keys(SUPPORTED_LANGUAGES),
         debug: false,
         partialBundledLanguages: true,
-        resources: {
-          [defaultLng]: {
-            translation: SUPPORTED_LANGUAGES[defaultLng].resource,
-          },
-        },
+        resources: bundledDefaultResources,
         interpolation: {
           escapeValue: false, // not needed for react as it escapes by default
         },
