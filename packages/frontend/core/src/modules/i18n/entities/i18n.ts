@@ -61,7 +61,9 @@ export class I18n extends Entity {
   }
 
   init() {
-    this.changeLanguage(this.currentLanguageKey$.value ?? 'de');
+    const persisted = this.currentLanguageKey$.value;
+    const initialLanguage = persisted === 'en' ? 'de' : (persisted ?? 'de');
+    this.changeLanguage(initialLanguage);
   }
 
   changeLanguage = effect(
