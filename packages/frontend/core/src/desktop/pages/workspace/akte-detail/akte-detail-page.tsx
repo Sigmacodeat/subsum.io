@@ -858,15 +858,16 @@ export const AkteDetailPage = () => {
     setComparePreviewFailed(false);
   }, [compareDocId]);
 
-  const documentDigestById = useMemo(() => {
-    const chunksByDocId = new Map<string, SemanticChunk[]>();
+  const chunksByDocId = useMemo(() => {
+    const map = new Map<string, SemanticChunk[]>();
     for (const chunk of matterChunks) {
-      if (!chunksByDocId.has(chunk.documentId)) {
-        chunksByDocId.set(chunk.documentId, []);
-      }
-      chunksByDocId.get(chunk.documentId)!.push(chunk);
+      if (!map.has(chunk.documentId)) map.set(chunk.documentId, []);
+      map.get(chunk.documentId)!.push(chunk);
     }
+    return map;
+  }, [matterChunks]);
 
+  const documentDigestById = useMemo(() => {
     const digest = new Map<string, { summary: string; toc: string[] }>();
     for (const doc of matterDocs) {
       const docChunks = (chunksByDocId.get(doc.id) ?? []).sort(
@@ -884,7 +885,7 @@ export const AkteDetailPage = () => {
     }
 
     return digest;
-  }, [matterChunks, matterDocs]);
+  }, [chunksByDocId, matterDocs]);
 
   const visibleDocIds = useMemo(() => {
     return folderGroups.flatMap(([, docs]) => docs.map(d => d.id));
@@ -3068,6 +3069,23 @@ export const AkteDetailPage = () => {
                                           {doc.chunkCount ?? 0} Chunks
                                         </span>
                                       </div>
+                                      {doc.sourceRef ? (
+                                        <button
+                                          type="button"
+                                          className={styles.docCardOpenPdf}
+                                          onClick={e => {
+                                            e.stopPropagation();
+                                            window.open(
+                                              doc.sourceRef!,
+                                              '_blank',
+                                              'noopener,noreferrer'
+                                            );
+                                          }}
+                                          aria-label={`Original PDF öffnen: ${doc.title}`}
+                                        >
+                                          ↗ Original öffnen
+                                        </button>
+                                      ) : null}
                                     </div>
                                   </button>
                                 );
@@ -3585,69 +3603,130 @@ export const AkteDetailPage = () => {
                         </div>
                       ) : (
                         <>
-                          <div className={styles.docHeaderRow}>
-                            <span>
-                              {t.t(
-                                'com.affine.caseAssistant.akteDetail.semantic.header.chunkCategory'
-                              )}
-                            </span>
-                            <span>
-                              {t.t(
-                                'com.affine.caseAssistant.akteDetail.semantic.header.document'
-                              )}
-                            </span>
-                            <span className={styles.docMeta}>
-                              {t.t(
-                                'com.affine.caseAssistant.akteDetail.semantic.header.quality'
-                              )}
-                            </span>
-                            <span>
-                              {t.t(
-                                'com.affine.caseAssistant.akteDetail.semantic.header.keywords'
-                              )}
-                            </span>
-                          </div>
-                          {matterChunks.slice(0, 100).map(chunk => {
-                            const sourceDoc = matterDocs.find(
-                              d => d.id === chunk.documentId
+                          {matterDocs.map(doc => {
+                            const allChunks = (chunksByDocId.get(doc.id) ?? []).sort(
+                              (a, b) => b.qualityScore - a.qualityScore
                             );
+                            const goodChunks = allChunks.filter(
+                              c => c.qualityScore >= 0.35
+                            );
+                            const avgQ =
+                              allChunks.length > 0
+                                ? allChunks.reduce(
+                                    (s, c) => s + c.qualityScore,
+                                    0
+                                  ) / allChunks.length
+                                : 0;
+                            const isGarbage =
+                              allChunks.length > 0 && avgQ < 0.20;
+                            const qualityClass =
+                              avgQ >= 0.65
+                                ? styles.qualityBadgeGood
+                                : avgQ >= 0.35
+                                  ? styles.qualityBadgeMedium
+                                  : styles.qualityBadgePoor;
+                            if (allChunks.length === 0) return null;
                             return (
                               <div
-                                key={chunk.id}
-                                className={styles.docRow}
-                                tabIndex={0}
+                                key={doc.id}
+                                className={styles.analyseDocGroup}
                               >
-                                <div className={styles.docTitle}>
-                                  <span className={styles.docIcon}></span>
-                                  <span className={styles.chunkCategory}>
-                                    {chunk.category}
+                                <div className={styles.analyseDocGroupHeader}>
+                                  <span className={styles.analyseDocTitle}>
+                                    {doc.title}
                                   </span>
-                                  <span className={styles.docKindBadge}>
-                                    #{chunk.index}
+                                  <span className={styles.analyseDocMeta}>
+                                    {goodChunks.length} Abschnitte
                                   </span>
+                                  <span className={qualityClass}>
+                                    Ø {(avgQ * 100).toFixed(0)}%
+                                  </span>
+                                  {isGarbage ? (
+                                    <span
+                                      className={`${styles.docStatusBadge} ${styles.docStatusFailed}`}
+                                    >
+                                      OCR-Fehler
+                                    </span>
+                                  ) : null}
                                 </div>
-                                <span className={styles.chunkDocTitle}>
-                                  {sourceDoc?.title?.slice(0, 30) ?? none}
-                                </span>
-                                <span className={styles.docMeta}>
-                                  {(chunk.qualityScore * 100).toFixed(0)}%
-                                </span>
-                                <span className={styles.chunkKeywords}>
-                                  {chunk.keywords.slice(0, 3).join(', ')}
-                                </span>
+                                {isGarbage ? (
+                                  <div
+                                    className={styles.analyseChunkRow}
+                                    style={{ gridTemplateColumns: '1fr' }}
+                                  >
+                                    <span className={styles.analyseChunkText}>
+                                      Dieses Dokument enthält keine lesbaren
+                                      Textabschnitte. Die Datei ist
+                                      möglicherweise ein Bild-Scan ohne
+                                      OCR-Text oder enthält binäre Bilddaten.
+                                      Original über „↗ Original öffnen"
+                                      aufrufen.
+                                    </span>
+                                  </div>
+                                ) : (
+                                  goodChunks.slice(0, 3).map(chunk => (
+                                    <div
+                                      key={chunk.id}
+                                      className={styles.analyseChunkRow}
+                                    >
+                                      <div
+                                        className={styles.analyseChunkText}
+                                      >
+                                        {chunk.text.slice(0, 240)}
+                                        {chunk.text.length > 240 ? '…' : ''}
+                                      </div>
+                                      <span
+                                        className={styles.chunkCategory}
+                                        style={{ fontSize: 11, flexShrink: 0 }}
+                                      >
+                                        {chunk.category}
+                                      </span>
+                                      <span
+                                        className={
+                                          chunk.qualityScore >= 0.65
+                                            ? styles.qualityBadgeGood
+                                            : chunk.qualityScore >= 0.35
+                                              ? styles.qualityBadgeMedium
+                                              : styles.qualityBadgePoor
+                                        }
+                                      >
+                                        {(chunk.qualityScore * 100).toFixed(
+                                          0
+                                        )}
+                                        %
+                                      </span>
+                                    </div>
+                                  ))
+                                )}
+                                <div className={styles.analyseDocActions}>
+                                  {doc.sourceRef ? (
+                                    <button
+                                      type="button"
+                                      className={styles.docActionButton}
+                                      onClick={() => {
+                                        window.open(
+                                          doc.sourceRef!,
+                                          '_blank',
+                                          'noopener,noreferrer'
+                                        );
+                                      }}
+                                    >
+                                      ↗ Original öffnen
+                                    </button>
+                                  ) : null}
+                                  <button
+                                    type="button"
+                                    className={styles.docActionButton}
+                                    onClick={() => {
+                                      handleOpenDocument(doc).catch(() => {});
+                                    }}
+                                  >
+                                    Analyse-Seite öffnen
+                                  </button>
+                                </div>
                               </div>
                             );
                           })}
-                          {matterChunks.length > 100 && (
-                            <div className={styles.chunkMore}>
-                              {t.t(
-                                'com.affine.caseAssistant.akteDetail.semantic.moreChunks',
-                                {
-                                  count: matterChunks.length - 100,
-                                }
-                              )}
-                            </div>
-                          )}
                         </>
                       )}
                     </div>

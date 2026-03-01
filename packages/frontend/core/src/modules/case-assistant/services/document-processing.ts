@@ -1072,6 +1072,51 @@ export function analyzeTextStructure(text: string): DocumentStructure {
   };
 }
 
+// ─── Binary Garbage Detection ───────────────────────────────────────────────
+
+/**
+ * Returns true when the text is likely binary data (e.g. a JPEG/PNG image or
+ * PDF binary stream) decoded as Latin-1 or UTF-8 and passed through as "text".
+ *
+ * Symptoms seen in production:
+ *   - JPEG magic bytes rendered as ÿeÿä / JFIF
+ *   - JPEG DCT quantization tables → repeating "eqeqeqeq…" patterns
+ *   - __binary_cache__ prefix from image-blob caches
+ *   - Very high ratio of Latin Extended chars (À–ÿ) that are rare in real prose
+ */
+function isLikelyBinaryGarbage(text: string): boolean {
+  if (text.length < 10) return false;
+
+  // Known binary markers: JPEG (ÿ + high-Latin + ÿ), JFIF header, cache blobs
+  if (/ÿ[\u00C0-\u00FF]{1,3}ÿ/.test(text) || text.includes('JFIF') || text.includes('__binary_cache__')) {
+    return true;
+  }
+
+  // High density of Latin Extended chars (À–ÿ, U+00C0–U+00FF).
+  // Normal German prose: ~5-8 %. JPEG binary decoded as Latin-1: 30-60 %.
+  const nonAsciiCount = (text.match(/[\u00C0-\u00FF]/g) ?? []).length;
+  if (nonAsciiCount / text.length > 0.20) return true;
+
+  // Highly repetitive n-gram → binary quantization / coefficient tables.
+  // E.g. "eqeqeqeq" (JPEG DCT, 0x65 0x71 repeating).
+  const sample = text.slice(0, 300).replace(/\s/g, '');
+  if (sample.length >= 20) {
+    for (let n = 2; n <= 4; n++) {
+      if (sample.length < n * 5) continue;
+      const ngram = sample.slice(0, n);
+      if (!/\w/.test(ngram)) continue;
+      let hits = 0;
+      const windows = sample.length - n + 1;
+      for (let i = 0; i < windows; i++) {
+        if (sample.slice(i, i + n) === ngram) hits++;
+      }
+      if (hits / windows > 0.40) return true;
+    }
+  }
+
+  return false;
+}
+
 // ─── Semantic Chunking ──────────────────────────────────────────────────────
 
 const CHUNK_TARGET_LENGTH = 800;   // ~800 chars ≈ 200-250 tokens
@@ -1218,6 +1263,9 @@ function extractEntities(text: string): ChunkExtractedEntities {
  * Higher score = more valuable for RAG retrieval.
  */
 function computeChunkQualityScore(text: string, entities: ChunkExtractedEntities, category: SemanticChunkCategory): number {
+  // Binary / image garbage gets a hard floor — not useful for RAG retrieval
+  if (isLikelyBinaryGarbage(text)) return 0.1;
+
   let score = 0.3; // base
 
   // Length bonus: longer chunks tend to be more informative
@@ -1257,6 +1305,8 @@ function computeChunkQualityScore(text: string, entities: ChunkExtractedEntities
 }
 
 function extractKeywords(text: string): string[] {
+  if (isLikelyBinaryGarbage(text)) return [];
+
   const words = text
     .toLowerCase()
     .replace(

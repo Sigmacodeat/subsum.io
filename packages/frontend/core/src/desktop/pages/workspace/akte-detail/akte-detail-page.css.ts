@@ -1212,6 +1212,151 @@ export const chunkMore = style({
   color: cssVarV2('text/secondary'),
 });
 
+/* ═══ Analyse Tab — per-document grouped view ═══ */
+export const analyseDocGroup = style({
+  borderBottom: borderDivider,
+  paddingBottom: sp(3),
+  marginBottom: sp(1),
+});
+
+export const analyseDocGroupHeader = style({
+  display: 'flex',
+  alignItems: 'center',
+  gap: sp(2),
+  padding: `${sp(3)} ${gutter}px ${sp(2)}`,
+  flexWrap: 'wrap',
+  '@container': {
+    'akte-detail-body (width <= 500px)': {
+      padding: `${sp(2)} ${gutterSm}px`,
+    },
+  },
+});
+
+export const analyseDocTitle = style({
+  flex: 1,
+  minWidth: 0,
+  fontSize: 13,
+  fontWeight: 600,
+  color: cssVarV2('text/primary'),
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+});
+
+export const analyseDocMeta = style({
+  fontSize: 11,
+  color: cssVarV2('text/secondary'),
+  whiteSpace: 'nowrap',
+  flexShrink: 0,
+});
+
+export const analyseChunkRow = style({
+  display: 'grid',
+  gridTemplateColumns: '1fr auto auto',
+  gap: sp(2),
+  alignItems: 'start',
+  padding: `${sp(2)} ${gutter}px`,
+  borderRadius: 8,
+  margin: `0 ${sp(2)}`,
+  selectors: {
+    '&:hover': {
+      background: surfaceRaised,
+    },
+  },
+  '@container': {
+    'akte-detail-body (width <= 500px)': {
+      gridTemplateColumns: '1fr auto',
+      margin: `0 ${gutterSm}px`,
+    },
+  },
+});
+
+export const analyseChunkText = style({
+  fontSize: 12,
+  lineHeight: '18px',
+  color: cssVarV2('text/secondary'),
+  overflow: 'hidden',
+  display: '-webkit-box',
+  WebkitLineClamp: '2',
+  WebkitBoxOrient: 'vertical',
+});
+
+export const qualityBadgeGood = style({
+  display: 'inline-flex',
+  alignItems: 'center',
+  padding: `1px ${sp(2)}`,
+  borderRadius: 99,
+  fontSize: 10,
+  fontWeight: 700,
+  background: 'rgba(52,199,89,0.12)',
+  color: '#34c759',
+  flexShrink: 0,
+});
+
+export const qualityBadgeMedium = style({
+  display: 'inline-flex',
+  alignItems: 'center',
+  padding: `1px ${sp(2)}`,
+  borderRadius: 99,
+  fontSize: 10,
+  fontWeight: 700,
+  background: 'rgba(255,159,10,0.12)',
+  color: '#ff9f0a',
+  flexShrink: 0,
+});
+
+export const qualityBadgePoor = style({
+  display: 'inline-flex',
+  alignItems: 'center',
+  padding: `1px ${sp(2)}`,
+  borderRadius: 99,
+  fontSize: 10,
+  fontWeight: 700,
+  background: 'rgba(255,59,48,0.12)',
+  color: '#ff3b30',
+  flexShrink: 0,
+});
+
+export const analyseDocActions = style({
+  display: 'flex',
+  gap: sp(2),
+  padding: `0 ${gutter}px ${sp(1)}`,
+  '@container': {
+    'akte-detail-body (width <= 500px)': {
+      padding: `0 ${gutterSm}px`,
+    },
+  },
+});
+
+/* ═══ Document card — PDF open button ═══ */
+export const docCardOpenPdf = style({
+  appearance: 'none',
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: sp(1),
+  padding: `${sp(1)} ${sp(2)}`,
+  borderRadius: 6,
+  border: borderSubtle,
+  background: 'transparent',
+  fontSize: 11,
+  fontWeight: 600,
+  color: cssVarV2('text/secondary'),
+  cursor: 'pointer',
+  marginTop: sp(2),
+  transition: 'all 0.15s ease',
+  selectors: {
+    '&:hover': {
+      background: accentBg,
+      borderColor: accentBorder,
+      color: cssVarV2('text/primary'),
+    },
+    '&:focus-visible': {
+      outline: `2px solid ${cssVarV2('button/primary')}`,
+      outlineOffset: 2,
+    },
+  },
+});
+
 export const sidebarTabIcon = style({
   fontSize: 14,
   fontWeight: 700,
