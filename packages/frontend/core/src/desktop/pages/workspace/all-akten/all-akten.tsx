@@ -177,6 +177,7 @@ export const AllAktenPage = () => {
   const searchInputRef = useRef<HTMLInputElement>(null);
   const createMatterButtonRef = useRef<HTMLButtonElement>(null);
   const actionStatusTimerRef = useRef<number | null>(null);
+  const hasRunCaseCleanupRef = useRef(false);
   const language = t.language || 'en';
 
   const statusLabel = useMemo(
@@ -256,6 +257,25 @@ export const AllAktenPage = () => {
       4000
     );
   }, []);
+
+  useEffect(() => {
+    if (hasRunCaseCleanupRef.current) {
+      return;
+    }
+    hasRunCaseCleanupRef.current = true;
+
+    void (async () => {
+      const result =
+        await casePlatformOrchestrationService.consolidateMatterCaseFiles();
+      if (result.removedCaseFiles <= 0) {
+        return;
+      }
+
+      showActionStatus(
+        `${result.removedCaseFiles} interne Teilakte(n) zusammengeführt · ${result.relinkedDocuments} Dokument(e) neu zugeordnet.`
+      );
+    })().catch(() => {});
+  }, [casePlatformOrchestrationService, showActionStatus]);
 
   useEffect(
     () => () => {
@@ -803,7 +823,9 @@ export const AllAktenPage = () => {
       }
 
       if (matters.length === 0) {
-        showActionStatus('Bitte zuerst eine Akte anlegen, dann Dokumente hochladen.');
+        showActionStatus(
+          'Bitte zuerst eine Akte anlegen, dann Dokumente hochladen.'
+        );
         handleCreateMatter();
         return;
       }
@@ -817,7 +839,9 @@ export const AllAktenPage = () => {
           )[0] ?? null;
 
       if (!preferredMatter) {
-        showActionStatus('Keine uploadfähige Akte gefunden. Bitte zuerst eine Akte anlegen.');
+        showActionStatus(
+          'Keine uploadfähige Akte gefunden. Bitte zuerst eine Akte anlegen.'
+        );
         return;
       }
 
@@ -834,9 +858,7 @@ export const AllAktenPage = () => {
 
       if (!targetCase) {
         showActionStatus(
-          t[
-            'com.affine.caseAssistant.allAkten.quickstart.creatingImportCase'
-          ]()
+          t['com.affine.caseAssistant.allAkten.quickstart.creatingImportCase']()
         );
         const docRecord = docsService.createDoc();
         targetCase = await caseAssistantService.upsertCaseFile({
@@ -1510,6 +1532,8 @@ export const AllAktenPage = () => {
                   const deadline = getNextDeadline(matter);
                   const caseCount = caseCountByMatter.get(matter.id) ?? 0;
                   const docCount = docCountByMatter.get(matter.id) ?? 0;
+                  const logicalAkteCount =
+                    caseCount > 0 || docCount > 0 ? 1 : 0;
                   return (
                     <div
                       key={matter.id}
@@ -1601,12 +1625,9 @@ export const AllAktenPage = () => {
                         </div>
                         <div className={styles.akteFolderMeta}>
                           <span className={styles.akteFolderMetaBadge}>
-                            {t.t(
-                              'com.affine.caseAssistant.allAkten.meta.caseFiles',
-                              {
-                                count: caseCount,
-                              }
-                            )}
+                            {logicalAkteCount === 1
+                              ? '1 Gesamtakt'
+                              : '0 Gesamtakte'}
                           </span>
                           <span className={styles.akteFolderMetaBadge}>
                             {t.t(

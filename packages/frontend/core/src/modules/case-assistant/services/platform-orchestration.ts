@@ -240,27 +240,26 @@ export class CasePlatformOrchestrationService extends Service {
       deadlinesRes,
       timeEntriesRes,
       invoicesRes,
-    ] =
-      await Promise.all([
-        this.getLegalApi<{ items?: any[] }>(
-          `/api/legal/workspaces/${encodeURIComponent(workspaceId)}/clients?limit=500`
-        ),
-        this.getLegalApi<{ items?: any[] }>(
-          `/api/legal/workspaces/${encodeURIComponent(workspaceId)}/matters?limit=500&includeTrashed=true`
-        ),
-        this.getLegalApi<{ items?: any[] }>(
-          `/api/legal/workspaces/${encodeURIComponent(workspaceId)}/case-files?limit=1000`
-        ),
-        this.getLegalApi<{ items?: any[] }>(
-          `/api/legal/workspaces/${encodeURIComponent(workspaceId)}/deadlines?limit=1000`
-        ),
-        this.getLegalApi<{ items?: any[] }>(
-          `/api/legal/workspaces/${encodeURIComponent(workspaceId)}/time-entries?limit=1000`
-        ),
-        this.getLegalApi<{ items?: any[] }>(
-          `/api/legal/workspaces/${encodeURIComponent(workspaceId)}/invoices?limit=500`
-        ),
-      ]);
+    ] = await Promise.all([
+      this.getLegalApi<{ items?: any[] }>(
+        `/api/legal/workspaces/${encodeURIComponent(workspaceId)}/clients?limit=500`
+      ),
+      this.getLegalApi<{ items?: any[] }>(
+        `/api/legal/workspaces/${encodeURIComponent(workspaceId)}/matters?limit=500&includeTrashed=true`
+      ),
+      this.getLegalApi<{ items?: any[] }>(
+        `/api/legal/workspaces/${encodeURIComponent(workspaceId)}/case-files?limit=1000`
+      ),
+      this.getLegalApi<{ items?: any[] }>(
+        `/api/legal/workspaces/${encodeURIComponent(workspaceId)}/deadlines?limit=1000`
+      ),
+      this.getLegalApi<{ items?: any[] }>(
+        `/api/legal/workspaces/${encodeURIComponent(workspaceId)}/time-entries?limit=1000`
+      ),
+      this.getLegalApi<{ items?: any[] }>(
+        `/api/legal/workspaces/${encodeURIComponent(workspaceId)}/invoices?limit=500`
+      ),
+    ]);
 
     const remoteClients = clientsRes?.items ?? [];
     const remoteMatters = mattersRes?.items ?? [];
@@ -1288,6 +1287,331 @@ export class CasePlatformOrchestrationService extends Service {
     });
 
     return record;
+  }
+
+  async consolidateMatterCaseFiles() {
+    const graph = await this.store.getGraph();
+    const caseFiles = Object.values(graph.cases ?? {}) as CaseFile[];
+    if (caseFiles.length <= 1) {
+      return { mergedMatters: 0, removedCaseFiles: 0, relinkedDocuments: 0 };
+    }
+
+    const byMatter = new Map<string, CaseFile[]>();
+    for (const caseFile of caseFiles) {
+      if (!caseFile.matterId) {
+        continue;
+      }
+      const existing = byMatter.get(caseFile.matterId) ?? [];
+      existing.push(caseFile);
+      byMatter.set(caseFile.matterId, existing);
+    }
+
+    const duplicateGroups = [...byMatter.entries()].filter(
+      ([, entries]) => entries.length > 1
+    );
+    if (duplicateGroups.length === 0) {
+      return { mergedMatters: 0, removedCaseFiles: 0, relinkedDocuments: 0 };
+    }
+
+    const permission = await this.accessControlService.evaluate('case.manage');
+    if (!permission.ok) {
+      return { mergedMatters: 0, removedCaseFiles: 0, relinkedDocuments: 0 };
+    }
+
+    const now = new Date().toISOString();
+    const [
+      legalDocuments,
+      ingestionJobs,
+      ocrJobs,
+      legalFindings,
+      copilotTasks,
+      blueprints,
+      copilotRuns,
+      judikaturSuggestions,
+      citationChains,
+      semanticChunks,
+      qualityReports,
+      workflowEvents,
+      auditEntries,
+      auditAnchors,
+      portalRequests,
+      vollmachtSigningRequests,
+      kycSubmissions,
+      timeEntries,
+      wiedervorlagen,
+      aktennotizen,
+      vollmachten,
+      rechnungen,
+      auslagen,
+      kassenbelege,
+      fiscalSignatures,
+      exportJournal,
+    ] = await Promise.all([
+      this.store.getLegalDocuments({ includeTrashed: true }),
+      this.store.getIngestionJobs(),
+      this.store.getOcrJobs(),
+      this.store.getLegalFindings(),
+      this.store.getCopilotTasks(),
+      this.store.getBlueprints(),
+      this.store.getCopilotRuns(),
+      this.store.getJudikaturSuggestions(),
+      this.store.getCitationChains(),
+      this.store.getSemanticChunks(),
+      this.store.getQualityReports(),
+      this.store.getWorkflowEvents(),
+      this.store.getAuditEntries(),
+      this.store.getAuditAnchors(),
+      this.store.getPortalRequests(),
+      this.store.getVollmachtSigningRequests(),
+      this.store.getKycSubmissions(),
+      this.store.getTimeEntries(),
+      this.store.getWiedervorlagen(),
+      this.store.getAktennotizen(),
+      this.store.getVollmachten(),
+      this.store.getRechnungen(),
+      this.store.getAuslagen(),
+      this.store.getKassenbelege(),
+      this.store.getFiscalSignatures(),
+      this.store.getExportJournal(),
+    ]);
+
+    let nextLegalDocuments = legalDocuments;
+    let nextIngestionJobs = ingestionJobs;
+    let nextOcrJobs = ocrJobs;
+    let nextLegalFindings = legalFindings;
+    let nextCopilotTasks = copilotTasks;
+    let nextBlueprints = blueprints;
+    let nextCopilotRuns = copilotRuns;
+    let nextJudikaturSuggestions = judikaturSuggestions;
+    let nextCitationChains = citationChains;
+    let nextSemanticChunks = semanticChunks;
+    let nextQualityReports = qualityReports;
+    let nextWorkflowEvents = workflowEvents;
+    let nextAuditEntries = auditEntries;
+    let nextAuditAnchors = auditAnchors;
+    let nextPortalRequests = portalRequests;
+    let nextVollmachtSigningRequests = vollmachtSigningRequests;
+    let nextKycSubmissions = kycSubmissions;
+    let nextTimeEntries = timeEntries;
+    let nextWiedervorlagen = wiedervorlagen;
+    let nextAktennotizen = aktennotizen;
+    let nextVollmachten = vollmachten;
+    let nextRechnungen = rechnungen;
+    let nextAuslagen = auslagen;
+    let nextKassenbelege = kassenbelege;
+    let nextFiscalSignatures = fiscalSignatures;
+    let nextExportJournal = exportJournal;
+
+    const mergedPrimaryCases: CaseFile[] = [];
+    const removedCases: CaseFile[] = [];
+    let mergedMatters = 0;
+    let relinkedDocuments = 0;
+
+    const collectUnique = (values: Array<string[] | undefined>) => [
+      ...new Set(values.flatMap(value => value ?? []).filter(Boolean)),
+    ];
+
+    for (const [matterId, entries] of duplicateGroups) {
+      const groupCaseIds = new Set(entries.map(entry => entry.id));
+      const docCountByCase = new Map<string, number>();
+      for (const doc of nextLegalDocuments) {
+        if (!groupCaseIds.has(doc.caseId)) {
+          continue;
+        }
+        docCountByCase.set(
+          doc.caseId,
+          (docCountByCase.get(doc.caseId) ?? 0) + 1
+        );
+      }
+
+      const sorted = [...entries].sort((a, b) => {
+        const docDelta =
+          (docCountByCase.get(b.id) ?? 0) - (docCountByCase.get(a.id) ?? 0);
+        if (docDelta !== 0) {
+          return docDelta;
+        }
+        const updatedDelta =
+          new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+        if (updatedDelta !== 0) {
+          return updatedDelta;
+        }
+        return a.id.localeCompare(b.id);
+      });
+
+      const primary = sorted[0];
+      const duplicates = sorted.slice(1);
+      if (duplicates.length === 0) {
+        continue;
+      }
+
+      mergedMatters += 1;
+      const duplicateIds = new Set(duplicates.map(item => item.id));
+      const fallbackTitle = graph.matters?.[matterId]?.title ?? 'Akte';
+
+      const mergedCase: CaseFile = {
+        ...primary,
+        title: primary.title?.trim() || fallbackTitle,
+        summary:
+          primary.summary ??
+          entries.find(item => item.summary?.trim())?.summary,
+        externalRef:
+          primary.externalRef ??
+          entries.find(item => item.externalRef?.trim())?.externalRef,
+        actorIds: collectUnique(entries.map(item => item.actorIds)),
+        issueIds: collectUnique(entries.map(item => item.issueIds)),
+        deadlineIds: collectUnique(entries.map(item => item.deadlineIds)),
+        terminIds: collectUnique(entries.map(item => item.terminIds)),
+        memoryEventIds: collectUnique(entries.map(item => item.memoryEventIds)),
+        tags: collectUnique(entries.map(item => item.tags)),
+        updatedAt: now,
+      };
+      graph.cases[primary.id] = mergedCase;
+      mergedPrimaryCases.push(mergedCase);
+
+      for (const duplicateCase of duplicates) {
+        delete graph.cases[duplicateCase.id];
+        removedCases.push(duplicateCase);
+      }
+
+      const remapRequiredCaseId = <T extends { caseId: string }>(
+        item: T
+      ): T => {
+        if (!duplicateIds.has(item.caseId)) {
+          return item;
+        }
+        return {
+          ...item,
+          caseId: primary.id,
+        };
+      };
+
+      const remapOptionalCaseId = <T extends { caseId?: string }>(
+        item: T
+      ): T => {
+        if (!item.caseId || !duplicateIds.has(item.caseId)) {
+          return item;
+        }
+        return {
+          ...item,
+          caseId: primary.id,
+        };
+      };
+
+      nextLegalDocuments = nextLegalDocuments.map(doc => {
+        if (!duplicateIds.has(doc.caseId)) {
+          return doc;
+        }
+        relinkedDocuments += 1;
+        return {
+          ...doc,
+          caseId: primary.id,
+          updatedAt: now,
+        };
+      });
+      nextIngestionJobs = nextIngestionJobs.map(remapRequiredCaseId);
+      nextOcrJobs = nextOcrJobs.map(remapRequiredCaseId);
+      nextLegalFindings = nextLegalFindings.map(remapRequiredCaseId);
+      nextCopilotTasks = nextCopilotTasks.map(remapRequiredCaseId);
+      nextBlueprints = nextBlueprints.map(remapRequiredCaseId);
+      nextCopilotRuns = nextCopilotRuns.map(remapRequiredCaseId);
+      nextJudikaturSuggestions =
+        nextJudikaturSuggestions.map(remapRequiredCaseId);
+      nextCitationChains = nextCitationChains.map(remapRequiredCaseId);
+      nextSemanticChunks = nextSemanticChunks.map(remapRequiredCaseId);
+      nextQualityReports = nextQualityReports.map(remapRequiredCaseId);
+      nextWorkflowEvents = nextWorkflowEvents.map(remapOptionalCaseId);
+      nextAuditEntries = nextAuditEntries.map(remapOptionalCaseId);
+      nextAuditAnchors = nextAuditAnchors.map(remapOptionalCaseId);
+      nextPortalRequests = nextPortalRequests.map(remapOptionalCaseId);
+      nextVollmachtSigningRequests =
+        nextVollmachtSigningRequests.map(remapOptionalCaseId);
+      nextKycSubmissions = nextKycSubmissions.map(remapOptionalCaseId);
+      nextTimeEntries = nextTimeEntries.map(remapRequiredCaseId);
+      nextWiedervorlagen = nextWiedervorlagen.map(remapRequiredCaseId);
+      nextAktennotizen = nextAktennotizen.map(remapRequiredCaseId);
+      nextVollmachten = nextVollmachten.map(remapOptionalCaseId);
+      nextRechnungen = nextRechnungen.map(remapRequiredCaseId);
+      nextAuslagen = nextAuslagen.map(remapRequiredCaseId);
+      nextKassenbelege = nextKassenbelege.map(remapRequiredCaseId);
+      nextFiscalSignatures = nextFiscalSignatures.map(remapOptionalCaseId);
+      nextExportJournal = nextExportJournal.map(remapOptionalCaseId);
+    }
+
+    if (removedCases.length === 0) {
+      return { mergedMatters: 0, removedCaseFiles: 0, relinkedDocuments: 0 };
+    }
+
+    graph.updatedAt = now;
+
+    const activeDocs = nextLegalDocuments.filter(doc => !doc.trashedAt);
+    const trashedDocs = nextLegalDocuments.filter(doc =>
+      Boolean(doc.trashedAt)
+    );
+
+    await Promise.all([
+      this.store.setGraph(graph),
+      this.store.setLegalDocuments(activeDocs),
+      this.store.setTrashedLegalDocuments(trashedDocs),
+      this.store.setIngestionJobs(nextIngestionJobs),
+      this.store.setOcrJobs(nextOcrJobs),
+      this.store.setLegalFindings(nextLegalFindings),
+      this.store.setCopilotTasks(nextCopilotTasks),
+      this.store.setBlueprints(nextBlueprints),
+      this.store.setCopilotRuns(nextCopilotRuns),
+      this.store.setJudikaturSuggestions(nextJudikaturSuggestions),
+      this.store.setCitationChains(nextCitationChains),
+      this.store.setSemanticChunks(nextSemanticChunks),
+      this.store.setQualityReports(nextQualityReports),
+      this.store.setWorkflowEvents(nextWorkflowEvents),
+      this.store.setAuditEntries(nextAuditEntries),
+      this.store.setAuditAnchors(nextAuditAnchors),
+      this.store.setPortalRequests(nextPortalRequests),
+      this.store.setVollmachtSigningRequests(nextVollmachtSigningRequests),
+      this.store.setKycSubmissions(nextKycSubmissions),
+      this.store.setTimeEntries(nextTimeEntries),
+      this.store.setWiedervorlagen(nextWiedervorlagen),
+      this.store.setAktennotizen(nextAktennotizen),
+      this.store.setVollmachten(nextVollmachten),
+      this.store.setRechnungen(nextRechnungen),
+      this.store.setAuslagen(nextAuslagen),
+      this.store.setKassenbelege(nextKassenbelege),
+      this.store.setFiscalSignatures(nextFiscalSignatures),
+      this.store.setExportJournal(nextExportJournal),
+    ]);
+
+    for (const mergedCase of mergedPrimaryCases) {
+      if (!mergedCase.matterId) {
+        continue;
+      }
+      await this.postLegalApi(
+        `/api/legal/workspaces/${encodeURIComponent(mergedCase.workspaceId)}/case-files`,
+        this.toLegalCaseFilePayload(mergedCase)
+      );
+    }
+
+    for (const removedCase of removedCases) {
+      await this.deleteLegalApi(
+        `/api/legal/workspaces/${encodeURIComponent(removedCase.workspaceId)}/case-files/${encodeURIComponent(removedCase.id)}`
+      );
+    }
+
+    await this.appendAuditEntry({
+      workspaceId: removedCases[0].workspaceId,
+      action: 'case.cleanup.consolidated',
+      severity: 'info',
+      details: `${removedCases.length} interne Teilakte(n) wurden in den jeweiligen Gesamtakt konsolidiert.`,
+      metadata: {
+        mergedMatters: String(mergedMatters),
+        removedCaseFiles: String(removedCases.length),
+        relinkedDocuments: String(relinkedDocuments),
+      },
+    });
+
+    return {
+      mergedMatters,
+      removedCaseFiles: removedCases.length,
+      relinkedDocuments,
+    };
   }
 
   async upsertDeadline(
