@@ -43,6 +43,7 @@ const config: PlaywrightTestConfig = {
       reuseExistingServer: !process.env.CI,
       env: {
         COVERAGE: process.env.COVERAGE || 'false',
+        DISABLE_DEV_OVERLAY: 'true',
       },
       url: new URL(playwrightBaseUrl).origin,
     },

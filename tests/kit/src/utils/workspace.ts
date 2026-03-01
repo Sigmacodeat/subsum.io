@@ -31,8 +31,11 @@ export async function createLocalWorkspace(
   // }, []);
 
   // input workspace name
-  await page.getByPlaceholder('Set a Workspace name').click();
-  await page.getByPlaceholder('Set a Workspace name').fill(params.name);
+  const workspaceNameInput = page
+    .getByTestId('create-workspace-input')
+    .or(page.getByPlaceholder('Set a Workspace name'));
+  await workspaceNameInput.click();
+  await workspaceNameInput.fill(params.name);
 
   await page.getByTestId('server-selector-trigger').click();
   const serverSelectorList = page.getByTestId('server-selector-list');

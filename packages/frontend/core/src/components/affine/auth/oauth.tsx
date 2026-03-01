@@ -5,6 +5,7 @@ import { AuthService, ServerService } from '@affine/core/modules/cloud';
 import { UrlService } from '@affine/core/modules/url';
 import { UserFriendlyError } from '@affine/error';
 import { OAuthProviderType } from '@affine/graphql';
+import { useI18n } from '@affine/i18n';
 import track from '@affine/track';
 import {
   AppleIcon,
@@ -14,6 +15,8 @@ import {
 } from '@blocksuite/icons/rc';
 import { useLiveData, useService } from '@toeverything/infra';
 import { type ReactElement, type SVGAttributes, useCallback } from 'react';
+
+type AuthIntent = 'signin' | 'signup';
 
 const OAuthProviderMap: Record<
   OAuthProviderType,
@@ -38,7 +41,14 @@ const OAuthProviderMap: Record<
   },
 };
 
-export function OAuth({ redirectUrl }: { redirectUrl?: string }) {
+export function OAuth({
+  redirectUrl,
+  intent = 'signin',
+}: {
+  redirectUrl?: string;
+  intent?: AuthIntent;
+}) {
+  const t = useI18n();
   const serverService = useService(ServerService);
   const urlService = useService(UrlService);
   const oauth = useLiveData(serverService.server.features$.map(r => r?.oauth));
@@ -99,6 +109,11 @@ export function OAuth({ redirectUrl }: { redirectUrl?: string }) {
         key={provider}
         provider={provider}
         onContinue={onContinue}
+        actionLabel={
+          intent === 'signup'
+            ? t['com.affine.auth.sign.up']()
+            : t['com.affine.auth.sign.in']()
+        }
       />
     );
   });
@@ -107,9 +122,10 @@ export function OAuth({ redirectUrl }: { redirectUrl?: string }) {
 interface OauthProviderProps {
   provider: OAuthProviderType;
   onContinue: (provider: OAuthProviderType) => void;
+  actionLabel: string;
 }
 
-function OAuthProvider({ onContinue, provider }: OauthProviderProps) {
+function OAuthProvider({ onContinue, provider, actionLabel }: OauthProviderProps) {
   const { icon } =
     provider in OAuthProviderMap
       ? OAuthProviderMap[provider]
@@ -128,7 +144,7 @@ function OAuthProvider({ onContinue, provider }: OauthProviderProps) {
       prefix={icon}
       onClick={onClick}
     >
-      Continue with {provider}
+      {actionLabel} with {provider}
     </Button>
   );
 }

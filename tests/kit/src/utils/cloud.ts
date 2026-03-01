@@ -44,7 +44,8 @@ export async function getTokenFromLatestMailMessage<A extends Assertions>(
 export async function getLoginCookie(
   context: BrowserContext
 ): Promise<Cookie | undefined> {
-  return (await context.cookies()).find(c => c.name === 'sid');
+  const cookies = await context.cookies();
+  return cookies.find(c => c.name === 'affine_session' || c.name === 'sid');
 }
 
 const cloudUserSchema = z.object({
@@ -262,7 +263,10 @@ export async function loginUserDirectly(
     afterLogin?: () => Promise<void>;
   }
 ) {
-  await page.getByPlaceholder('Enter your email address').fill(user.email);
+  const emailInput = page
+    .getByTestId('auth-email-input')
+    .or(page.getByPlaceholder('Enter your email address'));
+  await emailInput.fill(user.email);
   await page.getByTestId('continue-login-button').click({
     delay: 200,
   });

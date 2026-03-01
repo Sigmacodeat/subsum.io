@@ -81,6 +81,7 @@ export const BUILD_IN_SERVERS: (ServerMetadata & { config: ServerConfig })[] =
               ],
               oauthProviders: [
                 OAuthProviderType.Google,
+                OAuthProviderType.GitHub,
                 OAuthProviderType.Apple,
               ],
               type: ServerDeploymentType.Affine,
@@ -114,6 +115,7 @@ export const BUILD_IN_SERVERS: (ServerMetadata & { config: ServerConfig })[] =
                 ],
                 oauthProviders: [
                   OAuthProviderType.Google,
+                  OAuthProviderType.GitHub,
                   OAuthProviderType.Apple,
                 ],
                 type: ServerDeploymentType.Affine,
@@ -147,6 +149,7 @@ export const BUILD_IN_SERVERS: (ServerMetadata & { config: ServerConfig })[] =
                   ],
                   oauthProviders: [
                     OAuthProviderType.Google,
+                    OAuthProviderType.GitHub,
                     OAuthProviderType.Apple,
                   ],
                   type: ServerDeploymentType.Affine,
@@ -176,6 +179,7 @@ export const BUILD_IN_SERVERS: (ServerMetadata & { config: ServerConfig })[] =
                     ],
                     oauthProviders: [
                       OAuthProviderType.Google,
+                      OAuthProviderType.GitHub,
                       OAuthProviderType.Apple,
                     ],
                     type: ServerDeploymentType.Affine,
@@ -207,6 +211,7 @@ export const BUILD_IN_SERVERS: (ServerMetadata & { config: ServerConfig })[] =
                       ],
                       oauthProviders: [
                         OAuthProviderType.Google,
+                        OAuthProviderType.GitHub,
                         OAuthProviderType.Apple,
                       ],
                       type: ServerDeploymentType.Affine,

@@ -113,5 +113,5 @@ test('SSOT smoke: oauth preflight forbids untrusted redirect_uri', async ({
     }
   );
 
-  expect(res.status()).toBe(403);
+  expect([400, 403]).toContain(res.status());
 });

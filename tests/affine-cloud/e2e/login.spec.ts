@@ -90,7 +90,9 @@ test.describe('login first', () => {
       await locator.click({
         delay: 50,
       });
-      const nameInput = page.getByPlaceholder('Input account name');
+      const nameInput = page
+        .getByTestId('user-name-input')
+        .or(page.getByPlaceholder('Input account name'));
       await nameInput.clear();
       await nameInput.pressSequentially(newName, {
         delay: 50,

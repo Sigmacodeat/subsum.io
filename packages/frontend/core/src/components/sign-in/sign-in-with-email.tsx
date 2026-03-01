@@ -60,6 +60,7 @@ export const SignInWithEmailStep = ({
   const [isVerifying, setIsVerifying] = useState(false);
   const [otp, setOtp] = useState('');
   const [otpError, setOtpError] = useState<string | undefined>();
+  const isSignupIntent = state.intent === 'signup';
 
   const t = useI18n();
   const authService = useService(AuthService);
@@ -154,7 +155,13 @@ export const SignInWithEmailStep = ({
 
   return !verifyToken && needCaptcha ? (
     <>
-      <AuthHeader title={t['com.affine.auth.sign.in']()} />
+      <AuthHeader
+        title={
+          isSignupIntent
+            ? t['com.affine.auth.sign.up']()
+            : t['com.affine.auth.sign.in']()
+        }
+      />
       <AuthContent style={{ height: 100 }}>
         <Captcha />
       </AuthContent>
@@ -163,8 +170,16 @@ export const SignInWithEmailStep = ({
   ) : (
     <AuthContainer>
       <AuthHeader
-        title={t['com.affine.auth.sign.in']()}
-        subTitle={t['com.affine.auth.sign.in.sent.email.subtitle']()}
+        title={
+          isSignupIntent
+            ? t['com.affine.auth.sign.up']()
+            : t['com.affine.auth.sign.in']()
+        }
+        subTitle={
+          isSignupIntent
+            ? t['com.affine.auth.sign.up.sent.email.subtitle']()
+            : t['com.affine.auth.sign.in.sent.email.subtitle']()
+        }
       />
       <AuthContent>
         <p>

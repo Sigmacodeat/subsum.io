@@ -63,6 +63,7 @@ export const SignInStep = ({
   );
   const authService = useService(AuthService);
   const [isMutating, setIsMutating] = useState(false);
+  const isSignupIntent = state.intent === 'signup';
 
   const [email, setEmail] = useState('');
 
@@ -142,7 +143,11 @@ export const SignInStep = ({
     return (
       <AuthContainer>
         <AuthHeader
-          title={t['com.affine.auth.sign.in']()}
+          title={
+            isSignupIntent
+              ? t['com.affine.auth.sign.up']()
+              : t['com.affine.auth.sign.in']()
+          }
           subTitle={serverName}
         />
         <AuthContent>
@@ -155,17 +160,22 @@ export const SignInStep = ({
   return (
     <AuthContainer>
       <AuthHeader
-        title={t['com.affine.auth.sign.in']()}
+        title={
+          isSignupIntent
+            ? t['com.affine.auth.sign.up']()
+            : t['com.affine.auth.sign.in']()
+        }
         subTitle={serverName}
       />
 
       <AuthContent>
-        <OAuth redirectUrl={state.redirectUrl} />
+        <OAuth redirectUrl={state.redirectUrl} intent={state.intent} />
 
         <AuthInput
           className={style.authInput}
           label={t['com.affine.settings.email']()}
           placeholder={t['com.affine.auth.sign.email.placeholder']()}
+          data-testid="auth-email-input"
           onChange={setEmail}
           error={!isValidEmail}
           errorHint={
