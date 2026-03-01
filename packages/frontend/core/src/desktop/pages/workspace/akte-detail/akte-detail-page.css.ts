@@ -499,8 +499,14 @@ export const alertCenterBody = style({
       scrollbarWidth: 'thin' as any,
       scrollbarColor: `color-mix(in srgb, var(--affine-text-secondary-color) 20%, transparent) transparent`,
     },
-    '&[data-open="true"] @container akte-detail-body (width <= 500px)': {
-      padding: `0 ${sp(3)} ${sp(3)}`,
+  },
+  '@container': {
+    'akte-detail-body (width <= 500px)': {
+      selectors: {
+        '&[data-open="true"]': {
+          padding: `0 ${sp(3)} ${sp(3)}`,
+        },
+      },
     },
   },
 });
