@@ -2689,6 +2689,7 @@ export const AkteDetailPage = () => {
                   className={`${styles.headerButton} ${styles.headerButtonPrimary}`}
                   onClick={() => {
                     setActiveTab('documents');
+                    setSidePanelTab('overview');
                     window.setTimeout(focusUploadZone, 80);
                   }}
                   title={t[
@@ -2898,14 +2899,6 @@ export const AkteDetailPage = () => {
                 >
                   {activeTab === 'documents' && (
                     <div className={styles.docListContainer}>
-                      <div ref={uploadZoneRootRef}>
-                        <FileUploadZone
-                          maxFiles={80}
-                          onFilesReady={handlePreparedFiles}
-                          pipelineProgress={pipelineProgress}
-                        />
-                      </div>
-
                       {compareDoc ? (
                         <section className={styles.docComparePanel}>
                           <div className={styles.docComparePanelHeader}>
@@ -3769,6 +3762,16 @@ export const AkteDetailPage = () => {
             >
               {sidePanelTab === 'overview' && (
                 <div className={styles.sidePanelScrollArea}>
+                  <section className={styles.contextInfoSection}>
+                    <div ref={uploadZoneRootRef}>
+                      <FileUploadZone
+                        maxFiles={80}
+                        onFilesReady={handlePreparedFiles}
+                        pipelineProgress={pipelineProgress}
+                      />
+                    </div>
+                  </section>
+
                   <section
                     className={styles.alertCenterSidebar}
                     aria-label={t[
