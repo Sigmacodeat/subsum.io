@@ -69,16 +69,6 @@ export const akteHeader = style({
   },
 });
 
-export const alertCenterSidebar = style({
-  flex: 1,
-  minHeight: 0,
-  display: 'flex',
-  flexDirection: 'column',
-  borderRadius: 0,
-  border: 'none',
-  background: 'transparent',
-});
-
 export const docCardGrid = style({
   display: 'grid',
   gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
@@ -445,106 +435,31 @@ export const contentLayout = style({
   flex: 1,
   minHeight: 0,
   overflow: 'hidden',
-  marginTop: 0,
-});
-
-export const sidePanelScrollArea = style({
-  flex: 1,
-  minHeight: 0,
-  overflowY: 'auto',
-  scrollbarWidth: 'thin' as any,
-  scrollbarColor: `color-mix(in srgb, ${cssVarV2('text/secondary')} 20%, transparent) transparent`,
 });
 
 export const alertCenter = style({
-  margin: `${sp(2)} ${gutter}px 0`,
+  margin: `${sp(2)} ${gutter}px ${sp(3)}`,
+  padding: `${sp(3)} ${sp(4)}`,
   borderRadius: 12,
   border: borderSubtle,
   background: surfaceRaised,
   display: 'flex',
   flexDirection: 'column',
-  flexShrink: 0,
-  '@container': {
-    'akte-detail-body (width <= 500px)': {
-      margin: `${sp(2)} ${gutterSm}px 0`,
-    },
-  },
-});
-
-export const alertCenterInner = style({
-  padding: `${sp(3)} ${sp(4)}`,
-  display: 'flex',
-  flexDirection: 'column',
   gap: sp(3),
   '@container': {
     'akte-detail-body (width <= 500px)': {
+      margin: `${sp(2)} ${gutterSm}px ${sp(3)}`,
       padding: `${sp(3)} ${sp(3)}`,
-    },
-  },
-});
-
-export const alertCenterBody = style({
-  display: 'flex',
-  flexDirection: 'column',
-  gap: sp(3),
-  overflow: 'hidden',
-  maxHeight: 0,
-  padding: 0,
-  transition: 'max-height 0.22s ease, padding 0.18s ease',
-  selectors: {
-    '&[data-open="true"]': {
-      maxHeight: 600,
-      padding: `0 ${sp(4)} ${sp(3)}`,
-      overflowY: 'auto' as any,
-      scrollbarWidth: 'thin' as any,
-      scrollbarColor: `color-mix(in srgb, var(--affine-text-secondary-color) 20%, transparent) transparent`,
-    },
-    '&[data-open="true"] @container akte-detail-body (width <= 500px)': {
-      padding: `0 ${sp(3)} ${sp(3)}`,
-    },
-  },
-});
-
-export const alertCenterToggleBtn = style({
-  appearance: 'none',
-  background: 'transparent',
-  border: 'none',
-  cursor: 'pointer',
-  fontSize: 11,
-  fontWeight: 600,
-  color: cssVarV2('text/secondary'),
-  display: 'inline-flex',
-  alignItems: 'center',
-  gap: sp(1),
-  padding: `${sp(1)} ${sp(2)}`,
-  borderRadius: 6,
-  transition: 'color 0.15s ease, background 0.15s ease',
-  flexShrink: 0,
-  selectors: {
-    '&:hover': {
-      background: surfaceBase,
-      color: cssVarV2('text/primary'),
-    },
-    '&:focus-visible': {
-      outline: `2px solid ${cssVarV2('button/primary')}`,
-      outlineOffset: 2,
     },
   },
 });
 
 export const alertCenterHeader = style({
   display: 'flex',
-  alignItems: 'center',
+  alignItems: 'flex-start',
   justifyContent: 'space-between',
   gap: sp(3),
   flexWrap: 'wrap',
-  padding: `${sp(2)} ${sp(4)} ${sp(2)}`,
-  cursor: 'default',
-  '@container': {
-    'akte-detail-body (width <= 500px)': {
-      padding: `${sp(2)} ${sp(3)} ${sp(2)}`,
-    },
-  },
 });
 
 export const alertCenterTitle = style({
@@ -1876,8 +1791,7 @@ export const chatInputBar = style({
   background: surfaceBase,
   selectors: {
     '&[data-drag-over="true"]': {
-      background:
-        'color-mix(in srgb, var(--affine-primary-color) 8%, transparent)',
+      background: 'color-mix(in srgb, var(--affine-primary-color) 8%, transparent)',
     },
   },
 });
