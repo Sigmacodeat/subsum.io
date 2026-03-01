@@ -918,12 +918,14 @@ export const FileUploadZone = memo((props: Props) => {
 
   const shouldShowPipelineCard = useMemo(() => {
     if (!pipelineProgress) return false;
-    const hasPersistedPipelineState =
-      pipelineProgress.indexedCount > 0 ||
-      pipelineProgress.ocrPendingCount > 0 ||
-      pipelineProgress.ocrRunningCount > 0 ||
-      pipelineProgress.failedCount > 0;
-    return pipelineProgress.active || hasPersistedPipelineState;
+    // Show when actively processing
+    if (pipelineProgress.active) return true;
+    // Show while OCR jobs are queued or running
+    if (pipelineProgress.ocrPendingCount > 0 || pipelineProgress.ocrRunningCount > 0) return true;
+    // Show when there are failures that need attention
+    if (pipelineProgress.failedCount > 0) return true;
+    // Hide when pipeline completed successfully — no need to display static 100% forever
+    return false;
   }, [pipelineProgress]);
 
   const shouldShowTechnicalMetrics = useMemo(() => {

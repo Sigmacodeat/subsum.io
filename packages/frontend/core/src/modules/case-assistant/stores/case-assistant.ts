@@ -720,7 +720,26 @@ export class CaseAssistantStore extends Store {
   }
 
   watchSemanticChunks() {
-    return this.watchState<SemanticChunk[]>(this.semanticChunksKey, []);
+    const liveData = this.watchState<SemanticChunk[]>(this.semanticChunksKey, []);
+    // Seed from IndexedDB if localStorage has no entry yet.
+    // Covers the case where chunks were only written to IndexedDB (e.g. after
+    // a localStorage quota error) or when localStorage was cleared between sessions.
+    if (this.globalState.get<SemanticChunk[]>(this.semanticChunksKey) === undefined) {
+      this.cacheStorage
+        .get<SemanticChunk[]>(this.semanticChunksKey)
+        .then(cached => {
+          if (cached && cached.length > 0) {
+            try {
+              this.globalState.set(this.semanticChunksKey, cached);
+            } catch {
+              // localStorage too full — chunks stay in IndexedDB only.
+              // UI will show 0 but data is preserved for async reads.
+            }
+          }
+        })
+        .catch(() => {});
+    }
+    return liveData;
   }
 
   async getSemanticChunks() {
