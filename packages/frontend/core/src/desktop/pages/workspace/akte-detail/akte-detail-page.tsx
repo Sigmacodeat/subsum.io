@@ -50,7 +50,7 @@ import { BulkActionBar } from '../layouts/bulk-action-bar';
 import { useBulkSelection } from '../layouts/use-bulk-selection';
 import * as styles from './akte-detail-page.css';
 
-type ActiveTab = 'documents' | 'pages' | 'semantic';
+type ActiveTab = 'documents' | 'semantic';
 type SidePanelTab = 'overview' | 'copilot' | 'info' | 'deadlines';
 type AlertTierFilter = 'all' | 'P1' | 'P2' | 'P3';
 type AlertKindFilter = 'all' | 'deadline' | 'finding';
@@ -60,6 +60,9 @@ type DocumentViewMode = 'list' | 'cards';
 const AKTE_CHAT_UPLOAD_CHUNK_SIZE = 20;
 const DOC_REVIEW_DONE_TAG = '__review_done';
 const DOC_REVIEW_ATTENTION_TAG = '__review_attention';
+const REVIEW_STATUS_DONE_LABEL = 'Abgleich abgeschlossen';
+const REVIEW_STATUS_ATTENTION_LABEL = 'Manuell prüfen';
+const ANALYSE_OCR_ERROR_LABEL = 'OCR-Problem';
 
 const STATUS_STYLE: Record<MatterStatus, string> = {
   open: styles.statusOpen,
@@ -662,7 +665,6 @@ export const AkteDetailPage = () => {
   const [actionStatus, setActionStatus] = useState<string | null>(null);
   const [isIntakeRunning, setIsIntakeRunning] = useState(false);
   const [intakeProgress, setIntakeProgress] = useState(0);
-  const [newPageTitle, setNewPageTitle] = useState('');
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(
     new Set(['/', ''])
   );
@@ -670,7 +672,6 @@ export const AkteDetailPage = () => {
   const [lastBulkTrashedDocIds, setLastBulkTrashedDocIds] = useState<string[]>(
     []
   );
-  const [selectedPageId, setSelectedPageId] = useState<string | null>(null);
   const [alertTierFilter, setAlertTierFilter] =
     useState<AlertTierFilter>('all');
   const [alertKindFilter, setAlertKindFilter] =
@@ -1304,8 +1305,8 @@ export const AkteDetailPage = () => {
         severity: mode === 'reviewed' ? 'info' : 'warning',
         details:
           mode === 'reviewed'
-            ? `${selectedDocs.length} Dokument(e) als Abgleich OK markiert.`
-            : `${selectedDocs.length} Dokument(e) als Prüfen markiert.`,
+            ? `${selectedDocs.length} Dokument(e) als ${REVIEW_STATUS_DONE_LABEL} markiert.`
+            : `${selectedDocs.length} Dokument(e) als ${REVIEW_STATUS_ATTENTION_LABEL} markiert.`,
         metadata: {
           count: String(selectedDocs.length),
           documentIds: selectedDocs.map(doc => doc.id).join(','),
@@ -1314,8 +1315,8 @@ export const AkteDetailPage = () => {
 
       showStatus(
         mode === 'reviewed'
-          ? `${selectedDocs.length} Dokument(e) als Abgleich OK markiert.`
-          : `${selectedDocs.length} Dokument(e) als Prüfen markiert.`
+          ? `${selectedDocs.length} Dokument(e) als ${REVIEW_STATUS_DONE_LABEL} markiert.`
+          : `${selectedDocs.length} Dokument(e) als ${REVIEW_STATUS_ATTENTION_LABEL} markiert.`
       );
     },
     [
@@ -1566,7 +1567,6 @@ export const AkteDetailPage = () => {
   const handleOpenDocument = useCallback(
     async (doc: LegalDocumentRecord) => {
       const openPage = (pageId: string) => {
-        setSelectedPageId(pageId);
         workbench.openDoc(pageId);
         window.setTimeout(() => {
           workbench.activeView$.value?.activeSidebarTab('case-assistant');
@@ -1886,17 +1886,6 @@ export const AkteDetailPage = () => {
     return () => window.removeEventListener('keydown', handler);
   }, [bulkSelection, handleBulkDeleteDocuments]);
 
-  const handleOpenPage = useCallback(
-    (pageId: string) => {
-      setSelectedPageId(pageId);
-      workbench.openDoc(pageId);
-      window.setTimeout(() => {
-        workbench.activeView$.value?.activeSidebarTab('case-assistant');
-      }, 0);
-    },
-    [workbench, matterId, matter?.clientId]
-  );
-
   useEffect(() => {
     if (!matter) {
       linkedPageBackfillSignatureRef.current = '';
@@ -1977,11 +1966,6 @@ export const AkteDetailPage = () => {
       count: matterDocs.length,
     },
     {
-      key: 'pages',
-      label: t['com.affine.caseAssistant.akteDetail.tabs.pages'](),
-      count: linkedPageIds.length,
-    },
-    {
       key: 'semantic',
       label: t['com.affine.caseAssistant.akteDetail.tabs.semantic'](),
       count: matterChunks.length,
@@ -2005,12 +1989,12 @@ export const AkteDetailPage = () => {
     { key: 'open', label: 'Offen', count: docReviewCounts.open },
     {
       key: 'reviewed',
-      label: 'Abgleich OK',
+      label: REVIEW_STATUS_DONE_LABEL,
       count: docReviewCounts.reviewed,
     },
     {
       key: 'attention',
-      label: 'Prüfen',
+      label: REVIEW_STATUS_ATTENTION_LABEL,
       count: docReviewCounts.attention,
     },
   ];
@@ -2022,7 +2006,7 @@ export const AkteDetailPage = () => {
   const handleMainTabsKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLDivElement>) => {
       if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
-      const order: ActiveTab[] = ['documents', 'pages', 'semantic'];
+      const order: ActiveTab[] = ['documents', 'semantic'];
       const currentIndex = order.indexOf(activeTab);
       const nextIndex =
         (currentIndex + (e.key === 'ArrowRight' ? 1 : -1) + order.length) %
@@ -2064,91 +2048,6 @@ export const AkteDetailPage = () => {
       });
     },
     [sidePanelTab, matterId]
-  );
-
-  // ═══ Create New Page in Akte ═══
-  const handleCreatePage = useCallback(async () => {
-    const title =
-      newPageTitle.trim() ||
-      t.t('com.affine.caseAssistant.akteDetail.toast.page.defaultTitle', {
-        date: new Date().toLocaleDateString(language),
-      });
-    try {
-      const docRecord = docsService.createDoc({
-        primaryMode: 'page',
-        title,
-      });
-      const docId = docRecord.id;
-
-      // Add to matter's linkedPageIds
-      if (matter) {
-        const currentLinkedIds = matter.linkedPageIds ?? [];
-        const updated: MatterRecord = {
-          ...matter,
-          linkedPageIds: [...currentLinkedIds, docId],
-          updatedAt: new Date().toISOString(),
-        };
-        const result =
-          await casePlatformOrchestrationService.upsertMatter(updated);
-        if (!result) {
-          showStatus(
-            t['com.affine.caseAssistant.akteDetail.toast.page.updateFailed']()
-          );
-          return;
-        }
-      }
-
-      setNewPageTitle('');
-      showStatus(
-        t.t('com.affine.caseAssistant.akteDetail.toast.page.created', { title })
-      );
-
-      // Open the new page with Akte context
-      const params = new URLSearchParams({
-        caMatterId: matterId,
-        caClientId: matter?.clientId ?? '',
-      });
-      workbench.open(`/${docId}?${params.toString()}`);
-      workbench.openSidebar();
-      window.setTimeout(() => {
-        workbench.activeView$.value?.activeSidebarTab('case-assistant');
-      }, 0);
-    } catch (error) {
-      console.error('[akte-detail] failed to create page', error);
-      showStatus(
-        t['com.affine.caseAssistant.akteDetail.toast.page.createFailed']()
-      );
-    }
-  }, [
-    newPageTitle,
-    docsService,
-    matter,
-    matterId,
-    casePlatformOrchestrationService,
-    showStatus,
-    workbench,
-    t,
-    language,
-  ]);
-
-  // ═══ Remove Page from Akte ═══
-  const handleRemovePageFromAkte = useCallback(
-    async (pageId: string) => {
-      if (!matter) return;
-      const updated: MatterRecord = {
-        ...matter,
-        linkedPageIds: (matter.linkedPageIds ?? []).filter(id => id !== pageId),
-        updatedAt: new Date().toISOString(),
-      };
-      const result =
-        await casePlatformOrchestrationService.upsertMatter(updated);
-      showStatus(
-        result
-          ? t['com.affine.caseAssistant.akteDetail.toast.page.removed']()
-          : t['com.affine.caseAssistant.akteDetail.toast.page.removeFailed']()
-      );
-    },
-    [casePlatformOrchestrationService, matter, showStatus, t]
   );
 
   // ═══ Upload Documents ═══
@@ -2805,7 +2704,7 @@ export const AkteDetailPage = () => {
                           });
                         }}
                       >
-                        ✓ Auswahl als Abgleich OK
+                        ✓ Auswahl als Abgleich abgeschlossen
                       </button>
                       <button
                         type="button"
@@ -2818,7 +2717,7 @@ export const AkteDetailPage = () => {
                           });
                         }}
                       >
-                        ⚠︎ Auswahl als Prüfen
+                        ⚠︎ Auswahl als manuell prüfen
                       </button>
                     </div>
                   ) : null}
@@ -3055,14 +2954,14 @@ export const AkteDetailPage = () => {
                                           <span
                                             className={`${styles.docStatusBadge} ${styles.docStatusReady}`}
                                           >
-                                            Abgleich OK
+                                            {REVIEW_STATUS_DONE_LABEL}
                                           </span>
                                         ) : null}
                                         {needsAttention ? (
                                           <span
                                             className={`${styles.docStatusBadge} ${styles.docStatusPending}`}
                                           >
-                                            Prüfen
+                                            {REVIEW_STATUS_ATTENTION_LABEL}
                                           </span>
                                         ) : null}
                                         <span className={styles.docKindBadge}>
@@ -3083,7 +2982,7 @@ export const AkteDetailPage = () => {
                                           }}
                                           aria-label={`Original PDF öffnen: ${doc.title}`}
                                         >
-                                          ↗ Original öffnen
+                                          ↗ PDF-Original öffnen
                                         </button>
                                       ) : null}
                                     </div>
@@ -3369,14 +3268,14 @@ export const AkteDetailPage = () => {
                                                     <span
                                                       className={`${styles.docStatusBadge} ${styles.docStatusReady}`}
                                                     >
-                                                      Abgleich OK
+                                                      {REVIEW_STATUS_DONE_LABEL}
                                                     </span>
                                                   ) : null}
                                                   {needsAttention ? (
                                                     <span
                                                       className={`${styles.docStatusBadge} ${styles.docStatusPending}`}
                                                     >
-                                                      Prüfen
+                                                      {REVIEW_STATUS_ATTENTION_LABEL}
                                                     </span>
                                                   ) : null}
                                                 </span>
@@ -3467,120 +3366,6 @@ export const AkteDetailPage = () => {
 
                 <div
                   role="tabpanel"
-                  id={getMainPanelId('pages')}
-                  aria-labelledby={getMainTabId('pages')}
-                  hidden={activeTab !== 'pages'}
-                >
-                  {activeTab === 'pages' && (
-                    <div className={styles.docListContainer}>
-                      {/* Inline Create */}
-                      <div className={styles.inlineCreate}>
-                        <input
-                          className={styles.inlineCreateInput}
-                          type="text"
-                          placeholder={t[
-                            'com.affine.caseAssistant.akteDetail.pages.createPlaceholder'
-                          ]()}
-                          value={newPageTitle}
-                          onChange={e => setNewPageTitle(e.target.value)}
-                          onKeyDown={e => {
-                            if (e.key === 'Enter') {
-                              e.preventDefault();
-                              handleCreatePage().catch(() => {
-                                // Fehlerstatus wird bereits innerhalb von handleCreatePage gesetzt.
-                              });
-                            }
-                          }}
-                        />
-                        <button
-                          type="button"
-                          className={styles.inlineCreateButton}
-                          onClick={() => {
-                            handleCreatePage().catch(() => {
-                              // Fehlerstatus wird bereits innerhalb von handleCreatePage gesetzt.
-                            });
-                          }}
-                        >
-                          {t[
-                            'com.affine.caseAssistant.akteDetail.pages.createButton'
-                          ]()}
-                        </button>
-                      </div>
-
-                      {linkedPageIds.length === 0 ? (
-                        <div className={styles.emptyState}>
-                          <div className={styles.emptyIcon}></div>
-                          <div className={styles.emptyTitle}>
-                            {t[
-                              'com.affine.caseAssistant.akteDetail.pages.empty.title'
-                            ]()}
-                          </div>
-                          <div className={styles.emptyDescription}>
-                            {t[
-                              'com.affine.caseAssistant.akteDetail.pages.empty.description'
-                            ]()}
-                          </div>
-                        </div>
-                      ) : (
-                        linkedPageIds.map(pageId => {
-                          const docRecord = docsService.list.doc$(pageId).value;
-                          const title =
-                            docRecord?.meta$.value?.title || 'Untitled';
-                          return (
-                            <div
-                              key={pageId}
-                              className={styles.pageDocRow}
-                              data-selected={selectedPageId === pageId}
-                              onClick={() => handleOpenPage(pageId)}
-                              role="button"
-                              tabIndex={0}
-                              onKeyDown={e => {
-                                if (e.key === 'Enter' || e.key === ' ') {
-                                  e.preventDefault();
-                                  handleOpenPage(pageId);
-                                }
-                              }}
-                            >
-                              <span className={styles.pageDocIcon}></span>
-                              <span className={styles.pageDocTitle}>
-                                {title}
-                              </span>
-                              <span className={styles.pageDocMeta}>
-                                {docRecord?.meta$.value?.updatedDate
-                                  ? relativeTime(
-                                      new Date(
-                                        docRecord.meta$.value.updatedDate
-                                      ).toISOString(),
-                                      language,
-                                      t
-                                    )
-                                  : ''}
-                              </span>
-                              <button
-                                type="button"
-                                className={styles.docActionButton}
-                                onClick={e => {
-                                  e.stopPropagation();
-                                  handleRemovePageFromAkte(pageId).catch(() => {
-                                    // Fehlerstatus wird bereits innerhalb von handleRemovePageFromAkte gesetzt.
-                                  });
-                                }}
-                                title={t[
-                                  'com.affine.caseAssistant.akteDetail.pages.removeTooltip'
-                                ]()}
-                              >
-                                ✕
-                              </button>
-                            </div>
-                          );
-                        })
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                <div
-                  role="tabpanel"
                   id={getMainPanelId('semantic')}
                   aria-labelledby={getMainTabId('semantic')}
                   hidden={activeTab !== 'semantic'}
@@ -3636,7 +3421,7 @@ export const AkteDetailPage = () => {
                                     {doc.title}
                                   </span>
                                   <span className={styles.analyseDocMeta}>
-                                    {goodChunks.length} Abschnitte
+                                    {goodChunks.length} relevante Abschnitte
                                   </span>
                                   <span className={qualityClass}>
                                     Ø {(avgQ * 100).toFixed(0)}%
@@ -3645,7 +3430,7 @@ export const AkteDetailPage = () => {
                                     <span
                                       className={`${styles.docStatusBadge} ${styles.docStatusFailed}`}
                                     >
-                                      OCR-Fehler
+                                      {ANALYSE_OCR_ERROR_LABEL}
                                     </span>
                                   ) : null}
                                 </div>
@@ -3710,8 +3495,9 @@ export const AkteDetailPage = () => {
                                           'noopener,noreferrer'
                                         );
                                       }}
+                                      aria-label={`Original PDF öffnen: ${doc.title}`}
                                     >
-                                      ↗ Original öffnen
+                                      ↗ PDF-Original öffnen
                                     </button>
                                   ) : null}
                                   <button
@@ -3720,8 +3506,23 @@ export const AkteDetailPage = () => {
                                     onClick={() => {
                                       handleOpenDocument(doc).catch(() => {});
                                     }}
+                                    aria-label={`Dokument im Editor öffnen: ${doc.title}`}
                                   >
-                                    Analyse-Seite öffnen
+                                    Im Editor öffnen
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className={styles.docActionButton}
+                                    onClick={() => {
+                                      handleOpenDocument(doc)
+                                        .then(() => {
+                                          setSidePanelTab('copilot');
+                                        })
+                                        .catch(() => {});
+                                    }}
+                                    aria-label={`Dokument im Copilot analysieren: ${doc.title}`}
+                                  >
+                                    Im Copilot analysieren
                                   </button>
                                 </div>
                               </div>

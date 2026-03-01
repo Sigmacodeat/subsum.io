@@ -1,8 +1,6 @@
-import { Service } from '../../../../../../common/infra/src/framework/core';
 import { inflateSync } from 'fflate';
 
-import { ocrPdfFromBase64 } from './local-ocr-engine';
-
+import { Service } from '../../../../../../common/infra/src/framework/core';
 import type {
   ChunkExtractedEntities,
   DocumentProcessingStatus,
@@ -14,6 +12,7 @@ import type {
   SemanticChunk,
   SemanticChunkCategory,
 } from '../types';
+import { ocrPdfFromBase64 } from './local-ocr-engine';
 
 function createId(prefix: string) {
   return `${prefix}:${Date.now().toString(36)}:${Math.random().toString(36).slice(2, 8)}`;
@@ -235,7 +234,7 @@ function decodeU8ToLatin1String(data: Uint8Array): string {
     return new TextDecoder('latin1').decode(data);
   } catch {
     let s = '';
-    for (let i = 0; i < data.length; i++) s += String.fromCharCode(data[i]);
+    for (const byte of data) s += String.fromCharCode(byte);
     return s;
   }
 }
