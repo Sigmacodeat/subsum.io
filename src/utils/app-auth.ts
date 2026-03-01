@@ -11,4 +11,14 @@ export function getConfiguredAppOrigin() {
 }
 
 export const APP_ORIGIN = getConfiguredAppOrigin();
-export const APP_SIGN_UP_URL = `${APP_ORIGIN}${APP_SIGN_UP_PATH}`;
+
+// Canonical entry URL for marketing CTAs.
+// If a user is already active in the app, this avoids forcing them into a
+// sign-up intent flow and lets the app handle auth state at its own root.
+export const APP_MARKETING_PRIMARY_CTA_URL = `${APP_ORIGIN}${APP_DASHBOARD_PATH}`;
+
+// Explicit sign-up intent URL (use where signup intent is mandatory).
+export const APP_SIGN_UP_INTENT_URL = `${APP_ORIGIN}${APP_SIGN_UP_PATH}`;
+
+// Backwards-compatible alias used by existing marketing pages.
+export const APP_SIGN_UP_URL = APP_MARKETING_PRIMARY_CTA_URL;

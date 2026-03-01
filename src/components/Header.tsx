@@ -9,10 +9,10 @@ import { BRAND_TAGLINE } from '@/brand';
 import { Link, usePathname } from '@/i18n/routing';
 import {
   APP_DASHBOARD_PATH,
+  APP_MARKETING_PRIMARY_CTA_URL,
   APP_MEMBER_PROFILE_PATH,
   APP_SIGN_IN_PATH,
   APP_SIGN_OUT_PATH,
-  APP_SIGN_UP_PATH,
   DEFAULT_APP_ORIGIN,
   getConfiguredAppOrigin,
 } from '@/utils/app-auth';
@@ -282,17 +282,21 @@ export default function Header() {
   useEffect(() => {
     void revalidateAuthSession();
 
+    const onWindowFocus = () => {
+      void revalidateAuthSession();
+    };
+
     const onVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
         void revalidateAuthSession();
       }
     };
 
-    window.addEventListener('focus', () => void revalidateAuthSession());
+    window.addEventListener('focus', onWindowFocus);
     document.addEventListener('visibilitychange', onVisibilityChange);
 
     return () => {
-      window.removeEventListener('focus', () => void revalidateAuthSession());
+      window.removeEventListener('focus', onWindowFocus);
       document.removeEventListener('visibilitychange', onVisibilityChange);
     };
   }, [revalidateAuthSession]);
@@ -414,7 +418,7 @@ export default function Header() {
                 </a>
                 <MagneticButton strength={0.15}>
                   <a
-                    href={`${activeAppOrigin}${APP_SIGN_UP_PATH}`}
+                    href={APP_MARKETING_PRIMARY_CTA_URL}
                     className="btn-primary !px-4 xl:!px-5 !py-2.5 !text-[13px] xl:!text-sm focus-ring whitespace-nowrap inline-flex items-center gap-1.5"
                   >
                     <span>{t('startFree')}</span>
@@ -621,7 +625,7 @@ export default function Header() {
                   {t('login')}
                 </a>
                 <a
-                  href={`${activeAppOrigin}${APP_SIGN_UP_PATH}`}
+                  href={APP_MARKETING_PRIMARY_CTA_URL}
                   onClick={closeMobileMenu}
                   className="btn-primary w-full !text-base !font-semibold !tracking-[-0.01em] focus-ring whitespace-nowrap"
                 >
