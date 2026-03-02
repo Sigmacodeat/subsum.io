@@ -2154,3 +2154,256 @@ export const chatAttachmentError = style({
   fontSize: 11,
   color: cssVarV2('status/error'),
 });
+
+/* ═══ Strategie Tab ═══ */
+
+export const strategieSectionHeader = style({
+  display: 'flex',
+  alignItems: 'center',
+  gap: sp(2),
+  padding: `${sp(3)} 0 ${sp(2)}`,
+  marginBottom: sp(1),
+  borderBottom: borderDivider,
+});
+
+export const strategieSectionIcon = style({
+  fontSize: 16,
+  flexShrink: 0,
+});
+
+export const strategieSectionTitle = style({
+  flex: 1,
+  fontSize: 13,
+  fontWeight: 600,
+  color: cssVarV2('text/primary'),
+});
+
+export const strategieSectionCount = style({
+  fontSize: 11,
+  fontWeight: 500,
+  color: cssVarV2('text/secondary'),
+  background: surfaceRaised,
+  border: borderSubtle,
+  borderRadius: 999,
+  padding: `1px ${sp(2)}`,
+});
+
+export const strategieTaskItem = style({
+  display: 'flex',
+  alignItems: 'flex-start',
+  gap: sp(2),
+  padding: `${sp(2)} 0`,
+  borderBottom: borderDivider,
+  selectors: {
+    '&[data-done="true"]': {
+      opacity: 0.5,
+    },
+  },
+});
+
+export const strategieTaskStatus = style({
+  appearance: 'none',
+  border: borderSubtle,
+  background: surfaceBase,
+  borderRadius: '50%',
+  width: 24,
+  height: 24,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  fontSize: 12,
+  cursor: 'pointer',
+  flexShrink: 0,
+  marginTop: 1,
+  transition: 'background 0.15s',
+  selectors: {
+    '&[data-status="done"]': {
+      background: 'color-mix(in srgb, var(--affine-primary-color) 15%, transparent)',
+      borderColor: accentBorder,
+      color: cssVarV2('button/primary'),
+    },
+    '&[data-status="in_progress"]': {
+      background: 'color-mix(in srgb, #f59e0b 12%, transparent)',
+      borderColor: 'rgba(245,158,11,0.3)',
+      color: '#d97706',
+    },
+    '&[data-status="blocked"]': {
+      background: 'color-mix(in srgb, var(--affine-error-color) 10%, transparent)',
+      borderColor: 'rgba(239,68,68,0.25)',
+      color: cssVarV2('status/error'),
+    },
+    '&:hover': {
+      background: accentBgHover,
+    },
+    '&:focus-visible': {
+      outline: `2px solid ${cssVarV2('button/primary')}`,
+      outlineOffset: 1,
+    },
+  },
+});
+
+export const strategieTaskTitle = style({
+  fontSize: 13,
+  fontWeight: 500,
+  color: cssVarV2('text/primary'),
+  lineHeight: '20px',
+});
+
+export const strategieTaskDesc = style({
+  fontSize: 12,
+  color: cssVarV2('text/secondary'),
+  lineHeight: '18px',
+  marginTop: 2,
+});
+
+export const strategieTaskPriority = style({
+  fontSize: 10,
+  fontWeight: 600,
+  padding: `1px ${sp(2)}`,
+  borderRadius: 4,
+  flexShrink: 0,
+  marginTop: 2,
+  textTransform: 'uppercase',
+  selectors: {
+    '&[data-priority="critical"]': {
+      background: 'color-mix(in srgb, var(--affine-error-color) 12%, transparent)',
+      color: cssVarV2('status/error'),
+    },
+    '&[data-priority="high"]': {
+      background: 'color-mix(in srgb, #f59e0b 12%, transparent)',
+      color: '#d97706',
+    },
+    '&[data-priority="medium"]': {
+      background: surfaceRaised,
+      color: cssVarV2('text/secondary'),
+    },
+    '&[data-priority="low"]': {
+      background: surfaceRaised,
+      color: cssVarV2('text/secondary'),
+      opacity: 0.7,
+    },
+  },
+});
+
+export const strategieBlueprintCard = style({
+  background: surfaceBase,
+  border: borderSubtle,
+  borderRadius: 10,
+  padding: sp(3),
+  marginTop: sp(1),
+});
+
+export const strategieBlueprintObjective = style({
+  margin: `0 0 ${sp(3)}`,
+  fontSize: 13,
+  color: cssVarV2('text/secondary'),
+  lineHeight: '20px',
+  fontStyle: 'italic',
+});
+
+export const strategieBlueprintSection = style({
+  borderTop: borderDivider,
+  paddingTop: sp(2),
+  marginTop: sp(2),
+});
+
+export const strategieBlueprintSectionHeading = style({
+  fontSize: 12,
+  fontWeight: 600,
+  color: cssVarV2('text/primary'),
+  marginBottom: sp(1),
+});
+
+export const strategieBlueprintSectionContent = style({
+  margin: 0,
+  fontSize: 12,
+  color: cssVarV2('text/secondary'),
+  lineHeight: '18px',
+});
+
+export const strategieNoteItem = style({
+  padding: `${sp(2)} 0`,
+  borderBottom: borderDivider,
+});
+
+export const strategieNoteTitle = style({
+  fontSize: 13,
+  fontWeight: 500,
+  color: cssVarV2('text/primary'),
+  marginBottom: 2,
+});
+
+export const strategieNoteBody = style({
+  fontSize: 12,
+  color: cssVarV2('text/secondary'),
+  lineHeight: '18px',
+});
+
+export const strategieNoteTag = style({
+  display: 'inline-block',
+  marginTop: sp(1),
+  fontSize: 10,
+  fontWeight: 500,
+  background: accentBg,
+  color: cssVarV2('button/primary'),
+  border: `1px solid ${accentBorder}`,
+  borderRadius: 4,
+  padding: `1px ${sp(1)}`,
+  textTransform: 'uppercase',
+});
+
+export const strategieNoteMeta = style({
+  fontSize: 11,
+  color: cssVarV2('text/secondary'),
+  marginTop: 2,
+});
+
+export const alertTierP1 = style({
+  background: 'color-mix(in srgb, var(--affine-error-color) 12%, transparent)',
+  color: cssVarV2('status/error'),
+  border: '1px solid color-mix(in srgb, var(--affine-error-color) 25%, transparent)',
+});
+
+export const alertTierP2 = style({
+  background: 'color-mix(in srgb, #f59e0b 12%, transparent)',
+  color: '#d97706',
+  border: '1px solid rgba(245,158,11,0.25)',
+});
+
+export const alertTierP3 = style({
+  background: surfaceRaised,
+  color: cssVarV2('text/secondary'),
+  border: borderSubtle,
+});
+
+export const alertActionAck = style({
+  appearance: 'none',
+  border: borderSubtle,
+  background: surfaceBase,
+  borderRadius: 5,
+  padding: `2px ${sp(2)}`,
+  fontSize: 11,
+  fontWeight: 500,
+  cursor: 'pointer',
+  color: cssVarV2('button/primary'),
+  selectors: {
+    '&:hover': { background: accentBgHover, borderColor: accentBorder },
+    '&:focus-visible': { outline: `2px solid ${cssVarV2('button/primary')}`, outlineOffset: 1 },
+  },
+});
+
+export const alertActionDismiss = style({
+  appearance: 'none',
+  border: borderSubtle,
+  background: surfaceBase,
+  borderRadius: 5,
+  padding: `2px ${sp(2)}`,
+  fontSize: 11,
+  fontWeight: 500,
+  cursor: 'pointer',
+  color: cssVarV2('text/secondary'),
+  selectors: {
+    '&:hover': { background: surfaceRaised, color: cssVarV2('text/primary') },
+    '&:focus-visible': { outline: `2px solid ${cssVarV2('button/primary')}`, outlineOffset: 1 },
+  },
+});

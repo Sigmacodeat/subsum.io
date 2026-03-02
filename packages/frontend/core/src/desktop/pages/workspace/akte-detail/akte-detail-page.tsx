@@ -23,10 +23,13 @@ import { CasePlatformOrchestrationService } from '../../../../modules/case-assis
 import { CaseAssistantStore } from '../../../../modules/case-assistant/stores/case-assistant';
 import type {
   AnwaltProfile,
+  CaseBlueprint,
   CaseDeadline,
   CaseFile,
   CasePriority,
   ClientRecord,
+  CopilotTask,
+  CopilotTaskStatus,
   LegalChatMessage,
   LegalChatMode,
   LegalChatSession,
@@ -50,7 +53,7 @@ import { BulkActionBar } from '../layouts/bulk-action-bar';
 import { useBulkSelection } from '../layouts/use-bulk-selection';
 import * as styles from './akte-detail-page.css';
 
-type ActiveTab = 'documents' | 'semantic';
+type ActiveTab = 'documents' | 'semantic' | 'strategie';
 type SidePanelTab = 'overview' | 'copilot' | 'info' | 'deadlines';
 type AlertTierFilter = 'all' | 'P1' | 'P2' | 'P3';
 type AlertKindFilter = 'all' | 'deadline' | 'finding';
@@ -436,6 +439,10 @@ export const AkteDetailPage = () => {
     useLiveData(copilotWorkflowService.legalDocuments$) ?? [];
   const legalFindings: LegalFinding[] =
     useLiveData(copilotWorkflowService.findings$) ?? [];
+  const copilotTasks: CopilotTask[] =
+    useLiveData(copilotWorkflowService.tasks$) ?? [];
+  const allBlueprints: CaseBlueprint[] =
+    useLiveData(copilotWorkflowService.blueprints$) ?? [];
   const semanticChunks: SemanticChunk[] =
     useLiveData(store.watchSemanticChunks()) ?? [];
   const chatSessions: LegalChatSession[] =
@@ -553,6 +560,40 @@ export const AkteDetailPage = () => {
         }),
     [legalFindings, caseIds, workspaceId]
   );
+
+  const matterTasks = useMemo(
+    () =>
+      copilotTasks
+        .filter((t: CopilotTask) => caseIds.has(t.caseId) && t.workspaceId === workspaceId)
+        .sort((a, b) => getPriorityRank(b.priority) - getPriorityRank(a.priority)),
+    [copilotTasks, caseIds, workspaceId]
+  );
+
+  const matterBlueprint = useMemo(
+    () =>
+      allBlueprints
+        .filter((bp: CaseBlueprint) => caseIds.has(bp.caseId) && bp.workspaceId === workspaceId)
+        .sort((a, b) => new Date(b.generatedAt).getTime() - new Date(a.generatedAt).getTime())[0] ?? null,
+    [allBlueprints, caseIds, workspaceId]
+  );
+
+  const matterNotes = useMemo(() => {
+    const noteIds = caseFiles.flatMap(c => (c.memoryEventIds ?? []));
+    const events = (graph as any).memoryEvents ?? {};
+    return noteIds
+      .map((id: string) => events[id])
+      .filter((e: any) => !!e && e.summary)
+      .slice(0, 50) as Array<{ id: string; summary: string; createdAt?: string }>;
+  }, [caseFiles, graph]);
+
+  const matterIssues = useMemo(() => {
+    const issueIds = caseFiles.flatMap(c => (c.issueIds ?? []));
+    const issues = (graph as any).issues ?? {};
+    return issueIds
+      .map((id: string) => issues[id])
+      .filter((issue: any) => !!issue && issue.title)
+      .slice(0, 50) as Array<{ id: string; title: string; description?: string; category?: string; priority?: CasePriority; confidence?: number }>;
+  }, [caseFiles, graph]);
 
   const deadlines = useMemo(() => {
     const allDeadlineIds = caseFiles.flatMap(c => c.deadlineIds);
@@ -1970,6 +2011,11 @@ export const AkteDetailPage = () => {
       label: t['com.affine.caseAssistant.akteDetail.tabs.semantic'](),
       count: matterChunks.length,
     },
+    {
+      key: 'strategie',
+      label: 'Strategie',
+      count: matterFindings.length + matterTasks.length,
+    },
   ];
 
   const documentViewOptions: ReadonlyArray<{
@@ -2006,7 +2052,7 @@ export const AkteDetailPage = () => {
   const handleMainTabsKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLDivElement>) => {
       if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
-      const order: ActiveTab[] = ['documents', 'semantic'];
+      const order: ActiveTab[] = ['documents', 'semantic', 'strategie'];
       const currentIndex = order.indexOf(activeTab);
       const nextIndex =
         (currentIndex + (e.key === 'ArrowRight' ? 1 : -1) + order.length) %
@@ -3533,6 +3579,183 @@ export const AkteDetailPage = () => {
                     </div>
                   )}
                 </div>
+              </div>
+
+              {/* ═══ STRATEGIE TAB ═══ */}
+              <div
+                role="tabpanel"
+                id={getMainPanelId('strategie')}
+                aria-labelledby={getMainTabId('strategie')}
+                hidden={activeTab !== 'strategie'}
+              >
+                {activeTab === 'strategie' && (
+                  <div className={styles.docListContainer}>
+                    {matterFindings.length === 0 && matterTasks.length === 0 && !matterBlueprint && matterIssues.length === 0 ? (
+                      <div className={styles.emptyState}>
+                        <div className={styles.emptyIcon}>🧠</div>
+                        <div className={styles.emptyTitle}>Noch keine Strategieauswertung</div>
+                        <div className={styles.emptyDescription}>
+                          Starte die Analyse über den Chat (<strong>/analyse</strong> oder <strong>/workflow</strong>), um Widersprüche, Risiken, Aufgaben und einen Arbeitsplan zu erzeugen.
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        {/* ── Findings ── */}
+                        {matterFindings.length > 0 && (
+                          <section style={{ marginBottom: 24 }}>
+                            <div className={styles.strategieSectionHeader}>
+                              <span className={styles.strategieSectionIcon}>⚠️</span>
+                              <span className={styles.strategieSectionTitle}>Befunde &amp; Risiken</span>
+                              <span className={styles.strategieSectionCount}>{matterFindings.length}</span>
+                            </div>
+                            {matterFindings.map(finding => {
+                              const decision = findingDecisionById.get(finding.id);
+                              const tier = classifyFindingTier(finding);
+                              const tierClass = tier === 'P1' ? styles.alertTierP1 : tier === 'P2' ? styles.alertTierP2 : styles.alertTierP3;
+                              const typeLabel: Record<LegalFinding['type'], string> = {
+                                contradiction: 'Widerspruch', cross_reference: 'Querverweis',
+                                liability: 'Haftung', deadline_risk: 'Fristrisiko',
+                                evidence_gap: 'Beweislücke', action_recommendation: 'Maßnahme',
+                                norm_error: 'Normfehler', norm_warning: 'Normwarnung', norm_suggestion: 'Normhinweis',
+                              };
+                              return (
+                                <div key={finding.id} className={styles.alertCard} style={{ opacity: decision ? 0.55 : 1 }}>
+                                  <div className={styles.alertCardHeader}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, minWidth: 0 }}>
+                                      <span className={tierClass} style={{ fontSize: 10, fontWeight: 700, padding: '1px 5px', borderRadius: 4, flexShrink: 0 }}>{tier}</span>
+                                      <span className={styles.alertCardTitle}>{typeLabel[finding.type] ?? finding.type}</span>
+                                      {decision && <span style={{ fontSize: 10, color: 'var(--affine-text-secondary-color)' }}>({decision === 'acknowledged' ? '✓ Geprüft' : '✗ Abgelehnt'})</span>}
+                                    </div>
+                                    {!decision && (
+                                      <div className={styles.alertCardActions}>
+                                        <button type="button" className={styles.alertActionAck} onClick={() => { handleAcknowledgeFinding(finding).catch(() => {}); }}>
+                                          Geprüft
+                                        </button>
+                                        <button type="button" className={styles.alertActionDismiss} onClick={() => { handleDismissFinding(finding).catch(() => {}); }}>
+                                          Abweisen
+                                        </button>
+                                      </div>
+                                    )}
+                                  </div>
+                                  <div className={styles.alertCardDescription}>{finding.title}</div>
+                                  {finding.description && finding.description !== finding.title && (
+                                    <p className={styles.alertCardDescription} style={{ fontWeight: 400, marginTop: 2 }}>{finding.description.slice(0, 320)}{finding.description.length > 320 ? '…' : ''}</p>
+                                  )}
+                                  {finding.citations[0]?.quote && (
+                                    <blockquote className={styles.alertCardQuote}>
+                                      „{finding.citations[0].quote.slice(0, 200)}{finding.citations[0].quote.length > 200 ? '…' : ''}"
+                                    </blockquote>
+                                  )}
+                                  {finding.sourceDocumentIds.length > 0 && (
+                                    <p className={styles.alertCardSource}>
+                                      Quellen: {finding.sourceDocumentIds.slice(0, 3).map(id => matterDocs.find(d => d.id === id)?.title ?? id).join(', ')}
+                                    </p>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </section>
+                        )}
+
+                        {/* ── Tasks ── */}
+                        {matterTasks.length > 0 && (
+                          <section style={{ marginBottom: 24 }}>
+                            <div className={styles.strategieSectionHeader}>
+                              <span className={styles.strategieSectionIcon}>✅</span>
+                              <span className={styles.strategieSectionTitle}>Aufgaben</span>
+                              <span className={styles.strategieSectionCount}>{matterTasks.filter((t: CopilotTask) => t.status !== 'done').length} offen</span>
+                            </div>
+                            {matterTasks.map((task: CopilotTask) => {
+                              const statusLabel: Record<CopilotTaskStatus, string> = {
+                                open: 'Offen', in_progress: 'In Arbeit', blocked: 'Blockiert', done: 'Erledigt',
+                              };
+                              const nextStatus: Record<CopilotTaskStatus, CopilotTaskStatus> = {
+                                open: 'in_progress', in_progress: 'done', blocked: 'open', done: 'open',
+                              };
+                              return (
+                                <div key={task.id} className={styles.strategieTaskItem} data-done={task.status === 'done'}>
+                                  <button
+                                    type="button"
+                                    className={styles.strategieTaskStatus}
+                                    data-status={task.status}
+                                    onClick={() => {
+                                      copilotWorkflowService.updateTaskStatus({ taskId: task.id, status: nextStatus[task.status] }).catch(() => {});
+                                    }}
+                                    title={`Status: ${statusLabel[task.status]} → Klicken zum Weiterschalten`}
+                                  >
+                                    {task.status === 'done' ? '✓' : task.status === 'in_progress' ? '▶' : task.status === 'blocked' ? '⊘' : '○'}
+                                  </button>
+                                  <div style={{ flex: 1, minWidth: 0 }}>
+                                    <div className={styles.strategieTaskTitle}>{task.title}</div>
+                                    {task.description && <div className={styles.strategieTaskDesc}>{task.description.slice(0, 180)}{task.description.length > 180 ? '…' : ''}</div>}
+                                  </div>
+                                  <span className={styles.strategieTaskPriority} data-priority={task.priority}>{task.priority}</span>
+                                </div>
+                              );
+                            })}
+                          </section>
+                        )}
+
+                        {/* ── Blueprint ── */}
+                        {matterBlueprint && (
+                          <section style={{ marginBottom: 24 }}>
+                            <div className={styles.strategieSectionHeader}>
+                              <span className={styles.strategieSectionIcon}>📋</span>
+                              <span className={styles.strategieSectionTitle}>Arbeitsplan (Blueprint)</span>
+                              <span className={styles.strategieSectionCount} style={{ textTransform: 'capitalize' }}>{matterBlueprint.reviewStatus ?? 'draft'}</span>
+                            </div>
+                            <div className={styles.strategieBlueprintCard}>
+                              <p className={styles.strategieBlueprintObjective}>{matterBlueprint.objective}</p>
+                              {matterBlueprint.sections.map(section => (
+                                <div key={section.id} className={styles.strategieBlueprintSection}>
+                                  <div className={styles.strategieBlueprintSectionHeading}>{section.heading}</div>
+                                  <p className={styles.strategieBlueprintSectionContent}>{section.content}</p>
+                                </div>
+                              ))}
+                            </div>
+                          </section>
+                        )}
+
+                        {/* ── Erkenntnisse (Issues) ── */}
+                        {matterIssues.length > 0 && (
+                          <section style={{ marginBottom: 24 }}>
+                            <div className={styles.strategieSectionHeader}>
+                              <span className={styles.strategieSectionIcon}>💡</span>
+                              <span className={styles.strategieSectionTitle}>Gespeicherte Erkenntnisse</span>
+                              <span className={styles.strategieSectionCount}>{matterIssues.length}</span>
+                            </div>
+                            {matterIssues.map(issue => (
+                              <div key={issue.id} className={styles.strategieNoteItem}>
+                                <div className={styles.strategieNoteTitle}>{issue.title}</div>
+                                {issue.description && <div className={styles.strategieNoteBody}>{issue.description.slice(0, 200)}{issue.description.length > 200 ? '…' : ''}</div>}
+                                {issue.category && <span className={styles.strategieNoteTag}>{issue.category}</span>}
+                              </div>
+                            ))}
+                          </section>
+                        )}
+
+                        {/* ── Notizen (MemoryEvents) ── */}
+                        {matterNotes.length > 0 && (
+                          <section style={{ marginBottom: 24 }}>
+                            <div className={styles.strategieSectionHeader}>
+                              <span className={styles.strategieSectionIcon}>📝</span>
+                              <span className={styles.strategieSectionTitle}>Chat-Notizen</span>
+                              <span className={styles.strategieSectionCount}>{matterNotes.length}</span>
+                            </div>
+                            {matterNotes.map(note => (
+                              <div key={note.id} className={styles.strategieNoteItem}>
+                                <div className={styles.strategieNoteBody}>{note.summary}</div>
+                                {note.createdAt && (
+                                  <div className={styles.strategieNoteMeta}>{new Date(note.createdAt).toLocaleDateString('de-AT')}</div>
+                                )}
+                              </div>
+                            ))}
+                          </section>
+                        )}
+                      </>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           </div>
