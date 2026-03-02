@@ -1645,7 +1645,7 @@ export const AkteDetailPage = () => {
           updatedAt: new Date().toISOString(),
         });
         if (!result) {
-          throw new Error('matter-link-failed');
+          console.warn('[handleOpenDocument] ensureMatterLinkedPage: upsertMatter returned null (non-critical, continuing)');
         }
       };
 
@@ -1750,26 +1750,14 @@ export const AkteDetailPage = () => {
         // fallback to previous context-open behavior
       }
 
-      const relatedCase = caseFiles.find(c => c.id === doc.caseId);
-      if (relatedCase) {
-        const params = new URLSearchParams({
-          caMatterId: matterId,
-          caClientId: matter?.clientId ?? '',
-        });
-        workbench.open(`/${relatedCase.id}?${params.toString()}`);
-        workbench.openSidebar();
-        window.setTimeout(() => {
-          workbench.activeView$.value?.activeSidebarTab('case-assistant');
-        }, 0);
-      }
+      console.warn('[handleOpenDocument] openLinkedPage failed, staying on akte-detail');
+      workbench.openAkte(matterId);
     },
     [
-      caseFiles,
       casePlatformOrchestrationService,
       docsService,
       matter,
       matterId,
-      matter?.clientId,
       matterChunks,
       showStatus,
       workbench,

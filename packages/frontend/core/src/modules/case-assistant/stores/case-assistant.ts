@@ -185,18 +185,8 @@ export class CaseAssistantStore extends Store {
     const anwaelte = graph.anwaelte ?? {};
     const termine = graph.termine ?? {};
 
-    if (!clients[this.defaultClientId]) {
-      clients[this.defaultClientId] = {
-        id: this.defaultClientId,
-        workspaceId: this.workspaceId,
-        kind: 'other',
-        displayName: 'Default Mandant',
-        archived: false,
-        tags: [],
-        createdAt: now,
-        updatedAt: now,
-      };
-    }
+    // Purge legacy auto-created default client if still present in stored data
+    delete clients[this.defaultClientId];
 
     // Migration: ensure clientIds[] is populated from clientId for backward compat
     for (const matter of Object.values(matters)) {
@@ -220,6 +210,7 @@ export class CaseAssistantStore extends Store {
         const matterId = `matter:${this.workspaceId}:${caseId}`;
         caseFile.matterId = matterId;
         const FILE_EXT_RE = /\.(pdf|docx?|txt|eml|msg|png|jpe?g|tiff?|bmp|webp|gif|heic|heif|odt|rtf|html?|md|csv|tsv|json|xml|xlsx?|xlsm|pptx?|ppt|ods)$/i;
+        const firstClientId = Object.keys(clients)[0] ?? '';
         if (!matters[matterId]) {
           const rawTitle = caseFile.title || 'Akte';
           const cleanTitle =
@@ -227,19 +218,25 @@ export class CaseAssistantStore extends Store {
           matters[matterId] = {
             id: matterId,
             workspaceId: this.workspaceId,
-            clientId: this.defaultClientId,
+            clientId: firstClientId,
             title: cleanTitle,
             status: 'open',
             tags: [],
             createdAt: caseFile.createdAt ?? now,
             updatedAt: now,
           };
-        } else if (FILE_EXT_RE.test(matters[matterId].title)) {
-          matters[matterId] = {
-            ...matters[matterId],
-            title: matters[matterId].title.replace(FILE_EXT_RE, '').trim() || 'Akte',
-            updatedAt: now,
-          };
+        } else {
+          const existingMatter = matters[matterId];
+          const needsTitleFix = FILE_EXT_RE.test(existingMatter.title);
+          const needsClientFix = !existingMatter.clientId && firstClientId;
+          if (needsTitleFix || needsClientFix) {
+            matters[matterId] = {
+              ...existingMatter,
+              ...(needsTitleFix ? { title: existingMatter.title.replace(FILE_EXT_RE, '').trim() || 'Akte' } : {}),
+              ...(needsClientFix ? { clientId: firstClientId } : {}),
+              updatedAt: now,
+            };
+          }
         }
       }
     }

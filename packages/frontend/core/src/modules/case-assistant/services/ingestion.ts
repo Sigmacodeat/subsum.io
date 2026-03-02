@@ -158,6 +158,8 @@ export class CaseIngestionService extends Service {
     caseId: string;
     workspaceId: string;
     title: string;
+    /** Optional: explicit matterId to stamp on the CaseFile. Falls back to existing record's matterId. */
+    matterId?: string;
     docs: SourceDocument[];
     tags?: string[];
     externalRef?: string;
@@ -180,18 +182,20 @@ export class CaseIngestionService extends Service {
 
     const actors = [...actorByName.values()];
 
+    const existingCase = this.caseAssistantService.graph$.value?.cases?.[params.caseId] as CaseFile | undefined;
     const caseFile: CaseFile = {
       id: params.caseId,
       workspaceId: params.workspaceId,
       title: params.title,
       externalRef: params.externalRef,
+      matterId: params.matterId ?? existingCase?.matterId,
       summary: this.buildCaseSummary(params.docs, issues, deadlines),
       actorIds: actors.map(a => a.id),
       issueIds: issues.map(i => i.id),
       deadlineIds: deadlines.map(d => d.id),
       memoryEventIds: memoryEvents.map(e => e.id),
       tags: params.tags ?? [],
-      createdAt: now,
+      createdAt: existingCase?.createdAt ?? now,
       updatedAt: now,
     };
 
