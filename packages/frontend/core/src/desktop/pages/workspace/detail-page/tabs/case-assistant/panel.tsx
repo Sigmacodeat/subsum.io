@@ -3248,6 +3248,89 @@ export const EditorCaseAssistantPanel = ({
     ]
   );
 
+  const savedSchriftsaetze = useMemo(
+    () =>
+      legalDocuments
+        .filter(
+          (d: LegalDocumentRecord) =>
+            d.kind === 'schriftsatz' &&
+            d.caseId === caseId &&
+            d.workspaceId === workspaceId
+        )
+        .sort(
+          (a: LegalDocumentRecord, b: LegalDocumentRecord) =>
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        ),
+    [caseId, legalDocuments, workspaceId]
+  );
+
+  const onLoadSavedSchriftsatz = useCallback(
+    (doc: LegalDocumentRecord) => {
+      const reconstructed: GeneratedDocument = {
+        id: doc.id,
+        template: (doc.tags?.[0] ?? 'other') as DocumentTemplate,
+        title: doc.title,
+        markdown: doc.rawText,
+        sections: [
+          {
+            id: `sec:loaded:${doc.id}`,
+            heading: 'Inhalt',
+            content: doc.rawText,
+            citationIds: [],
+          },
+        ],
+        citations: [],
+        warnings: [],
+        generatedAt: doc.createdAt,
+      };
+      setGeneratedDoc(reconstructed);
+      setIngestionStatus(`Schriftsatz geladen: "${doc.title}"`);
+    },
+    [setGeneratedDoc, setIngestionStatus]
+  );
+
+  const onExportSavedSchriftsatzPdf = useCallback(
+    async (doc: LegalDocumentRecord) => {
+      const payload = {
+        workspaceId,
+        caseId,
+        title: doc.title,
+        markdown: doc.rawText,
+        lawFirm: {
+          lawFirmName: kanzleiProfile?.name,
+          lawyerName: activeAnwaltDisplayName,
+        },
+        parties: {},
+        attachments: [],
+        citations: [],
+      };
+      setIngestionStatus('PDF wird erzeugt…');
+      try {
+        const res = await fetch('/api/legal/pdf/export', {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        if (!res.ok) {
+          setIngestionStatus('PDF-Export fehlgeschlagen.');
+          return;
+        }
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${doc.title.replace(/[^a-zA-Z0-9äöüÄÖÜß _-]/g, '_')}.pdf`;
+        a.click();
+        URL.revokeObjectURL(url);
+        setIngestionStatus(`PDF exportiert: "${doc.title}"`);
+      } catch {
+        setIngestionStatus('PDF-Export fehlgeschlagen: Netzwerkfehler.');
+      }
+    },
+    [activeAnwaltDisplayName, caseId, kanzleiProfile?.name, setIngestionStatus, workspaceId]
+  );
+
   const handleOptimizeGeneratedWithCopilot = useCallback(() => {
     if (!generatedDoc) {
       setIngestionStatus(
@@ -4056,6 +4139,11 @@ export const EditorCaseAssistantPanel = ({
                         onInsertGeneratedDocumentIntoCurrentDoc
                       }
                       onOptimizeWithCopilot={handleOptimizeGeneratedWithCopilot}
+                      savedSchriftsaetze={savedSchriftsaetze}
+                      onLoadSavedSchriftsatz={onLoadSavedSchriftsatz}
+                      onExportSavedSchriftsatzPdf={doc => {
+                        onExportSavedSchriftsatzPdf(doc).catch(() => {});
+                      }}
                       matters={matters}
                       clients={clients}
                       clientsById={clientsById}

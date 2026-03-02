@@ -101,3 +101,57 @@ export const autoMetaSpacer = style({
 export const previewCardSpaced = style({
   marginTop: 4,
 });
+
+export const savedListSection = style({
+  borderTop: `0.5px solid ${glassStroke}`,
+  paddingTop: 10,
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 6,
+});
+
+export const savedListItem = style({
+  display: 'flex',
+  alignItems: 'center',
+  gap: 8,
+  padding: '8px 10px',
+  borderRadius: 10,
+  border: `0.5px solid ${glassStroke}`,
+  background: `${glassFill}, color-mix(in srgb, ${cssVarV2('layer/background/secondary')} 90%, transparent)`,
+  backdropFilter: 'blur(12px) saturate(140%)',
+  fontSize: 12,
+  cursor: 'default',
+});
+
+export const savedListItemTitle = style({
+  flex: 1,
+  fontWeight: 600,
+  color: cssVarV2('text/primary'),
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+});
+
+export const savedListItemMeta = style({
+  fontSize: 10,
+  color: cssVarV2('text/secondary'),
+  whiteSpace: 'nowrap',
+  flexShrink: 0,
+});
+
+export const savedListItemBtn = style({
+  padding: '2px 8px',
+  fontSize: 10,
+  borderRadius: 6,
+  border: `0.5px solid ${glassStroke}`,
+  background: 'transparent',
+  color: cssVarV2('text/secondary'),
+  cursor: 'pointer',
+  flexShrink: 0,
+  selectors: {
+    '&:hover': {
+      background: cssVarV2('layer/background/hoverOverlay'),
+      color: cssVarV2('text/primary'),
+    },
+  },
+});

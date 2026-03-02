@@ -3128,6 +3128,24 @@ export class CasePlatformOrchestrationService extends Service {
     return record;
   }
 
+  async saveGeneratedDocument(record: LegalDocumentRecord) {
+    const existing = await this.store.getLegalDocuments();
+    const idx = existing.findIndex(d => d.id === record.id);
+    const next =
+      idx >= 0
+        ? existing.map((d, i) => (i === idx ? record : d))
+        : [...existing, record];
+    await this.store.setLegalDocuments(next);
+    await this.appendAuditEntry({
+      caseId: record.caseId,
+      workspaceId: record.workspaceId,
+      action: 'schriftsatz.saved',
+      severity: 'info',
+      details: `Schriftsatz gespeichert: ${record.title}`,
+    });
+    return record;
+  }
+
   async upsertLegalFinding(record: LegalFinding) {
     await this.store.upsertLegalFinding(record);
     this._syncCaseAnalysis(record.caseId, record.workspaceId);

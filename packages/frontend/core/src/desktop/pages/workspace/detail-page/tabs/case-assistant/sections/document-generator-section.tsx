@@ -3,6 +3,7 @@ import type {
   ClientRecord,
   DocumentTemplate,
   GeneratedDocument,
+  LegalDocumentRecord,
   MatterRecord,
   OpposingParty,
 } from '@affine/core/modules/case-assistant';
@@ -35,7 +36,10 @@ type Props = {
   runAsyncUiAction: (action: () => void | Promise<unknown>, errorContext: string) => void;
   onInsertGeneratedDocumentIntoCurrentDoc: () => Promise<void>;
   onOptimizeWithCopilot?: () => void;
+  onLoadSavedSchriftsatz?: (doc: LegalDocumentRecord) => void;
+  onExportSavedSchriftsatzPdf?: (doc: LegalDocumentRecord) => void;
 
+  savedSchriftsaetze: LegalDocumentRecord[];
   matters: MatterRecord[];
   clients: ClientRecord[];
   clientsById: Map<string, ClientRecord>;
@@ -341,6 +345,43 @@ export const DocumentGeneratorSection = memo((props: Props) => {
           </Button>
         </div>
       </div>
+
+      {/* Saved Schriftsätze List */}
+      {props.savedSchriftsaetze.length > 0 ? (
+        <div className={`${localStyles.stepBlock} ${localStyles.stepBlockSeparated} ${localStyles.savedListSection}`}>
+          <div className={localStyles.stepLabel}>
+            Gespeicherte Schriftsätze ({props.savedSchriftsaetze.length})
+          </div>
+          {props.savedSchriftsaetze.map(doc => (
+            <div key={doc.id} className={localStyles.savedListItem}>
+              <span className={localStyles.savedListItemTitle}>{doc.title}</span>
+              <span className={localStyles.savedListItemMeta}>
+                {new Date(doc.createdAt).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' })}
+              </span>
+              {props.onLoadSavedSchriftsatz ? (
+                <button
+                  type="button"
+                  className={localStyles.savedListItemBtn}
+                  onClick={() => props.onLoadSavedSchriftsatz!(doc)}
+                  title="Dokument in Vorschau laden"
+                >
+                  Laden
+                </button>
+              ) : null}
+              {props.onExportSavedSchriftsatzPdf ? (
+                <button
+                  type="button"
+                  className={localStyles.savedListItemBtn}
+                  onClick={() => props.onExportSavedSchriftsatzPdf!(doc)}
+                  title="Als PDF exportieren"
+                >
+                  PDF
+                </button>
+              ) : null}
+            </div>
+          ))}
+        </div>
+      ) : null}
 
       {/* Generated Document Preview */}
       {props.generatedDoc ? (

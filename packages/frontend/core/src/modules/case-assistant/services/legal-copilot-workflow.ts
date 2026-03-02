@@ -5648,6 +5648,23 @@ ${additionalInstructions ? `ZUSÄTZLICHE ANWEISUNGEN:\n${additionalInstructions}
       });
     }
 
+    const savedRecord: LegalDocumentRecord = {
+      id: doc.id,
+      caseId,
+      workspaceId,
+      title: doc.title,
+      kind: 'schriftsatz',
+      status: 'indexed',
+      processingStatus: 'ready',
+      rawText: doc.markdown,
+      normalizedText: doc.markdown,
+      tags: [template],
+      sourceRef: `ai-generated:${template}:${doc.generatedAt}`,
+      createdAt: doc.generatedAt,
+      updatedAt: doc.generatedAt,
+    };
+    await this.orchestration.saveGeneratedDocument(savedRecord);
+
     await this.orchestration.appendAuditEntry({
       caseId,
       workspaceId,

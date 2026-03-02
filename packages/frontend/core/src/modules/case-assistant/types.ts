@@ -682,6 +682,7 @@ export type LegalDocumentKind =
   | 'docx'
   | 'xlsx'
   | 'pptx'
+  | 'schriftsatz'
   | 'other';
 
 export type LegalDocumentStatus =
