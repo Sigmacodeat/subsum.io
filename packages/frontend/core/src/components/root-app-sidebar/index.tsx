@@ -308,21 +308,29 @@ const AIChatButton = () => {
         margin: '2px 0',
         cursor: isClicking ? 'not-allowed' : 'pointer',
         background: aiChatActive 
-          ? 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)' 
+          ? 'linear-gradient(135deg, var(--affine-primary-color, #6366f1) 0%, var(--affine-primary-hover, #8b5cf6) 100%)' 
           : isHovering 
-            ? 'linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%)'
+            ? 'linear-gradient(135deg, var(--affine-hover-background, #f3f4f6) 0%, var(--affine-border-color, #e5e7eb) 100%)'
             : 'transparent',
-        border: aiChatActive ? '1px solid #6366f1' : '1px solid transparent',
+        border: aiChatActive ? '1px solid var(--affine-primary-color, #6366f1)' : '1px solid transparent',
         transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
         transform: isHovering ? 'translateX(2px)' : 'translateX(0)',
-        boxShadow: isHovering ? '0 2px 8px rgba(99, 102, 241, 0.15)' : 'none',
+        boxShadow: isHovering 
+          ? '0 2px 8px rgba(99, 102, 241, 0.15)' 
+          : aiChatActive 
+            ? '0 2px 12px rgba(99, 102, 241, 0.25)' 
+            : 'none',
       }}
     >
       <div style={{
         display: 'flex',
         alignItems: 'center',
         gap: '8px',
-        color: aiChatActive ? '#ffffff' : isHovering ? '#6366f1' : '#374151',
+        color: aiChatActive 
+          ? 'var(--affine-white, #ffffff)' 
+          : isHovering 
+            ? 'var(--affine-primary-color, #6366f1)' 
+            : 'var(--affine-icon-color, #374151)',
       }}>
         <div style={{
           display: 'flex',
@@ -331,20 +339,38 @@ const AIChatButton = () => {
           width: '20px',
           height: '20px',
           background: aiChatActive 
-            ? 'rgba(255, 255, 255, 0.2)' 
+            ? 'rgba(255, 255, 255, 0.25)' 
             : isHovering 
-              ? 'rgba(99, 102, 241, 0.1)' 
-              : 'rgba(99, 102, 241, 0.05)',
+              ? 'var(--affine-primary-color-hover, rgba(99, 102, 241, 0.15))' 
+              : 'var(--affine-primary-color-light, rgba(99, 102, 241, 0.08))',
           borderRadius: '4px',
           padding: '2px',
+          transition: 'background 0.2s ease',
         }}>
-          <AiOutlineIcon />
+          <AiOutlineIcon 
+            style={{
+              width: '16px',
+              height: '16px',
+              color: aiChatActive 
+                ? 'var(--affine-white, #ffffff)' 
+                : isHovering 
+                  ? 'var(--affine-primary-color, #6366f1)' 
+                  : 'var(--affine-icon-color, #374151)',
+              transition: 'color 0.2s ease',
+            }}
+          />
         </div>
         <span 
           data-testid="ai-chat"
           style={{
             fontWeight: aiChatActive ? '600' : isHovering ? '500' : '400',
             fontSize: '14px',
+            color: aiChatActive 
+              ? 'var(--affine-white, #ffffff)' 
+              : isHovering 
+                ? 'var(--affine-primary-color, #6366f1)' 
+                : 'var(--affine-font-color, #374151)',
+            transition: 'color 0.2s ease',
           }}
         >
           {t['com.affine.workspaceSubPath.chat']()}
@@ -354,12 +380,14 @@ const AIChatButton = () => {
             marginLeft: 'auto',
             fontSize: '10px',
             fontWeight: '600',
-            color: '#6366f1',
-            background: 'rgba(99, 102, 241, 0.1)',
+            color: 'var(--affine-primary-color, #6366f1)',
+            background: 'var(--affine-primary-color-light, rgba(99, 102, 241, 0.12))',
             padding: '2px 6px',
             borderRadius: '4px',
             textTransform: 'uppercase',
             letterSpacing: '0.5px',
+            border: '1px solid var(--affine-primary-color-hover, rgba(99, 102, 241, 0.2))',
+            transition: 'all 0.2s ease',
           }}>
             AI
           </div>
