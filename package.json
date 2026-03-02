@@ -33,10 +33,13 @@
     "dev:marketing": "yarn workspace @legalopscopilot/marketing dev",
     "build": "yarn affine build",
     "lint:eslint": "cross-env NODE_OPTIONS=\"--max-old-space-size=8192\" eslint --report-unused-disable-directives-severity=off . --cache",
+    "lint:eslint:target": "cross-env NODE_OPTIONS=\"--max-old-space-size=8192\" eslint --cache --max-warnings=0",
+    "lint:eslint:changed": "node ./scripts/lint-eslint-changed.mjs",
     "lint:eslint:fix": "yarn lint:eslint --fix --fix-type problem,suggestion,layout",
     "lint:prettier": "prettier --ignore-unknown --cache --check .",
     "lint:prettier:fix": "prettier --ignore-unknown --cache --write .",
     "lint:ox": "oxlint --deny-warnings",
+    "lint:ox:changed": "node ./scripts/oxlint-changed.mjs",
     "lint:ox:fix": "yarn lint:ox --fix",
     "lint:domain:policy": "node ./scripts/check-domain-policy.mjs",
     "lint:branding:web-runtime": "node ./scripts/check-branding-web-runtime.mjs",
@@ -50,19 +53,6 @@
     "i18n:download": "yarn workspace @affine/i18n download",
     "i18n:verify": "yarn workspace @affine/i18n verify",
     "postinstall": "yarn affine init && yarn husky"
-  },
-  "lint-staged": {
-    "*": "prettier --write --ignore-unknown --cache",
-    "*.{ts,tsx,mjs,js,jsx}": [
-      "prettier --ignore-unknown --write",
-      "cross-env NODE_OPTIONS=\"--max-old-space-size=8192\" eslint --cache --fix"
-    ],
-    "*.toml": [
-      "taplo format"
-    ],
-    "*.rs": [
-      "cargo fmt --"
-    ]
   },
   "devDependencies": {
     "@affine-tools/cli": "workspace:*",
