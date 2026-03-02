@@ -30,7 +30,6 @@ import { useI18n } from '@affine/i18n';
 import { track } from '@affine/track';
 import type { Store } from '@blocksuite/affine/store';
 import {
-  AiOutlineIcon,
   CollaborationIcon,
   DateTimeIcon,
   ExportIcon,
@@ -39,6 +38,7 @@ import {
   JournalIcon,
   SettingsIcon,
 } from '@blocksuite/icons/rc';
+import { AiOutlineIcon } from '@blocksuite/icons/rc';
 import { useLiveData, useService, useServices } from '@toeverything/infra';
 import type { ReactElement } from 'react';
 import { memo, useCallback, useEffect, useState } from 'react';
@@ -271,12 +271,101 @@ const AIChatButton = () => {
     workbench.location$.selector(location => location.pathname === '/chat')
   );
 
+  const [isHovering, setIsHovering] = useState(false);
+  const [isClicking, setIsClicking] = useState(false);
+
+  const handleClick = useCallback(
+    (e: React.MouseEvent) => {
+      // Robust click handling - prevent double-clicks and rapid clicks
+      if (isClicking) {
+        e.preventDefault();
+        return;
+      }
+      
+      setIsClicking(true);
+      
+      // Brief delay to prevent rapid successive clicks
+      setTimeout(() => {
+        setIsClicking(false);
+      }, 150);
+      
+      // Navigate to chat
+      workbench.open('/chat');
+    },
+    [workbench, isClicking]
+  );
+
   return (
-    <MenuLinkItem icon={<AiOutlineIcon />} active={aiChatActive} to={'/chat'}>
-      <span data-testid="ai-chat">
-        {t['com.affine.workspaceSubPath.chat']()}
-      </span>
-    </MenuLinkItem>
+    <div
+      className={`ai-menu-item ${aiChatActive ? 'active' : ''} ${isHovering ? 'hovering' : ''} ${isClicking ? 'clicking' : ''}`}
+      onMouseEnter={() => setIsHovering(true)}
+      onMouseLeave={() => setIsHovering(false)}
+      onClick={handleClick}
+      style={{
+        position: 'relative',
+        borderRadius: '8px',
+        padding: '8px 12px',
+        margin: '2px 0',
+        cursor: isClicking ? 'not-allowed' : 'pointer',
+        background: aiChatActive 
+          ? 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)' 
+          : isHovering 
+            ? 'linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%)'
+            : 'transparent',
+        border: aiChatActive ? '1px solid #6366f1' : '1px solid transparent',
+        transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+        transform: isHovering ? 'translateX(2px)' : 'translateX(0)',
+        boxShadow: isHovering ? '0 2px 8px rgba(99, 102, 241, 0.15)' : 'none',
+      }}
+    >
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px',
+        color: aiChatActive ? '#ffffff' : isHovering ? '#6366f1' : '#374151',
+      }}>
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          width: '20px',
+          height: '20px',
+          background: aiChatActive 
+            ? 'rgba(255, 255, 255, 0.2)' 
+            : isHovering 
+              ? 'rgba(99, 102, 241, 0.1)' 
+              : 'rgba(99, 102, 241, 0.05)',
+          borderRadius: '4px',
+          padding: '2px',
+        }}>
+          <AiOutlineIcon />
+        </div>
+        <span 
+          data-testid="ai-chat"
+          style={{
+            fontWeight: aiChatActive ? '600' : isHovering ? '500' : '400',
+            fontSize: '14px',
+          }}
+        >
+          {t['com.affine.workspaceSubPath.chat']()}
+        </span>
+        {isHovering && (
+          <div style={{
+            marginLeft: 'auto',
+            fontSize: '10px',
+            fontWeight: '600',
+            color: '#6366f1',
+            background: 'rgba(99, 102, 241, 0.1)',
+            padding: '2px 6px',
+            borderRadius: '4px',
+            textTransform: 'uppercase',
+            letterSpacing: '0.5px',
+          }}>
+            AI
+          </div>
+        )}
+      </div>
+    </div>
   );
 };
 
