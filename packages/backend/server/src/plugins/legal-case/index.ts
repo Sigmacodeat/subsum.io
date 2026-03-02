@@ -6,6 +6,7 @@ import { LegalCaseController } from './legal-case.controller';
 import { LegalCaseService } from './legal-case.service';
 import { LegalConflictService } from './legal-conflict.service';
 import { LegalDeadlineCalculator } from './legal-deadline-calculator';
+import { LegalRagService } from './legal-rag.service';
 
 @Module({
   imports: [PermissionModule],
@@ -14,8 +15,9 @@ import { LegalDeadlineCalculator } from './legal-deadline-calculator';
     LegalAuditService,
     LegalConflictService,
     LegalDeadlineCalculator,
+    LegalRagService,
   ],
   controllers: [LegalCaseController],
-  exports: [LegalCaseService, LegalAuditService, LegalDeadlineCalculator],
+  exports: [LegalCaseService, LegalAuditService, LegalDeadlineCalculator, LegalRagService],
 })
 export class LegalCaseModule {}

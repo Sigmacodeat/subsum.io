@@ -454,19 +454,53 @@ function stripBase64Header(content: string): string | null {
 
 // ─── DOCX Deep Parser ─────────────────────────────────────────────────────────
 
-function extractTextFromWordXml(xml: string): string {
-  const paragraphs: string[] = [];
-  const paraRegex = /<w:p[ >][\s\S]*?<\/w:p>/g;
-  let paraMatch: RegExpExecArray | null;
-  while ((paraMatch = paraRegex.exec(xml)) !== null) {
-    const parts: string[] = [];
-    for (const run of paraMatch[0].matchAll(/<w:t(?:\s[^>]*)?>([^<]*)<\/w:t>/g)) {
-      parts.push(run[1]);
+/**
+ * Extract text from a single DOCX table block (<w:tbl>).
+ * Returns rows as pipe-separated text, one row per line.
+ * Empty cells are omitted; empty rows are skipped.
+ */
+function extractWordTableText(tableXml: string): string {
+  const rows: string[] = [];
+  for (const rowMatch of tableXml.matchAll(/<w:tr[ >][\s\S]*?<\/w:tr>/g)) {
+    const cells: string[] = [];
+    for (const cellMatch of rowMatch[0].matchAll(/<w:tc[ >][\s\S]*?<\/w:tc>/g)) {
+      const parts: string[] = [];
+      for (const run of cellMatch[0].matchAll(/<w:t(?:\s[^>]*)?>([^<]*)<\/w:t>/g)) {
+        parts.push(run[1]);
+      }
+      const cellText = parts.join('').trim();
+      if (cellText) cells.push(cellText);
     }
-    const text = parts.join('');
-    if (text.trim()) paragraphs.push(text);
+    if (cells.length > 0) rows.push(cells.join(' | '));
   }
-  return paragraphs.join('\n');
+  return rows.join('\n');
+}
+
+function extractTextFromWordXml(xml: string): string {
+  const segments: string[] = [];
+
+  // ── Split XML into table and non-table regions ──────────────────────────
+  // Process <w:tbl> blocks first to avoid double-counting paragraphs inside
+  // tables (which would otherwise also be matched by the paragraph regex).
+  const parts = xml.split(/(<w:tbl[\s\S]*?<\/w:tbl>)/);
+  for (const part of parts) {
+    if (part.startsWith('<w:tbl')) {
+      // Table block: extract as pipe-separated rows
+      const tableText = extractWordTableText(part);
+      if (tableText.trim()) segments.push(tableText);
+    } else {
+      // Non-table region: extract paragraphs
+      for (const m of part.matchAll(/<w:p[ >][\s\S]*?<\/w:p>/g)) {
+        const parts2: string[] = [];
+        for (const run of m[0].matchAll(/<w:t(?:\s[^>]*)?>([^<]*)<\/w:t>/g)) {
+          parts2.push(run[1]);
+        }
+        const text = parts2.join('');
+        if (text.trim()) segments.push(text);
+      }
+    }
+  }
+  return segments.join('\n');
 }
 
 function parseZipEntries(bytes: Uint8Array): Map<string, { offset: number; compressedSize: number; uncompressedSize: number; compression: number }> {
@@ -842,6 +876,9 @@ export function normalizeText(input: string): string {
 function detectLanguage(text: string): string {
   if (/\b(der|die|das|und|ist|nicht|wurde|frist|anspruch|gericht|urteil)\b/i.test(text)) return 'de';
   if (/\b(the|and|is|not|claim|liability|court|judgment)\b/i.test(text)) return 'en';
+  if (/\b(le|la|les|des|est|pas|tribunal|jugement|demande|contrat|partie)\b/i.test(text)) return 'fr';
+  if (/\b(il|la|del|per|non|con|tribunale|sentenza|contratto|parte)\b/i.test(text)) return 'it';
+  if (/\b(the|i|w|z|do|na|jest|nie|umowa|sąd|wyrok)\b/i.test(text)) return 'pl';
   return 'unknown';
 }
 
@@ -1152,7 +1189,7 @@ function isLikelyBinaryGarbage(text: string): boolean {
 
 const CHUNK_TARGET_LENGTH = 800;   // ~800 chars ≈ 200-250 tokens
 const CHUNK_MAX_LENGTH = 1500;
-const CHUNK_OVERLAP = 100;
+const CHUNK_OVERLAP = 200; // 200 chars ≈ 35-45 words — needed for long legal clauses
 
 function splitIntoChunks(text: string): string[] {
   if (text.length <= CHUNK_TARGET_LENGTH) return [text];
@@ -1224,6 +1261,130 @@ function splitIntoChunks(text: string): string[] {
   return finalChunks.length > 0 ? finalChunks : [];
 }
 
+/**
+ * Returns true if a line is a legal-document section heading.
+ * Covers §-headings, Roman/Arabic numerals, letter headings, ALL CAPS,
+ * and Markdown — the most common structural patterns in German/Austrian
+ * legal documents (Schriftsätze, Verträge, Urteile, Bescheide).
+ */
+function isLegalHeadingLine(line: string, nextLine: string): boolean {
+  const t = line.trim();
+  if (!t || t.length > 120) return false;
+
+  // §-headed sections: "§ 1", "§ 1 Vertragsgegenstand", "§§ 3–5"
+  if (/^§§?\s*\d/.test(t)) return true;
+
+  // Markdown headings: #, ##, ###
+  if (/^#{1,3}\s+\S/.test(t)) return true;
+
+  // Roman numeral sections: "I.", "II. Sachverhalt", "III."
+  if (/^[IVXLC]{1,6}\.?\s+\S/.test(t) && t.length < 100
+      && !/[,;]$/.test(t)) return true;
+
+  // Letter headings: "A.", "B. Begründung"
+  if (/^[A-Z]\.?\s+\S/.test(t) && t.length < 80 && !/[,;]$/.test(t)) return true;
+
+  // Numeric headings: "1.", "1.1", "2.3.1 ..."
+  if (/^\d+(\.\d+)*\.?\s+\S/.test(t) && t.length < 100
+      && !/[,;]$/.test(t)) return true;
+
+  // ALL CAPS headings common in court documents (URTEILSGRÜNDE, SACHVERHALT)
+  if (
+    t.length >= 4 && t.length <= 80 &&
+    t === t.toUpperCase() &&
+    /[A-ZÄÖÜ]/.test(t) &&
+    !/^\d+$/.test(t) &&
+    !t.includes('|') &&
+    (nextLine === '' || (nextLine.length > 0 && nextLine !== nextLine.toUpperCase()))
+  ) return true;
+
+  return false;
+}
+
+/**
+ * Structure-aware chunking for legal documents.
+ *
+ * Unlike plain paragraph splitting, this function treats detected section
+ * headings (§-numbers, Roman/Arabic numerals, ALL CAPS, Markdown) as
+ * MANDATORY split boundaries. This is critical for law-firm RAG:
+ *
+ *   ✅ Each chunk belongs to exactly ONE section
+ *   ✅ Continuation chunks carry the section heading for retrieval context
+ *   ✅ Falls back to plain paragraph chunking for unstructured documents
+ *
+ * State-of-the-art approach adopted from legal NLP best practices:
+ * heading-anchored chunking significantly improves retrieval precision
+ * for cross-section queries like "Was sagt § 3 über Haftung?"
+ */
+function splitIntoStructureAwareChunks(text: string): string[] {
+  // Fast path: short texts don't need structure detection
+  if (text.length <= CHUNK_TARGET_LENGTH) return [text];
+
+  // ── 1. Detect heading line indices ──────────────────────────────────────
+  const lines = text.split('\n');
+  const headingLineIndices = new Set<number>();
+
+  for (let i = 0; i < lines.length; i++) {
+    const next = lines[i + 1]?.trim() ?? '';
+    if (isLegalHeadingLine(lines[i], next)) {
+      headingLineIndices.add(i);
+    }
+  }
+
+  // ── 2. No structural headings → fall back to paragraph chunking ─────────
+  if (headingLineIndices.size === 0) {
+    return splitIntoChunks(text);
+  }
+
+  // ── 3. Split into sections at heading boundaries ─────────────────────────
+  const sections: string[] = [];
+  let currentLines: string[] = [];
+
+  for (let i = 0; i < lines.length; i++) {
+    if (headingLineIndices.has(i) && currentLines.length > 0) {
+      const section = currentLines.join('\n').trim();
+      if (section) sections.push(section);
+      currentLines = [lines[i]];
+    } else {
+      currentLines.push(lines[i]);
+    }
+  }
+  if (currentLines.length > 0) {
+    const section = currentLines.join('\n').trim();
+    if (section) sections.push(section);
+  }
+
+  // ── 4. Chunk each section, preserving heading prefix on continuations ───
+  const finalChunks: string[] = [];
+
+  for (const section of sections) {
+    if (!section.trim()) continue;
+
+    if (section.length <= CHUNK_MAX_LENGTH) {
+      finalChunks.push(section.trim());
+      continue;
+    }
+
+    // Determine heading prefix for continuation chunks
+    const sectionFirstLine = section.split('\n')[0]?.trim() ?? '';
+    const headingPrefix = sectionFirstLine.length < 120 ? sectionFirstLine + '\n' : '';
+
+    const subChunks = splitIntoChunks(section);
+    for (let ci = 0; ci < subChunks.length; ci++) {
+      if (ci === 0) {
+        finalChunks.push(subChunks[ci]);
+      } else {
+        // Continuation: prepend section heading for retrieval context
+        finalChunks.push(headingPrefix
+          ? (headingPrefix + subChunks[ci]).trim()
+          : subChunks[ci]);
+      }
+    }
+  }
+
+  return finalChunks.filter(c => c.trim().length > 0);
+}
+
 const CATEGORY_PATTERNS: Array<[SemanticChunkCategory, RegExp]> = [
   ['anklageschrift', /\b(anklageschrift|anklage erhoben|angeklagt wegen|anklagevorwurf|tatvorwurf)\b/i],
   ['strafanzeige', /\b(strafanzeige|anzeige erstattet|erstatte.*anzeige|strafantrag|strafanzeige gegen)\b/i],
@@ -1235,16 +1396,22 @@ const CATEGORY_PATTERNS: Array<[SemanticChunkCategory, RegExp]> = [
   ['rechtsausfuehrung', /\b(rechtsausführung|rechtlich|anspruchsgrundlage|§\s*\d|art\.\s*\d|haftung nach|gemäß)\b/i],
   ['begruendung', /\b(begründung|gründe|erwägung|aus.*gründen|im ergebnis)\b/i],
   ['urteil', /\b(urteil|beschluss|erkenntnis|im namen|recht erkannt|für recht erkannt)\b/i],
-  ['bescheid', /\b(bescheid|verfügung|anordnung|spruch:|ergeht.*bescheid)\b/i],
+  ['bescheid', /\b(bescheid|verfügung|anordnung|spruch:|ergeht.*bescheid|steuerbescheid|abgabenbescheid|bußgeldbescheid)\b/i],
   ['protokoll', /\b(protokoll|verhandlungsprotokoll|sitzungsprotokoll|niederschrift über|verhandlung vom)\b/i],
   ['vollmacht', /\b(vollmacht|bevollmächtigt|hiermit bevollmächtige|vertretungsvollmacht|generalvollmacht|prozessvollmacht)\b/i],
   ['rechnung', /\b(rechnung|rechnungsnummer|nettobetrag|bruttobetrag|zahlbar bis|honorarnote|kostennote)\b/i],
-  ['mahnung', /\b(mahnung|zahlungserinnerung|letzte mahnung|mahnbescheid|zahlungsaufforderung|inkasso)\b/i],
-  ['vertrag', /\b(vertrag|vereinbarung|die parteien.*vereinbaren|vertragsgegenstand|laufzeit)\b/i],
+  ['mahnung', /\b(mahnung|zahlungserinnerung|letzte mahnung|mahnbescheid|zahlungsaufforderung|inkasso|vollstreckungsbescheid|vollstreckungstitel|pfändung)\b/i],
+  ['vertrag', /\b(vertrag|vereinbarung|die parteien.*vereinbaren|vertragsgegenstand|laufzeit|aufhebungsvertrag|abwicklungsvertrag|settlement\s*agreement)\b/i],
   ['korrespondenz', /\b(sehr geehrte|mit freundlichen|bezugnehmend|in bezug auf|ihr schreiben)\b/i],
   ['beweis', /\b(beweis|zeuge|sachverständig|gutachten|anlage|urkunde|urkundenbeweis)\b/i],
   ['zeuge', /\b(zeuge|zeugenaussage|zeugenvernehmung|aussage des)\b/i],
   ['gutachten', /\b(gutachten|sachverständigengutachten|stellungnahme des)\b/i],
+  // ── Additional critical law firm categories ──
+  ['klageschrift', /\b(kündigung.*ausgesprochen|kündigung.*erklärt|fristlose kündigung|ordentliche kündigung|kündigungsschreiben|das arbeitsverhältnis.*gekündigt)\b/i],
+  ['begruendung', /\b(einspruch.*eingelegt|widerspruch eingelegt|einspruch gegen|beschwerde.*eingelegt|rechtsmittel.*eingelegt)\b/i],
+  ['vertrag', /\b(freistellungsvereinbarung|freigestellt.*ab|ab.*datum.*freigestellt|unwiderruflich freigestellt)\b/i],
+  ['bescheid', /\b(akteneinsicht|akteneinsichtnahme|einsicht in die akte|einsicht.*gewährt|zugang.*verweigert)\b/i],
+  ['sachverhalt', /\b(vergleich.*geschlossen|vergleichsweise.*einigung|im wege des vergleichs|streit.*beigelegt|einigung erzielt)\b/i],
 ];
 
 function categorizeChunk(text: string): SemanticChunkCategory {
@@ -1363,9 +1530,23 @@ function extractKeywords(text: string): string[] {
     if (w.length < 3 || stopwords.has(w)) continue;
     freq.set(w, (freq.get(w) ?? 0) + 1);
   }
+
+  // ── Legal-term boosting ─────────────────────────────────────────────────
+  // §-references, court judgments, and key legal verbs are high-value signals
+  // even when they appear only once. Multiply their frequency so they rank
+  // near the top and are never displaced by frequent generic words.
+  const LEGAL_BOOST_PATTERN = /\b(§§?\s*\d+[a-z]?|art\.\s*\d+|abs\.\s*\d+|haftung|schadensersatz|anspruch|kündigung|verjährungs|vollstreckung|pfändung|insolvenz|strafbar|delikt|bereicherung|verschulden|fahrlässig|vorsätzlich|rechtswidrig|schuld|unerlaubt)\b/gi;
+  const legalHits = text.match(LEGAL_BOOST_PATTERN) ?? [];
+  for (const hit of legalHits) {
+    const normalized = hit.toLowerCase().replace(/\s+/g, '').replace(/[.]/g, '');
+    if (normalized.length >= 3) {
+      freq.set(normalized, (freq.get(normalized) ?? 0) + 5);
+    }
+  }
+
   return [...freq.entries()]
     .sort((a, b) => b[1] - a[1])
-    .slice(0, 15)
+    .slice(0, 20)
     .map(([word]) => word);
 }
 
@@ -1638,7 +1819,7 @@ function buildPipelineResult(params: {
   const { input, extractedText, extractionEngine, wasOcr, extractedPageCount, startTime } = params;
   const normalizedText = normalizeText(extractedText);
   const language = detectLanguage(normalizedText);
-  const chunkTexts = normalizedText.length > 0 ? splitIntoChunks(normalizedText) : [];
+  const chunkTexts = normalizedText.length > 0 ? splitIntoStructureAwareChunks(normalizedText) : [];
   const now = new Date().toISOString();
 
   const chunks: SemanticChunk[] = chunkTexts.map((text, index) => {

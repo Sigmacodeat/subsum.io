@@ -2037,6 +2037,31 @@ enum LegalKycSubmissionStatus {
 }
 
 // KYC-Submissions
+// ── Legal RAG: Semantic Chunk Embeddings ──────────────────────────────────────
+// Stores structure-aware legal document chunks with pgvector embeddings for
+// production-grade semantic search across case documents. One row per chunk.
+// Replaces the client-side TF-IDF fallback with true vector cosine similarity.
+model LegalDocumentChunkEmbedding {
+  id          String   @id @default(uuid()) @db.VarChar
+  workspaceId String   @map("workspace_id") @db.VarChar
+  caseId      String   @map("case_id") @db.VarChar
+  documentId  String   @map("document_id") @db.VarChar
+  chunkIndex  Int      @map("chunk_index") @db.Integer
+  content     String   @db.Text
+  category    String   @default("sonstiges") @db.VarChar(64)
+  keywords    String[] @default([]) @db.VarChar
+  qualityScore Float   @default(0.5) @map("quality_score") @db.DoublePrecision
+  embedding   Unsupported("vector(1024)")?
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@unique([workspaceId, documentId, chunkIndex], map: "legal_chunk_embeddings_unique")
+  @@index([workspaceId, caseId], map: "legal_chunk_embeddings_case_idx")
+  @@index([embedding], map: "legal_chunk_embeddings_vector_idx")
+  @@map("legal_document_chunk_embeddings")
+}
+
 model LegalKycSubmission {
   id                  String                   @id @default(uuid()) @db.VarChar
   workspaceId         String                   @map("workspace_id") @db.VarChar

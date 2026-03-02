@@ -353,6 +353,7 @@ export const FileUploadZone = memo((props: Props) => {
         files,
         maxFiles,
         extractFolder,
+        enforceTotalSizeLimit: true,
       });
 
       const collectedErrors: ErrorEntry[] = [];

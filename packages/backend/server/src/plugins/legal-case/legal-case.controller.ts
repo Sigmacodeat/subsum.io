@@ -20,6 +20,7 @@ import { AccessController, type WorkspaceAction } from '../../core/permission';
 import { LegalAuditService } from './legal-audit.service';
 import { LegalCaseService } from './legal-case.service';
 import { LegalDeadlineCalculator } from './legal-deadline-calculator';
+import { LegalRagService } from './legal-rag.service';
 
 function getIp(req: Request): string | undefined {
   const forwarded = req.headers['x-forwarded-for'];
@@ -247,7 +248,8 @@ export class LegalCaseController {
     private readonly service: LegalCaseService,
     private readonly audit: LegalAuditService,
     private readonly deadlineCalc: LegalDeadlineCalculator,
-    private readonly ac: AccessController
+    private readonly ac: AccessController,
+    private readonly ragService: LegalRagService
   ) {}
 
   private async assertWorkspaceAccess(
@@ -1030,6 +1032,96 @@ export class LegalCaseController {
       ipAddress: getIp(req),
     });
     return { ok: true, data: result };
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // RAG — Semantic Chunk Indexing & Search
+  // ═══════════════════════════════════════════════════════════════════════
+
+  @Post('/workspaces/:workspaceId/rag/index')
+  @HttpCode(HttpStatus.OK)
+  async ragIndexChunks(
+    @CurrentUser() user: CurrentUser,
+    @Param('workspaceId') workspaceId: string,
+    @Body() body: any
+  ) {
+    await this.assertWorkspaceAccess(user.id, workspaceId, 'Workspace.Sync');
+
+    const parsed = z
+      .object({
+        caseId:     z.string().min(1),
+        documentId: z.string().min(1),
+        chunks: z.array(
+          z.object({
+            index:        z.number().int().nonnegative(),
+            text:         z.string().min(1),
+            category:     z.string().default('sonstiges'),
+            keywords:     z.array(z.string()).default([]),
+            qualityScore: z.number().min(0).max(1).default(0.5),
+          })
+        ).min(1).max(500),
+      })
+      .safeParse(body);
+    if (!parsed.success) {
+      throw new BadRequestException(formatZodError(parsed.error));
+    }
+
+    const { caseId, documentId, chunks } = parsed.data;
+    const indexed = await this.ragService.indexChunks(
+      workspaceId, caseId, documentId, chunks
+    );
+    return { ok: true, indexed };
+  }
+
+  @Post('/workspaces/:workspaceId/rag/search')
+  @HttpCode(HttpStatus.OK)
+  async ragSearch(
+    @CurrentUser() user: CurrentUser,
+    @Param('workspaceId') workspaceId: string,
+    @Body() body: any
+  ) {
+    await this.assertWorkspaceAccess(user.id, workspaceId, 'Workspace.Read');
+
+    const parsed = z
+      .object({
+        caseId:    z.string().min(1),
+        query:     z.string().min(1).max(2000),
+        topK:      z.number().int().positive().max(50).default(12),
+        threshold: z.number().min(0).max(1).default(0.6),
+      })
+      .safeParse(body);
+    if (!parsed.success) {
+      throw new BadRequestException(formatZodError(parsed.error));
+    }
+
+    const { caseId, query, topK, threshold } = parsed.data;
+    const chunks = await this.ragService.searchSemantic(
+      workspaceId, caseId, query, topK, threshold
+    );
+    return { ok: true, chunks, semanticAvailable: this.ragService.isAvailable };
+  }
+
+  @Delete('/workspaces/:workspaceId/rag/documents/:documentId')
+  async ragDeleteDocument(
+    @CurrentUser() user: CurrentUser,
+    @Param('workspaceId') workspaceId: string,
+    @Param('documentId') documentId: string
+  ) {
+    await this.assertWorkspaceAccess(user.id, workspaceId, 'Workspace.Sync');
+    await this.ragService.deleteDocumentChunks(workspaceId, documentId);
+    return { ok: true };
+  }
+
+  @Get('/workspaces/:workspaceId/rag/stats')
+  async ragStats(
+    @CurrentUser() user: CurrentUser,
+    @Param('workspaceId') workspaceId: string,
+    @Query('caseId') caseId: string
+  ) {
+    await this.assertWorkspaceAccess(user.id, workspaceId, 'Workspace.Read');
+    if (!caseId) throw new BadRequestException('caseId is required');
+    const stats = await this.ragService.getIndexStats(workspaceId, caseId);
+    return { ok: true, stats, semanticAvailable: this.ragService.isAvailable };
   }
 
   // ═══════════════════════════════════════════════════════════════════════

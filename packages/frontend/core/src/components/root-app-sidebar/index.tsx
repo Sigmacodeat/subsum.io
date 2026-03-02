@@ -39,6 +39,7 @@ import {
   SettingsIcon,
 } from '@blocksuite/icons/rc';
 import { AiOutlineIcon } from '@blocksuite/icons/rc';
+import { cssVarV2 } from '@toeverything/theme/v2';
 import { useLiveData, useService, useServices } from '@toeverything/infra';
 import type { ReactElement } from 'react';
 import { memo, useCallback, useEffect, useState } from 'react';
@@ -262,7 +263,6 @@ const TermineButton = () => {
 };
 
 const AIChatButton = () => {
-  const t = useI18n();
   const { workbenchService } = useServices({
     WorkbenchService,
   });
@@ -271,129 +271,36 @@ const AIChatButton = () => {
     workbench.location$.selector(location => location.pathname === '/chat')
   );
 
-  const [isHovering, setIsHovering] = useState(false);
-  const [isClicking, setIsClicking] = useState(false);
-
-  const handleClick = useCallback(
-    (e: React.MouseEvent) => {
-      // Robust click handling - prevent double-clicks and rapid clicks
-      if (isClicking) {
-        e.preventDefault();
-        return;
-      }
-      
-      setIsClicking(true);
-      
-      // Brief delay to prevent rapid successive clicks
-      setTimeout(() => {
-        setIsClicking(false);
-      }, 150);
-      
-      // Navigate to chat
-      workbench.open('/chat');
-    },
-    [workbench, isClicking]
-  );
-
   return (
-    <div
-      className={`ai-menu-item ${aiChatActive ? 'active' : ''} ${isHovering ? 'hovering' : ''} ${isClicking ? 'clicking' : ''}`}
-      onMouseEnter={() => setIsHovering(true)}
-      onMouseLeave={() => setIsHovering(false)}
-      onClick={handleClick}
-      style={{
-        position: 'relative',
-        borderRadius: '8px',
-        padding: '8px 12px',
-        margin: '2px 0',
-        cursor: isClicking ? 'not-allowed' : 'pointer',
-        background: aiChatActive 
-          ? 'linear-gradient(135deg, var(--affine-primary-color, #6366f1) 0%, var(--affine-primary-hover, #8b5cf6) 100%)' 
-          : isHovering 
-            ? 'linear-gradient(135deg, var(--affine-hover-background, #f3f4f6) 0%, var(--affine-border-color, #e5e7eb) 100%)'
-            : 'transparent',
-        border: aiChatActive ? '1px solid var(--affine-primary-color, #6366f1)' : '1px solid transparent',
-        transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-        transform: isHovering ? 'translateX(2px)' : 'translateX(0)',
-        boxShadow: isHovering 
-          ? '0 2px 8px rgba(99, 102, 241, 0.15)' 
-          : aiChatActive 
-            ? '0 2px 12px rgba(99, 102, 241, 0.25)' 
-            : 'none',
-      }}
-    >
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: '8px',
-        color: aiChatActive 
-          ? 'var(--affine-white, #ffffff)' 
-          : isHovering 
-            ? 'var(--affine-primary-color, #6366f1)' 
-            : 'var(--affine-icon-color, #374151)',
-      }}>
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          width: '20px',
-          height: '20px',
-          background: aiChatActive 
-            ? 'rgba(255, 255, 255, 0.25)' 
-            : isHovering 
-              ? 'var(--affine-primary-color-hover, rgba(99, 102, 241, 0.15))' 
-              : 'var(--affine-primary-color-light, rgba(99, 102, 241, 0.08))',
-          borderRadius: '4px',
-          padding: '2px',
-          transition: 'background 0.2s ease',
-        }}>
-          <AiOutlineIcon 
-            style={{
-              width: '16px',
-              height: '16px',
-              color: aiChatActive 
-                ? 'var(--affine-white, #ffffff)' 
-                : isHovering 
-                  ? 'var(--affine-primary-color, #6366f1)' 
-                  : 'var(--affine-icon-color, #374151)',
-              transition: 'color 0.2s ease',
-            }}
-          />
-        </div>
-        <span 
-          data-testid="ai-chat"
+    <MenuLinkItem
+      icon={<AiOutlineIcon />}
+      active={aiChatActive}
+      to={'/chat'}
+      postfix={
+        <span
+          aria-label="AI"
           style={{
-            fontWeight: aiChatActive ? '600' : isHovering ? '500' : '400',
-            fontSize: '14px',
-            color: aiChatActive 
-              ? 'var(--affine-white, #ffffff)' 
-              : isHovering 
-                ? 'var(--affine-primary-color, #6366f1)' 
-                : 'var(--affine-font-color, #374151)',
-            transition: 'color 0.2s ease',
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            height: 18,
+            padding: '0 8px',
+            borderRadius: 999,
+            fontSize: 11,
+            fontWeight: 600,
+            letterSpacing: 0.4,
+            background: cssVarV2.layer.background.hoverOverlay,
+            color: cssVarV2.text.secondary,
+            border: `1px solid ${cssVarV2('icon/tertiary')}`,
           }}
         >
-          {t['com.affine.workspaceSubPath.chat']()}
+          AI
         </span>
-        {isHovering && (
-          <div style={{
-            marginLeft: 'auto',
-            fontSize: '10px',
-            fontWeight: '600',
-            color: 'var(--affine-primary-color, #6366f1)',
-            background: 'var(--affine-primary-color-light, rgba(99, 102, 241, 0.12))',
-            padding: '2px 6px',
-            borderRadius: '4px',
-            textTransform: 'uppercase',
-            letterSpacing: '0.5px',
-            border: '1px solid var(--affine-primary-color-hover, rgba(99, 102, 241, 0.2))',
-            transition: 'all 0.2s ease',
-          }}>
-            AI
-          </div>
-        )}
-      </div>
-    </div>
+      }
+      postfixDisplay="always"
+    >
+      <span data-testid="ai-chat">Subsumio AI</span>
+    </MenuLinkItem>
   );
 };
 
@@ -636,8 +543,8 @@ export const RootAppSidebar = memo((): ReactElement => {
           <AddPageButton />
         </div>
         <AktenButton />
-        <AIChatButton />
         <MandantenButton />
+        <AIChatButton />
         <FristenButton />
         <TermineButton />
         {isAuthenticated && <NotificationButton />}

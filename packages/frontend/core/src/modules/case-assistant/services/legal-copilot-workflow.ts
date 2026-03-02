@@ -567,6 +567,11 @@ export class LegalCopilotWorkflowService extends Service {
 
   private readonly _binaryCache = new Map<string, string>();
 
+  /** Tracks which caseIds currently have an active processPendingOcr run.
+   * Prevents concurrent OCR processing for the same case (race conditions,
+   * duplicate chunk writes, and unnecessary redundant OCR calls). */
+  private readonly _runningOcrCases = new Set<string>();
+
   /** Last auto-detected onboarding metadata (updated after OCR re-detection). */
   private _lastOnboardingDetection: OnboardingDetectionResult | null = null;
 
@@ -616,16 +621,24 @@ export class LegalCopilotWorkflowService extends Service {
     ).toLowerCase();
     const sha256 = await sha256Hex(decoded.bytes);
     const blobId = `blob:${sha256 || createId('blob')}`;
+    let blobStoreOk = false;
+    let blobStoreError: string | undefined;
     try {
       await this.workspaceService.workspace.engine.blob.set({
         key: blobId,
         data: decoded.bytes,
         mime,
       });
-    } catch {
-      // best-effort: keep flow alive even if blob persistence fails
+      blobStoreOk = true;
+    } catch (err) {
+      blobStoreError =
+        err instanceof Error ? err.message : 'BlobStore write failed';
+      console.error(
+        `[persistOriginalBinary] BlobStore write failed for blobId=${blobId} mime=${mime} size=${decoded.bytes.length}:`,
+        blobStoreError
+      );
     }
-    return { blobId, sha256, mimeType: mime };
+    return { blobId, sha256, mimeType: mime, blobStoreOk, blobStoreError };
   }
 
   private async _resolveDocContentForOcr(doc: LegalDocumentRecord) {
@@ -2531,15 +2544,37 @@ export class LegalCopilotWorkflowService extends Service {
         blobId: string;
         sha256: string;
         mimeType: string;
+        blobStoreOk: boolean;
+        blobStoreError?: string;
       } | null = null;
 
       try {
-        persisted = isBase64DataUrlPayload(doc.content)
-          ? await this.persistOriginalBinary({
-              content: doc.content,
-              mimeType: doc.sourceMimeType,
-            })
-          : null;
+        if (isBase64DataUrlPayload(doc.content)) {
+          persisted = await this.persistOriginalBinary({
+            content: doc.content,
+            mimeType: doc.sourceMimeType,
+          });
+          if (!persisted.blobStoreOk) {
+            await this.orchestration.appendAuditEntry({
+              caseId: input.caseId,
+              workspaceId: input.workspaceId,
+              action: 'document.blob_store.write_failed',
+              severity: 'warning',
+              details:
+                `BlobStore-Persistenz fehlgeschlagen für "${doc.title}" — ` +
+                `OCR-Self-Heal nach Tab-Refresh nicht möglich. Fehler: ${persisted.blobStoreError ?? 'unbekannt'}`,
+              metadata: {
+                commitId,
+                documentId,
+                title: doc.title,
+                blobId: persisted.blobId,
+                error: persisted.blobStoreError ?? '',
+              },
+            });
+          }
+        } else {
+          persisted = null;
+        }
 
         const normalizedMime = doc.sourceMimeType?.toLowerCase() ?? '';
         const isBase64 =
@@ -3218,12 +3253,17 @@ export class LegalCopilotWorkflowService extends Service {
           doc.sourceRef
         );
 
-        const persisted = isBase64DataUrlPayload(doc.content)
+        const persistedFallback = isBase64DataUrlPayload(doc.content)
           ? await this.persistOriginalBinary({
               content: doc.content,
               mimeType: doc.sourceMimeType,
             })
           : null;
+        if (persistedFallback && !persistedFallback.blobStoreOk) {
+          console.warn(
+            `[intakeDocuments:fallback] BlobStore write failed for "${doc.title}": ${persistedFallback.blobStoreError ?? 'unknown'}`
+          );
+        }
 
         if (isBinaryOcrCandidate) {
           this._binaryCache.set(fallbackId, doc.content);
@@ -3244,8 +3284,8 @@ export class LegalCopilotWorkflowService extends Service {
             doc.sourceLastModifiedAt !== null
               ? String(doc.sourceLastModifiedAt)
               : undefined,
-          sourceBlobId: persisted?.blobId,
-          sourceSha256: persisted?.sha256,
+          sourceBlobId: persistedFallback?.blobId,
+          sourceSha256: persistedFallback?.sha256,
           sourceRef: doc.sourceRef,
           folderPath: doc.folderPath,
           internalFileNumber:
@@ -3363,6 +3403,26 @@ export class LegalCopilotWorkflowService extends Service {
   }
 
   async processPendingOcr(
+    caseId: string,
+    workspaceId: string,
+    input?: { ocrRunId?: string }
+  ) {
+    // ── Mutex: prevent concurrent OCR runs for the same case ──
+    // Concurrent runs would cause duplicate chunk writes and race conditions.
+    if (this._runningOcrCases.has(caseId)) {
+      console.log(`[processPendingOcr] Skipped — OCR already running for case ${caseId}`);
+      return [] as OcrJob[];
+    }
+    this._runningOcrCases.add(caseId);
+
+    try {
+      return await this._processPendingOcrInternal(caseId, workspaceId, input);
+    } finally {
+      this._runningOcrCases.delete(caseId);
+    }
+  }
+
+  private async _processPendingOcrInternal(
     caseId: string,
     workspaceId: string,
     input?: { ocrRunId?: string }

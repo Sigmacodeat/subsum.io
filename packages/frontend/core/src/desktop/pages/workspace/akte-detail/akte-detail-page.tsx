@@ -3645,7 +3645,7 @@ export const AkteDetailPage = () => {
                   <section className={styles.contextInfoSection}>
                     <div ref={uploadZoneRootRef}>
                       <FileUploadZone
-                        maxFiles={80}
+                        maxFiles={200}
                         onFilesReady={handlePreparedFiles}
                         pipelineProgress={pipelineProgress}
                       />
@@ -4401,7 +4401,7 @@ const AkteChatPanel = ({
         try {
           const { accepted, rejected } = await prepareLegalUploadFiles({
             files,
-            maxFiles: 80,
+            maxFiles: 200,
           });
 
           if (accepted.length === 0) {

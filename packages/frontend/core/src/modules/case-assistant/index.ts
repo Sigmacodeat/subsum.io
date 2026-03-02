@@ -722,6 +722,7 @@ export function configureCaseAssistantModule(framework: Framework) {
       AnwaltsReminderService,
       CalendarSyncService,
       CasePlatformOrchestrationService,
+      LegalCopilotWorkflowService,
     ])
     .service(KanzleiProfileService, [
       CaseAssistantStore,
