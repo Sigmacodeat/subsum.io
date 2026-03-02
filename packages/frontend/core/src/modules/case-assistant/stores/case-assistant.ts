@@ -121,9 +121,9 @@ export class CaseAssistantStore extends Store {
       return cached;
     }
 
-    const liveData = LiveData.from(this.globalState.watch<T>(key), fallback);
-    this.watchStateCache.set(key, liveData as LiveData<unknown>);
-    return liveData;
+    const $liveData = LiveData.from(this.globalState.watch<T>(key), fallback);
+    this.watchStateCache.set(key, $liveData as LiveData<unknown>);
+    return $liveData;
   }
 
   private async readState<T>(key: string) {
@@ -219,15 +219,25 @@ export class CaseAssistantStore extends Store {
       if (!caseFile.matterId) {
         const matterId = `matter:${this.workspaceId}:${caseId}`;
         caseFile.matterId = matterId;
+        const FILE_EXT_RE = /\.(pdf|docx?|txt|eml|msg|png|jpe?g|tiff?|bmp|webp|gif|heic|heif|odt|rtf|html?|md|csv|tsv|json|xml|xlsx?|xlsm|pptx?|ppt|ods)$/i;
         if (!matters[matterId]) {
+          const rawTitle = caseFile.title || 'Akte';
+          const cleanTitle =
+            rawTitle.replace(FILE_EXT_RE, '').trim() || 'Akte';
           matters[matterId] = {
             id: matterId,
             workspaceId: this.workspaceId,
             clientId: this.defaultClientId,
-            title: caseFile.title || 'Akte',
+            title: cleanTitle,
             status: 'open',
             tags: [],
             createdAt: caseFile.createdAt ?? now,
+            updatedAt: now,
+          };
+        } else if (FILE_EXT_RE.test(matters[matterId].title)) {
+          matters[matterId] = {
+            ...matters[matterId],
+            title: matters[matterId].title.replace(FILE_EXT_RE, '').trim() || 'Akte',
             updatedAt: now,
           };
         }
@@ -427,13 +437,13 @@ export class CaseAssistantStore extends Store {
       return cached;
     }
 
-    const graph$ = this.watchState<CaseGraphRecord>(key, EMPTY_GRAPH).map(
+    const $graph$ = this.watchState<CaseGraphRecord>(key, EMPTY_GRAPH).map(
       (graph: CaseGraphRecord | undefined) =>
         this.ensureGraphShape(graph ?? EMPTY_GRAPH)
     );
 
-    this.watchGraphCache.set(key, graph$);
-    return graph$;
+    this.watchGraphCache.set(key, $graph$);
+    return $graph$;
   }
 
   async getGraph() {
@@ -505,7 +515,18 @@ export class CaseAssistantStore extends Store {
   }
 
   watchLegalDocuments() {
-    return this.watchState<LegalDocumentRecord[]>(this.legalDocumentsKey, []);
+    const $ld = this.watchState<LegalDocumentRecord[]>(
+      this.legalDocumentsKey,
+      []
+    );
+    // If globalState (localStorage) is empty but IndexedDB may have the data
+    // (happens when a previous write failed due to localStorage quota exceeded),
+    // seed the reactive observable asynchronously so documents appear immediately
+    // on load instead of only after the next write operation.
+    if (($ld.value?.length ?? 0) === 0) {
+      void this.getLegalDocuments().catch(() => {});
+    }
+    return $ld;
   }
 
   async getLegalDocuments(options?: { includeTrashed?: boolean }) {
@@ -560,7 +581,11 @@ export class CaseAssistantStore extends Store {
   }
 
   watchOcrJobs() {
-    return this.watchState<OcrJob[]>(this.ocrJobsKey, []);
+    const $ld = this.watchState<OcrJob[]>(this.ocrJobsKey, []);
+    if (($ld.value?.length ?? 0) === 0) {
+      void this.getOcrJobs().catch(() => {});
+    }
+    return $ld;
   }
 
   async getOcrJobs() {
@@ -728,7 +753,7 @@ export class CaseAssistantStore extends Store {
   }
 
   watchSemanticChunks() {
-    const liveData = this.watchState<SemanticChunk[]>(this.semanticChunksKey, []);
+    const $liveData = this.watchState<SemanticChunk[]>(this.semanticChunksKey, []);
     // Seed from IndexedDB if localStorage has no entry yet.
     // Covers the case where chunks were only written to IndexedDB (e.g. after
     // a localStorage quota error) or when localStorage was cleared between sessions.
@@ -770,7 +795,7 @@ export class CaseAssistantStore extends Store {
         })
         .catch(() => {});
     }
-    return liveData;
+    return $liveData;
   }
 
   async getSemanticChunks() {
