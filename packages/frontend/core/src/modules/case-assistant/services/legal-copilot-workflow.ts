@@ -30,6 +30,11 @@ import type { ContradictionDetectorService } from './contradiction-detector';
 import type { CreditGatewayService } from './credit-gateway';
 import { CREDIT_COSTS } from './credit-gateway';
 import type { DeadlineAutomationService } from './deadline-automation';
+import type {
+  DocumentGeneratorService,
+  DocumentTemplate,
+  GeneratedDocument,
+} from './document-generator';
 import type { DocumentNormExtractorService } from './document-norm-extractor';
 import type { DocumentProcessingService } from './document-processing';
 import { normalizeText } from './document-processing';
@@ -558,7 +563,8 @@ export class LegalCopilotWorkflowService extends Service {
     private readonly normClassificationEngine: NormClassificationEngine,
     private readonly kollisionsPruefungService: KollisionsPruefungService,
     private readonly creditGateway: CreditGatewayService,
-    private readonly ragSync: LegalRagSyncService
+    private readonly ragSync: LegalRagSyncService,
+    private readonly documentGeneratorService: DocumentGeneratorService
   ) {
     super();
   }
@@ -5403,6 +5409,254 @@ export class LegalCopilotWorkflowService extends Service {
     }
 
     return lines.join('\n');
+  }
+
+  async generateSchriftsatzFromAkte(input: {
+    caseId: string;
+    workspaceId: string;
+    template: DocumentTemplate;
+    additionalInstructions?: string;
+  }): Promise<GeneratedDocument> {
+    const { caseId, workspaceId, template, additionalInstructions } = input;
+
+    const graph = this.orchestration.graph$.value ?? {};
+    const caseFile = (graph as any).cases?.[caseId];
+    const matter = caseFile?.matterId
+      ? (graph as any).matters?.[caseFile.matterId]
+      : null;
+    const client = matter?.clientId
+      ? (graph as any).clients?.[matter.clientId]
+      : null;
+
+    const caseDocs = (this.orchestration.legalDocuments$.value ?? []).filter(
+      (d: any) => d.caseId === caseId
+    );
+    const caseFindings = (this.orchestration.legalFindings$.value ?? []).filter(
+      (f: any) => f.caseId === caseId && f.workspaceId === workspaceId
+    );
+    const caseTasks = (this.orchestration.copilotTasks$.value ?? []).filter(
+      (t: any) => t.caseId === caseId && t.workspaceId === workspaceId
+    );
+    const caseBlueprint =
+      (this.orchestration.blueprints$.value ?? [])
+        .filter(
+          (b: any) => b.caseId === caseId && b.workspaceId === workspaceId
+        )
+        .sort(
+          (a: any, b: any) =>
+            new Date(b.generatedAt).getTime() -
+            new Date(a.generatedAt).getTime()
+        )[0] ?? null;
+
+    let topChunkTexts: string[] = [];
+    try {
+      const ragHits = await this.ragSync.searchSemantic(
+        workspaceId,
+        caseId,
+        `Sachverhalt ${template} rechtliche Argumente`,
+        12
+      );
+      topChunkTexts = (ragHits ?? []).map((r: any) =>
+        (r.content ?? r.text ?? '').slice(0, 600)
+      );
+    } catch {
+      /* best-effort */
+    }
+
+    const opposingParties: any[] = caseFile?.opposingParties ?? [];
+    const actorIds: string[] = caseFile?.actorIds ?? [];
+    const actors = actorIds
+      .map((id: string) => (graph as any).actors?.[id])
+      .filter(Boolean);
+    const klaeger =
+      client?.displayName ?? matter?.clientName ?? matter?.title ?? '[Mandant]';
+    const beklagter =
+      opposingParties[0]?.name ??
+      actors.find((a: any) => a?.role === 'gegner' || a?.role === 'beklagter')
+        ?.name ??
+      '[Gegner/Beklagte/r]';
+    const kanzleiProfile = (graph as any).kanzleiProfile;
+
+    const parties = {
+      klaeger,
+      beklagter,
+      gericht: matter?.gericht ?? caseFile?.customFields?.gericht ?? '',
+      aktenzeichen:
+        matter?.aktenzeichen ?? caseFile?.customFields?.aktenzeichen ?? '',
+      anwalt: kanzleiProfile?.primaryAnwalt ?? kanzleiProfile?.name ?? '',
+      kanzlei: kanzleiProfile?.name ?? '',
+      mandant: klaeger,
+    };
+
+    const templateLabel: Record<string, string> = {
+      klageschrift: 'Klageschrift',
+      klageerwiderung: 'Klageerwiderung',
+      widerspruch: 'Widerspruch gegen Verwaltungsakt',
+      berufungsschrift: 'Berufungsschrift',
+      mandantenbrief: 'Mandantenanschreiben',
+      sachverhaltsdarstellung: 'Sachverhaltsdarstellung',
+      gutachten: 'Rechtsgutachten',
+      fristenuebersicht: 'Fristenübersicht',
+      vergleichsvorschlag: 'Vergleichsvorschlag',
+      mahnung: 'Mahnung',
+      abmahnung: 'Abmahnung',
+      kuendigung: 'Kündigung',
+      mietminderungsanzeige: 'Mietminderungsanzeige',
+      rechtsschutzanfrage_schriftsatz: 'Rechtsschutzanfrage',
+      deckungszusage_erinnerung_schriftsatz: 'Erinnerung Deckungszusage',
+    };
+
+    const ctxLines: string[] = [
+      `AKTE: ${matter?.title ?? caseFile?.title ?? caseId}`,
+      `MANDANT (KLÄGER): ${klaeger}`,
+      `GEGNER/BEKLAGTER: ${beklagter}`,
+    ];
+    if (parties.gericht) ctxLines.push(`GERICHT: ${parties.gericht}`);
+    if (parties.aktenzeichen)
+      ctxLines.push(`AKTENZEICHEN: ${parties.aktenzeichen}`);
+    if (matter?.streitwert)
+      ctxLines.push(
+        `STREITWERT: ${matter.streitwert.toLocaleString('de-DE')} €`
+      );
+
+    if (caseFindings.length > 0) {
+      ctxLines.push('\nRECHTLICHE ERKENNTNISSE (AI-Analyse):');
+      for (const f of caseFindings.slice(0, 8)) {
+        ctxLines.push(
+          `- [${(f.severity ?? '').toUpperCase()}] ${f.title}: ${f.description}`
+        );
+      }
+    }
+    if (caseTasks.length > 0) {
+      ctxLines.push('\nAUFGABEN:');
+      for (const t of caseTasks.slice(0, 5)) {
+        ctxLines.push(`- ${t.title}: ${t.description ?? ''}`);
+      }
+    }
+    if (caseBlueprint?.objective) {
+      ctxLines.push(`\nFALLSTRATEGIE: ${caseBlueprint.objective}`);
+    }
+    if (actors.length > 0) {
+      ctxLines.push('\nBETEILIGTE PERSONEN:');
+      for (const a of actors.slice(0, 6)) {
+        ctxLines.push(`- ${(a as any).name} (${(a as any).role})`);
+      }
+    }
+    if (topChunkTexts.length > 0) {
+      ctxLines.push('\nDOKUMENT-INHALTE (Semantisch relevante Abschnitte):');
+      for (const chunk of topChunkTexts.slice(0, 8)) {
+        ctxLines.push(`---\n${chunk}`);
+      }
+    }
+
+    const llmPrompt = `Du bist ein erfahrener Rechtsanwalt (Deutschland/Österreich). Erstelle auf Basis des Akten-Kontexts einen vollständigen, juristisch präzisen **${templateLabel[template] ?? template}**.
+
+AKTEN-KONTEXT:
+${ctxLines.join('\n')}
+
+${additionalInstructions ? `ZUSÄTZLICHE ANWEISUNGEN:\n${additionalInstructions}\n\n` : ''}AUFGABE: Schreibe alle Abschnitte vollständig aus. Kein "[Platzhalter]". Zitiere konkrete §§. Antworte NUR mit folgendem JSON:
+{
+  "sachverhalt": "<vollständige chronologische Sachverhaltsdarstellung, mind. 3 Absätze>",
+  "rechtlicheWuerdigung": "<rechtliche Würdigung mit konkreten §§ und Subsumtion>",
+  "antraege": ["<Antrag 1>", "<Antrag 2>", "<Antrag 3 Kosten>"],
+  "besonderheiten": "<Beweisangebote, Fristen, Hinweise>",
+  "warnungen": []
+}`;
+
+    let aiContent: {
+      sachverhalt?: string;
+      rechtlicheWuerdigung?: string;
+      antraege?: string[];
+      besonderheiten?: string;
+      warnungen?: string[];
+    } = {};
+
+    const endpoint =
+      await this.providerSettingsService.getEndpoint('legal-analysis');
+    if (endpoint) {
+      try {
+        const token =
+          await this.providerSettingsService.getToken('legal-analysis');
+        const controller = new AbortController();
+        const timeoutHandle = setTimeout(() => controller.abort(), 30000);
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({
+            mode: 'schriftsatz',
+            prompt: llmPrompt,
+            caseId,
+            template,
+          }),
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutHandle);
+        if (response.ok) {
+          const payload = (await response.json()) as {
+            answer?: string;
+            content?: string;
+            text?: string;
+          };
+          const rawText = (
+            payload.answer ??
+            payload.content ??
+            payload.text ??
+            ''
+          ).trim();
+          const jsonMatch = rawText.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            try {
+              aiContent = JSON.parse(jsonMatch[0]);
+            } catch {
+              /* fallback */
+            }
+          }
+        }
+      } catch {
+        /* best-effort: generate template-only without AI if LLM unavailable */
+      }
+    }
+
+    const combinedSachverhalt = aiContent.sachverhalt
+      ? `${aiContent.sachverhalt}${aiContent.rechtlicheWuerdigung ? `\n\n**Rechtliche Würdigung:**\n\n${aiContent.rechtlicheWuerdigung}` : ''}`
+      : undefined;
+
+    const doc = this.documentGeneratorService.generate({
+      template,
+      caseFile: caseFile ?? undefined,
+      documents: caseDocs,
+      findings: caseFindings,
+      blueprint: caseBlueprint ?? undefined,
+      parties,
+      sachverhalt: combinedSachverhalt,
+      antraege: aiContent.antraege,
+      streitwert: matter?.streitwert ?? 0,
+    });
+
+    if (aiContent.warnungen?.length) {
+      (doc.warnings as string[]).unshift(...aiContent.warnungen);
+    }
+    if (aiContent.besonderheiten) {
+      (doc.sections as any[]).push({
+        id: `sec:ai:${Date.now().toString(36)}`,
+        heading: 'Besonderheiten & Beweisangebote',
+        content: aiContent.besonderheiten,
+        citationIds: [],
+      });
+    }
+
+    await this.orchestration.appendAuditEntry({
+      caseId,
+      workspaceId,
+      action: 'schriftsatz.generated',
+      severity: 'info',
+      details: `Schriftsatz generiert: ${doc.title} (AI: ${!!aiContent.sachverhalt})`,
+    });
+
+    return doc;
   }
 
   async runFullWorkflow(input: {

@@ -703,6 +703,7 @@ export function configureCaseAssistantModule(framework: Framework) {
       KollisionsPruefungService,
       CreditGatewayService,
       LegalRagSyncService,
+      DocumentGeneratorService,
     ])
     .service(CaseContextPackService, [CaseAssistantService])
     .service(CaseCockpitService, [CaseContextPackService, DeadlineAlertService])
