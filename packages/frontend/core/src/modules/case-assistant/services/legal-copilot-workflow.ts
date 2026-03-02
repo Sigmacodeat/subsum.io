@@ -2446,6 +2446,11 @@ export class LegalCopilotWorkflowService extends Service {
     documents: IntakeDocumentInput[];
     commitId?: string;
   }) {
+    if (!input.caseId || !input.caseId.trim()) {
+      throw new Error(
+        '[intakeDocuments] BLOCKED: caseId is required. Please select an Akte before uploading documents.'
+      );
+    }
     const commitId = input.commitId ?? createId('commit');
     console.log(
       `[intakeDocuments] START commitId=${commitId} caseId=${input.caseId} workspaceId=${input.workspaceId} docCount=${input.documents.length}`

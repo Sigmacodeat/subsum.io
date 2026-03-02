@@ -752,10 +752,10 @@ export const PremiumChatSection = ({
   const onDragOverSection = useCallback((event: DragEvent<HTMLElement>) => {
     event.preventDefault();
     event.stopPropagation();
-    if (!isDragOver) {
+    if (hasSelectedCase && !isDragOver) {
       setIsDragOver(true);
     }
-  }, [isDragOver]);
+  }, [hasSelectedCase, isDragOver]);
 
   const onDragLeaveSection = useCallback((event: DragEvent<HTMLElement>) => {
     event.preventDefault();
@@ -1142,7 +1142,7 @@ export const PremiumChatSection = ({
             onClick={onImportLocalFolder}
             className={localStyles.headerActionButton}
             title="Lokalen Ordner verbinden und analysieren"
-            disabled={!activeSession || isChatBusy || isPreparingAttachments}
+            disabled={!hasSelectedCase || !activeSession || isChatBusy || isPreparingAttachments}
           >
             Ordner importieren
           </button>
