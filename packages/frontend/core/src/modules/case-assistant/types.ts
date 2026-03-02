@@ -806,6 +806,16 @@ export interface LegalDocumentRecord {
   discardedBinaryAt?: string;
   trashedAt?: string;
   purgeAt?: string;
+  /** Extraction coverage: ratio of chunk chars to normalized source chars (healthy: 0.75–1.15). */
+  extractionFidelityRatio?: number;
+  /** Average chars extracted per source page — < 50 indicates likely extraction failure. */
+  extractionYieldPerPage?: number;
+  /** Number of source pages successfully extracted (may differ from pageCount for large OCR docs). */
+  extractedPageCount?: number;
+  /** True when fidelity checks pass; false signals extraction may be incomplete. */
+  extractionIntegrityOk?: boolean;
+  /** True when pgvector RAG sync was confirmed by the backend. */
+  ragIndexed?: boolean;
 }
 
 export type SemanticChunkCategory =

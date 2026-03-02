@@ -141,11 +141,24 @@ function sanitizeDigestText(value: string | undefined): string {
   if (!compact) {
     return '';
   }
+  // Filter binary cache placeholder (exact string stored by ingestion pipeline)
+  if (compact.includes('__binary_cache__')) {
+    return '';
+  }
+  // Filter legacy/variant binary placeholders
   if (
     /binary/i.test(compact) &&
     /placeholder|verworfen|discarded/i.test(compact)
   ) {
     return '';
+  }
+  // Filter binary garbage: high density of Latin-Extended or control chars
+  // (JPEG/PDF binary decoded as Latin-1 typically >15% U+00C0–U+00FF)
+  if (compact.length > 20) {
+    const nonAsciiCount = (compact.match(/[\u0080-\u00FF]/g) ?? []).length;
+    if (nonAsciiCount / compact.length > 0.15) {
+      return '';
+    }
   }
   return compact;
 }
@@ -196,10 +209,14 @@ function normalizeOcrTextForPage(value: string | undefined): string {
   if (!trimmed) {
     return '';
   }
+  // Filter binary cache placeholder
+  if (trimmed.includes('__binary_cache__') || trimmed === '[binary-in-ocr-cache]') {
+    return '';
+  }
+  // Filter legacy/variant binary placeholders
   if (
-    trimmed === '[binary-in-ocr-cache]' ||
-    (/\bbinary\b/i.test(trimmed) &&
-      /placeholder|verworfen|discarded|ocr-cache/i.test(trimmed))
+    /\bbinary\b/i.test(trimmed) &&
+    /placeholder|verworfen|discarded|ocr-cache/i.test(trimmed)
   ) {
     return '';
   }
@@ -3248,6 +3265,18 @@ export const AkteDetailPage = () => {
                                                       }
                                                     >
                                                       {doc.chunkCount} Chunks
+                                                    </span>
+                                                  ) : null}
+                                                  {doc.extractionFidelityRatio !== undefined ? (
+                                                    <span
+                                                      className={`${styles.docKindBadge} ${doc.extractionIntegrityOk === false ? styles.docStatusPending : styles.docStatusReady}`}
+                                                      title={
+                                                        doc.extractionIntegrityOk === false
+                                                          ? `Extraktion möglicherweise unvollständig — Abdeckung: ${Math.round(doc.extractionFidelityRatio * 100)}%, ${Math.round(doc.extractionYieldPerPage ?? 0)} Zeichen/Seite`
+                                                          : `Vollständig extrahiert — Abdeckung: ${Math.round(doc.extractionFidelityRatio * 100)}%, ${Math.round(doc.extractionYieldPerPage ?? 0)} Zeichen/Seite`
+                                                      }
+                                                    >
+                                                      {doc.extractionIntegrityOk === false ? '⚠ Extraktion' : '✓ Extraktion'}
                                                     </span>
                                                   ) : null}
                                                 </div>

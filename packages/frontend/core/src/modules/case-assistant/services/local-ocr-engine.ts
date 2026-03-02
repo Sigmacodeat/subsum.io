@@ -41,14 +41,14 @@ const OCR_RENDER_SCALE = 4;
 const OCR_RENDER_SCALE_MIN = 2;
 const OCR_RENDER_MAX_PIXELS = 6_000_000;
 /** Maximum pages to OCR per document (prevent runaway on huge docs) */
-const OCR_MAX_PAGES = 80;
+const OCR_MAX_PAGES = 300;
 /** Timeout per page OCR in ms */
 const OCR_PAGE_TIMEOUT_MS = 30_000;
 /**
  * Total timeout for entire document OCR in ms.
- * Increased to handle difficult low-quality multi-page scans without premature abort.
+ * 20 min to handle long scanned legal documents (Gerichtsakten can be 200+ pages).
  */
-const OCR_TOTAL_TIMEOUT_MS = 480_000;
+const OCR_TOTAL_TIMEOUT_MS = 1_200_000;
 /**
  * Minimum confidence (0-100) to accept OCR text on first pass.
  * Tuned lower to recover low-contrast legal scans that still contain usable text.

@@ -2966,6 +2966,10 @@ export class LegalCopilotWorkflowService extends Service {
           discardedBinaryAt:
             isBase64 && !keepBinaryForOcrRetry ? now : undefined,
           preflight: doc.preflight,
+          extractionFidelityRatio: processingResult.contentFidelity.fidelityRatio,
+          extractionYieldPerPage: processingResult.contentFidelity.extractionYieldPerPage,
+          extractedPageCount: processingResult.qualityReport.extractedPageCount,
+          extractionIntegrityOk: processingResult.contentFidelity.contentIntegrityOk,
         };
 
         // ── MEMORY: Release binary content NOW — processing is done ──
@@ -3461,6 +3465,7 @@ export class LegalCopilotWorkflowService extends Service {
     input?: { ocrRunId?: string }
   ) {
     const ocrRunId = input?.ocrRunId ?? createId('ocr-run');
+    const batchStartTime = Date.now();
     const permission =
       await this.orchestration.evaluatePermission('document.ocr');
     if (!permission.ok) {
@@ -3907,6 +3912,10 @@ export class LegalCopilotWorkflowService extends Service {
               ? finishedAt
               : doc.discardedBinaryAt,
           updatedAt: finishedAt,
+          extractionFidelityRatio: processed.contentFidelity.fidelityRatio,
+          extractionYieldPerPage: processed.contentFidelity.extractionYieldPerPage,
+          extractedPageCount: processed.qualityReport.extractedPageCount,
+          extractionIntegrityOk: processed.contentFidelity.contentIntegrityOk,
         };
 
         await this.orchestration.upsertLegalDocument(updatedDoc);
@@ -4008,6 +4017,16 @@ export class LegalCopilotWorkflowService extends Service {
         await this.orchestration.upsertOcrJob(doneJob);
         completed.push(doneJob);
 
+        // ── Dev-facing structured performance log ──
+        const jobDurationMs = queued.startedAt
+          ? new Date(finishedAt).getTime() - new Date(queued.startedAt).getTime()
+          : 0;
+        console.info(
+          `[OCR ✓] "${doc.title}" | engine=${ocrResult.engine ?? queued.engine} ` +
+          `chunks=${processed.chunks.length} quality=${processed.qualityReport.overallScore}% ` +
+          `pages=${ocrResult.pageCount ?? doc.pageCount ?? '?'} duration=${jobDurationMs}ms`
+        );
+
         // ── OCR Pipeline Audit: Log detailed metrics for monitoring & QA ──
         const ocrDurationMs = queued.startedAt
           ? new Date(finishedAt).getTime() -
@@ -4055,6 +4074,11 @@ export class LegalCopilotWorkflowService extends Service {
             ? error.message
             : 'OCR-Verarbeitung abgestürzt';
 
+        console.error(
+          `[OCR ✗] "${queued.documentId}" crashed: ${message}`,
+          error
+        );
+
         await this.orchestration.upsertOcrJob({
           ...queued,
           status: 'failed',
@@ -4082,6 +4106,15 @@ export class LegalCopilotWorkflowService extends Service {
         }
       }
     }
+
+    // ── Batch completion summary log ──
+    const batchDurationMs = Date.now() - batchStartTime;
+    const failedCount = jobs.length - completed.length - crashedJobs;
+    console.info(
+      `[OCR batch] caseId=${caseId} total=${jobs.length} ` +
+      `completed=${completed.length} crashed=${crashedJobs} other_failed=${failedCount} ` +
+      `totalDuration=${batchDurationMs}ms`
+    );
 
     if (crashedJobs > 0) {
       await this.orchestration.appendAuditEntry({

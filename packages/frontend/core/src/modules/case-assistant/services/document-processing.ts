@@ -191,12 +191,12 @@ function hexToString(hex: string): string {
   return result;
 }
 
-/** Maximum Base64 chars to decode for PDF text extraction (~7.5 MB raw) */
-const PDF_DECODE_LIMIT = 10_000_000;
+/** Maximum Base64 chars to decode for PDF text extraction (~22.5 MB raw) */
+const PDF_DECODE_LIMIT = 30_000_000;
 /** Maximum Base64 chars to decode for Office formats (DOCX/XLSX/PPTX) (~37 MB raw) */
 const OFFICE_DECODE_LIMIT = 50_000_000;
 /** Maximum BT/ET blocks to process in PDF deep parser to prevent O(n²) hangs */
-const PDF_MAX_BT_BLOCKS = 5000;
+const PDF_MAX_BT_BLOCKS = 15000;
 /** Maximum streams to scan in PDF fallback path */
 const PDF_MAX_STREAM_SCANS = 2000;
 
@@ -226,7 +226,7 @@ async function localOcrPdfAsync(base64: string): Promise<{ text: string; pageCou
 
 async function extractTextFromPdfiumWorkerAsync(
   base64: string,
-  maxPages = 200
+  maxPages = 500
 ): Promise<{ text: string; pageCount?: number; engine: string } | null> {
   try {
     if (typeof Worker === 'undefined') {
