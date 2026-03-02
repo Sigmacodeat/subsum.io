@@ -9,6 +9,33 @@
 -- Ensure pgvector extension is installed (requires superuser or rds_superuser).
 CREATE EXTENSION IF NOT EXISTS vector;
 
+-- ── Analysis Snapshot table ────────────────────────────────────────────────────
+-- Persists AI-generated analysis data (findings, tasks, blueprint, issues,
+-- actors, memory events) per case as JSONB columns. One row per workspace+case.
+-- This ensures all insights derived from AI chat survive localStorage clears
+-- and are available for multi-device access.
+CREATE TABLE IF NOT EXISTS "legal_case_analysis_data" (
+  "id"            VARCHAR        NOT NULL,
+  "workspace_id"  VARCHAR        NOT NULL,
+  "case_id"       VARCHAR        NOT NULL,
+  "findings"      JSONB          NOT NULL DEFAULT '[]',
+  "tasks"         JSONB          NOT NULL DEFAULT '[]',
+  "blueprint"     JSONB,
+  "issues"        JSONB          NOT NULL DEFAULT '[]',
+  "actors"        JSONB          NOT NULL DEFAULT '[]',
+  "memory_events" JSONB          NOT NULL DEFAULT '[]',
+  "updated_at"    TIMESTAMPTZ    NOT NULL DEFAULT NOW(),
+  CONSTRAINT "legal_case_analysis_data_pkey" PRIMARY KEY ("id"),
+  CONSTRAINT "legal_case_analysis_data_ws_case_unique"
+    UNIQUE ("workspace_id", "case_id")
+);
+
+CREATE INDEX IF NOT EXISTS "legal_case_analysis_data_ws_idx"
+  ON "legal_case_analysis_data" ("workspace_id");
+
+CREATE INDEX IF NOT EXISTS "legal_case_analysis_data_case_idx"
+  ON "legal_case_analysis_data" ("case_id");
+
 -- ── Main table ────────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS "legal_document_chunk_embeddings" (
   "id"           VARCHAR        NOT NULL,

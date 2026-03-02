@@ -47,6 +47,7 @@ import type {
   WorkspaceResidencyPolicy,
 } from '../types';
 import type { CaseAccessControlService } from './case-access-control';
+import type { LegalRagSyncService } from './legal-rag-sync.service';
 import type { CaseResidencyPolicyService } from './residency-policy';
 
 function createId(prefix: string) {
@@ -69,9 +70,45 @@ export class CasePlatformOrchestrationService extends Service {
   constructor(
     private readonly store: CaseAssistantStore,
     private readonly accessControlService: CaseAccessControlService,
-    private readonly residencyPolicyService: CaseResidencyPolicyService
+    private readonly residencyPolicyService: CaseResidencyPolicyService,
+    private readonly ragSync: LegalRagSyncService
   ) {
     super();
+  }
+
+  syncAnalysisForCase(caseId: string, workspaceId: string): void {
+    this._syncCaseAnalysis(caseId, workspaceId);
+  }
+
+  private _syncCaseAnalysis(caseId: string, workspaceId: string): void {
+    if (!caseId || !workspaceId) return;
+    Promise.all([
+      this.store.getGraph(),
+      this.store.getLegalFindings(),
+      this.store.getCopilotTasks(),
+      this.store.getBlueprints(),
+    ]).then(([graph, findings, tasks, blueprints]) => {
+      const caseFindingsList = findings.filter((f: LegalFinding) => f.caseId === caseId && f.workspaceId === workspaceId);
+      const caseTasksList = tasks.filter((t: CopilotTask) => t.caseId === caseId && t.workspaceId === workspaceId);
+      const caseBlueprint = blueprints
+        .filter((b: CaseBlueprint) => b.caseId === caseId && b.workspaceId === workspaceId)
+        .sort((a: CaseBlueprint, b: CaseBlueprint) => new Date(b.generatedAt).getTime() - new Date(a.generatedAt).getTime())[0] ?? null;
+      const caseFile = Object.values(graph.cases ?? {}).find((c: any) => c.id === caseId) as any;
+      const issueIds: string[] = caseFile?.issueIds ?? [];
+      const actorIds: string[] = caseFile?.actorIds ?? [];
+      const memoryEventIds: string[] = caseFile?.memoryEventIds ?? [];
+      const caseIssues = issueIds.map((id: string) => graph.issues?.[id]).filter(Boolean);
+      const caseActors = actorIds.map((id: string) => graph.actors?.[id]).filter(Boolean);
+      const caseMemoryEvents = memoryEventIds.map((id: string) => graph.memoryEvents?.[id]).filter(Boolean);
+      this.ragSync.saveAnalysis(workspaceId, caseId, {
+        findings: caseFindingsList,
+        tasks: caseTasksList,
+        blueprint: caseBlueprint,
+        issues: caseIssues,
+        actors: caseActors,
+        memoryEvents: caseMemoryEvents,
+      }).catch(() => {});
+    }).catch(() => {});
   }
 
   readonly graph$ = this.store.watchGraph();
@@ -691,6 +728,95 @@ export class CasePlatformOrchestrationService extends Service {
       }
       if (hasInvoiceChanges) {
         await this.store.setRechnungen(Array.from(nextInvoices.values()));
+      }
+    }
+
+    // ── Analysis Snapshot: load from backend for all cases ──────────────────
+    // Best-effort: load AI analysis data (findings, tasks, blueprint, issues,
+    // actors, memoryEvents) from the backend and merge into the local store.
+    // Only merges if the backend snapshot is newer than what's locally stored.
+    const allCaseIds = Object.keys(nextGraph.cases ?? graph.cases ?? {});
+    if (allCaseIds.length > 0) {
+      const analysisFetchResults = await Promise.all(
+        allCaseIds.slice(0, 50).map(async caseId => {
+          const data = await this.ragSync.loadAnalysis(workspaceId, caseId);
+          return { caseId, data };
+        })
+      );
+
+      for (const { data } of analysisFetchResults) {
+        if (!data) continue;
+
+        const remoteFindings = Array.isArray(data.findings) ? data.findings as LegalFinding[] : [];
+        const remoteTasks = Array.isArray(data.tasks) ? data.tasks as CopilotTask[] : [];
+        const remoteBlueprint = data.blueprint as CaseBlueprint | null;
+        const remoteIssues = Array.isArray(data.issues) ? data.issues as any[] : [];
+        const remoteActors = Array.isArray(data.actors) ? data.actors as any[] : [];
+        const remoteMemoryEvents = Array.isArray(data.memoryEvents) ? data.memoryEvents as CaseMemoryEvent[] : [];
+
+        const localFindings = await this.store.getLegalFindings();
+        const localFindingMap = new Map(localFindings.map((f: LegalFinding) => [f.id, f]));
+        for (const rf of remoteFindings) {
+          const lf = localFindingMap.get(rf.id);
+          if (!lf || new Date(rf.updatedAt ?? 0) > new Date(lf.updatedAt ?? 0)) {
+            await this.store.upsertLegalFinding(rf);
+          }
+        }
+
+        const localTasks = await this.store.getCopilotTasks();
+        const localTaskMap = new Map(localTasks.map((t: CopilotTask) => [t.id, t]));
+        for (const rt of remoteTasks) {
+          const lt = localTaskMap.get(rt.id);
+          if (!lt || new Date(rt.updatedAt ?? 0) > new Date(lt.updatedAt ?? 0)) {
+            await this.store.upsertCopilotTask(rt);
+          }
+        }
+
+        if (remoteBlueprint?.id) {
+          const localBlueprints = await this.store.getBlueprints();
+          const lb = localBlueprints.find((b: CaseBlueprint) => b.id === remoteBlueprint.id);
+          if (!lb || new Date(remoteBlueprint.updatedAt ?? 0) > new Date(lb.updatedAt ?? 0)) {
+            await this.store.upsertBlueprint(remoteBlueprint);
+          }
+        }
+
+        // Merge issues, actors, memoryEvents back into the graph
+        if (remoteIssues.length > 0 || remoteActors.length > 0 || remoteMemoryEvents.length > 0) {
+          const currentGraph = await this.store.getGraph();
+          let graphChanged = false;
+          for (const ri of remoteIssues) {
+            if (!ri?.id) continue;
+            const li = currentGraph.issues?.[ri.id];
+            if (!li || new Date(ri.updatedAt ?? 0) > new Date(li.updatedAt ?? 0)) {
+              currentGraph.issues = currentGraph.issues ?? {};
+              currentGraph.issues[ri.id] = ri;
+              graphChanged = true;
+            }
+          }
+          for (const ra of remoteActors) {
+            if (!ra?.id) continue;
+            const la = currentGraph.actors?.[ra.id];
+            if (!la || new Date(ra.updatedAt ?? 0) > new Date(la.updatedAt ?? 0)) {
+              currentGraph.actors = currentGraph.actors ?? {};
+              currentGraph.actors[ra.id] = ra;
+              graphChanged = true;
+            }
+          }
+          for (const rm of remoteMemoryEvents) {
+            if (!rm?.id) continue;
+            const lm = currentGraph.memoryEvents?.[rm.id];
+            if (!lm || new Date(rm.createdAt ?? 0) > new Date(lm.createdAt ?? 0)) {
+              currentGraph.memoryEvents = currentGraph.memoryEvents ?? {};
+              currentGraph.memoryEvents[rm.id] = rm;
+              graphChanged = true;
+            }
+          }
+          if (graphChanged) {
+            currentGraph.updatedAt = new Date().toISOString();
+            await this.store.setGraph(currentGraph);
+          }
+        }
+
       }
     }
 
@@ -3004,6 +3130,7 @@ export class CasePlatformOrchestrationService extends Service {
 
   async upsertLegalFinding(record: LegalFinding) {
     await this.store.upsertLegalFinding(record);
+    this._syncCaseAnalysis(record.caseId, record.workspaceId);
     await this.appendWorkflowEvent({
       type: 'analysis.completed',
       actor: 'system',
@@ -3020,6 +3147,7 @@ export class CasePlatformOrchestrationService extends Service {
 
   async upsertCopilotTask(record: CopilotTask) {
     await this.store.upsertCopilotTask(record);
+    this._syncCaseAnalysis(record.caseId, record.workspaceId);
     await this.appendWorkflowEvent({
       type: 'task.generated',
       actor: 'system',
@@ -3036,6 +3164,7 @@ export class CasePlatformOrchestrationService extends Service {
 
   async upsertBlueprint(record: CaseBlueprint) {
     await this.store.upsertBlueprint(record);
+    this._syncCaseAnalysis(record.caseId, record.workspaceId);
     await this.appendWorkflowEvent({
       type: 'blueprint.generated',
       actor: record.generatedBy === 'copilot' ? 'system' : 'user',

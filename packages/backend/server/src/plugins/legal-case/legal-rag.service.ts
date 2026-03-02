@@ -356,6 +356,113 @@ export class LegalRagService {
     `;
   }
 
+  // ── Analysis Snapshot Persistence ─────────────────────────────────────────
+
+  /**
+   * Upsert the full analysis snapshot for a case into the
+   * `legal_case_analysis_data` table. Each (workspaceId, caseId) pair maps
+   * to exactly one row — the JSON is merged server-side so that incremental
+   * saves from any client device are additive, not destructive.
+   */
+  async saveAnalysisData(
+    workspaceId: string,
+    caseId: string,
+    data: {
+      findings?: unknown[];
+      tasks?: unknown[];
+      blueprint?: unknown | null;
+      issues?: unknown[];
+      actors?: unknown[];
+      memoryEvents?: unknown[];
+    }
+  ): Promise<void> {
+    try {
+      const findingsJson = JSON.stringify(data.findings ?? []);
+      const tasksJson = JSON.stringify(data.tasks ?? []);
+      const blueprintJson = data.blueprint != null ? JSON.stringify(data.blueprint) : null;
+      const issuesJson = JSON.stringify(data.issues ?? []);
+      const actorsJson = JSON.stringify(data.actors ?? []);
+      const memoryEventsJson = JSON.stringify(data.memoryEvents ?? []);
+
+      await this.db.$executeRaw`
+        INSERT INTO "legal_case_analysis_data"
+          ("id", "workspace_id", "case_id",
+           "findings", "tasks", "blueprint",
+           "issues", "actors", "memory_events",
+           "updated_at")
+        VALUES (
+          gen_random_uuid(),
+          ${workspaceId}, ${caseId},
+          ${findingsJson}::jsonb, ${tasksJson}::jsonb, ${blueprintJson}::jsonb,
+          ${issuesJson}::jsonb, ${actorsJson}::jsonb, ${memoryEventsJson}::jsonb,
+          NOW()
+        )
+        ON CONFLICT ("workspace_id", "case_id")
+        DO UPDATE SET
+          "findings"      = EXCLUDED."findings",
+          "tasks"         = EXCLUDED."tasks",
+          "blueprint"     = EXCLUDED."blueprint",
+          "issues"        = EXCLUDED."issues",
+          "actors"        = EXCLUDED."actors",
+          "memory_events" = EXCLUDED."memory_events",
+          "updated_at"    = NOW();
+      `;
+    } catch (err) {
+      this.logger.error('[LegalRag] saveAnalysisData failed:', err);
+    }
+  }
+
+  /**
+   * Load the persisted analysis snapshot for a case.
+   * Returns null if no snapshot exists yet.
+   */
+  async loadAnalysisData(
+    workspaceId: string,
+    caseId: string
+  ): Promise<{
+    findings: unknown[];
+    tasks: unknown[];
+    blueprint: unknown | null;
+    issues: unknown[];
+    actors: unknown[];
+    memoryEvents: unknown[];
+    updatedAt: string;
+  } | null> {
+    try {
+      type Row = {
+        findings: unknown;
+        tasks: unknown;
+        blueprint: unknown;
+        issues: unknown;
+        actors: unknown;
+        memory_events: unknown;
+        updated_at: Date;
+      };
+      const rows = await this.db.$queryRaw<Row[]>`
+        SELECT "findings", "tasks", "blueprint", "issues", "actors",
+               "memory_events", "updated_at"
+        FROM   "legal_case_analysis_data"
+        WHERE  "workspace_id" = ${workspaceId}
+          AND  "case_id"      = ${caseId}
+        LIMIT  1;
+      `;
+      if (!rows.length) return null;
+      const row = rows[0];
+      return {
+        findings: Array.isArray(row.findings) ? row.findings : [],
+        tasks: Array.isArray(row.tasks) ? row.tasks : [],
+        blueprint: row.blueprint ?? null,
+        issues: Array.isArray(row.issues) ? row.issues : [],
+        actors: Array.isArray(row.actors) ? row.actors : [],
+        memoryEvents: Array.isArray(row.memory_events) ? row.memory_events : [],
+        updatedAt: row.updated_at?.toISOString() ?? new Date().toISOString(),
+      };
+    } catch (err) {
+      this.logger.warn('[LegalRag] loadAnalysisData failed:', err);
+      return null;
+    }
+  }
+
   // ── Stats ──────────────────────────────────────────────────────────────────
 
   async getIndexStats(

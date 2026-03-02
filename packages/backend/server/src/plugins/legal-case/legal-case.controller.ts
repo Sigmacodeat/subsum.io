@@ -8,6 +8,7 @@ import {
   HttpStatus,
   Param,
   Post,
+  Put,
   Query,
   Req,
 } from '@nestjs/common';
@@ -1122,6 +1123,41 @@ export class LegalCaseController {
     if (!caseId) throw new BadRequestException('caseId is required');
     const stats = await this.ragService.getIndexStats(workspaceId, caseId);
     return { ok: true, stats, semanticAvailable: this.ragService.isAvailable };
+  }
+
+  @Put('/workspaces/:workspaceId/rag/analysis')
+  @HttpCode(HttpStatus.OK)
+  async ragSaveAnalysis(
+    @CurrentUser() user: CurrentUser,
+    @Param('workspaceId') workspaceId: string,
+    @Body() body: any
+  ) {
+    await this.assertWorkspaceAccess(user.id, workspaceId, 'Workspace.Sync');
+    const parsed = z.object({
+      caseId: z.string().min(1),
+      findings: z.array(z.unknown()).optional().default([]),
+      tasks: z.array(z.unknown()).optional().default([]),
+      blueprint: z.unknown().nullable().optional(),
+      issues: z.array(z.unknown()).optional().default([]),
+      actors: z.array(z.unknown()).optional().default([]),
+      memoryEvents: z.array(z.unknown()).optional().default([]),
+    }).safeParse(body);
+    if (!parsed.success) throw new BadRequestException('Invalid analysis payload');
+    const { caseId, ...data } = parsed.data;
+    await this.ragService.saveAnalysisData(workspaceId, caseId, data);
+    return { ok: true };
+  }
+
+  @Get('/workspaces/:workspaceId/rag/analysis')
+  async ragLoadAnalysis(
+    @CurrentUser() user: CurrentUser,
+    @Param('workspaceId') workspaceId: string,
+    @Query('caseId') caseId: string
+  ) {
+    await this.assertWorkspaceAccess(user.id, workspaceId, 'Workspace.Read');
+    if (!caseId) throw new BadRequestException('caseId is required');
+    const data = await this.ragService.loadAnalysisData(workspaceId, caseId);
+    return { ok: true, data };
   }
 
   // ═══════════════════════════════════════════════════════════════════════

@@ -467,6 +467,7 @@ export class CopilotNlpCrudService extends Service {
             workspaceId: input.workspaceId,
           });
 
+          this.orchestration.syncAnalysisForCase(input.caseId, input.workspaceId);
           return {
             success: true,
             intent: 'create',
@@ -620,6 +621,7 @@ export class CopilotNlpCrudService extends Service {
           workspaceId: input.workspaceId,
         });
 
+        this.orchestration.syncAnalysisForCase(input.caseId, input.workspaceId);
         return {
           success: true,
           intent: 'create',
@@ -672,6 +674,7 @@ export class CopilotNlpCrudService extends Service {
         workspaceId: input.workspaceId,
       });
 
+      this.orchestration.syncAnalysisForCase(input.caseId, input.workspaceId);
       return {
         success: true,
         intent: 'create',

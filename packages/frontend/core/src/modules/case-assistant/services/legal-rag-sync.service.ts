@@ -204,6 +204,85 @@ export class LegalRagSyncService extends Service {
     }
   }
 
+  // ── Analysis Snapshot ──────────────────────────────────────────────────────
+
+  /**
+   * Persist the full AI analysis snapshot for a case to the backend.
+   * Fire-and-forget — errors are swallowed so callers are never blocked.
+   * Called after every mutation to findings / tasks / blueprint / issues /
+   * actors / memoryEvents so data is always durable in PostgreSQL.
+   */
+  async saveAnalysis(
+    workspaceId: string,
+    caseId: string,
+    data: {
+      findings?: unknown[];
+      tasks?: unknown[];
+      blueprint?: unknown | null;
+      issues?: unknown[];
+      actors?: unknown[];
+      memoryEvents?: unknown[];
+    }
+  ): Promise<void> {
+    if (!workspaceId || !caseId) return;
+    if (typeof globalThis.fetch !== 'function') return;
+    const endpoint = `/api/legal/workspaces/${encodeURIComponent(workspaceId)}/rag/analysis`;
+    try {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 10_000);
+      await globalThis.fetch(endpoint, {
+        method: 'PUT',
+        headers: {
+          'content-type': 'application/json',
+          'x-affine-version': BUILD_CONFIG.appVersion,
+        },
+        body: JSON.stringify({ caseId, ...data }),
+        signal: ctrl.signal,
+      });
+      clearTimeout(timer);
+    } catch {
+      // best-effort — data stays in localStorage as fallback
+    }
+  }
+
+  /**
+   * Load the persisted AI analysis snapshot for a case from the backend.
+   * Returns null if the backend is unavailable or no snapshot exists.
+   */
+  async loadAnalysis(
+    workspaceId: string,
+    caseId: string
+  ): Promise<{
+    findings: unknown[];
+    tasks: unknown[];
+    blueprint: unknown | null;
+    issues: unknown[];
+    actors: unknown[];
+    memoryEvents: unknown[];
+    updatedAt: string;
+  } | null> {
+    if (!workspaceId || !caseId) return null;
+    if (typeof globalThis.fetch !== 'function') return null;
+    try {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 8_000);
+      const res = await globalThis.fetch(
+        `/api/legal/workspaces/${encodeURIComponent(workspaceId)}/rag/analysis?caseId=${encodeURIComponent(caseId)}`,
+        {
+          method: 'GET',
+          headers: { 'x-affine-version': BUILD_CONFIG.appVersion },
+          signal: ctrl.signal,
+        }
+      );
+      clearTimeout(timer);
+      if (!res.ok) return null;
+      const json = (await res.json()) as { ok: boolean; data: unknown };
+      return (json.data as any) ?? null;
+    } catch {
+      return null;
+    }
+  }
+
   // ── Health ─────────────────────────────────────────────────────────────────
 
   /** Returns whether the last backend interaction succeeded. */

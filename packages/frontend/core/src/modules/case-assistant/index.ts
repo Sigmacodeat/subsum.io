@@ -667,6 +667,7 @@ export function configureCaseAssistantModule(framework: Framework) {
       CaseAssistantStore,
       CaseAccessControlService,
       CaseResidencyPolicyService,
+      LegalRagSyncService,
     ])
     .service(KalenderService, [CasePlatformOrchestrationService])
     .service(CaseAssistantService, [CaseAssistantStore, KalenderService])
