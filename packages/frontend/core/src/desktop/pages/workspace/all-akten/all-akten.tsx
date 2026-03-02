@@ -258,6 +258,11 @@ export const AllAktenPage = () => {
     );
   }, []);
 
+  // Reset cleanup flag to ensure cleanup runs after deployment
+  useEffect(() => {
+    hasRunCaseCleanupRef.current = false;
+  }, []);
+
   useEffect(() => {
     if (hasRunCaseCleanupRef.current) {
       return;
