@@ -38,18 +38,38 @@ import type { PDFMeta } from '../../pdf/renderer/types';
 
 /** OCR render scale: 4x = ~300 DPI — gold standard for OCR accuracy */
 const OCR_RENDER_SCALE = 4;
+const OCR_RENDER_SCALE_MIN = 2;
+const OCR_RENDER_MAX_PIXELS = 6_000_000;
 /** Maximum pages to OCR per document (prevent runaway on huge docs) */
 const OCR_MAX_PAGES = 80;
 /** Timeout per page OCR in ms */
 const OCR_PAGE_TIMEOUT_MS = 30_000;
-/** Total timeout for entire document OCR in ms */
-const OCR_TOTAL_TIMEOUT_MS = 300_000;
-/** Minimum confidence (0-100) to accept OCR text on first pass */
-const OCR_MIN_CONFIDENCE = 40;
+/**
+ * Total timeout for entire document OCR in ms.
+ * Increased to handle difficult low-quality multi-page scans without premature abort.
+ */
+const OCR_TOTAL_TIMEOUT_MS = 480_000;
+/**
+ * Minimum confidence (0-100) to accept OCR text on first pass.
+ * Tuned lower to recover low-contrast legal scans that still contain usable text.
+ */
+const OCR_MIN_CONFIDENCE = 25;
 /** Confidence threshold below which a second enhanced OCR pass is attempted */
 const OCR_RETRY_CONFIDENCE_THRESHOLD = 65;
+const OCR_MAX_RETRY_PAGES_PER_DOC = 10;
 /** Maximum base64 length to attempt local OCR (~37 MB raw) */
 const OCR_MAX_BASE64_LENGTH = 50_000_000;
+
+function chooseRenderScale(page: { width: number; height: number }) {
+  const maxScale = OCR_RENDER_SCALE;
+  const minScale = OCR_RENDER_SCALE_MIN;
+  const basePixels = page.width * page.height;
+  // Keep pixels under a budget to avoid huge canvases slowing down render + preprocess.
+  const budgetScale = Math.floor(
+    Math.sqrt(Math.max(1, OCR_RENDER_MAX_PIXELS / Math.max(1, basePixels)))
+  );
+  return Math.max(minScale, Math.min(maxScale, budgetScale));
+}
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -783,6 +803,9 @@ export async function ocrPdfFromBase64(
   let skippedPages = 0;
   let retriedPages = 0;
   let failedPages = 0;
+  let retryBudgetRemaining = OCR_MAX_RETRY_PAGES_PER_DOC;
+  let consecutiveNoYieldPages = 0;
+  let totalYieldChars = 0;
 
   try {
     const tesseract = await withTimeout(
@@ -812,13 +835,14 @@ export async function ocrPdfFromBase64(
           pageConfidence: 0,
         });
 
+        const scale = chooseRenderScale(pageSize);
         const renderResult = await withTimeout(
           firstValueFrom(
             renderer.ob$('render', {
               pageNum,
               width: pageSize.width,
               height: pageSize.height,
-              scale: OCR_RENDER_SCALE,
+              scale,
             })
           ),
           10_000,
@@ -902,8 +926,10 @@ export async function ocrPdfFromBase64(
         if (
           pageText.length > 0 &&
           pageConfidence >= OCR_MIN_CONFIDENCE &&
-          pageConfidence < OCR_RETRY_CONFIDENCE_THRESHOLD
+          pageConfidence < OCR_RETRY_CONFIDENCE_THRESHOLD &&
+          retryBudgetRemaining > 0
         ) {
+          retryBudgetRemaining--;
           const retryPpStart = Date.now();
           const enhancedImage = preprocessForOcr(rawImageData, true);
           preProcessingMs += Date.now() - retryPpStart;
@@ -922,16 +948,33 @@ export async function ocrPdfFromBase64(
             const retryConfidence = retryResult.data.confidence ?? 0;
 
             // Only use retry result if it's actually better
-            if (retryConfidence > pageConfidence && retryText.length >= pageText.length * 0.8) {
+            if ((retryText.length > pageText.length && retryConfidence >= pageConfidence) || retryConfidence > pageConfidence + 8) {
               pageText = retryText;
               pageConfidence = retryConfidence;
               wasRetried = true;
               retriedPages++;
             }
-          } catch {
+          } catch (err) {
+            // Ignore retry failure; keep first-pass results
             ocrMs += Date.now() - retryOcrStart;
-            // Retry failed — keep original result
           }
+        }
+
+        // Yield tracking + early-stop for unextractable scans
+        if (pageText.trim().length < 10) {
+          consecutiveNoYieldPages++;
+        } else {
+          consecutiveNoYieldPages = 0;
+          totalYieldChars += pageText.length;
+        }
+
+        // If we see multiple pages with virtually no text, abort to avoid minutes of wasted OCR.
+        if (pageNum >= 4 && consecutiveNoYieldPages >= 5 && totalYieldChars < 200) {
+          console.warn(
+            `[local-ocr] Early stop: no viable text yield after ${pageNum + 1} pages (yield=${totalYieldChars})`
+          );
+          failedPages++;
+          break;
         }
 
         // ── Stage 6: Post-Processing ──

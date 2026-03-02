@@ -531,6 +531,8 @@ function deriveProcessingError(engineTag: string | undefined, title: string) {
     return `Binärdaten verloren. Bitte Dokument erneut hochladen: ${title}`;
   if (tag.includes('crash-recovery'))
     return `Verarbeitung abgestürzt. Bitte erneut versuchen: ${title}`;
+  if (tag.includes('ocr-no-viable-text') || tag.includes('local-binary-ocr-failed'))
+    return `Kein lesbarer Text extrahierbar (unlesbare Scan-Qualität oder unbekannte Schriftcodierung): ${title}`;
   return `Dokument konnte nicht verarbeitet werden: ${title}`;
 }
 
@@ -574,6 +576,32 @@ export class LegalCopilotWorkflowService extends Service {
 
   private releaseBinary(documentId: string) {
     this._binaryCache.delete(documentId);
+  }
+
+  private async getSemanticChunksForCase(input: {
+    caseId: string;
+    workspaceId: string;
+  }): Promise<SemanticChunk[]> {
+    const orchestrationWithSnapshot = this.orchestration as unknown as {
+      getSemanticChunksSnapshot?: (params: {
+        caseId?: string;
+        workspaceId?: string;
+        documentId?: string;
+      }) => Promise<SemanticChunk[]>;
+      semanticChunks$?: { value?: SemanticChunk[] };
+    };
+
+    if (typeof orchestrationWithSnapshot.getSemanticChunksSnapshot === 'function') {
+      return await orchestrationWithSnapshot.getSemanticChunksSnapshot({
+        caseId: input.caseId,
+        workspaceId: input.workspaceId,
+      });
+    }
+
+    return (orchestrationWithSnapshot.semanticChunks$?.value ?? []).filter(
+      chunk =>
+        chunk.caseId === input.caseId && chunk.workspaceId === input.workspaceId
+    );
   }
 
   private async persistOriginalBinary(input: {
@@ -1059,7 +1087,7 @@ export class LegalCopilotWorkflowService extends Service {
         language: doc.language,
         qualityScore: 0,
         pageCount: doc.pageCount,
-        engine: 'local-binary-ocr-failed',
+        engine: 'local-ocr-no-viable-text',
       };
     }
 
@@ -1792,9 +1820,11 @@ export class LegalCopilotWorkflowService extends Service {
       };
     }
 
-    const chunkCount = (this.orchestration.semanticChunks$.value ?? []).filter(
-      chunk =>
-        chunk.caseId === input.caseId && chunk.workspaceId === input.workspaceId
+    const chunkCount = (
+      await this.getSemanticChunksForCase({
+        caseId: input.caseId,
+        workspaceId: input.workspaceId,
+      })
     ).length;
     const qualityReportCount = (
       this.orchestration.qualityReports$.value ?? []
@@ -2927,6 +2957,83 @@ export class LegalCopilotWorkflowService extends Service {
               `[intakeDocuments] upsertSemanticChunks failed for "${doc.title}":`,
               chunkErr instanceof Error ? chunkErr.message : chunkErr
             );
+
+            const chunkPersistError =
+              chunkErr instanceof Error
+                ? chunkErr.message
+                : 'unknown chunk persistence error';
+            const failedRecord: LegalDocumentRecord = {
+              ...record,
+              status: 'failed',
+              processingStatus: 'failed',
+              chunkCount: 0,
+              processingError: `Semantic chunk persistence failed: ${chunkPersistError}`,
+              updatedAt: new Date().toISOString(),
+            };
+            await this.orchestration.upsertLegalDocument(failedRecord);
+            await this.orchestration.appendAuditEntry({
+              caseId: input.caseId,
+              workspaceId: input.workspaceId,
+              action: 'document.semantic_chunks.persist_failed',
+              severity: 'warning',
+              details: `Semantische Chunks konnten nicht persistiert werden: ${doc.title}`,
+              metadata: {
+                documentId,
+                title: doc.title,
+                error: chunkPersistError,
+              },
+            });
+
+            const recordIndex = records.findIndex(r => r.id === record.id);
+            if (recordIndex >= 0) {
+              records[recordIndex] = failedRecord;
+            }
+            const existingIndex = existingDocs.findIndex(r => r.id === record.id);
+            if (existingIndex >= 0) {
+              existingDocs[existingIndex] = failedRecord;
+            }
+
+            continue;
+          }
+          // ── Content Fidelity Audit ──
+          const cf = processingResult.contentFidelity;
+          if (!cf.contentIntegrityOk || cf.suspiciousLowYield) {
+            console.warn(
+              `[workflow:fidelity] INTEGRITY WARNING for "${doc.title}": ` +
+                `fidelityRatio=${cf.fidelityRatio.toFixed(3)} ` +
+                `yieldPerPage=${Math.round(cf.extractionYieldPerPage)} chars/page ` +
+                `chunks=${cf.chunkCount} chunkChars=${cf.totalChunkChars} normalizedChars=${cf.normalizedChars}`
+            );
+            await this.orchestration.appendAuditEntry({
+              caseId: input.caseId,
+              workspaceId: input.workspaceId,
+              action: 'document.fidelity.warning',
+              severity: 'warning',
+              details:
+                `Inhaltstreue-Warnung: ${doc.title} — ` +
+                `fidelityRatio=${cf.fidelityRatio.toFixed(3)}, ` +
+                `${Math.round(cf.extractionYieldPerPage)} Zeichen/Seite. ` +
+                (cf.suspiciousLowYield
+                  ? 'Zu wenig Text pro Seite — Extraktion möglicherweise unvollständig.'
+                  : 'Chunk-Abdeckung außerhalb gesundem Bereich (0.75–1.20).'),
+              metadata: {
+                documentId,
+                title: doc.title,
+                fidelityRatio: cf.fidelityRatio.toFixed(4),
+                extractionYieldPerPage: Math.round(cf.extractionYieldPerPage).toString(),
+                chunkCount: cf.chunkCount.toString(),
+                totalChunkChars: cf.totalChunkChars.toString(),
+                normalizedChars: cf.normalizedChars.toString(),
+                extractionEngine: processingResult.extractionEngine,
+              },
+            });
+          } else {
+            console.log(
+              `[workflow:fidelity] OK "${doc.title}": ` +
+                `ratio=${cf.fidelityRatio.toFixed(3)} ` +
+                `yield=${Math.round(cf.extractionYieldPerPage)}ch/pg ` +
+                `chunks=${cf.chunkCount}`
+            );
           }
         } else {
           console.warn(
@@ -3719,6 +3826,37 @@ export class LegalCopilotWorkflowService extends Service {
         });
 
         await this.orchestration.upsertSemanticChunks(doc.id, processed.chunks);
+
+        // ── OCR Path: Content Fidelity Verification ──
+        const ocfRef = processed.contentFidelity;
+        if (!ocfRef.contentIntegrityOk || ocfRef.suspiciousLowYield) {
+          console.warn(
+            `[processPendingOcr:fidelity] INTEGRITY WARNING "${doc.title}": ` +
+              `fidelityRatio=${ocfRef.fidelityRatio.toFixed(3)} ` +
+              `yield=${Math.round(ocfRef.extractionYieldPerPage)}ch/pg`
+          );
+          await this.orchestration.appendAuditEntry({
+            caseId,
+            workspaceId,
+            action: 'document.fidelity.warning',
+            severity: 'warning',
+            details:
+              `[OCR] Inhaltstreue-Warnung: ${doc.title} — ` +
+              `fidelityRatio=${ocfRef.fidelityRatio.toFixed(3)}, ` +
+              `${Math.round(ocfRef.extractionYieldPerPage)} Zeichen/Seite.`,
+            metadata: {
+              ocrRunId,
+              documentId: doc.id,
+              title: doc.title,
+              fidelityRatio: ocfRef.fidelityRatio.toFixed(4),
+              extractionYieldPerPage: Math.round(ocfRef.extractionYieldPerPage).toString(),
+              chunkCount: ocfRef.chunkCount.toString(),
+              normalizedChars: ocfRef.normalizedChars.toString(),
+              extractionEngine: ocrResult.engine ?? queued.engine ?? '',
+            },
+          });
+        }
+
         await heartbeat({
           progress: 97,
           stage: 'persist',
@@ -4742,10 +4880,10 @@ export class LegalCopilotWorkflowService extends Service {
     }
 
     // ── Semantic Chunks für bessere Q&A-Qualität ──
-    const allChunks = (this.orchestration.semanticChunks$.value ?? []).filter(
-      (c: SemanticChunk) =>
-        c.caseId === input.caseId && c.workspaceId === input.workspaceId
-    );
+    const allChunks = (await this.getSemanticChunksForCase({
+      caseId: input.caseId,
+      workspaceId: input.workspaceId,
+    })) as SemanticChunk[];
     // Priorisiere die wichtigsten Chunks: sachverhalt, rechtsausfuehrung, antrag, frist zuerst
     const priorityCategories = new Set([
       'sachverhalt',

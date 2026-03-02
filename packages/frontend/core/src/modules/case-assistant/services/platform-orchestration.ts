@@ -107,6 +107,40 @@ export class CasePlatformOrchestrationService extends Service {
   readonly kassenbelege$ = this.store.watchKassenbelege();
   readonly fiscalSignatures$ = this.store.watchFiscalSignatures();
   readonly exportJournal$ = this.store.watchExportJournal();
+
+  private async readSemanticChunksConsistent(): Promise<SemanticChunk[]> {
+    const liveChunks = (this.semanticChunks$.value ?? []) as SemanticChunk[];
+    const persistedChunks = await this.store.getSemanticChunks();
+    if (persistedChunks.length === 0) {
+      return liveChunks;
+    }
+    if (liveChunks.length === 0) {
+      return persistedChunks;
+    }
+    return liveChunks.length >= persistedChunks.length
+      ? liveChunks
+      : persistedChunks;
+  }
+
+  async getSemanticChunksSnapshot(input?: {
+    caseId?: string;
+    workspaceId?: string;
+    documentId?: string;
+  }) {
+    const chunks = await this.readSemanticChunksConsistent();
+    return chunks.filter(chunk => {
+      if (input?.caseId && chunk.caseId !== input.caseId) {
+        return false;
+      }
+      if (input?.workspaceId && chunk.workspaceId !== input.workspaceId) {
+        return false;
+      }
+      if (input?.documentId && chunk.documentId !== input.documentId) {
+        return false;
+      }
+      return true;
+    });
+  }
   readonly residencyPolicy$ = this.residencyPolicyService.policy$;
   readonly role$ = this.accessControlService.role$;
 
@@ -2851,27 +2885,39 @@ export class CasePlatformOrchestrationService extends Service {
       );
     }
 
-    // GAP-5 FIX: Optimized upsert — avoid full-array serialization when possible.
-    // At scale (500+ docs × 10+ chunks = 5000+ chunks), reading/filtering/writing
-    // the entire array on every document intake is expensive and risks hitting
-    // V8's JSON.stringify limit (~268M chars).
-    const existing = await this.store.getSemanticChunks();
+    const storeAny = this.store as unknown as {
+      setSemanticChunksForDocument?: (documentId: string, chunks: SemanticChunk[]) => Promise<void>;
+      getSemanticChunksForDocument?: (documentId: string) => Promise<SemanticChunk[]>;
+    };
 
-    // Fast path: if no existing chunks for this document, just append
-    const hasExisting = existing.some(
-      (c: SemanticChunk) => c.documentId === documentId
-    );
-    if (!hasExisting) {
-      // Append-only — avoids full array copy + filter
-      await this.store.setSemanticChunks(existing.concat(chunks));
+    // State-of-the-art path: segmented persistence per document (IndexedDB)
+    if (typeof storeAny.setSemanticChunksForDocument === 'function') {
+      await storeAny.setSemanticChunksForDocument(documentId, chunks);
+      const persistedForDocument =
+        typeof storeAny.getSemanticChunksForDocument === 'function'
+          ? await storeAny.getSemanticChunksForDocument(documentId)
+          : (await this.store.getSemanticChunks()).filter(c => c.documentId === documentId);
+      if (persistedForDocument.length !== chunks.length) {
+        throw new Error(
+          `Semantic chunk persistence mismatch for ${documentId}: expected ${chunks.length}, got ${persistedForDocument.length}.`
+        );
+      }
       return;
     }
 
-    // Replace path: only rebuild if document already had chunks
-    const filtered = existing.filter(
-      (c: SemanticChunk) => c.documentId !== documentId
+    // Fallback: monolithic array persistence
+    const existing = await this.store.getSemanticChunks();
+    const filtered = existing.filter((c: SemanticChunk) => c.documentId !== documentId);
+    const nextChunks = filtered.concat(chunks);
+    await this.store.setSemanticChunks(nextChunks);
+    const persistedForDocument = (await this.store.getSemanticChunks()).filter(
+      chunk => chunk.documentId === documentId
     );
-    await this.store.setSemanticChunks(filtered.concat(chunks));
+    if (persistedForDocument.length !== chunks.length) {
+      throw new Error(
+        `Semantic chunk persistence mismatch for ${documentId}: expected ${chunks.length}, got ${persistedForDocument.length}.`
+      );
+    }
   }
 
   async upsertQualityReport(report: DocumentQualityReport) {

@@ -232,9 +232,10 @@ if (enableE2EBridge) {
       const jobs = (orchestration.ocrJobs$.value ?? []).filter(
         (j: any) => j.caseId === input.caseId && j.workspaceId === workspaceId
       );
-      const chunks = (orchestration.semanticChunks$.value ?? []).filter(
-        (c: any) => c.caseId === input.caseId && c.workspaceId === workspaceId
-      );
+      const chunks = await orchestration.getSemanticChunksSnapshot({
+        caseId: input.caseId,
+        workspaceId,
+      });
       const reports = (orchestration.qualityReports$.value ?? []).filter(
         (r: any) => r.caseId === input.caseId && r.workspaceId === workspaceId
       );

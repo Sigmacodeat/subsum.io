@@ -1,6 +1,8 @@
 import { inflateSync } from 'fflate';
+import { firstValueFrom } from 'rxjs';
 
 import { Service } from '../../../../../../common/infra/src/framework/core';
+import { PDFRenderer } from '../../pdf/renderer';
 import type {
   ChunkExtractedEntities,
   DocumentProcessingStatus,
@@ -218,6 +220,36 @@ async function localOcrPdfAsync(base64: string): Promise<{ text: string; pageCou
     return null;
   } catch (err) {
     console.warn('[localOcrPdfAsync] failed:', err);
+    return null;
+  }
+}
+
+async function extractTextFromPdfiumWorkerAsync(
+  base64: string,
+  maxPages = 200
+): Promise<{ text: string; pageCount?: number; engine: string } | null> {
+  try {
+    if (typeof Worker === 'undefined') {
+      return null;
+    }
+    const binary = atob(base64);
+    const bytes = decodeBinaryStringToU8(binary);
+    const renderer = new PDFRenderer();
+    try {
+      await firstValueFrom(renderer.ob$('open', { data: bytes.buffer as ArrayBuffer }));
+      const extracted = await firstValueFrom(
+        renderer.ob$('extractText', { maxPages })
+      );
+      return {
+        text: extracted.text ?? '',
+        pageCount: extracted.pageCount,
+        engine: 'pdfium-text-layer',
+      };
+    } finally {
+      renderer.destroy();
+    }
+  } catch (err) {
+    console.warn('[extractTextFromPdfiumWorkerAsync] failed:', err);
     return null;
   }
 }
@@ -1524,6 +1556,45 @@ function extractPlainContent(
 
 // ─── Processing Result ──────────────────────────────────────────────────────
 
+/**
+ * 1:1 content fidelity report — computed after chunking to verify
+ * that semantic chunks faithfully represent the extracted source text.
+ *
+ * State of the Art verification layer: every processed document carries
+ * this report so audits and tests can assert content integrity.
+ */
+export interface ContentFidelityReport {
+  /** Raw character count of extractedText (pre-normalization). */
+  extractedChars: number;
+  /** Character count after normalization (what the chunker sees). */
+  normalizedChars: number;
+  /** Number of semantic chunks produced. */
+  chunkCount: number;
+  /** Sum of all chunk text lengths. */
+  totalChunkChars: number;
+  /** Estimated characters duplicated by chunk overlap (best-effort). */
+  estimatedOverlapChars: number;
+  /** Chunk chars after subtracting estimated overlap duplication. */
+  effectiveChunkChars: number;
+  /**
+   * Ratio of totalChunkChars to normalizedChars.
+   * Healthy range: 0.80 – 1.10 (chunking adds minimal overhead).
+   * 0 when normalizedText is empty (failed / encrypted doc — not an error).
+   */
+  fidelityRatio: number;
+  /**
+   * Average characters extracted per source page.
+   * < 50 suggests extraction failure or blank scan.
+   */
+  extractionYieldPerPage: number;
+  /** True when yield is suspiciously thin for the page count. */
+  suspiciousLowYield: boolean;
+  /** True when chunk content exceeds source text by > 20% (corruption indicator). */
+  suspiciousHighRatio: boolean;
+  /** True when all fidelity checks pass (or doc is legitimately empty). */
+  contentIntegrityOk: boolean;
+}
+
 export interface DocumentProcessingResult {
   extractedText: string;
   normalizedText: string;
@@ -1534,6 +1605,8 @@ export interface DocumentProcessingResult {
   extractionEngine: string;
   allEntities: ChunkExtractedEntities;
   processingDurationMs: number;
+  /** 1:1 content fidelity verification report. */
+  contentFidelity: ContentFidelityReport;
   /** Detected document structure (headings, tables, paragraphs, layout) */
   structure?: DocumentStructure;
 }
@@ -1660,7 +1733,44 @@ function buildPipelineResult(params: {
     processingDurationMs,
   };
 
-  return { extractedText, normalizedText, language, chunks, qualityReport, processingStatus, extractionEngine, allEntities, processingDurationMs, structure };
+  // ── Content Fidelity Verification ──────────────────────────────────────────
+  const totalChunkChars = chunks.reduce((sum, c) => sum + c.text.length, 0);
+  // splitIntoChunks uses a fixed overlap (CHUNK_OVERLAP). That overlap is intentional
+  // but would otherwise inflate totalChunkChars and produce false "high ratio" alerts.
+  const estimatedOverlapChars = chunks.length > 1 ? (chunks.length - 1) * 100 : 0;
+  const effectiveChunkChars = Math.max(0, totalChunkChars - estimatedOverlapChars);
+  const extractedCharsCount = extractedText.length;
+  const normalizedCharsCount = normalizedText.length;
+  const pageCount = Math.max(1, extractedPageCount ?? 1);
+  const fidelityRatio =
+    normalizedCharsCount > 0 ? effectiveChunkChars / normalizedCharsCount : 0;
+  const extractionYieldPerPage = normalizedCharsCount / pageCount;
+  // Low yield: < 50 chars/page but document is non-empty (genuine content is likely missing)
+  const suspiciousLowYield =
+    normalizedCharsCount > 0 && extractionYieldPerPage < 50;
+  // High ratio: chunks contain significantly more text than normalized source (impossible unless bug)
+  const suspiciousHighRatio = fidelityRatio > 1.15;
+  // Integrity OK: ratio in healthy band OR doc is legitimately empty (failed / encrypted)
+  const contentIntegrityOk =
+    normalizedCharsCount === 0
+      ? true
+      : fidelityRatio >= 0.75 && !suspiciousHighRatio;
+
+  const contentFidelity: ContentFidelityReport = {
+    extractedChars: extractedCharsCount,
+    normalizedChars: normalizedCharsCount,
+    chunkCount: chunks.length,
+    totalChunkChars,
+    estimatedOverlapChars,
+    effectiveChunkChars,
+    fidelityRatio,
+    extractionYieldPerPage,
+    suspiciousLowYield,
+    suspiciousHighRatio,
+    contentIntegrityOk,
+  };
+
+  return { extractedText, normalizedText, language, chunks, qualityReport, processingStatus, extractionEngine, allEntities, processingDurationMs, contentFidelity, structure };
 }
 
 export async function processDocumentPipeline(
@@ -1746,16 +1856,24 @@ export async function processDocumentPipeline(
         extractionEngine = 'pdf-deep-parser';
         extractedPageCount = deepResult.pageCount ?? extractedPageCount;
       } else {
-        const localOcr = await localOcrPdfAsync(base64);
-        if (localOcr && localOcr.text.trim().length > 50) {
-          extractedText = localOcr.text;
-          extractionEngine = localOcr.engine;
-          extractedPageCount = localOcr.pageCount;
-          wasOcr = true;
+        const workerExtraction = await extractTextFromPdfiumWorkerAsync(base64);
+        if (workerExtraction && workerExtraction.text.trim().length > 20) {
+          extractedText = workerExtraction.text;
+          extractionEngine = workerExtraction.engine;
+          extractedPageCount =
+            workerExtraction.pageCount ?? deepResult.pageCount ?? extractedPageCount;
         } else {
-          extractedText = '';
-          extractionEngine = 'pdf-no-text-local-ocr-failed';
-          wasOcr = true;
+          const localOcr = await localOcrPdfAsync(base64);
+          if (localOcr && localOcr.text.trim().length > 50) {
+            extractedText = localOcr.text;
+            extractionEngine = localOcr.engine;
+            extractedPageCount = localOcr.pageCount;
+            wasOcr = true;
+          } else {
+            extractedText = '';
+            extractionEngine = 'pdf-no-text-local-ocr-failed';
+            wasOcr = true;
+          }
         }
       }
     }
@@ -1892,8 +2010,17 @@ export class DocumentProcessingService extends Service {
           extractionEngine = 'pdf-text-layer-local';
           wasOcr = false;
         } else {
-          extractionEngine = 'pdf-no-text-layer';
-          wasOcr = true;
+          const workerExtraction = await extractTextFromPdfiumWorkerAsync(base64);
+          if (workerExtraction && workerExtraction.text.trim().length > 50) {
+            extractedText = workerExtraction.text;
+            extractionEngine = workerExtraction.engine;
+            extractedPageCount =
+              workerExtraction.pageCount ?? extractedPageCount;
+            wasOcr = false;
+          } else {
+            extractionEngine = 'pdf-no-text-layer';
+            wasOcr = true;
+          }
         }
       } else {
         const decoded = decodeBase64Text(base64);

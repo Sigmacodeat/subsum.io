@@ -3,6 +3,54 @@
   "outputDirectory": "dist",
   "headers": [
     {
+      "source": "/api/(.*)",
+      "has": [
+        { "type": "header", "key": "origin", "value": "https://subsumio.com" }
+      ],
+      "headers": [
+        { "key": "Access-Control-Allow-Origin", "value": "https://subsumio.com" },
+        { "key": "Access-Control-Allow-Credentials", "value": "true" },
+        { "key": "Access-Control-Allow-Methods", "value": "GET,POST,PUT,PATCH,DELETE,OPTIONS" },
+        { "key": "Access-Control-Allow-Headers", "value": "Content-Type, Authorization, Cookie, x-affine-version, x-operation-name, x-affine-csrf-token, x-request-id" }
+      ]
+    },
+    {
+      "source": "/api/(.*)",
+      "has": [
+        { "type": "header", "key": "origin", "value": "https://www.subsumio.com" }
+      ],
+      "headers": [
+        { "key": "Access-Control-Allow-Origin", "value": "https://www.subsumio.com" },
+        { "key": "Access-Control-Allow-Credentials", "value": "true" },
+        { "key": "Access-Control-Allow-Methods", "value": "GET,POST,PUT,PATCH,DELETE,OPTIONS" },
+        { "key": "Access-Control-Allow-Headers", "value": "Content-Type, Authorization, Cookie, x-affine-version, x-operation-name, x-affine-csrf-token, x-request-id" }
+      ]
+    },
+    {
+      "source": "/api/(.*)",
+      "has": [
+        { "type": "header", "key": "origin", "value": "https://subsum.io" }
+      ],
+      "headers": [
+        { "key": "Access-Control-Allow-Origin", "value": "https://subsum.io" },
+        { "key": "Access-Control-Allow-Credentials", "value": "true" },
+        { "key": "Access-Control-Allow-Methods", "value": "GET,POST,PUT,PATCH,DELETE,OPTIONS" },
+        { "key": "Access-Control-Allow-Headers", "value": "Content-Type, Authorization, Cookie, x-affine-version, x-operation-name, x-affine-csrf-token, x-request-id" }
+      ]
+    },
+    {
+      "source": "/api/(.*)",
+      "has": [
+        { "type": "header", "key": "origin", "value": "https://www.subsum.io" }
+      ],
+      "headers": [
+        { "key": "Access-Control-Allow-Origin", "value": "https://www.subsum.io" },
+        { "key": "Access-Control-Allow-Credentials", "value": "true" },
+        { "key": "Access-Control-Allow-Methods", "value": "GET,POST,PUT,PATCH,DELETE,OPTIONS" },
+        { "key": "Access-Control-Allow-Headers", "value": "Content-Type, Authorization, Cookie, x-affine-version, x-operation-name, x-affine-csrf-token, x-request-id" }
+      ]
+    },
+    {
       "source": "/js/(.*)",
       "headers": [
         {

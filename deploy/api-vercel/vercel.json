@@ -34,6 +34,30 @@
     {
       "source": "/(.*)",
       "has": [
+        { "type": "header", "key": "origin", "value": "https://subsumio.com" }
+      ],
+      "headers": [
+        {
+          "key": "Access-Control-Allow-Origin",
+          "value": "https://subsumio.com"
+        }
+      ]
+    },
+    {
+      "source": "/(.*)",
+      "has": [
+        { "type": "header", "key": "origin", "value": "https://www.subsumio.com" }
+      ],
+      "headers": [
+        {
+          "key": "Access-Control-Allow-Origin",
+          "value": "https://www.subsumio.com"
+        }
+      ]
+    },
+    {
+      "source": "/(.*)",
+      "has": [
         { "type": "header", "key": "origin", "value": "https://subsum.io" }
       ],
       "headers": [

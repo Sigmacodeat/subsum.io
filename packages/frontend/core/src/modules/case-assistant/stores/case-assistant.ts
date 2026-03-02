@@ -328,6 +328,14 @@ export class CaseAssistantStore extends Store {
     return `case-assistant:${this.workspaceId}:semantic-chunks`;
   }
 
+  private get semanticChunksIndexKey() {
+    return `case-assistant:${this.workspaceId}:semantic-chunks:index`;
+  }
+
+  private semanticChunksByDocumentKey(documentId: string) {
+    return `case-assistant:${this.workspaceId}:semantic-chunks:doc:${documentId}`;
+  }
+
   private get qualityReportsKey() {
     return `case-assistant:${this.workspaceId}:quality-reports`;
   }
@@ -727,7 +735,8 @@ export class CaseAssistantStore extends Store {
     if (this.globalState.get<SemanticChunk[]>(this.semanticChunksKey) === undefined) {
       this.cacheStorage
         .get<SemanticChunk[]>(this.semanticChunksKey)
-        .then(cached => {
+        .then(async cached => {
+          // Prefer monolith cache if present in IndexedDB.
           if (cached && cached.length > 0) {
             try {
               this.globalState.set(this.semanticChunksKey, cached);
@@ -735,6 +744,28 @@ export class CaseAssistantStore extends Store {
               // localStorage too full — chunks stay in IndexedDB only.
               // UI will show 0 but data is preserved for async reads.
             }
+            return;
+          }
+
+          // If monolith is absent, try to reconstruct from segmented storage.
+          const index =
+            (await this.cacheStorage.get<string[]>(this.semanticChunksIndexKey)) ??
+            [];
+          if (index.length === 0) return;
+
+          const out: SemanticChunk[] = [];
+          for (const docId of index) {
+            const items =
+              (await this.cacheStorage.get<SemanticChunk[]>(
+                this.semanticChunksByDocumentKey(docId)
+              )) ?? [];
+            if (items.length > 0) out.push(...items);
+          }
+          if (out.length === 0) return;
+          try {
+            this.globalState.set(this.semanticChunksKey, out);
+          } catch {
+            // localStorage too full — chunks stay in IndexedDB only.
           }
         })
         .catch(() => {});
@@ -743,13 +774,78 @@ export class CaseAssistantStore extends Store {
   }
 
   async getSemanticChunks() {
-    return (
-      (await this.readState<SemanticChunk[]>(this.semanticChunksKey)) ?? []
-    );
+    const monolith = await this.readState<SemanticChunk[]>(this.semanticChunksKey);
+    if (monolith && monolith.length > 0) {
+      return monolith;
+    }
+
+    const index =
+      (await this.cacheStorage.get<string[]>(this.semanticChunksIndexKey)) ?? [];
+    if (index.length === 0) {
+      return [];
+    }
+
+    const out: SemanticChunk[] = [];
+    for (const docId of index) {
+      const items =
+        (await this.cacheStorage.get<SemanticChunk[]>(
+          this.semanticChunksByDocumentKey(docId)
+        )) ?? [];
+      if (items.length > 0) out.push(...items);
+    }
+    return out;
   }
 
   async setSemanticChunks(items: SemanticChunk[]) {
-    await this.writeState(this.semanticChunksKey, items);
+    const docIds = Array.from(new Set(items.map(c => c.documentId))).filter(Boolean);
+    if (docIds.length <= 1) {
+      await this.writeState(this.semanticChunksKey, items);
+      return;
+    }
+
+    const grouped = new Map<string, SemanticChunk[]>();
+    for (const chunk of items) {
+      const arr = grouped.get(chunk.documentId);
+      if (arr) arr.push(chunk);
+      else grouped.set(chunk.documentId, [chunk]);
+    }
+
+    const index: string[] = [];
+    for (const [docId, chunks] of grouped.entries()) {
+      index.push(docId);
+      await this.cacheStorage.set(this.semanticChunksByDocumentKey(docId), chunks);
+    }
+    await this.cacheStorage.set(this.semanticChunksIndexKey, index);
+
+    try {
+      // Clear monolith cache in localStorage (small write) so watchers don't keep stale data.
+      // We keep the authoritative data segmented in IndexedDB.
+      this.globalState.set(this.semanticChunksKey, [] as SemanticChunk[]);
+    } catch {
+      // ignore
+    }
+  }
+
+  async getSemanticChunksForDocument(documentId: string) {
+    const monolith = await this.readState<SemanticChunk[]>(this.semanticChunksKey);
+    if (monolith && monolith.length > 0) {
+      return monolith.filter(c => c.documentId === documentId);
+    }
+    return (
+      (await this.cacheStorage.get<SemanticChunk[]>(
+        this.semanticChunksByDocumentKey(documentId)
+      )) ?? []
+    );
+  }
+
+  async setSemanticChunksForDocument(documentId: string, chunks: SemanticChunk[]) {
+    const index =
+      (await this.cacheStorage.get<string[]>(this.semanticChunksIndexKey)) ?? [];
+    if (!index.includes(documentId)) {
+      index.push(documentId);
+      await this.cacheStorage.set(this.semanticChunksIndexKey, index);
+    }
+    await this.cacheStorage.set(this.semanticChunksByDocumentKey(documentId), chunks);
   }
 
   watchQualityReports() {

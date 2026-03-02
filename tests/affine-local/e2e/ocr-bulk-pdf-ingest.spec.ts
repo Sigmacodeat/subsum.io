@@ -59,6 +59,11 @@ const MIN_TEXT_CHARS = Number.parseInt(process.env.MIN_TEXT_CHARS ?? '0', 10);
 const MIN_INDEXED_RATIO = Number.parseFloat(process.env.MIN_INDEXED_RATIO ?? '0');
 const OCR_ENDPOINT = (process.env.OCR_ENDPOINT ?? '').trim();
 const OCR_TOKEN = (process.env.OCR_TOKEN ?? '').trim();
+const SMOKE_PDF_REGEX = (process.env.SMOKE_PDF_REGEX ?? '').trim();
+const BULK_OCR_TIMEOUT_MS = Math.max(
+  20 * 60 * 1000,
+  MAX_PDFS * 45_000 + 8 * 60 * 1000
+);
 
 function listPdfFilesRecursive(dir: string, maxFiles = MAX_PDFS): string[] {
   const out: string[] = [];
@@ -93,6 +98,8 @@ function listPdfFilesRecursive(dir: string, maxFiles = MAX_PDFS): string[] {
   return out;
 }
 
+const CHUNK_OVERLAP_CHARS = 100;
+
 function fileToDataUrlPdf(filePath: string): string {
   const buf = readFileSync(filePath);
   return `data:application/pdf;base64,${buf.toString('base64')}`;
@@ -109,9 +116,25 @@ test.describe('OCR Bulk PDF Ingestion — Desktop "Akt neu"', () => {
   });
 
   test('ingests all PDFs, auto-OCR when needed, and persists hybrid state consistently', async ({ page, workspace }) => {
-    test.setTimeout(20 * 60 * 1000);
+    test.setTimeout(BULK_OCR_TIMEOUT_MS);
 
-    const pdfFiles = listPdfFilesRecursive(AKT_NEU_DIR, MAX_PDFS);
+    // If we run a smoke selection, we must list more than MAX_PDFS first,
+    // otherwise the prioritized PDFs might never be included.
+    const fileListCap = SMOKE_PDF_REGEX ? 2000 : MAX_PDFS;
+    let pdfFiles = listPdfFilesRecursive(AKT_NEU_DIR, fileListCap);
+    if (SMOKE_PDF_REGEX) {
+      let re: RegExp | null = null;
+      try {
+        re = new RegExp(SMOKE_PDF_REGEX, 'i');
+      } catch {
+        re = null;
+      }
+      if (re) {
+        const prioritized = pdfFiles.filter(p => re!.test(p));
+        const rest = pdfFiles.filter(p => !re!.test(p));
+        pdfFiles = prioritized.concat(rest).slice(0, MAX_PDFS);
+      }
+    }
     expect(pdfFiles.length).toBeGreaterThan(0);
 
     await openHomePage(page);
@@ -326,9 +349,12 @@ test.describe('OCR Bulk PDF Ingestion — Desktop "Akt neu"', () => {
           (j: any) => j.status === 'queued' || j.status === 'running'
         );
         if (openJobs.length > 0) return false;
-        // Quality reports should exist for all documents
+        // Quality reports should exist for all indexed/ready documents.
+        // Failed OCR documents may legitimately have no report.
         const reportsByDoc = new Set((snap.qualityReports ?? []).map((r: any) => r.documentId));
-        return (snap.documents ?? []).every((d: any) => reportsByDoc.has(d.id));
+        return (snap.documents ?? []).every(
+          (d: any) => d.status === 'failed' || reportsByDoc.has(d.id)
+        );
       },
       { cid: caseId },
       { timeout: 120_000 }
@@ -386,18 +412,42 @@ test.describe('OCR Bulk PDF Ingestion — Desktop "Akt neu"', () => {
       console.log('[bulk-ocr-indexed-sample]', indexedSample);
     }
 
+    // ── Aggregate Content Fidelity Metrics ──────────────────────────────────
+    const fidelityStats = indexedDocs
+      .filter((d: any) => d.processingStatus !== 'failed')
+      .map((d: any) => {
+        const docChunks = snapshot.semanticChunks.filter((c: any) => c.documentId === d.id);
+        const totalChunkChars = docChunks.reduce((s: number, c: any) => s + String(c.text ?? '').length, 0);
+        const normalizedLen = String(d.normalizedText ?? '').length;
+        if (normalizedLen <= 100) return null;
+        const estimatedOverlap = Math.max(
+          0,
+          (docChunks.length - 1) * CHUNK_OVERLAP_CHARS
+        );
+        const effectiveChunkChars = Math.max(0, totalChunkChars - estimatedOverlap);
+        return effectiveChunkChars / normalizedLen;
+      })
+      .filter((r: number | null): r is number => r !== null);
+
+    const avgFidelityRatio =
+      fidelityStats.length > 0
+        ? fidelityStats.reduce((s: number, r: number) => s + r, 0) / fidelityStats.length
+        : 1;
+    const integrityViolations = fidelityStats.filter((r: number) => r < 0.75 || r > 1.15).length;
+
     // Print a compact report for CI/local debugging
     console.log('[bulk-ocr-metrics]', {
       documents: snapshot.documents.length,
       indexed: indexedDocs.length,
       failed: failedDocs.length,
       pending: pendingDocs.length,
-      ocrJobs: snapshot.ocrJobs.length,
       chunks: totalChunks,
       reports: totalReports,
       entities: totalEntities,
       textChars: totalTextChars,
       indexedRatio: Number(indexedRatio.toFixed(3)),
+      avgFidelityRatio: Number(avgFidelityRatio.toFixed(3)),
+      integrityViolations,
       crashes: crashEntries.length,
     });
 
@@ -442,12 +492,23 @@ test.describe('OCR Bulk PDF Ingestion — Desktop "Akt neu"', () => {
 
       // If indexed/ready, must have chunks
       if (doc.status === 'indexed' && doc.processingStatus !== 'failed') {
-        // TODO: Fix semantic chunks persistence - chunks are created (chunkCount > 0 in doc record)
-        // but not appearing in semanticChunks$ observable. Likely store/observable propagation issue.
-        // const docChunks = snapshot.semanticChunks.filter(c => c.documentId === doc.id);
-        // expect(docChunks.length).toBeGreaterThan(0);
-        // const emptyChunks = docChunks.filter(c => String(c.text ?? '').trim().length === 0);
-        // expect(emptyChunks.length).toBe(0);
+        const docChunks = snapshot.semanticChunks.filter(c => c.documentId === doc.id);
+        expect(docChunks.length).toBeGreaterThan(0);
+        const emptyChunks = docChunks.filter(c => String(c.text ?? '').trim().length === 0);
+        expect(emptyChunks.length).toBe(0);
+
+        // ── 1:1 Content Fidelity Gate ──
+        // Total chars in semantic chunks must be within 75%–125% of normalized source.
+        // This verifies that chunking preserved the content without loss or corruption.
+        const totalChunkChars = docChunks.reduce((s, c) => s + String(c.text ?? '').length, 0);
+        const normalizedLen = String(doc.normalizedText ?? '').length;
+        if (normalizedLen > 100) {
+          const estimatedOverlap = Math.max(0, (docChunks.length - 1) * CHUNK_OVERLAP_CHARS);
+          const effectiveChunkChars = Math.max(0, totalChunkChars - estimatedOverlap);
+          const fidelityRatio = effectiveChunkChars / normalizedLen;
+          expect(fidelityRatio).toBeGreaterThanOrEqual(0.75);
+          expect(fidelityRatio).toBeLessThanOrEqual(1.15);
+        }
       }
     }
 
