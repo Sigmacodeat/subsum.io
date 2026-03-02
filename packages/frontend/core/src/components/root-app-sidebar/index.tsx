@@ -14,7 +14,11 @@ import {
   CreditGatewayService,
   LegalChatService,
 } from '@affine/core/modules/case-assistant';
-import { AuthService, GraphQLService, ServerService } from '@affine/core/modules/cloud';
+import {
+  AuthService,
+  GraphQLService,
+  ServerService,
+} from '@affine/core/modules/cloud';
 import {
   GlobalDialogService,
   WorkspaceDialogService,
@@ -27,7 +31,6 @@ import { track } from '@affine/track';
 import type { Store } from '@blocksuite/affine/store';
 import {
   AiOutlineIcon,
-  AllDocsIcon,
   CollaborationIcon,
   DateTimeIcon,
   ExportIcon,
@@ -254,25 +257,6 @@ const TermineButton = () => {
       to={'/termine'}
     >
       <span data-testid="all-termine">Termine</span>
-    </MenuLinkItem>
-  );
-};
-
-const AllDocsButton = () => {
-  const t = useI18n();
-  const { workbenchService } = useServices({
-    WorkbenchService,
-  });
-  const workbench = workbenchService.workbench;
-  const allPageActive = useLiveData(
-    workbench.location$.selector(location => location.pathname === '/all')
-  );
-
-  return (
-    <MenuLinkItem icon={<AllDocsIcon />} active={allPageActive} to={'/all'}>
-      <span data-testid="all-pages">
-        {t['com.affine.workspaceSubPath.all']()}
-      </span>
     </MenuLinkItem>
   );
 };
@@ -534,13 +518,12 @@ export const RootAppSidebar = memo((): ReactElement => {
           />
           <AddPageButton />
         </div>
-        <AllDocsButton />
         <AktenButton />
+        <AIChatButton />
         <MandantenButton />
         <FristenButton />
         <TermineButton />
         {isAuthenticated && <NotificationButton />}
-        <AIChatButton />
         <MenuItem
           data-testid="slider-bar-workspace-setting-button"
           icon={<SettingsIcon />}
