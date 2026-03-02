@@ -52,6 +52,19 @@ function createProcessingResult(input: {
       ibans: [],
     },
     processingDurationMs: 1,
+    contentFidelity: {
+      extractedChars: 0,
+      normalizedChars: 0,
+      chunkCount: (input.chunks ?? []).length,
+      totalChunkChars: 0,
+      estimatedOverlapChars: 0,
+      effectiveChunkChars: 0,
+      fidelityRatio: 1,
+      extractionYieldPerPage: 0,
+      suspiciousLowYield: false,
+      suspiciousHighRatio: false,
+      contentIntegrityOk: true,
+    },
   };
 }
 
@@ -103,7 +116,9 @@ describe('LegalCopilotWorkflowService OCR queueing', () => {
     };
 
     const orchestration: Record<string, unknown> = {
-      evaluatePermission: vi.fn().mockResolvedValue({ ok: true, role: 'operator', message: '' }),
+      evaluatePermission: vi
+        .fn()
+        .mockResolvedValue({ ok: true, role: 'operator', message: '' }),
       appendAuditEntry: vi.fn().mockResolvedValue(undefined),
       upsertLegalDocument: vi.fn().mockResolvedValue(undefined),
       upsertSemanticChunks: vi.fn().mockResolvedValue(undefined),
@@ -122,15 +137,21 @@ describe('LegalCopilotWorkflowService OCR queueing', () => {
     orchestration['qualityReports$'] = { value: [] };
 
     const documentProcessingService = {
-      computeFingerprint: vi.fn().mockImplementation((title: string) => `fp:${title}`),
+      computeFingerprint: vi
+        .fn()
+        .mockImplementation((title: string) => `fp:${title}`),
       isDuplicate: vi.fn().mockReturnValue(null),
       processDocumentAsync: vi.fn(),
     };
 
     const creditGateway = {
       checkPageQuota: vi.fn().mockResolvedValue({ warning: null }),
-      checkAiCredits: vi.fn().mockResolvedValue({ allowed: true, message: null }),
-      consumeAiCredits: vi.fn().mockResolvedValue({ success: true, message: null }),
+      checkAiCredits: vi
+        .fn()
+        .mockResolvedValue({ allowed: true, message: null }),
+      consumeAiCredits: vi
+        .fn()
+        .mockResolvedValue({ success: true, message: null }),
       recordPageUsage: vi.fn().mockResolvedValue(undefined),
     };
 
@@ -179,10 +200,18 @@ describe('LegalCopilotWorkflowService OCR queueing', () => {
       workspace: {
         engine: {
           blob: {
-            set: vi.fn().mockImplementation(async (input: { key: string; data: Uint8Array; mime: string }) => {
-              blobs.set(input.key, { data: input.data, mime: input.mime });
-              return input.key;
-            }),
+            set: vi
+              .fn()
+              .mockImplementation(
+                async (input: {
+                  key: string;
+                  data: Uint8Array;
+                  mime: string;
+                }) => {
+                  blobs.set(input.key, { data: input.data, mime: input.mime });
+                  return input.key;
+                }
+              ),
             get: vi.fn().mockImplementation(async (key: string) => {
               const found = blobs.get(key);
               return found ? { data: found.data, mime: found.mime } : null;
@@ -208,7 +237,8 @@ describe('LegalCopilotWorkflowService OCR queueing', () => {
       jurisdictionService as any,
       {} as any,
       {} as any,
-      creditGateway as any
+      creditGateway as any,
+      { syncChunksToBackend: vi.fn().mockResolvedValue(undefined) } as any
     );
 
     return {
@@ -278,7 +308,9 @@ describe('LegalCopilotWorkflowService OCR queueing', () => {
         updatedAt: now,
       },
     ];
-    (orchestration.evaluatePermission as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+    (
+      orchestration.evaluatePermission as ReturnType<typeof vi.fn>
+    ).mockResolvedValueOnce({
       ok: false,
       role: 'viewer',
       message: 'Denied',
@@ -291,7 +323,8 @@ describe('LegalCopilotWorkflowService OCR queueing', () => {
   });
 
   test('does not enqueue OCR for failed non-OCR-eligible base64 file (xlsx)', async () => {
-    const { service, orchestration, documentProcessingService } = createHarness();
+    const { service, orchestration, documentProcessingService } =
+      createHarness();
 
     documentProcessingService.processDocumentAsync.mockResolvedValue(
       createProcessingResult({
@@ -325,7 +358,8 @@ describe('LegalCopilotWorkflowService OCR queueing', () => {
   });
 
   test('enqueues OCR for failed OCR-eligible scan/image upload', async () => {
-    const { service, orchestration, documentProcessingService } = createHarness();
+    const { service, orchestration, documentProcessingService } =
+      createHarness();
 
     documentProcessingService.processDocumentAsync.mockResolvedValue(
       createProcessingResult({
@@ -357,12 +391,17 @@ describe('LegalCopilotWorkflowService OCR queueing', () => {
   });
 
   test('blocks OCR enqueue when remote OCR is forbidden by residency policy', async () => {
-    const { service, orchestration, documentProcessingService, residencyPolicyService } =
-      createHarness();
+    const {
+      service,
+      orchestration,
+      documentProcessingService,
+      residencyPolicyService,
+    } = createHarness();
 
     residencyPolicyService.assertCapabilityAllowed.mockResolvedValue({
       ok: false,
-      reason: 'Remote OCR ist durch die Workspace-Residency-Policy deaktiviert.',
+      reason:
+        'Remote OCR ist durch die Workspace-Residency-Policy deaktiviert.',
       policy: {
         workspaceId,
         mode: 'local_only',
@@ -413,7 +452,8 @@ describe('LegalCopilotWorkflowService OCR queueing', () => {
   });
 
   test('processPendingOcr retries transient remote OCR failures and sets deterministic fallback error reason', async () => {
-    const { service, orchestration, documentProcessingService } = createHarness();
+    const { service, orchestration, documentProcessingService } =
+      createHarness();
 
     const now = new Date().toISOString();
     (orchestration['legalDocuments$'] as { value: unknown[] }).value = [
@@ -466,7 +506,9 @@ describe('LegalCopilotWorkflowService OCR queueing', () => {
       const finalFailedUpdate = (orchestration.upsertOcrJob as any).mock.calls
         .map((call: [Record<string, unknown>]) => call[0])
         .reverse()
-        .find((payload: Record<string, unknown>) => payload.status === 'failed');
+        .find(
+          (payload: Record<string, unknown>) => payload.status === 'failed'
+        );
 
       expect(finalFailedUpdate).toEqual(
         expect.objectContaining({
@@ -481,7 +523,8 @@ describe('LegalCopilotWorkflowService OCR queueing', () => {
   });
 
   test('processPendingOcr requeues failed OCR-eligible docs without active OCR jobs', async () => {
-    const { service, orchestration, documentProcessingService } = createHarness();
+    const { service, orchestration, documentProcessingService } =
+      createHarness();
 
     const now = new Date().toISOString();
     (orchestration['legalDocuments$'] as { value: unknown[] }).value = [
@@ -550,7 +593,8 @@ describe('LegalCopilotWorkflowService OCR queueing', () => {
   });
 
   test('processPendingOcr continues remaining jobs when one OCR job crashes', async () => {
-    const { service, orchestration, documentProcessingService } = createHarness();
+    const { service, orchestration, documentProcessingService } =
+      createHarness();
 
     const now = new Date().toISOString();
     (orchestration['legalDocuments$'] as { value: unknown[] }).value = [
@@ -644,15 +688,15 @@ describe('LegalCopilotWorkflowService OCR queueing', () => {
   });
 
   test('processPendingOcr survives high-volume mixed OCR failures and completes remaining jobs', async () => {
-    const { service, orchestration, documentProcessingService } = createHarness();
+    const { service, orchestration, documentProcessingService } =
+      createHarness();
 
     const now = new Date().toISOString();
     const totalJobs = 60;
     const failingIndexes = new Set([7, 13, 21, 34, 55]);
 
-    (orchestration['legalDocuments$'] as { value: unknown[] }).value = Array.from(
-      { length: totalJobs },
-      (_, i) => ({
+    (orchestration['legalDocuments$'] as { value: unknown[] }).value =
+      Array.from({ length: totalJobs }, (_, i) => ({
         id: `doc-load-${i}`,
         caseId,
         workspaceId,
@@ -663,8 +707,7 @@ describe('LegalCopilotWorkflowService OCR queueing', () => {
         tags: [],
         createdAt: now,
         updatedAt: now,
-      })
-    );
+      }));
 
     (orchestration['ocrJobs$'] as { value: unknown[] }).value = Array.from(
       { length: totalJobs },
@@ -681,19 +724,23 @@ describe('LegalCopilotWorkflowService OCR queueing', () => {
       })
     );
 
-    (service as any).performOcr = vi.fn().mockImplementation(async (doc: { id: string }) => {
-      const index = Number(doc.id.replace('doc-load-', ''));
-      if (failingIndexes.has(index)) {
-        throw new Error(index % 2 === 0 ? 'OCR provider timeout' : 'OCR provider crashed');
-      }
-      return {
-        text: `Erkannter OCR-Text ${index}`,
-        language: 'de',
-        qualityScore: 0.9,
-        pageCount: 1,
-        engine: 'remote-ocr',
-      };
-    });
+    (service as any).performOcr = vi
+      .fn()
+      .mockImplementation(async (doc: { id: string }) => {
+        const index = Number(doc.id.replace('doc-load-', ''));
+        if (failingIndexes.has(index)) {
+          throw new Error(
+            index % 2 === 0 ? 'OCR provider timeout' : 'OCR provider crashed'
+          );
+        }
+        return {
+          text: `Erkannter OCR-Text ${index}`,
+          language: 'de',
+          qualityScore: 0.9,
+          pageCount: 1,
+          engine: 'remote-ocr',
+        };
+      });
 
     documentProcessingService.processDocumentAsync.mockImplementation(
       async (input: { documentId: string }) =>
@@ -718,7 +765,8 @@ describe('LegalCopilotWorkflowService OCR queueing', () => {
         update.status === 'failed' && typeof update.errorMessage === 'string'
     );
     const completedFinalUpdates = ocrPayloads.filter(
-      (update: { status: string; errorMessage?: string }) => update.status === 'completed'
+      (update: { status: string; errorMessage?: string }) =>
+        update.status === 'completed'
     );
 
     expect(failedFinalUpdates.length).toBe(failingIndexes.size);
@@ -726,7 +774,10 @@ describe('LegalCopilotWorkflowService OCR queueing', () => {
 
     const auditCalls = (orchestration.appendAuditEntry as any).mock.calls
       .map((call: [Record<string, unknown>]) => call[0])
-      .filter((entry: Record<string, unknown>) => entry.action === 'document.ocr.partial_failure');
+      .filter(
+        (entry: Record<string, unknown>) =>
+          entry.action === 'document.ocr.partial_failure'
+      );
 
     expect(auditCalls).toHaveLength(1);
     expect(auditCalls[0]?.metadata).toEqual(
@@ -743,7 +794,8 @@ describe('LegalCopilotWorkflowService OCR queueing', () => {
 
     residencyPolicyService.assertCapabilityAllowed.mockResolvedValue({
       ok: false,
-      reason: 'Remote OCR ist durch die Workspace-Residency-Policy deaktiviert.',
+      reason:
+        'Remote OCR ist durch die Workspace-Residency-Policy deaktiviert.',
       policy: {
         workspaceId,
         mode: 'local_only',
@@ -805,10 +857,15 @@ describe('LegalCopilotWorkflowService OCR queueing', () => {
       },
     ];
 
-    const result = await service.inferOnboardingMetadata({ caseId, workspaceId });
+    const result = await service.inferOnboardingMetadata({
+      caseId,
+      workspaceId,
+    });
     expect(result.suggestedClientName).toBe('Max Mustermann');
     expect(result.suggestedExternalRef).toBe('AZ-2026-00421');
-    expect(result.suggestedCourt?.toLowerCase()).toContain('landgericht münchen');
+    expect(result.suggestedCourt?.toLowerCase()).toContain(
+      'landgericht münchen'
+    );
     expect(result.suggestedAuthorityRefs).toContain('AZ-2026-00421');
   });
 
@@ -871,7 +928,8 @@ describe('LegalCopilotWorkflowService OCR queueing', () => {
       createdAt: now,
       updatedAt: now,
     };
-    graph.matters['matter:ws-ocr-1:case-ocr-1'].clientId = 'client:ws-ocr-1:real';
+    graph.matters['matter:ws-ocr-1:case-ocr-1'].clientId =
+      'client:ws-ocr-1:real';
 
     const ok = await service.finalizeOnboarding({
       caseId,
@@ -935,8 +993,11 @@ describe('LegalCopilotWorkflowService OCR queueing', () => {
       createdAt: now,
       updatedAt: now,
     };
-    graph.matters['matter:ws-ocr-1:case-ocr-1'].clientId = 'client:ws-ocr-1:real';
-    graph.matters['matter:ws-ocr-1:case-ocr-1'].authorityReferences = ['Bestandsref 42'];
+    graph.matters['matter:ws-ocr-1:case-ocr-1'].clientId =
+      'client:ws-ocr-1:real';
+    graph.matters['matter:ws-ocr-1:case-ocr-1'].authorityReferences = [
+      'Bestandsref 42',
+    ];
 
     const ok = await service.finalizeOnboarding({
       caseId,
@@ -947,12 +1008,16 @@ describe('LegalCopilotWorkflowService OCR queueing', () => {
 
     expect(ok.ok).toBe(true);
     expect(orchestration.upsertMatter).toHaveBeenCalled();
-    const updatedMatter = (orchestration.upsertMatter as any).mock.calls.at(-1)?.[0];
+    const updatedMatter = (orchestration.upsertMatter as any).mock.calls.at(
+      -1
+    )?.[0];
     expect(updatedMatter.authorityReferences).toContain('Bestandsref 42');
     expect(updatedMatter.authorityReferences).toContain('AZ-2026-01001');
     expect(updatedMatter.authorityReferences.length).toBeGreaterThanOrEqual(3);
 
-    const auditPayload = (orchestration.appendAuditEntry as any).mock.calls.at(-1)?.[0];
+    const auditPayload = (orchestration.appendAuditEntry as any).mock.calls.at(
+      -1
+    )?.[0];
     expect(auditPayload.metadata.authorityRefCount).toBeDefined();
     expect(auditPayload.metadata.authorityRefs).toContain('AZ-2026-01001');
   });
@@ -1010,7 +1075,8 @@ describe('LegalCopilotWorkflowService OCR queueing', () => {
       createdAt: now,
       updatedAt: now,
     };
-    graph.matters['matter:ws-ocr-1:case-ocr-1'].clientId = 'client:ws-ocr-1:real';
+    graph.matters['matter:ws-ocr-1:case-ocr-1'].clientId =
+      'client:ws-ocr-1:real';
     graph.cases[caseId].deadlineIds = ['deadline:review:1'];
     graph.deadlines = {
       ...graph.deadlines,

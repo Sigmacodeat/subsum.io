@@ -60,6 +60,7 @@ import { LegalCopilotWorkflowService } from './services/legal-copilot-workflow';
 import { LegalNormRegistryService } from './services/legal-norm-registry';
 import { LegalNormsService } from './services/legal-norms';
 import { LegalPdfExportService } from './services/legal-pdf-export';
+import { LegalRagSyncService } from './services/legal-rag-sync.service';
 import { LiveTimerService } from './services/live-timer';
 import { MandantenNotificationService } from './services/mandanten-notification';
 import { MandantenPortalService } from './services/mandanten-portal';
@@ -682,6 +683,7 @@ export function configureCaseAssistantModule(framework: Framework) {
     .service(LegalPdfExportService)
     .service(DocumentProcessingService)
     .service(NormClassificationEngine, [LegalNormsService])
+    .service(LegalRagSyncService)
     .service(LegalCopilotWorkflowService, [
       CasePlatformOrchestrationService,
       WorkspaceService,
@@ -699,6 +701,7 @@ export function configureCaseAssistantModule(framework: Framework) {
       NormClassificationEngine,
       KollisionsPruefungService,
       CreditGatewayService,
+      LegalRagSyncService,
     ])
     .service(CaseContextPackService, [CaseAssistantService])
     .service(CaseCockpitService, [CaseContextPackService, DeadlineAlertService])
@@ -785,6 +788,7 @@ export function configureCaseAssistantModule(framework: Framework) {
       CreditGatewayService,
       WorkspaceSubscriptionService,
       CopilotMemoryService,
+      LegalRagSyncService,
     ])
     // ── Analytics & Monitoring ─────────────────────────────────────────────
     .service(AnalyticsCollectorService, [CaseAssistantStore])

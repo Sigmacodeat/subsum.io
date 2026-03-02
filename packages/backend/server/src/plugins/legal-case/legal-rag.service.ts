@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ModuleRef } from '@nestjs/core';
-import { Prisma, PrismaClient } from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
 
 import { getEmbeddingClient } from '../copilot/embedding/client';
 import type { EmbeddingClient } from '../copilot/embedding/types';
@@ -50,13 +50,16 @@ export class LegalRagService {
       if (!this.embeddingAvailable) {
         this.logger.warn(
           '[LegalRag] Embedding client not configured — semantic search disabled. ' +
-          'Configure a Copilot embedding provider to enable vector RAG.'
+            'Configure a Copilot embedding provider to enable vector RAG.'
         );
       } else {
         this.logger.log('[LegalRag] Embedding client ready ✓');
       }
     } catch (err) {
-      this.logger.warn('[LegalRag] Failed to initialise embedding client:', err);
+      this.logger.warn(
+        '[LegalRag] Failed to initialise embedding client:',
+        err
+      );
     }
   }
 
@@ -99,12 +102,16 @@ export class LegalRagService {
           } catch (embErr) {
             this.logger.warn(
               `[LegalRag] Embedding batch ${i}–${i + batch.length} failed, ` +
-              `storing without vector: ${embErr instanceof Error ? embErr.message : String(embErr)}`
+                `storing without vector: ${embErr instanceof Error ? embErr.message : String(embErr)}`
             );
           }
 
           await this._upsertBatch(
-            workspaceId, caseId, documentId, batch, embeddings
+            workspaceId,
+            caseId,
+            documentId,
+            batch,
+            embeddings
           );
         }
       } else {
@@ -203,14 +210,23 @@ export class LegalRagService {
     try {
       if (this.isAvailable && this.embeddingClient) {
         return await this._vectorSearch(
-          workspaceId, caseId, query, topK, threshold
+          workspaceId,
+          caseId,
+          query,
+          topK,
+          threshold
         );
       }
       // Fallback to keyword/content search
       return await this._keywordSearch(workspaceId, caseId, query, topK);
     } catch (err) {
-      this.logger.warn('[LegalRag] searchSemantic error, falling back to keyword:', err);
-      return await this._keywordSearch(workspaceId, caseId, query, topK).catch(() => []);
+      this.logger.warn(
+        '[LegalRag] searchSemantic error, falling back to keyword:',
+        err
+      );
+      return await this._keywordSearch(workspaceId, caseId, query, topK).catch(
+        () => []
+      );
     }
   }
 
@@ -255,13 +271,13 @@ export class LegalRagService {
     `;
 
     return rows.map(r => ({
-      documentId:  r.documentId,
-      chunkIndex:  Number(r.chunkIndex),
-      content:     r.content,
-      category:    r.category,
-      keywords:    r.keywords ?? [],
+      documentId: r.documentId,
+      chunkIndex: Number(r.chunkIndex),
+      content: r.content,
+      category: r.category,
+      keywords: r.keywords ?? [],
       qualityScore: Number(r.qualityScore),
-      distance:    Number(r.distance),
+      distance: Number(r.distance),
     }));
   }
 
@@ -307,13 +323,13 @@ export class LegalRagService {
     `;
 
     return rows.map((r, i) => ({
-      documentId:   r.documentId,
-      chunkIndex:   Number(r.chunkIndex),
-      content:      r.content,
-      category:     r.category,
-      keywords:     r.keywords ?? [],
+      documentId: r.documentId,
+      chunkIndex: Number(r.chunkIndex),
+      content: r.content,
+      category: r.category,
+      keywords: r.keywords ?? [],
       qualityScore: Number(r.qualityScore),
-      distance:     0.5 + i * 0.01, // synthetic distance for ranking
+      distance: 0.5 + i * 0.01, // synthetic distance for ranking
     }));
   }
 
@@ -332,10 +348,7 @@ export class LegalRagService {
   }
 
   /** Remove all chunk embeddings for an entire case. */
-  async deleteCaseChunks(
-    workspaceId: string,
-    caseId: string
-  ): Promise<void> {
+  async deleteCaseChunks(workspaceId: string, caseId: string): Promise<void> {
     await this.db.$executeRaw`
       DELETE FROM "legal_document_chunk_embeddings"
       WHERE "workspace_id" = ${workspaceId}
@@ -360,9 +373,9 @@ export class LegalRagService {
         AND case_id      = ${caseId};
     `;
     return {
-      total:         Number(row?.total ?? 0),
+      total: Number(row?.total ?? 0),
       withEmbedding: Number(row?.withEmbedding ?? 0),
-      documents:     Number(row?.documents ?? 0),
+      documents: Number(row?.documents ?? 0),
     };
   }
 }

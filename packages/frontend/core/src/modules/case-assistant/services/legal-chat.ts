@@ -1,11 +1,12 @@
+import { SubscriptionPlan, SubscriptionStatus } from '@affine/graphql';
 import { LiveData, Service } from '@toeverything/infra';
 
-import { SubscriptionPlan, SubscriptionStatus } from '@affine/graphql';
-
+import type { WorkspaceSubscriptionService } from '../../cloud/services/workspace-subscription';
+import type { CaseAssistantStore } from '../stores/case-assistant';
 import type {
   CaseDeadline,
-  ChatToolCall,
   ChatToolApprovalRequest,
+  ChatToolCall,
   ChatToolCallCategory,
   ChatToolCallDetailLine,
   ChatToolCallName,
@@ -24,18 +25,21 @@ import type {
   LegalFinding,
   LlmModelOption,
   SemanticChunk,
+  SemanticChunkCategory,
 } from '../types';
-import type { CaseAssistantStore } from '../stores/case-assistant';
 import type { CollectiveIntelligenceService } from './collective-intelligence';
+import type { CopilotMemoryService } from './copilot-memory';
+import type { CreditGatewayService } from './credit-gateway';
+import { CREDIT_COSTS } from './credit-gateway';
+import type { EvidenceRegisterService } from './evidence-register';
 import type { GegnerIntelligenceService } from './gegner-intelligence';
+import type { LegalNormsService } from './legal-norms';
+import type {
+  LegalRagSyncService,
+  RagSearchResult,
+} from './legal-rag-sync.service';
 import type { CasePlatformOrchestrationService } from './platform-orchestration';
 import type { CaseProviderSettingsService } from './provider-settings';
-import type { EvidenceRegisterService } from './evidence-register';
-import type { LegalNormsService } from './legal-norms';
-import type { CopilotMemoryService } from './copilot-memory';
-import type { CreditGatewayService} from './credit-gateway';
-import { CREDIT_COSTS } from './credit-gateway';
-import type { WorkspaceSubscriptionService } from '../../cloud/services/workspace-subscription';
 
 function createId(prefix: string) {
   return `${prefix}:${Date.now().toString(36)}:${Math.random().toString(36).slice(2, 8)}`;
@@ -46,7 +50,10 @@ function estimateTokens(text: string): number {
 }
 
 function getModelCreditMultiplier(model: LlmModelOption): number {
-  if (typeof model.creditMultiplier === 'number' && Number.isFinite(model.creditMultiplier)) {
+  if (
+    typeof model.creditMultiplier === 'number' &&
+    Number.isFinite(model.creditMultiplier)
+  ) {
     return model.creditMultiplier;
   }
   switch (model.costTier) {
@@ -73,9 +80,36 @@ function getChatMessageCreditCost(model: LlmModelOption): number {
 const CHAT_TRASH_RETENTION_DAYS = 30;
 
 const QUERY_STOP_WORDS = new Set([
-  'der', 'die', 'das', 'und', 'oder', 'mit', 'ohne', 'von', 'vom', 'zum', 'zur',
-  'ein', 'eine', 'einer', 'eines', 'den', 'dem', 'des', 'ist', 'sind', 'war', 'waren',
-  'for', 'the', 'and', 'with', 'without', 'from', 'this', 'that',
+  'der',
+  'die',
+  'das',
+  'und',
+  'oder',
+  'mit',
+  'ohne',
+  'von',
+  'vom',
+  'zum',
+  'zur',
+  'ein',
+  'eine',
+  'einer',
+  'eines',
+  'den',
+  'dem',
+  'des',
+  'ist',
+  'sind',
+  'war',
+  'waren',
+  'for',
+  'the',
+  'and',
+  'with',
+  'without',
+  'from',
+  'this',
+  'that',
 ]);
 
 const LEGAL_QUERY_SYNONYMS: Record<string, string[]> = {
@@ -139,7 +173,8 @@ function buildTfVector(text: string, minLen = 3): Map<string, number> {
   const tf = new Map<string, number>();
   for (const raw of text.split(/\s+/)) {
     const token = normalizeRetrievalToken(raw);
-    if (!token || token.length < minLen || QUERY_STOP_WORDS.has(token)) continue;
+    if (!token || token.length < minLen || QUERY_STOP_WORDS.has(token))
+      continue;
     tf.set(token, (tf.get(token) ?? 0) + 1);
   }
   return tf;
@@ -300,7 +335,8 @@ const AVAILABLE_MODELS: LlmModelOption[] = [
     id: 'gpt-4o',
     providerId: 'openai',
     label: 'GPT-4o',
-    description: 'OpenAI GPT-4o — schnell, multimodal, exzellent für juristische Analyse',
+    description:
+      'OpenAI GPT-4o — schnell, multimodal, exzellent für juristische Analyse',
     contextWindow: 128000,
     supportsStreaming: true,
     costTier: 'high',
@@ -320,7 +356,8 @@ const AVAILABLE_MODELS: LlmModelOption[] = [
     id: 'claude-4-sonnet',
     providerId: 'anthropic',
     label: 'Claude 4 Sonnet',
-    description: 'Anthropic Claude 4 Sonnet — präzise, tiefgründig, ideal für Subsumtion',
+    description:
+      'Anthropic Claude 4 Sonnet — präzise, tiefgründig, ideal für Subsumtion',
     contextWindow: 200000,
     supportsStreaming: true,
     costTier: 'high',
@@ -340,7 +377,8 @@ const AVAILABLE_MODELS: LlmModelOption[] = [
     id: 'mistral-large',
     providerId: 'mistral',
     label: 'Mistral Large',
-    description: 'Mistral Large — EU-hosted, DSGVO-konform, starke Rechtsanalyse',
+    description:
+      'Mistral Large — EU-hosted, DSGVO-konform, starke Rechtsanalyse',
     contextWindow: 128000,
     supportsStreaming: true,
     costTier: 'medium',
@@ -350,7 +388,8 @@ const AVAILABLE_MODELS: LlmModelOption[] = [
     id: 'gemini-2.5-pro',
     providerId: 'google',
     label: 'Gemini 2.5 Pro',
-    description: 'Google Gemini 2.5 Pro — großes Kontextfenster, gut für lange Akten',
+    description:
+      'Google Gemini 2.5 Pro — großes Kontextfenster, gut für lange Akten',
     contextWindow: 1000000,
     supportsStreaming: true,
     costTier: 'high',
@@ -457,7 +496,10 @@ export class LegalChatService extends Service {
   private readonly _chatMessages$ = new LiveData<LegalChatMessage[]>([]);
   private modelsFetchPromise: Promise<LlmModelOption[]> | null = null;
   private hasTriedTenantModelFetch = false;
-  private readonly pendingToolApprovals = new Map<string, PendingToolApprovalRun>();
+  private readonly pendingToolApprovals = new Map<
+    string,
+    PendingToolApprovalRun
+  >();
 
   constructor(
     private readonly store: CaseAssistantStore,
@@ -469,7 +511,8 @@ export class LegalChatService extends Service {
     private readonly gegnerIntelligence: GegnerIntelligenceService,
     private readonly creditGateway: CreditGatewayService,
     private readonly workspaceSubscriptionService: WorkspaceSubscriptionService,
-    private readonly copilotMemory: CopilotMemoryService
+    private readonly copilotMemory: CopilotMemoryService,
+    private readonly ragSync: LegalRagSyncService
   ) {
     super();
 
@@ -485,30 +528,44 @@ export class LegalChatService extends Service {
 
     const nextTrashedSessions = this.store
       .getTrashedChatSessions()
-      .filter(session => !session.purgeAt || new Date(session.purgeAt).getTime() > nowMs);
+      .filter(
+        session =>
+          !session.purgeAt || new Date(session.purgeAt).getTime() > nowMs
+      );
     const nextTrashedMessages = this.store
       .getTrashedChatMessages()
-      .filter(message => !message.purgeAt || new Date(message.purgeAt).getTime() > nowMs);
+      .filter(
+        message =>
+          !message.purgeAt || new Date(message.purgeAt).getTime() > nowMs
+      );
 
     this.store.setTrashedChatSessions(nextTrashedSessions);
     this.store.setTrashedChatMessages(nextTrashedMessages);
 
     // Defensive dedupe if a trashed id accidentally exists in active collections.
-    const trashedSessionIds = new Set(nextTrashedSessions.map(session => session.id));
-    const trashedMessageIds = new Set(nextTrashedMessages.map(message => message.id));
+    const trashedSessionIds = new Set(
+      nextTrashedSessions.map(session => session.id)
+    );
+    const trashedMessageIds = new Set(
+      nextTrashedMessages.map(message => message.id)
+    );
 
     if (trashedSessionIds.size > 0) {
-      this.store.setChatSessions(activeSessions.filter(session => !trashedSessionIds.has(session.id)));
+      this.store.setChatSessions(
+        activeSessions.filter(session => !trashedSessionIds.has(session.id))
+      );
     }
     if (trashedMessageIds.size > 0) {
-      this.store.setChatMessages(activeMessages.filter(message => !trashedMessageIds.has(message.id)));
+      this.store.setChatMessages(
+        activeMessages.filter(message => !trashedMessageIds.has(message.id))
+      );
     }
   }
 
   private isCollectiveIntelligenceEnabled(): boolean {
     try {
-      const wsSub = this.workspaceSubscriptionService.subscription.subscription$
-        .value;
+      const wsSub =
+        this.workspaceSubscriptionService.subscription.subscription$.value;
       if (!wsSub) {
         this.workspaceSubscriptionService.subscription.revalidate();
         return false;
@@ -610,7 +667,9 @@ export class LegalChatService extends Service {
   getSelectedModel(sessionId?: string): LlmModelOption {
     const models = this.getAvailableModels();
     if (sessionId) {
-      const session = this.store.getChatSessions().find(s => s.id === sessionId);
+      const session = this.store
+        .getChatSessions()
+        .find(s => s.id === sessionId);
       if (session?.modelId) {
         const model = models.find(m => m.id === session.modelId);
         if (model) return model;
@@ -633,7 +692,10 @@ export class LegalChatService extends Service {
   // TOOL CALL HELPERS — Track tool execution for transparent UI
   // ═══════════════════════════════════════════════════════════════════════════
 
-  private createToolCall(name: ChatToolCallName, inputSummary?: string): ChatToolCall {
+  private createToolCall(
+    name: ChatToolCallName,
+    inputSummary?: string
+  ): ChatToolCall {
     return {
       id: createId('tool'),
       name,
@@ -683,7 +745,10 @@ export class LegalChatService extends Service {
     };
   }
 
-  private cancelToolCall(tc: ChatToolCall, outputSummary = 'Abgebrochen'): ChatToolCall {
+  private cancelToolCall(
+    tc: ChatToolCall,
+    outputSummary = 'Abgebrochen'
+  ): ChatToolCall {
     return {
       ...tc,
       status: 'cancelled',
@@ -700,7 +765,9 @@ export class LegalChatService extends Service {
     if (normalized.length < 18) return true;
     const tokenCount = normalized.split(/\s+/).filter(Boolean).length;
     if (tokenCount <= 3 && !normalized.includes('?')) return true;
-    return /(mach\s+das|irgendwas|hilfe\b|weißt\s+du\b|weiter\s*\?)/i.test(normalized);
+    return /(mach\s+das|irgendwas|hilfe\b|weißt\s+du\b|weiter\s*\?)/i.test(
+      normalized
+    );
   }
 
   private buildClarifierMessage(mode: LegalChatMode): string {
@@ -718,17 +785,27 @@ export class LegalChatService extends Service {
   private shouldRequireApproval(content: string): boolean {
     const slash = this.parseSlashCommand(content);
     if (slash) {
-      return ['dokument', 'workflow', 'ocr', 'analyse', 'dropbox'].includes(slash.command);
+      return ['dokument', 'workflow', 'ocr', 'analyse', 'dropbox'].includes(
+        slash.command
+      );
     }
-    return /(einreichen|senden|veröffentlichen|löschen|speichern|finalisieren)/i.test(content);
+    return /(einreichen|senden|veröffentlichen|löschen|speichern|finalisieren)/i.test(
+      content
+    );
   }
 
-  private buildApprovalRequest(content: string, mode: LegalChatMode): ChatToolApprovalRequest {
+  private buildApprovalRequest(
+    content: string,
+    mode: LegalChatMode
+  ): ChatToolApprovalRequest {
     return {
       title: 'Ausführung prüfen & freigeben',
       description:
         'Bitte prüfe die geplante Agent-Ausführung. Du kannst Parameter vor Start anpassen (Return-of-Control).',
-      riskLevel: this.parseSlashCommand(content)?.command === 'dokument' ? 'high' : 'medium',
+      riskLevel:
+        this.parseSlashCommand(content)?.command === 'dokument'
+          ? 'high'
+          : 'medium',
       fields: [
         {
           key: 'ziel',
@@ -740,7 +817,8 @@ export class LegalChatService extends Service {
         {
           key: 'format',
           label: 'Ausgabeformat',
-          value: 'Strukturierte Antwort mit Quellen, Risiken und nächsten Schritten',
+          value:
+            'Strukturierte Antwort mit Quellen, Risiken und nächsten Schritten',
           placeholder: 'z. B. Schriftsatz, Checkliste, Executive Summary',
         },
         {
@@ -755,7 +833,10 @@ export class LegalChatService extends Service {
     };
   }
 
-  private applyApprovalFields(content: string, fields?: Record<string, string>): string {
+  private applyApprovalFields(
+    content: string,
+    fields?: Record<string, string>
+  ): string {
     if (!fields || Object.keys(fields).length === 0) {
       return content;
     }
@@ -781,15 +862,21 @@ export class LegalChatService extends Service {
       return null;
     }
 
-    const approvalIndex = run.toolCalls.findIndex(tc => tc.id === input.toolCallId);
+    const approvalIndex = run.toolCalls.findIndex(
+      tc => tc.id === input.toolCallId
+    );
     if (approvalIndex < 0) {
       this.pendingToolApprovals.delete(input.toolCallId);
       return null;
     }
 
     if (input.decision === 'rejected') {
-      run.toolCalls[approvalIndex] = this.cancelToolCall(run.toolCalls[approvalIndex], 'Vom Nutzer abgebrochen');
-      const cancelText = 'Ausführung wurde vor dem nächsten Agent-Schritt abgebrochen.';
+      run.toolCalls[approvalIndex] = this.cancelToolCall(
+        run.toolCalls[approvalIndex],
+        'Vom Nutzer abgebrochen'
+      );
+      const cancelText =
+        'Ausführung wurde vor dem nächsten Agent-Schritt abgebrochen.';
       this.updateMessageInStore(run.assistantMessageId, {
         status: 'complete',
         toolCalls: [...run.toolCalls],
@@ -801,7 +888,11 @@ export class LegalChatService extends Service {
         run.userTokenEstimate + estimateTokens(cancelText)
       );
       this.pendingToolApprovals.delete(input.toolCallId);
-      return this.store.getChatMessages().find(msg => msg.id === run.assistantMessageId) ?? null;
+      return (
+        this.store
+          .getChatMessages()
+          .find(msg => msg.id === run.assistantMessageId) ?? null
+      );
     }
 
     run.toolCalls[approvalIndex] = this.completeToolCall(
@@ -862,11 +953,17 @@ export class LegalChatService extends Service {
       userTokenEstimate,
     } = input;
 
-    const tcLlm = this.createToolCall('generate_document', `${selectedModel.label} — ${MODE_LABELS[mode]}`);
+    const tcLlm = this.createToolCall(
+      'generate_document',
+      `${selectedModel.label} — ${MODE_LABELS[mode]}`
+    );
     tcLlm.label = `${selectedModel.icon} ${selectedModel.label}`;
     tcLlm.category = 'generation';
     toolCalls.push(tcLlm);
-    this.updateMessageInStore(assistantMessageId, { toolCalls: [...toolCalls], status: 'streaming' });
+    this.updateMessageInStore(assistantMessageId, {
+      toolCalls: [...toolCalls],
+      status: 'streaming',
+    });
 
     let responseText: string;
     let sourceCitations: LegalChatSourceCitation[] = [];
@@ -875,7 +972,12 @@ export class LegalChatService extends Service {
     let usedLlm = false;
 
     try {
-      const llmResult = await this.callLlm(content, context, history, selectedModel);
+      const llmResult = await this.callLlm(
+        content,
+        context,
+        history,
+        selectedModel
+      );
       usedLlm = true;
       responseText = llmResult.answer;
 
@@ -889,13 +991,19 @@ export class LegalChatService extends Service {
       }
 
       sourceCitations = this.extractSourceCitations(responseText, context);
-      normCitations = this.extractNormCitations(responseText, this.store.getActiveJurisdiction());
+      normCitations = this.extractNormCitations(
+        responseText,
+        this.store.getActiveJurisdiction()
+      );
       findingRefs = this.extractFindingRefs(responseText, caseId, workspaceId);
       const sourceNotice = this.buildSourceReliabilityNotice({
         context,
         sourceCitations,
       });
-      if (sourceNotice && !responseText.includes('### Quellen- & Gültigkeitshinweis')) {
+      if (
+        sourceNotice &&
+        !responseText.includes('### Quellen- & Gültigkeitshinweis')
+      ) {
         responseText += sourceNotice;
       }
       toolCalls[toolCalls.length - 1] = this.completeToolCall(
@@ -904,20 +1012,25 @@ export class LegalChatService extends Service {
       );
     } catch {
       responseText = this.buildLocalFallbackAnswer(content, context, mode);
-      toolCalls[toolCalls.length - 1] = this.failToolCall(tcLlm, 'LLM nicht erreichbar — lokale Analyse');
+      toolCalls[toolCalls.length - 1] = this.failToolCall(
+        tcLlm,
+        'LLM nicht erreichbar — lokale Analyse'
+      );
     }
 
     const durationMs = Date.now() - startTime;
 
     // ── INTELLIGENCE: Build Reasoning Chain ──────────────────────────────
-    const reasoningChain = this.copilotMemory.createReasoningChain(assistantMessageId);
+    const reasoningChain =
+      this.copilotMemory.createReasoningChain(assistantMessageId);
 
     const stepRetrieve = this.copilotMemory.addReasoningStep(reasoningChain, {
       type: 'retrieve',
       label: `${context.relevantChunks.length} Dokument-Abschnitte durchsucht`,
-      detail: context.relevantChunks.length > 0
-        ? `Relevante Chunks aus ${new Set(context.relevantChunks.map(c => c.documentId)).size} Dokument(en) gefunden.`
-        : 'Keine relevanten Dokument-Abschnitte gefunden.',
+      detail:
+        context.relevantChunks.length > 0
+          ? `Relevante Chunks aus ${new Set(context.relevantChunks.map(c => c.documentId)).size} Dokument(en) gefunden.`
+          : 'Keine relevanten Dokument-Abschnitte gefunden.',
       sourceRefs: context.relevantChunks.slice(0, 5).map(c => ({
         type: 'document' as const,
         id: c.documentId,
@@ -970,15 +1083,19 @@ export class LegalChatService extends Service {
 
     // Show reasoning chain as tool call
     const tcReasoning = this.createToolCall('reasoning_chain', 'Denk-Schritte');
-    tcReasoning.detailLines = reasoningChain.steps.map((s: { label: string; type: string }) => ({
-      icon: 'check' as const,
-      label: s.label,
-      meta: s.type,
-    }));
-    toolCalls.push(this.completeToolCall(
-      tcReasoning,
-      `${reasoningChain.steps.length} Denk-Schritte, ${reasoningChain.totalDurationMs}ms`
-    ));
+    tcReasoning.detailLines = reasoningChain.steps.map(
+      (s: { label: string; type: string }) => ({
+        icon: 'check' as const,
+        label: s.label,
+        meta: s.type,
+      })
+    );
+    toolCalls.push(
+      this.completeToolCall(
+        tcReasoning,
+        `${reasoningChain.steps.length} Denk-Schritte, ${reasoningChain.totalDurationMs}ms`
+      )
+    );
 
     // ── INTELLIGENCE: Compute Confidence Score ───────────────────────────
     const docQualityScores = context.relevantChunks
@@ -990,7 +1107,8 @@ export class LegalChatService extends Service {
       totalChunksSearched: context.relevantChunks.length + 10,
       findingsCount: findingRefs.length,
       contradictionCount: context.contradictionHighlights.length,
-      sourceDocCount: new Set(context.relevantChunks.map(c => c.documentId)).size,
+      sourceDocCount: new Set(context.relevantChunks.map(c => c.documentId))
+        .size,
       normCitationCount: normCitations.length,
       judikaturCount: context.judikaturContext.length,
       memoryCount: 0,
@@ -1001,7 +1119,10 @@ export class LegalChatService extends Service {
 
     reasoningChain.finalConfidence = answerConfidence.score;
 
-    const tcConfidence = this.createToolCall('confidence_score', 'Konfidenz-Bewertung');
+    const tcConfidence = this.createToolCall(
+      'confidence_score',
+      'Konfidenz-Bewertung'
+    );
     tcConfidence.outputSummary = `${(answerConfidence.score * 100).toFixed(0)}% — ${answerConfidence.level}`;
     if (answerConfidence.warnings.length > 0) {
       tcConfidence.detailLines = answerConfidence.warnings.map((w: string) => ({
@@ -1009,10 +1130,12 @@ export class LegalChatService extends Service {
         label: w,
       }));
     }
-    toolCalls.push(this.completeToolCall(
-      tcConfidence,
-      `Konfidenz: ${(answerConfidence.score * 100).toFixed(0)}% (${answerConfidence.level})`
-    ));
+    toolCalls.push(
+      this.completeToolCall(
+        tcConfidence,
+        `Konfidenz: ${(answerConfidence.score * 100).toFixed(0)}% (${answerConfidence.level})`
+      )
+    );
 
     this.updateMessageInStore(assistantMessageId, {
       content: responseText,
@@ -1028,7 +1151,11 @@ export class LegalChatService extends Service {
       confidence: answerConfidence,
     });
 
-    this.updateSessionMetadata(sessionId, content, estimateTokens(responseText) + userTokenEstimate);
+    this.updateSessionMetadata(
+      sessionId,
+      content,
+      estimateTokens(responseText) + userTokenEstimate
+    );
 
     if (usedLlm) {
       await this.creditGateway.consumeAiCredits(
@@ -1055,30 +1182,41 @@ export class LegalChatService extends Service {
       },
     });
 
-    const finalMsg = this.store.getChatMessages().find(m => m.id === assistantMessageId);
-    return finalMsg ?? {
-      id: assistantMessageId,
-      sessionId,
-      role: 'assistant',
-      content: responseText,
-      mode,
-      status: 'complete',
-      sourceCitations,
-      normCitations,
-      findingRefs,
-      toolCalls: [...toolCalls],
-      modelId: selectedModel.id,
-      tokenEstimate: estimateTokens(responseText),
-      durationMs,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
+    const finalMsg = this.store
+      .getChatMessages()
+      .find(m => m.id === assistantMessageId);
+    return (
+      finalMsg ?? {
+        id: assistantMessageId,
+        sessionId,
+        role: 'assistant',
+        content: responseText,
+        mode,
+        status: 'complete',
+        sourceCitations,
+        normCitations,
+        findingRefs,
+        toolCalls: [...toolCalls],
+        modelId: selectedModel.id,
+        tokenEstimate: estimateTokens(responseText),
+        durationMs,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      }
+    );
   }
 
-  private updateMessageInStore(messageId: string, patch: Partial<LegalChatMessage>): void {
-    const msgs = this.store.getChatMessages().map(m =>
-      m.id === messageId ? { ...m, ...patch, updatedAt: new Date().toISOString() } : m
-    );
+  private updateMessageInStore(
+    messageId: string,
+    patch: Partial<LegalChatMessage>
+  ): void {
+    const msgs = this.store
+      .getChatMessages()
+      .map(m =>
+        m.id === messageId
+          ? { ...m, ...patch, updatedAt: new Date().toISOString() }
+          : m
+      );
     this.store.setChatMessages(msgs);
   }
 
@@ -1098,7 +1236,9 @@ export class LegalChatService extends Service {
       id: createId('chat-session'),
       caseId: input.caseId,
       workspaceId: input.workspaceId,
-      title: input.title ?? `${MODE_LABELS[mode]} — ${new Date().toLocaleDateString('de-DE')}`,
+      title:
+        input.title ??
+        `${MODE_LABELS[mode]} — ${new Date().toLocaleDateString('de-DE')}`,
       mode,
       messageCount: 0,
       totalTokens: 0,
@@ -1121,7 +1261,9 @@ export class LegalChatService extends Service {
       .filter(s => s.caseId === caseId && s.workspaceId === workspaceId)
       .sort((a, b) => {
         if (a.isPinned !== b.isPinned) return a.isPinned ? -1 : 1;
-        return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+        return (
+          new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+        );
       });
   }
 
@@ -1130,7 +1272,10 @@ export class LegalChatService extends Service {
     return this.store
       .getChatMessages()
       .filter(m => m.sessionId === sessionId)
-      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+      .sort(
+        (a, b) =>
+          new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+      );
   }
 
   deleteSession(sessionId: string): void {
@@ -1141,7 +1286,9 @@ export class LegalChatService extends Service {
 
     const messages = this.store.getChatMessages();
     const sessionMessages = messages.filter(m => m.sessionId === sessionId);
-    const { trashedAt, purgeAt } = buildTrashTimestamps(CHAT_TRASH_RETENTION_DAYS);
+    const { trashedAt, purgeAt } = buildTrashTimestamps(
+      CHAT_TRASH_RETENTION_DAYS
+    );
 
     const nextSessions = sessions.filter(s => s.id !== sessionId);
     const nextMessages = messages.filter(m => m.sessionId !== sessionId);
@@ -1170,7 +1317,9 @@ export class LegalChatService extends Service {
     ]);
     this.store.setTrashedChatMessages([
       ...movedMessages,
-      ...trashedMessages.filter(message => !movedMessages.some(moved => moved.id === message.id)),
+      ...trashedMessages.filter(
+        message => !movedMessages.some(moved => moved.id === message.id)
+      ),
     ]);
   }
 
@@ -1220,7 +1369,10 @@ export class LegalChatService extends Service {
       if (!added || added.length === 0) continue;
 
       session.messageCount += added.length;
-      session.totalTokens += added.reduce((sum, m) => sum + (m.tokenEstimate ?? 0), 0);
+      session.totalTokens += added.reduce(
+        (sum, m) => sum + (m.tokenEstimate ?? 0),
+        0
+      );
       const lastUser = [...added].reverse().find(m => m.role === 'user');
       if (lastUser) {
         session.lastMessagePreview = lastUser.content.slice(0, 100);
@@ -1239,7 +1391,9 @@ export class LegalChatService extends Service {
 
     if (!removed) return;
 
-    const { trashedAt, purgeAt } = buildTrashTimestamps(CHAT_TRASH_RETENTION_DAYS);
+    const { trashedAt, purgeAt } = buildTrashTimestamps(
+      CHAT_TRASH_RETENTION_DAYS
+    );
     const trashedMessages = this.store.getTrashedChatMessages();
     this.store.setTrashedChatMessages([
       {
@@ -1257,17 +1411,29 @@ export class LegalChatService extends Service {
 
     const remainingSessionMessages = next
       .filter(m => m.sessionId === removed.sessionId)
-      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
-    const lastUser = [...remainingSessionMessages].reverse().find(m => m.role === 'user');
+      .sort(
+        (a, b) =>
+          new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+      );
+    const lastUser = [...remainingSessionMessages]
+      .reverse()
+      .find(m => m.role === 'user');
 
     session.messageCount = Math.max(0, session.messageCount - 1);
-    session.totalTokens = Math.max(0, session.totalTokens - (removed.tokenEstimate ?? 0));
+    session.totalTokens = Math.max(
+      0,
+      session.totalTokens - (removed.tokenEstimate ?? 0)
+    );
     session.lastMessagePreview = lastUser?.content.slice(0, 100) ?? '';
     session.updatedAt = new Date().toISOString();
     this.store.setChatSessions([...sessions]);
   }
 
-  markArtifactSaved(messageId: string, artifactId: string, akteDocumentId?: string): void {
+  markArtifactSaved(
+    messageId: string,
+    artifactId: string,
+    akteDocumentId?: string
+  ): void {
     this.updateMessageInStore(messageId, {
       artifacts: this.store
         .getChatMessages()
@@ -1316,7 +1482,8 @@ export class LegalChatService extends Service {
       ? Object.values(graph?.cases ?? {})
           .filter(
             item =>
-              item.workspaceId === workspaceId && item.matterId === caseRecord.matterId
+              item.workspaceId === workspaceId &&
+              item.matterId === caseRecord.matterId
           )
           .map(item => item.id)
       : [];
@@ -1340,12 +1507,15 @@ export class LegalChatService extends Service {
     // ── Jurisdiction hard filter (DE/AT): ensure we primarily use the correct legal system ──
     // If documents have detectedJurisdiction, we filter to the active jurisdiction.
     // If this would drop everything (e.g. old data without detection), we safely fall back.
-    const isStrictNationalMode = activeJurisdiction === 'DE' || activeJurisdiction === 'AT';
+    const isStrictNationalMode =
+      activeJurisdiction === 'DE' || activeJurisdiction === 'AT';
     const docsWithDetection = caseDocs.filter(d => !!d.detectedJurisdiction);
     const filteredDocs =
       isStrictNationalMode && docsWithDetection.length > 0
         ? caseDocs.filter(
-            d => !d.detectedJurisdiction || d.detectedJurisdiction === activeJurisdiction
+            d =>
+              !d.detectedJurisdiction ||
+              d.detectedJurisdiction === activeJurisdiction
           )
         : caseDocs;
     const filteredDocIds = new Set(filteredDocs.map(d => d.id));
@@ -1355,14 +1525,16 @@ export class LegalChatService extends Service {
         : caseChunks;
 
     const effectiveDocs = filteredDocs.length > 0 ? filteredDocs : caseDocs;
-    const effectiveChunks = filteredChunks.length > 0 ? filteredChunks : caseChunks;
+    const effectiveChunks =
+      filteredChunks.length > 0 ? filteredChunks : caseChunks;
     const caseFindings = findings.filter(
       (f: LegalFinding) =>
         f.workspaceId === workspaceId && scopeCaseIdSet.has(f.caseId)
     );
     const allSuggestions = this.orchestration.judikaturSuggestions$.value ?? [];
     const caseSuggestions = allSuggestions.filter(
-      suggestion => suggestion.caseId === caseId && suggestion.workspaceId === workspaceId
+      suggestion =>
+        suggestion.caseId === caseId && suggestion.workspaceId === workspaceId
     );
     const judikaturContext = this.buildJudikaturContext(caseSuggestions);
     const sourceReliabilityWarnings = this.buildSourceReliabilityWarnings({
@@ -1371,14 +1543,16 @@ export class LegalChatService extends Service {
       allCaseDocs,
     });
 
-    // ── Semantic search: find relevant chunks by keyword overlap ──
-    const relevantChunks = this.findRelevantChunks(
+    // ── Semantic search: hybrid vector + TF-IDF retrieval ──
+    const relevantChunks = await this.findRelevantChunks(
       userQuery,
       effectiveChunks,
       effectiveDocs,
       activeJurisdiction,
       mode,
-      20
+      20,
+      caseId,
+      workspaceId
     );
 
     // ── Findings summary ──
@@ -1388,10 +1562,14 @@ export class LegalChatService extends Service {
     const activeNorms = this.extractActiveNorms(caseDocs);
 
     // ── Deadline warnings ──
-    const deadlineWarnings = this.buildDeadlineWarnings(caseRecord, graph?.deadlines ?? {});
+    const deadlineWarnings = this.buildDeadlineWarnings(
+      caseRecord,
+      graph?.deadlines ?? {}
+    );
 
     // ── Contradiction highlights ──
-    const contradictionHighlights = this.buildContradictionHighlights(caseFindings);
+    const contradictionHighlights =
+      this.buildContradictionHighlights(caseFindings);
 
     // ── Evidence gaps ──
     const evidenceGaps = this.buildEvidenceGaps(caseId);
@@ -1399,9 +1577,13 @@ export class LegalChatService extends Service {
     // ── Opposing party context ──
     const matterId = caseRecord?.matterId;
     const matter = matterId ? graph?.matters?.[matterId] : undefined;
-    const opposingPartyContext = (matter?.opposingParties ?? [])
-      .map(p => `${p.displayName} (${p.kind})${p.legalRepresentative ? ` — RA: ${p.legalRepresentative}` : ''}`)
-      .join('; ') || 'Keine Gegner erfasst.';
+    const opposingPartyContext =
+      (matter?.opposingParties ?? [])
+        .map(
+          p =>
+            `${p.displayName} (${p.kind})${p.legalRepresentative ? ` — RA: ${p.legalRepresentative}` : ''}`
+        )
+        .join('; ') || 'Keine Gegner erfasst.';
 
     // ── Collective Intelligence context injection ──
     let collectiveContext: CollectiveContextInjection | undefined;
@@ -1414,9 +1596,10 @@ export class LegalChatService extends Service {
           undefined
         );
         if (collectiveContext) {
-          collectivePromptBlock = this.collectiveIntelligence.collectiveContextToPrompt(
-            collectiveContext
-          );
+          collectivePromptBlock =
+            this.collectiveIntelligence.collectiveContextToPrompt(
+              collectiveContext
+            );
         }
       } catch {
         collectiveContext = undefined;
@@ -1431,8 +1614,12 @@ export class LegalChatService extends Service {
         opposingParties: matter?.opposingParties,
         gericht: matter?.gericht,
       });
-      if (gegnerSnapshot && (gegnerSnapshot.firmProfile || gegnerSnapshot.richterProfile)) {
-        gegnerPromptBlock = this.gegnerIntelligence.intelligenceSnapshotToPrompt(gegnerSnapshot);
+      if (
+        gegnerSnapshot &&
+        (gegnerSnapshot.firmProfile || gegnerSnapshot.richterProfile)
+      ) {
+        gegnerPromptBlock =
+          this.gegnerIntelligence.intelligenceSnapshotToPrompt(gegnerSnapshot);
       }
     } catch {
       gegnerSnapshot = undefined;
@@ -1442,7 +1629,9 @@ export class LegalChatService extends Service {
     const systemPrompt = this.composeSystemPrompt({
       mode,
       caseTitle: caseRecord?.title ?? 'Unbekannt',
-      clientName: matter?.clientId ? graph?.clients?.[matter.clientId]?.displayName : undefined,
+      clientName: matter?.clientId
+        ? graph?.clients?.[matter.clientId]?.displayName
+        : undefined,
       matterTitle: matter?.title,
       aktenzeichen: matter?.externalRef,
       gericht: matter?.gericht,
@@ -1480,27 +1669,34 @@ export class LegalChatService extends Service {
     };
   }
 
-  private findRelevantChunks(
+  private async findRelevantChunks(
     query: string,
     chunks: SemanticChunk[],
     docs: LegalDocumentRecord[],
     activeJurisdiction: Jurisdiction,
     mode: LegalChatMode,
-    maxChunks: number
-  ): LegalChatContextSnapshot['relevantChunks'] {
+    maxChunks: number,
+    caseId?: string,
+    workspaceId?: string
+  ): Promise<LegalChatContextSnapshot['relevantChunks']> {
     const queryLower = query.toLowerCase();
     const queryTokens = toTokenSet(queryLower);
     const expandedQueryTokens = expandLegalQueryTokens(queryTokens);
 
     // Extract query-level signals for entity matching
-    const queryLegalRefs = (query.match(/§§?\s*\d+[a-z]?(?:\s*abs\.?\s*\d+)?/gi) ?? [])
-      .map(s => s.trim().toLowerCase());
+    const queryLegalRefs = (
+      query.match(/§§?\s*\d+[a-z]?(?:\s*abs\.?\s*\d+)?/gi) ?? []
+    ).map(s => s.trim().toLowerCase());
 
     const docMap = new Map(docs.map(d => [d.id, d]));
     const modePreferredCategories = this.getModePreferredCategories(mode);
     const chunkCandidates = chunks.filter(chunk => {
       const doc = docMap.get(chunk.documentId);
-      if (!doc || doc.status !== 'indexed' || doc.processingStatus === 'failed') {
+      if (
+        !doc ||
+        doc.status !== 'indexed' ||
+        doc.processingStatus === 'failed'
+      ) {
         return false;
       }
 
@@ -1525,10 +1721,13 @@ export class LegalChatService extends Service {
 
     // GAP-7 FIX: Build TF-IDF corpus for semantic scoring
     const queryTf = buildTfVector(queryLower);
-    const chunkTfVectors = chunkCandidates.map(c => buildTfVector(c.text.toLowerCase()));
-    const idfWeights = chunkTfVectors.length > 0
-      ? buildIdfWeights([queryTf, ...chunkTfVectors])
-      : new Map<string, number>();
+    const chunkTfVectors = chunkCandidates.map(c =>
+      buildTfVector(c.text.toLowerCase())
+    );
+    const idfWeights =
+      chunkTfVectors.length > 0
+        ? buildIdfWeights([queryTf, ...chunkTfVectors])
+        : new Map<string, number>();
 
     const scored = chunkCandidates.map((chunk, idx) => {
       const doc = docMap.get(chunk.documentId);
@@ -1541,7 +1740,11 @@ export class LegalChatService extends Service {
       score += jaccardSimilarity(expandedQueryTokens, keywordTokens) * 6;
 
       // TF-IDF cosine similarity (semantic signal beyond keyword overlap)
-      const cosineSim = tfidfCosineSimilarity(queryTf, chunkTfVectors[idx], idfWeights);
+      const cosineSim = tfidfCosineSimilarity(
+        queryTf,
+        chunkTfVectors[idx],
+        idfWeights
+      );
       score += cosineSim * 10;
 
       // Keyword overlap (base signal)
@@ -1590,7 +1793,8 @@ export class LegalChatService extends Service {
 
       // Quality score weighting (now meaningful with computeChunkQualityScore)
       const chunkQuality = Math.max(0, Math.min(1, chunk.qualityScore ?? 0.5));
-      const docQualityRaw = doc?.qualityScore ??
+      const docQualityRaw =
+        doc?.qualityScore ??
         (typeof doc?.overallQualityScore === 'number'
           ? doc.overallQualityScore / 100
           : 0.6);
@@ -1610,7 +1814,7 @@ export class LegalChatService extends Service {
       return { chunk, score };
     });
 
-    return scored
+    const tfidfResults = scored
       .filter(s => s.score > 1.8)
       .sort((a, b) => b.score - a.score)
       .slice(0, maxChunks)
@@ -1621,18 +1825,100 @@ export class LegalChatService extends Service {
         text: chunk.text.slice(0, 1500),
         category: chunk.category,
         relevanceScore: Math.min(1, score / 18),
+        _source: 'tfidf' as const,
       }));
+
+    // ── Vector search: try backend semantic retrieval first ──────────────────
+    // Backend pgvector cosine similarity finds semantically related chunks even
+    // when exact keywords differ (e.g. 'Haftung' ↔ 'Schadensersatz'). Results
+    // are merged with TF-IDF, deduped by chunkId, and sorted by combined score.
+    if (caseId && workspaceId) {
+      try {
+        const vectorHits: RagSearchResult[] | null =
+          await this.ragSync.searchSemantic(
+            workspaceId,
+            caseId,
+            query,
+            maxChunks
+          );
+
+        if (vectorHits && vectorHits.length > 0) {
+          // Map vector results to the same shape, boosted by semantic distance
+          const seenChunkKeys = new Set(
+            tfidfResults.map(r => `${r.documentId}:${r.chunkId}`)
+          );
+          const vectorResults = vectorHits
+            .filter(h => h.content && h.content.length > 0)
+            .map(h => ({
+              chunkId: `${h.documentId}:${h.chunkIndex}`,
+              documentId: h.documentId,
+              documentTitle: docMap.get(h.documentId)?.title ?? 'Dokument',
+              text: h.content.slice(0, 1500),
+              category: h.category as SemanticChunkCategory,
+              // Convert cosine distance (0=identical, 1=orthogonal) to relevance (0–1)
+              relevanceScore: Math.max(0, Math.min(1, 1 - h.distance)),
+              _source: 'vector' as const,
+            }))
+            .filter(r => !seenChunkKeys.has(`${r.documentId}:${r.chunkId}`));
+
+          // Merge: vector results at front (higher semantic precision),
+          // followed by TF-IDF-only results, capped at maxChunks.
+          const merged = [...vectorResults, ...tfidfResults].slice(
+            0,
+            maxChunks
+          );
+
+          return merged.map(({ _source: _s, ...r }) => r);
+        }
+      } catch {
+        // Vector search unavailable — TF-IDF results are sufficient.
+      }
+    }
+
+    return tfidfResults.map(({ _source: _s, ...r }) => r);
   }
 
   private getModePreferredCategories(mode: LegalChatMode): string[] {
     switch (mode) {
-      case 'strategie': return ['rechtsausfuehrung', 'antrag', 'urteil', 'begruendung', 'klageschrift', 'berufung'];
-      case 'subsumtion': return ['sachverhalt', 'rechtsausfuehrung', 'begruendung', 'anklageschrift', 'klageschrift'];
-      case 'gegner': return ['korrespondenz', 'antrag', 'rechtsausfuehrung', 'klageschrift', 'mahnung'];
-      case 'beweislage': return ['beweis', 'zeuge', 'gutachten', 'sachverhalt', 'protokoll'];
-      case 'fristen': return ['frist', 'bescheid', 'urteil', 'mahnung'];
-      case 'normen': return ['rechtsausfuehrung', 'urteil', 'begruendung', 'anklageschrift', 'strafanzeige'];
-      default: return [];
+      case 'strategie':
+        return [
+          'rechtsausfuehrung',
+          'antrag',
+          'urteil',
+          'begruendung',
+          'klageschrift',
+          'berufung',
+        ];
+      case 'subsumtion':
+        return [
+          'sachverhalt',
+          'rechtsausfuehrung',
+          'begruendung',
+          'anklageschrift',
+          'klageschrift',
+        ];
+      case 'gegner':
+        return [
+          'korrespondenz',
+          'antrag',
+          'rechtsausfuehrung',
+          'klageschrift',
+          'mahnung',
+        ];
+      case 'beweislage':
+        return ['beweis', 'zeuge', 'gutachten', 'sachverhalt', 'protokoll'];
+      case 'fristen':
+        return ['frist', 'bescheid', 'urteil', 'mahnung'];
+      case 'normen':
+        return [
+          'rechtsausfuehrung',
+          'urteil',
+          'begruendung',
+          'anklageschrift',
+          'strafanzeige',
+        ];
+      default:
+        return [];
     }
   }
 
@@ -1642,8 +1928,12 @@ export class LegalChatService extends Service {
     const high = findings.filter(f => f.severity === 'high');
     const lines = [
       `${findings.length} Findings insgesamt`,
-      critical.length > 0 ? `⚠️ ${critical.length} kritisch: ${critical.map(f => f.title).join(', ')}` : null,
-      high.length > 0 ? `🔴 ${high.length} hoch: ${high.map(f => f.title).join(', ')}` : null,
+      critical.length > 0
+        ? `⚠️ ${critical.length} kritisch: ${critical.map(f => f.title).join(', ')}`
+        : null,
+      high.length > 0
+        ? `🔴 ${high.length} hoch: ${high.map(f => f.title).join(', ')}`
+        : null,
     ].filter(Boolean);
     return lines.join('\n');
   }
@@ -1673,11 +1963,17 @@ export class LegalChatService extends Service {
       const daysUntil = Math.ceil((dueMs - now) / 86_400_000);
 
       if (daysUntil < 0) {
-        warnings.push(`❌ ÜBERFÄLLIG: ${dl.title} (seit ${Math.abs(daysUntil)} Tagen)`);
+        warnings.push(
+          `❌ ÜBERFÄLLIG: ${dl.title} (seit ${Math.abs(daysUntil)} Tagen)`
+        );
       } else if (daysUntil <= 7) {
-        warnings.push(`⚠️ ${dl.title}: fällig in ${daysUntil} Tag(en) (${dl.dueAt.slice(0, 10)})`);
+        warnings.push(
+          `⚠️ ${dl.title}: fällig in ${daysUntil} Tag(en) (${dl.dueAt.slice(0, 10)})`
+        );
       } else if (daysUntil <= 30) {
-        warnings.push(`📅 ${dl.title}: fällig am ${dl.dueAt.slice(0, 10)} (${daysUntil} Tage)`);
+        warnings.push(
+          `📅 ${dl.title}: fällig am ${dl.dueAt.slice(0, 10)} (${daysUntil} Tage)`
+        );
       }
     }
 
@@ -1709,24 +2005,32 @@ export class LegalChatService extends Service {
       relevanceScore: number;
     }>
   ): LegalChatContextSnapshot['judikaturContext'] {
-    const authorityWeight: Record<'binding' | 'persuasive' | 'reference', number> = {
+    const authorityWeight: Record<
+      'binding' | 'persuasive' | 'reference',
+      number
+    > = {
       binding: 3,
       persuasive: 1.5,
       reference: 0.4,
     };
 
-    const temporalWeight: Record<'current' | 'historical' | 'unknown', number> = {
-      current: 2,
-      unknown: 0.6,
-      historical: -3,
-    };
+    const temporalWeight: Record<'current' | 'historical' | 'unknown', number> =
+      {
+        current: 2,
+        unknown: 0.6,
+        historical: -3,
+      };
 
     return [...suggestions]
       .sort((a, b) => {
-        const aAuthority = authorityWeight[a.authorityLevel ?? 'reference'] ?? 0;
-        const bAuthority = authorityWeight[b.authorityLevel ?? 'reference'] ?? 0;
-        const aTemporal = temporalWeight[a.temporalApplicability ?? 'unknown'] ?? 0;
-        const bTemporal = temporalWeight[b.temporalApplicability ?? 'unknown'] ?? 0;
+        const aAuthority =
+          authorityWeight[a.authorityLevel ?? 'reference'] ?? 0;
+        const bAuthority =
+          authorityWeight[b.authorityLevel ?? 'reference'] ?? 0;
+        const aTemporal =
+          temporalWeight[a.temporalApplicability ?? 'unknown'] ?? 0;
+        const bTemporal =
+          temporalWeight[b.temporalApplicability ?? 'unknown'] ?? 0;
         const aScore = a.relevanceScore + aAuthority + aTemporal;
         const bScore = b.relevanceScore + bAuthority + bTemporal;
         return bScore - aScore;
@@ -1770,13 +2074,18 @@ export class LegalChatService extends Service {
       doc => (doc.overallQualityScore ?? 100) < 30
     );
     const lowQualityDocs = input.effectiveDocs.filter(
-      doc => doc.processingStatus === 'needs_review' ||
-        ((doc.qualityScore ?? 1) < 0.45 && (doc.overallQualityScore ?? 100) >= 30)
+      doc =>
+        doc.processingStatus === 'needs_review' ||
+        ((doc.qualityScore ?? 1) < 0.45 &&
+          (doc.overallQualityScore ?? 100) >= 30)
     );
     if (veryLowQualityDocs.length > 0) {
       warnings.push(
         `${veryLowQualityDocs.length} Dokument(e) haben sehr niedrige Extraktionsqualität (<30%) — ` +
-        `extrahierter Text ist möglicherweise unvollständig oder fehlerhaft: ${veryLowQualityDocs.slice(0, 3).map(d => d.title).join(', ')}.`
+          `extrahierter Text ist möglicherweise unvollständig oder fehlerhaft: ${veryLowQualityDocs
+            .slice(0, 3)
+            .map(d => d.title)
+            .join(', ')}.`
       );
     }
     if (lowQualityDocs.length > 0) {
@@ -1816,15 +2125,21 @@ export class LegalChatService extends Service {
     const notes: string[] = [];
 
     if (input.sourceCitations.length === 0) {
-      notes.push('Für diese Antwort wurden keine belastbaren Dokumentzitate erkannt. Bitte Antwort in den Aktenquellen verifizieren.');
+      notes.push(
+        'Für diese Antwort wurden keine belastbaren Dokumentzitate erkannt. Bitte Antwort in den Aktenquellen verifizieren.'
+      );
     }
 
     if (historicalCount > 0 && currentCount === 0) {
-      notes.push('Die erkannte Judikatur ist ausschließlich historisch/überholt. Nicht als tragende aktuelle Rechtsgrundlage verwenden.');
+      notes.push(
+        'Die erkannte Judikatur ist ausschließlich historisch/überholt. Nicht als tragende aktuelle Rechtsgrundlage verwenden.'
+      );
     }
 
     if (unknownCount > 0) {
-      notes.push('Mindestens eine zitierte Quelle hat unklare zeitliche Gültigkeit. Aktualität vor Verwendung prüfen.');
+      notes.push(
+        'Mindestens eine zitierte Quelle hat unklare zeitliche Gültigkeit. Aktualität vor Verwendung prüfen.'
+      );
     }
 
     for (const warning of input.context.sourceReliabilityWarnings.slice(0, 2)) {
@@ -1929,13 +2244,23 @@ export class LegalChatService extends Service {
     }
 
     parts.push(`\n═══ ANWEISUNGEN ═══`);
-    parts.push(`- Beziehe dich auf die bereitgestellten Dokumente und zitiere Quellen.`);
+    parts.push(
+      `- Beziehe dich auf die bereitgestellten Dokumente und zitiere Quellen.`
+    );
     parts.push(`- Wenn du eine Norm erwähnst, nenne den genauen Paragraphen.`);
-    parts.push(`- Strukturiere deine Antwort mit Überschriften und Aufzählungen.`);
+    parts.push(
+      `- Strukturiere deine Antwort mit Überschriften und Aufzählungen.`
+    );
     parts.push(`- Wenn dir Informationen fehlen, weise explizit darauf hin.`);
-    parts.push(`- Nutze das kollektive Wissen aus anderen anonymisierten Fällen, um deine Analyse zu stärken.`);
-    parts.push(`- Verwende historische/überholte Judikatur niemals als tragende Begründung.`);
-    parts.push(`- Bei unklarer zeitlicher Gültigkeit kennzeichne die Quelle explizit als verifikationspflichtig.`);
+    parts.push(
+      `- Nutze das kollektive Wissen aus anderen anonymisierten Fällen, um deine Analyse zu stärken.`
+    );
+    parts.push(
+      `- Verwende historische/überholte Judikatur niemals als tragende Begründung.`
+    );
+    parts.push(
+      `- Bei unklarer zeitlicher Gültigkeit kennzeichne die Quelle explizit als verifikationspflichtig.`
+    );
     parts.push(`- Antworte auf Deutsch.`);
 
     return parts.join('\n');
@@ -1953,7 +2278,8 @@ export class LegalChatService extends Service {
     content: string;
     mode: LegalChatMode;
   }): Promise<LegalChatMessage> {
-    const { sessionId, caseId, contextCaseIds, workspaceId, content, mode } = input;
+    const { sessionId, caseId, contextCaseIds, workspaceId, content, mode } =
+      input;
     const startTime = Date.now();
     const now = new Date().toISOString();
     const selectedModel = this.getSelectedModel(sessionId);
@@ -2026,7 +2352,11 @@ export class LegalChatService extends Service {
           ),
         ],
       });
-      this.updateSessionMetadata(sessionId, content, userMessage.tokenEstimate + 20);
+      this.updateSessionMetadata(
+        sessionId,
+        content,
+        userMessage.tokenEstimate + 20
+      );
       return (
         this.store.getChatMessages().find(m => m.id === assistantMessage.id) ??
         assistantMessage
@@ -2034,8 +2364,13 @@ export class LegalChatService extends Service {
     }
 
     if (this.shouldClarifyRequest(content)) {
-      const tcClarify = this.createToolCall('clarify_request', 'Anfrage auf Vollständigkeit prüfen');
-      toolCalls.push(this.completeToolCall(tcClarify, 'Rückfrage erforderlich'));
+      const tcClarify = this.createToolCall(
+        'clarify_request',
+        'Anfrage auf Vollständigkeit prüfen'
+      );
+      toolCalls.push(
+        this.completeToolCall(tcClarify, 'Rückfrage erforderlich')
+      );
       const clarificationPrompt = this.buildClarifierMessage(mode);
       this.updateMessageInStore(assistantMessage.id, {
         status: 'complete',
@@ -2048,31 +2383,56 @@ export class LegalChatService extends Service {
         content,
         userMessage.tokenEstimate + estimateTokens(clarificationPrompt)
       );
-      return this.store.getChatMessages().find(m => m.id === assistantMessage.id) ?? assistantMessage;
+      return (
+        this.store.getChatMessages().find(m => m.id === assistantMessage.id) ??
+        assistantMessage
+      );
     }
 
     // ── TOOL: Credit Check ──────────────────────────────────────────────────
     const tcCredit = this.createToolCall('credit_check', 'AI-Credits prüfen');
     toolCalls.push(tcCredit);
-    this.updateMessageInStore(assistantMessage.id, { toolCalls: [...toolCalls] });
+    this.updateMessageInStore(assistantMessage.id, {
+      toolCalls: [...toolCalls],
+    });
 
-    const creditCheck = await this.creditGateway.checkAiCredits(chatMessageCreditCost);
+    const creditCheck = await this.creditGateway.checkAiCredits(
+      chatMessageCreditCost
+    );
     if (!creditCheck.allowed) {
-      toolCalls[toolCalls.length - 1] = this.failToolCall(tcCredit, 'Nicht genügend Credits');
+      toolCalls[toolCalls.length - 1] = this.failToolCall(
+        tcCredit,
+        'Nicht genügend Credits'
+      );
       this.updateMessageInStore(assistantMessage.id, {
         content: `⚠️ **Nicht genügend AI-Credits**\n\n${creditCheck.message}\n\nBitte kaufen Sie zusätzliche AI-Credits im Add-on-Shop.`,
         status: 'complete',
         toolCalls: [...toolCalls],
       });
-      return { ...assistantMessage, content: creditCheck.message ?? '', status: 'complete', toolCalls: [...toolCalls] };
+      return {
+        ...assistantMessage,
+        content: creditCheck.message ?? '',
+        status: 'complete',
+        toolCalls: [...toolCalls],
+      };
     }
-    toolCalls[toolCalls.length - 1] = this.completeToolCall(tcCredit, 'Credits verfügbar');
-    this.updateMessageInStore(assistantMessage.id, { toolCalls: [...toolCalls] });
+    toolCalls[toolCalls.length - 1] = this.completeToolCall(
+      tcCredit,
+      'Credits verfügbar'
+    );
+    this.updateMessageInStore(assistantMessage.id, {
+      toolCalls: [...toolCalls],
+    });
 
     // ── TOOL: Build Context ─────────────────────────────────────────────────
-    const tcContext = this.createToolCall('build_context', `Fallkontext für "${content.slice(0, 50)}…"`);
+    const tcContext = this.createToolCall(
+      'build_context',
+      `Fallkontext für "${content.slice(0, 50)}…"`
+    );
     toolCalls.push(tcContext);
-    this.updateMessageInStore(assistantMessage.id, { toolCalls: [...toolCalls] });
+    this.updateMessageInStore(assistantMessage.id, {
+      toolCalls: [...toolCalls],
+    });
 
     const context = await this.buildContextSnapshot({
       caseId,
@@ -2087,13 +2447,19 @@ export class LegalChatService extends Service {
     const contextDetailLines: ChatToolCallDetailLine[] = [];
     if (context.relevantChunks.length > 0) {
       // Group chunks by document and show per-doc detail
-      const docChunkCounts = new Map<string, { title: string; count: number }>();
+      const docChunkCounts = new Map<
+        string,
+        { title: string; count: number }
+      >();
       for (const chunk of context.relevantChunks) {
         const existing = docChunkCounts.get(chunk.documentId);
         if (existing) {
           existing.count++;
         } else {
-          docChunkCounts.set(chunk.documentId, { title: chunk.documentTitle, count: 1 });
+          docChunkCounts.set(chunk.documentId, {
+            title: chunk.documentTitle,
+            count: 1,
+          });
         }
       }
       for (const [, doc] of docChunkCounts) {
@@ -2110,7 +2476,10 @@ export class LegalChatService extends Service {
         contextDetailLines.push({ icon: 'norm', label: norm });
       }
       if (context.activeNorms.length > 5) {
-        contextDetailLines.push({ icon: 'norm', label: `+${context.activeNorms.length - 5} weitere Normen` });
+        contextDetailLines.push({
+          icon: 'norm',
+          label: `+${context.activeNorms.length - 5} weitere Normen`,
+        });
       }
     }
     if (context.deadlineWarnings.length > 0) {
@@ -2147,11 +2516,16 @@ export class LegalChatService extends Service {
       `${context.relevantChunks.length} Chunks, ${context.activeNorms.length} Normen, ${context.deadlineWarnings.length} Fristen`,
       contextDetailLines.length > 0 ? contextDetailLines : undefined
     );
-    this.updateMessageInStore(assistantMessage.id, { toolCalls: [...toolCalls] });
+    this.updateMessageInStore(assistantMessage.id, {
+      toolCalls: [...toolCalls],
+    });
 
     // ── TOOL: Search Chunks (if chunks were found) ──────────────────────────
     if (context.relevantChunks.length > 0) {
-      const tcSearch = this.createToolCall('search_chunks', `Semantische Suche: "${content.slice(0, 40)}…"`);
+      const tcSearch = this.createToolCall(
+        'search_chunks',
+        `Semantische Suche: "${content.slice(0, 40)}…"`
+      );
       toolCalls.push(tcSearch);
 
       // Build chunk detail lines (like Cascade's "Searched X in Y")
@@ -2169,26 +2543,38 @@ export class LegalChatService extends Service {
         `${context.relevantChunks.length} relevante Dokument-Abschnitte gefunden`,
         chunkDetailLines
       );
-      this.updateMessageInStore(assistantMessage.id, { toolCalls: [...toolCalls] });
+      this.updateMessageInStore(assistantMessage.id, {
+        toolCalls: [...toolCalls],
+      });
     }
 
     // ── TOOL: Collective Intelligence (if injected) ─────────────────────────
     if (context.collectiveContext) {
-      const tcCI = this.createToolCall('collective_intelligence', 'Anonymisiertes Kanzleiwissen');
+      const tcCI = this.createToolCall(
+        'collective_intelligence',
+        'Anonymisiertes Kanzleiwissen'
+      );
       toolCalls.push(tcCI);
       const matchCount = context.collectiveContext?.matchedEntries?.length ?? 0;
       toolCalls[toolCalls.length - 1] = this.completeToolCall(
         tcCI,
         `${matchCount} kollektive Wissensmuster injiziert`
       );
-      this.updateMessageInStore(assistantMessage.id, { toolCalls: [...toolCalls] });
+      this.updateMessageInStore(assistantMessage.id, {
+        toolCalls: [...toolCalls],
+      });
     }
 
     // ── TOOL: Memory Lookup (Copilot-Gedächtnis) ─────────────────────────
     let usedMemoryIds: string[] = [];
-    const tcMemory = this.createToolCall('memory_lookup', 'Copilot-Gedächtnis abfragen');
+    const tcMemory = this.createToolCall(
+      'memory_lookup',
+      'Copilot-Gedächtnis abfragen'
+    );
     toolCalls.push(tcMemory);
-    this.updateMessageInStore(assistantMessage.id, { toolCalls: [...toolCalls] });
+    this.updateMessageInStore(assistantMessage.id, {
+      toolCalls: [...toolCalls],
+    });
 
     try {
       const memoryContext = await this.copilotMemory.buildMemoryContextBlock({
@@ -2220,8 +2606,16 @@ export class LegalChatService extends Service {
     });
 
     if (this.shouldRequireApproval(content)) {
-      const tcApproval = this.createToolCall('approval_gate', 'Ausführungsparameter vor Run prüfen');
-      toolCalls.push(this.awaitToolApproval(tcApproval, this.buildApprovalRequest(content, mode)));
+      const tcApproval = this.createToolCall(
+        'approval_gate',
+        'Ausführungsparameter vor Run prüfen'
+      );
+      toolCalls.push(
+        this.awaitToolApproval(
+          tcApproval,
+          this.buildApprovalRequest(content, mode)
+        )
+      );
       this.updateMessageInStore(assistantMessage.id, {
         status: 'complete',
         toolCalls: [...toolCalls],
@@ -2243,7 +2637,10 @@ export class LegalChatService extends Service {
         originalUserContent: content,
         userTokenEstimate: userMessage.tokenEstimate,
       });
-      return this.store.getChatMessages().find(m => m.id === assistantMessage.id) ?? assistantMessage;
+      return (
+        this.store.getChatMessages().find(m => m.id === assistantMessage.id) ??
+        assistantMessage
+      );
     }
 
     return this.runGenerationStage({
@@ -2296,7 +2693,11 @@ export class LegalChatService extends Service {
       throw new Error(`LLM request failed: ${response.status}`);
     }
 
-    const payload = (await response.json()) as { answer?: string; content?: string; text?: string };
+    const payload = (await response.json()) as {
+      answer?: string;
+      content?: string;
+      text?: string;
+    };
     const answer = payload.answer ?? payload.content ?? payload.text ?? '';
     if (!answer.trim()) {
       throw new Error('Empty LLM response');
@@ -2357,11 +2758,15 @@ export class LegalChatService extends Service {
     }
 
     if (parts.length <= 3) {
-      parts.push(`Für die Anfrage "${query.slice(0, 80)}" konnten keine relevanten Informationen im Akt gefunden werden.`);
+      parts.push(
+        `Für die Anfrage "${query.slice(0, 80)}" konnten keine relevanten Informationen im Akt gefunden werden.`
+      );
       parts.push(`Bitte stellen Sie sicher, dass Dokumente indexiert wurden.`);
     }
 
-    parts.push(`\n---\n*Für vollständige KI-Analyse: bitte später erneut versuchen. Die Tenant-LLM-API war temporär nicht erreichbar.*`);
+    parts.push(
+      `\n---\n*Für vollständige KI-Analyse: bitte später erneut versuchen. Die Tenant-LLM-API war temporär nicht erreichbar.*`
+    );
 
     return parts.join('\n');
   }
@@ -2436,9 +2841,13 @@ export class LegalChatService extends Service {
       if (seen.has(key)) continue;
       seen.add(key);
 
-      const results = this.legalNormsService.searchNorms(`§ ${paragraph} ${law}`, 1, {
-        jurisdictions: [activeJurisdiction, 'EU', 'ECHR'],
-      });
+      const results = this.legalNormsService.searchNorms(
+        `§ ${paragraph} ${law}`,
+        1,
+        {
+          jurisdictions: [activeJurisdiction, 'EU', 'ECHR'],
+        }
+      );
       const norm = results[0];
 
       citations.push({
@@ -2446,7 +2855,9 @@ export class LegalChatService extends Service {
         law: norm?.norm?.law ?? law,
         paragraph: `§ ${paragraph}`,
         title: norm?.norm?.title ?? `§ ${paragraph} ${law}`,
-        relevance: norm ? `Score: ${(norm.matchScore * 100).toFixed(0)}%` : 'Referenziert',
+        relevance: norm
+          ? `Score: ${(norm.matchScore * 100).toFixed(0)}%`
+          : 'Referenziert',
       });
     }
 
@@ -2460,9 +2871,13 @@ export class LegalChatService extends Service {
   ): LegalChatFindingRef[] {
     // Use the sync globalState.get for findings since we're in a sync method
     const rawFindings: LegalFinding[] =
-      (this.store as any).globalState?.get?.(`case-assistant:${workspaceId}:legal-findings`) ?? [];
+      (this.store as any).globalState?.get?.(
+        `case-assistant:${workspaceId}:legal-findings`
+      ) ?? [];
 
-    const legalFindings = (Array.isArray(rawFindings) ? rawFindings : []).filter(
+    const legalFindings = (
+      Array.isArray(rawFindings) ? rawFindings : []
+    ).filter(
       (f: LegalFinding) => f.caseId === caseId && f.workspaceId === workspaceId
     );
 
@@ -2470,7 +2885,10 @@ export class LegalChatService extends Service {
     const refs: LegalChatFindingRef[] = [];
 
     for (const finding of legalFindings) {
-      const titleWords = finding.title.toLowerCase().split(/\s+/).filter((w: string) => w.length > 3);
+      const titleWords = finding.title
+        .toLowerCase()
+        .split(/\s+/)
+        .filter((w: string) => w.length > 3);
       const matched = titleWords.some((w: string) => responseLower.includes(w));
       if (matched) {
         refs.push({
@@ -2485,7 +2903,11 @@ export class LegalChatService extends Service {
     return refs.slice(0, 10);
   }
 
-  private updateSessionMetadata(sessionId: string, lastUserMessage: string, addedTokens: number): void {
+  private updateSessionMetadata(
+    sessionId: string,
+    lastUserMessage: string,
+    addedTokens: number
+  ): void {
     const sessions = this.store.getChatSessions();
     const session = sessions.find(s => s.id === sessionId);
     if (!session) return;
@@ -2507,52 +2929,170 @@ export class LegalChatService extends Service {
     return { command: match[1].toLowerCase(), args: match[2].trim() };
   }
 
-  getAvailableCommands(): Array<{ command: string; description: string; example: string }> {
+  getAvailableCommands(): Array<{
+    command: string;
+    description: string;
+    example: string;
+  }> {
     return [
-      { command: '/norm', description: 'Norm-Recherche', example: '/norm § 823 BGB' },
-      { command: '/beweis', description: 'Beweislage analysieren', example: '/beweis Welche Beweismittel fehlen?' },
-      { command: '/frist', description: 'Fristen prüfen', example: '/frist Welche Fristen laufen?' },
-      { command: '/ocr', description: 'OCR-Warteschlange verarbeiten', example: '/ocr' },
-      { command: '/analyse', description: 'Fallanalyse starten', example: '/analyse' },
-      { command: '/workflow', description: 'OCR + Analyse als Vollworkflow', example: '/workflow' },
-      { command: '/folder', description: 'Ordnerzusammenfassung', example: '/folder eingang/postfach' },
-      { command: '/widerspruch', description: 'Widersprüche suchen', example: '/widerspruch Gibt es Widersprüche in den Zeugenaussagen?' },
-      { command: '/strategie', description: 'Strategieberatung', example: '/strategie Wie sollten wir im Berufungsverfahren vorgehen?' },
-      { command: '/gegner', description: 'Gegner-Perspektive', example: '/gegner Was wird die Gegenseite argumentieren?' },
-      { command: '/dropbox', description: 'Dropbox-Akten durchsuchen', example: '/dropbox kündigung 2024' },
-      { command: '/zeit', description: 'Zeiteintrag erfassen', example: '/zeit 90 Minuten Beratung zu Schriftsatz, 220 EUR/h' },
-      { command: '/rechnung', description: 'Rechnung/Leistungsabrechnung erstellen', example: '/rechnung Leistungsabrechnung aus Zeiterfassung' },
-      { command: '/notiz', description: 'Aktennotiz erstellen', example: '/notiz Telefonat mit Mandant zur Vergleichsoption' },
-      { command: '/zwischenbericht', description: 'Zwischenbericht an Mandant versenden', example: '/zwischenbericht Aktueller Stand: Klage eingereicht, Frist notiert, naechster Schritt Beweisaufnahme.' },
-      { command: '/berichtfreigabe', description: 'Zwischenbericht freigeben', example: '/berichtfreigabe email-draft:abc123 Juristisch geprüft und freigegeben.' },
-      { command: '/berichtversand', description: 'Freigegebenen Zwischenbericht versenden', example: '/berichtversand email-draft:abc123' },
-      { command: '/zusammenfassung', description: 'Fall-Zusammenfassung', example: '/zusammenfassung' },
-      { command: '/dokument', description: 'Dokument per AI erstellen', example: '/dokument Schriftsatz zur Klageerwiderung' },
-      { command: '/richter', description: 'Richter-Simulation', example: '/richter Wie würde das Gericht entscheiden?' },
-      { command: '/crosscheck', description: 'Cross-Check neuer Dokumente gegen Akte', example: '/crosscheck' },
-      { command: '/merke', description: 'Information im Copilot-Gedächtnis speichern', example: '/merke Mandant bevorzugt formelle Ansprache' },
-      { command: '/gedaechtnis', description: 'Copilot-Gedächtnis anzeigen', example: '/gedaechtnis' },
+      {
+        command: '/norm',
+        description: 'Norm-Recherche',
+        example: '/norm § 823 BGB',
+      },
+      {
+        command: '/beweis',
+        description: 'Beweislage analysieren',
+        example: '/beweis Welche Beweismittel fehlen?',
+      },
+      {
+        command: '/frist',
+        description: 'Fristen prüfen',
+        example: '/frist Welche Fristen laufen?',
+      },
+      {
+        command: '/ocr',
+        description: 'OCR-Warteschlange verarbeiten',
+        example: '/ocr',
+      },
+      {
+        command: '/analyse',
+        description: 'Fallanalyse starten',
+        example: '/analyse',
+      },
+      {
+        command: '/workflow',
+        description: 'OCR + Analyse als Vollworkflow',
+        example: '/workflow',
+      },
+      {
+        command: '/folder',
+        description: 'Ordnerzusammenfassung',
+        example: '/folder eingang/postfach',
+      },
+      {
+        command: '/widerspruch',
+        description: 'Widersprüche suchen',
+        example: '/widerspruch Gibt es Widersprüche in den Zeugenaussagen?',
+      },
+      {
+        command: '/strategie',
+        description: 'Strategieberatung',
+        example: '/strategie Wie sollten wir im Berufungsverfahren vorgehen?',
+      },
+      {
+        command: '/gegner',
+        description: 'Gegner-Perspektive',
+        example: '/gegner Was wird die Gegenseite argumentieren?',
+      },
+      {
+        command: '/dropbox',
+        description: 'Dropbox-Akten durchsuchen',
+        example: '/dropbox kündigung 2024',
+      },
+      {
+        command: '/zeit',
+        description: 'Zeiteintrag erfassen',
+        example: '/zeit 90 Minuten Beratung zu Schriftsatz, 220 EUR/h',
+      },
+      {
+        command: '/rechnung',
+        description: 'Rechnung/Leistungsabrechnung erstellen',
+        example: '/rechnung Leistungsabrechnung aus Zeiterfassung',
+      },
+      {
+        command: '/notiz',
+        description: 'Aktennotiz erstellen',
+        example: '/notiz Telefonat mit Mandant zur Vergleichsoption',
+      },
+      {
+        command: '/zwischenbericht',
+        description: 'Zwischenbericht an Mandant versenden',
+        example:
+          '/zwischenbericht Aktueller Stand: Klage eingereicht, Frist notiert, naechster Schritt Beweisaufnahme.',
+      },
+      {
+        command: '/berichtfreigabe',
+        description: 'Zwischenbericht freigeben',
+        example:
+          '/berichtfreigabe email-draft:abc123 Juristisch geprüft und freigegeben.',
+      },
+      {
+        command: '/berichtversand',
+        description: 'Freigegebenen Zwischenbericht versenden',
+        example: '/berichtversand email-draft:abc123',
+      },
+      {
+        command: '/zusammenfassung',
+        description: 'Fall-Zusammenfassung',
+        example: '/zusammenfassung',
+      },
+      {
+        command: '/dokument',
+        description: 'Dokument per AI erstellen',
+        example: '/dokument Schriftsatz zur Klageerwiderung',
+      },
+      {
+        command: '/richter',
+        description: 'Richter-Simulation',
+        example: '/richter Wie würde das Gericht entscheiden?',
+      },
+      {
+        command: '/crosscheck',
+        description: 'Cross-Check neuer Dokumente gegen Akte',
+        example: '/crosscheck',
+      },
+      {
+        command: '/merke',
+        description: 'Information im Copilot-Gedächtnis speichern',
+        example: '/merke Mandant bevorzugt formelle Ansprache',
+      },
+      {
+        command: '/gedaechtnis',
+        description: 'Copilot-Gedächtnis anzeigen',
+        example: '/gedaechtnis',
+      },
     ];
   }
 
   resolveSlashCommandMode(command: string): LegalChatMode {
     switch (command) {
-      case 'norm': case 'normen': return 'normen';
-      case 'beweis': case 'beweislage': return 'beweislage';
-      case 'frist': case 'fristen': return 'fristen';
-      case 'strategie': return 'strategie';
-      case 'gegner': return 'gegner';
-      case 'richter': case 'gericht': return 'richter';
-      case 'widerspruch': return 'general';
-      case 'zwischenbericht': return 'general';
-      case 'berichtfreigabe': return 'general';
-      case 'berichtversand': return 'general';
-      case 'zusammenfassung': return 'general';
-      case 'dokument': return 'general';
-      case 'crosscheck': return 'general';
-      case 'merke': return 'general';
-      case 'gedaechtnis': return 'general';
-      default: return 'general';
+      case 'norm':
+      case 'normen':
+        return 'normen';
+      case 'beweis':
+      case 'beweislage':
+        return 'beweislage';
+      case 'frist':
+      case 'fristen':
+        return 'fristen';
+      case 'strategie':
+        return 'strategie';
+      case 'gegner':
+        return 'gegner';
+      case 'richter':
+      case 'gericht':
+        return 'richter';
+      case 'widerspruch':
+        return 'general';
+      case 'zwischenbericht':
+        return 'general';
+      case 'berichtfreigabe':
+        return 'general';
+      case 'berichtversand':
+        return 'general';
+      case 'zusammenfassung':
+        return 'general';
+      case 'dokument':
+        return 'general';
+      case 'crosscheck':
+        return 'general';
+      case 'merke':
+        return 'general';
+      case 'gedaechtnis':
+        return 'general';
+      default:
+        return 'general';
     }
   }
 
@@ -2561,7 +3101,9 @@ export class LegalChatService extends Service {
    * The caller (legal-main-chat) should route to documentGeneratorService.
    */
   isDocumentGenerationCommand(command: string): boolean {
-    return command === 'dokument' || command === 'document' || command === 'doc';
+    return (
+      command === 'dokument' || command === 'document' || command === 'doc'
+    );
   }
 
   isCrossCheckCommand(command: string): boolean {
@@ -2569,7 +3111,9 @@ export class LegalChatService extends Service {
   }
 
   isMemoryCommand(command: string): boolean {
-    return command === 'merke' || command === 'gedaechtnis' || command === 'memory';
+    return (
+      command === 'merke' || command === 'gedaechtnis' || command === 'memory'
+    );
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -2660,7 +3204,9 @@ export class LegalChatService extends Service {
       return 'Das Copilot-Gedächtnis ist leer. Sagen Sie z.B. "Merke dir: Mandant bevorzugt formelle Ansprache" um Informationen zu speichern.';
     }
 
-    const lines: string[] = [`## Copilot-Gedächtnis (${memories.length} Einträge)\n`];
+    const lines: string[] = [
+      `## Copilot-Gedächtnis (${memories.length} Einträge)\n`,
+    ];
     const byScope = new Map<string, typeof memories>();
     for (const m of memories) {
       const list = byScope.get(m.scope) ?? [];
@@ -2669,10 +3215,19 @@ export class LegalChatService extends Service {
     }
 
     for (const [scope, mems] of byScope) {
-      const scopeLabel = scope === 'session' ? 'Sitzung' : scope === 'case' ? 'Fall' : scope === 'workspace' ? 'Kanzlei' : 'Plattform';
+      const scopeLabel =
+        scope === 'session'
+          ? 'Sitzung'
+          : scope === 'case'
+            ? 'Fall'
+            : scope === 'workspace'
+              ? 'Kanzlei'
+              : 'Plattform';
       lines.push(`### ${scopeLabel} (${mems.length})`);
       for (const m of mems.slice(0, 10)) {
-        lines.push(`- **${m.title}**: ${m.content.slice(0, 100)}${m.content.length > 100 ? '…' : ''}`);
+        lines.push(
+          `- **${m.title}**: ${m.content.slice(0, 100)}${m.content.length > 100 ? '…' : ''}`
+        );
       }
       if (mems.length > 10) lines.push(`- *+${mems.length - 10} weitere…*`);
       lines.push('');

@@ -38,6 +38,7 @@ import type { JudikaturResearchService } from './judikatur-research';
 import type { JurisdictionService } from './jurisdiction';
 import type { KollisionsPruefungService } from './kollisions-pruefung';
 import type { LegalAnalysisProviderService } from './legal-analysis-provider';
+import type { LegalRagSyncService } from './legal-rag-sync.service';
 import { ocrFromDataUrl } from './local-ocr-engine';
 import type { NormClassificationEngine } from './norm-classification-engine';
 import type { CasePlatformOrchestrationService } from './platform-orchestration';
@@ -531,7 +532,10 @@ function deriveProcessingError(engineTag: string | undefined, title: string) {
     return `Binärdaten verloren. Bitte Dokument erneut hochladen: ${title}`;
   if (tag.includes('crash-recovery'))
     return `Verarbeitung abgestürzt. Bitte erneut versuchen: ${title}`;
-  if (tag.includes('ocr-no-viable-text') || tag.includes('local-binary-ocr-failed'))
+  if (
+    tag.includes('ocr-no-viable-text') ||
+    tag.includes('local-binary-ocr-failed')
+  )
     return `Kein lesbarer Text extrahierbar (unlesbare Scan-Qualität oder unbekannte Schriftcodierung): ${title}`;
   return `Dokument konnte nicht verarbeitet werden: ${title}`;
 }
@@ -553,7 +557,8 @@ export class LegalCopilotWorkflowService extends Service {
     private readonly jurisdictionService: JurisdictionService,
     private readonly normClassificationEngine: NormClassificationEngine,
     private readonly kollisionsPruefungService: KollisionsPruefungService,
-    private readonly creditGateway: CreditGatewayService
+    private readonly creditGateway: CreditGatewayService,
+    private readonly ragSync: LegalRagSyncService
   ) {
     super();
   }
@@ -593,18 +598,20 @@ export class LegalCopilotWorkflowService extends Service {
         workspaceId?: string;
         documentId?: string;
       }) => Promise<SemanticChunk[]>;
-      semanticChunks$?: { value?: SemanticChunk[] };
+      semanticChunks?: { value?: SemanticChunk[] };
     };
 
-    if (typeof orchestrationWithSnapshot.getSemanticChunksSnapshot === 'function') {
+    if (
+      typeof orchestrationWithSnapshot.getSemanticChunksSnapshot === 'function'
+    ) {
       return await orchestrationWithSnapshot.getSemanticChunksSnapshot({
         caseId: input.caseId,
         workspaceId: input.workspaceId,
       });
     }
 
-    return (orchestrationWithSnapshot.semanticChunks$?.value ?? []).filter(
-      chunk =>
+    return (orchestrationWithSnapshot.semanticChunks?.value ?? []).filter(
+      (chunk: SemanticChunk) =>
         chunk.caseId === input.caseId && chunk.workspaceId === input.workspaceId
     );
   }
@@ -2987,6 +2994,15 @@ export class LegalCopilotWorkflowService extends Service {
               documentId,
               processingResult.chunks
             );
+            // ── RAG Sync: push chunks to backend pgvector (fire-and-forget) ──
+            this.ragSync
+              .syncChunksToBackend(
+                input.workspaceId,
+                input.caseId,
+                documentId,
+                processingResult.chunks
+              )
+              .catch(() => undefined);
           } catch (chunkErr) {
             console.error(
               `[intakeDocuments] upsertSemanticChunks failed for "${doc.title}":`,
@@ -3023,7 +3039,9 @@ export class LegalCopilotWorkflowService extends Service {
             if (recordIndex >= 0) {
               records[recordIndex] = failedRecord;
             }
-            const existingIndex = existingDocs.findIndex(r => r.id === record.id);
+            const existingIndex = existingDocs.findIndex(
+              r => r.id === record.id
+            );
             if (existingIndex >= 0) {
               existingDocs[existingIndex] = failedRecord;
             }
@@ -3055,7 +3073,9 @@ export class LegalCopilotWorkflowService extends Service {
                 documentId,
                 title: doc.title,
                 fidelityRatio: cf.fidelityRatio.toFixed(4),
-                extractionYieldPerPage: Math.round(cf.extractionYieldPerPage).toString(),
+                extractionYieldPerPage: Math.round(
+                  cf.extractionYieldPerPage
+                ).toString(),
                 chunkCount: cf.chunkCount.toString(),
                 totalChunkChars: cf.totalChunkChars.toString(),
                 normalizedChars: cf.normalizedChars.toString(),
@@ -3410,7 +3430,9 @@ export class LegalCopilotWorkflowService extends Service {
     // ── Mutex: prevent concurrent OCR runs for the same case ──
     // Concurrent runs would cause duplicate chunk writes and race conditions.
     if (this._runningOcrCases.has(caseId)) {
-      console.log(`[processPendingOcr] Skipped — OCR already running for case ${caseId}`);
+      console.log(
+        `[processPendingOcr] Skipped — OCR already running for case ${caseId}`
+      );
       return [] as OcrJob[];
     }
     this._runningOcrCases.add(caseId);
@@ -3887,6 +3909,14 @@ export class LegalCopilotWorkflowService extends Service {
 
         await this.orchestration.upsertSemanticChunks(doc.id, processed.chunks);
 
+        // ── RAG Sync: push structure-aware chunks to backend pgvector ──
+        // Fire-and-forget — does not block OCR processing or UI feedback.
+        if (nextStatus === 'indexed' && processed.chunks.length > 0) {
+          this.ragSync
+            .syncChunksToBackend(workspaceId, caseId, doc.id, processed.chunks)
+            .catch(() => undefined);
+        }
+
         // ── OCR Path: Content Fidelity Verification ──
         const ocfRef = processed.contentFidelity;
         if (!ocfRef.contentIntegrityOk || ocfRef.suspiciousLowYield) {
@@ -3909,7 +3939,9 @@ export class LegalCopilotWorkflowService extends Service {
               documentId: doc.id,
               title: doc.title,
               fidelityRatio: ocfRef.fidelityRatio.toFixed(4),
-              extractionYieldPerPage: Math.round(ocfRef.extractionYieldPerPage).toString(),
+              extractionYieldPerPage: Math.round(
+                ocfRef.extractionYieldPerPage
+              ).toString(),
               chunkCount: ocfRef.chunkCount.toString(),
               normalizedChars: ocfRef.normalizedChars.toString(),
               extractionEngine: ocrResult.engine ?? queued.engine ?? '',
