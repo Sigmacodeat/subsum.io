@@ -29,6 +29,7 @@ import {
   ViewIcon,
   ViewSidebarTab,
   ViewTitle,
+  WorkbenchService,
 } from '@affine/core/modules/workbench';
 import { WorkspaceService } from '@affine/core/modules/workspace';
 import { useI18n } from '@affine/i18n';
@@ -61,8 +62,9 @@ export const Component = () => {
 
   const t = useI18n();
   const location = useLocation();
-  const workspaceId = useService(WorkspaceService).workspace.id;
-
+  const workspace = useService(WorkspaceService).workspace;
+  const workspaceId = workspace.id;
+  const workbench = useService(WorkbenchService).workbench;
   const caseAssistantService = useService(CaseAssistantService);
   const legalChatService = useService(LegalChatService);
   const legalCopilotWorkflowService = useService(LegalCopilotWorkflowService);
@@ -132,13 +134,13 @@ export const Component = () => {
       Object.values(graph?.cases ?? {})
         .filter(
           (caseFile): caseFile is CaseFile =>
-            caseFile.workspaceId === workspaceId
+            caseFile.workspaceId === workspace.id
         )
         .sort(
           (a, b) =>
             new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
         ),
-    [graph?.cases, workspaceId]
+    [graph?.cases, workspace.id]
   );
 
   const matters = useMemo(
@@ -146,7 +148,7 @@ export const Component = () => {
       Object.values(graph?.matters ?? {})
         .filter(
           (m): m is MatterRecord =>
-            m.workspaceId === workspaceId &&
+            m.workspaceId === workspace.id &&
             m.status !== 'archived' &&
             !m.trashedAt
         )
@@ -154,7 +156,7 @@ export const Component = () => {
           (a, b) =>
             new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
         ),
-    [graph?.matters, workspaceId]
+    [graph?.matters, workspace.id]
   );
 
   const clientsMap = useMemo(() => graph?.clients ?? {}, [graph?.clients]);
@@ -328,9 +330,9 @@ export const Component = () => {
   const caseChatSessions = useMemo(
     () =>
       selectedCaseId
-        ? legalChatService.getSessions(selectedCaseId, workspaceId)
+        ? legalChatService.getSessions(selectedCaseId, workspace.id)
         : ([] as LegalChatSession[]),
-    [legalChatService, selectedCaseId, workspaceId, chatSessions]
+    [legalChatService, selectedCaseId, workspace.id, chatSessions]
   );
 
   useEffect(() => {
@@ -355,9 +357,9 @@ export const Component = () => {
       legalDocuments.filter(
         document =>
           document.caseId === selectedCaseId &&
-          document.workspaceId === workspaceId
+          document.workspaceId === workspace.id
       ),
-    [legalDocuments, selectedCaseId, workspaceId]
+    [legalDocuments, selectedCaseId, workspace.id]
   );
 
   const caseFindings = useMemo(
@@ -365,29 +367,29 @@ export const Component = () => {
       legalFindings.filter(
         finding =>
           finding.caseId === selectedCaseId &&
-          finding.workspaceId === workspaceId
+          finding.workspaceId === workspace.id
       ),
-    [legalFindings, selectedCaseId, workspaceId]
+    [legalFindings, selectedCaseId, workspace.id]
   );
 
   const scopedDocuments = useMemo(
     () =>
       legalDocuments.filter(
         document =>
-          document.workspaceId === workspaceId &&
+          document.workspaceId === workspace.id &&
           scopedCaseIdSet.has(document.caseId)
       ),
-    [legalDocuments, scopedCaseIdSet, workspaceId]
+    [legalDocuments, scopedCaseIdSet, workspace.id]
   );
 
   const scopedFindings = useMemo(
     () =>
       legalFindings.filter(
         finding =>
-          finding.workspaceId === workspaceId &&
+          finding.workspaceId === workspace.id &&
           scopedCaseIdSet.has(finding.caseId)
       ),
-    [legalFindings, scopedCaseIdSet, workspaceId]
+    [legalFindings, scopedCaseIdSet, workspace.id]
   );
 
   const caseTitleById = useMemo(
@@ -411,19 +413,19 @@ export const Component = () => {
       judikaturSuggestions
         .filter(
           item =>
-            item.caseId === selectedCaseId && item.workspaceId === workspaceId
+            item.caseId === selectedCaseId && item.workspaceId === workspace.id
         )
         .sort((a, b) => b.relevanceScore - a.relevanceScore),
-    [judikaturSuggestions, selectedCaseId, workspaceId]
+    [judikaturSuggestions, selectedCaseId, workspace.id]
   );
 
   const caseCitationChains = useMemo(
     () =>
       citationChains.filter(
         item =>
-          item.caseId === selectedCaseId && item.workspaceId === workspaceId
+          item.caseId === selectedCaseId && item.workspaceId === workspace.id
       ),
-    [citationChains, selectedCaseId, workspaceId]
+    [citationChains, selectedCaseId, workspace.id]
   );
 
   const caseCourtDecisions = useMemo(() => {
@@ -442,6 +444,27 @@ export const Component = () => {
   const scopedChunks = scopedDocuments.reduce(
     (sum, document) => sum + (document.chunkCount ?? 0),
     0
+  );
+
+  const onOpenArtifactInStrategy = useCallback(
+    (_messageId: string, artifact: ChatArtifact) => {
+      if (!selectedCaseId) {
+        setStatusText('Keine aktive Akte ausgewählt.');
+        return;
+      }
+
+      const params = new URLSearchParams({
+        caSidebar: 'legal-workflow',
+      });
+      if (artifact.akteDocumentId) {
+        params.set('caDocId', artifact.akteDocumentId);
+      }
+
+      workbench.open(`/${selectedCaseId}?${params.toString()}`);
+      workbench.openSidebar();
+      setStatusText('Strategie-Tab geöffnet.');
+    },
+    [selectedCaseId, setStatusText, workbench]
   );
 
   const toggleComparisonCase = useCallback((caseId: string) => {
@@ -2269,6 +2292,7 @@ export const Component = () => {
             onSaveArtifactToAkte={(messageId, artifact) =>
               onSaveArtifactToAkte(messageId, artifact)
             }
+            onOpenArtifactInStrategy={onOpenArtifactInStrategy}
             onResolveToolApproval={onResolveToolApproval}
             sourceCitationCaseByDocId={sourceCitationCaseByDocId}
             onJumpToCaseFromCitation={onJumpToCaseFromCitation}

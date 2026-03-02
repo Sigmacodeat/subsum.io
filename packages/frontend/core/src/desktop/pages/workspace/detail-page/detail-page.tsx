@@ -134,7 +134,7 @@ const DetailPageImpl = memo(function DetailPageImpl() {
   })();
   const preselectedSidebarSection = (() => {
     const value = new URLSearchParams(location.search).get('caSidebar');
-    return value === 'anwalts-workflow'
+    return value === 'anwalts-workflow' || value === 'legal-workflow'
       ? (value as SidebarSectionId)
       : undefined;
   })();

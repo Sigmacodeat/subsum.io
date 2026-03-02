@@ -23,7 +23,16 @@ export type ConnectorDraft = {
 
 export type IntakeDraft = {
   title: string;
-  kind: 'note' | 'pdf' | 'scan-pdf' | 'email' | 'docx' | 'xlsx' | 'pptx' | 'other';
+  kind:
+    | 'note'
+    | 'pdf'
+    | 'scan-pdf'
+    | 'email'
+    | 'docx'
+    | 'xlsx'
+    | 'pptx'
+    | 'schriftsatz'
+    | 'other';
   folderPath: string;
   internalFileNumber: string;
   paragraphReferences: string;
@@ -215,6 +224,7 @@ export const legalDocumentKindLabel: Record<IntakeDraft['kind'], string> = {
   docx: 'DOCX',
   xlsx: 'XLSX',
   pptx: 'PPTX',
+  schriftsatz: 'Schriftsatz',
   other: 'Sonstiges',
 };
 

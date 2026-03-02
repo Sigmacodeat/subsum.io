@@ -202,6 +202,7 @@ const KIND_LABEL: Record<LegalDocumentKind, string> = {
   docx: 'DOCX',
   xlsx: 'XLSX',
   pptx: 'PPTX',
+  schriftsatz: 'SCHRIFT',
   other: 'FILE',
 };
 

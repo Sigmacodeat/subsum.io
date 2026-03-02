@@ -376,6 +376,7 @@ type Props = {
   onRegenerateMessage?: (messageId: string) => void;
   onDeleteMessage?: (messageId: string) => void;
   onSaveArtifactToAkte?: (messageId: string, artifact: ChatArtifact) => Promise<void> | void;
+  onOpenArtifactInStrategy?: (messageId: string, artifact: ChatArtifact) => void;
   onResolveToolApproval?: (
     messageId: string,
     toolCallId: string,
@@ -428,6 +429,7 @@ export const PremiumChatSection = ({
   onRegenerateMessage,
   onDeleteMessage,
   onSaveArtifactToAkte,
+  onOpenArtifactInStrategy,
   onResolveToolApproval,
   sourceCitationCaseByDocId,
   onJumpToCaseFromCitation,
@@ -1393,6 +1395,7 @@ export const PremiumChatSection = ({
               onSaveInsight={onSaveInsight}
               onUndoInsight={onUndoInsight}
               onSaveArtifactToAkte={onSaveArtifactToAkte}
+              onOpenArtifactInStrategy={onOpenArtifactInStrategy}
               onResolveToolApproval={onResolveToolApproval}
               sourceCitationCaseByDocId={sourceCitationCaseByDocId}
               onJumpToCaseFromCitation={onJumpToCaseFromCitation}
@@ -2072,11 +2075,13 @@ const ArtifactCards = ({
   disableInteractions,
   onDownload,
   onSaveToAkte,
+  onOpenInStrategy,
 }: {
   artifacts: ChatArtifact[];
   disableInteractions?: boolean;
   onDownload?: (artifact: ChatArtifact) => void;
   onSaveToAkte?: (artifact: ChatArtifact) => void;
+  onOpenInStrategy?: (artifact: ChatArtifact) => void;
 }) => {
   const [savingArtifactId, setSavingArtifactId] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -2117,6 +2122,16 @@ const ArtifactCards = ({
     [disableInteractions, onSaveToAkte, savingArtifactId]
   );
 
+  const handleOpenInStrategy = useCallback(
+    (artifact: ChatArtifact) => {
+      if (!onOpenInStrategy || disableInteractions) {
+        return;
+      }
+      onOpenInStrategy(artifact);
+    },
+    [disableInteractions, onOpenInStrategy]
+  );
+
   if (!artifacts || artifacts.length === 0) return null;
 
   return (
@@ -2142,6 +2157,20 @@ const ArtifactCards = ({
             </div>
           </div>
           <div className={localStyles.artifactActions}>
+            {onOpenInStrategy ? (
+              <button
+                type="button"
+                className={localStyles.artifactActionButton}
+                onClick={() => {
+                  void handleOpenInStrategy(artifact);
+                }}
+                title="Im Strategie-Tab öffnen"
+                aria-label={`${artifact.title} im Strategie-Tab öffnen`}
+                disabled={disableInteractions}
+              >
+                {'\u{1F9FE}'} Strategie
+              </button>
+            ) : null}
             <button
               type="button"
               className={localStyles.artifactActionButton}
@@ -2221,7 +2250,7 @@ const StreamingIndicator = () => (
   </span>
 );
 
-const ChatBubble = ({ message, isChatBusy, onRegenerate, onDelete, onSaveInsight, onUndoInsight, onSaveArtifactToAkte, onResolveToolApproval, sourceCitationCaseByDocId, onJumpToCaseFromCitation }: {
+const ChatBubble = ({ message, isChatBusy, onRegenerate, onDelete, onSaveInsight, onUndoInsight, onSaveArtifactToAkte, onOpenArtifactInStrategy, onResolveToolApproval, sourceCitationCaseByDocId, onJumpToCaseFromCitation }: {
   message: LegalChatMessage;
   isChatBusy?: boolean;
   onRegenerate?: (messageId: string) => void;
@@ -2234,6 +2263,7 @@ const ChatBubble = ({ message, isChatBusy, onRegenerate, onDelete, onSaveInsight
   ) => Promise<SaveInsightResult | void> | SaveInsightResult | void;
   onUndoInsight?: (undoToken: string) => Promise<void> | void;
   onSaveArtifactToAkte?: (messageId: string, artifact: ChatArtifact) => Promise<void> | void;
+  onOpenArtifactInStrategy?: (messageId: string, artifact: ChatArtifact) => void;
   onResolveToolApproval?: (
     messageId: string,
     toolCallId: string,
@@ -2689,6 +2719,11 @@ const ChatBubble = ({ message, isChatBusy, onRegenerate, onDelete, onSaveInsight
         <ArtifactCards
           artifacts={message.artifacts}
           disableInteractions={isChatBusy}
+          onOpenInStrategy={
+            onOpenArtifactInStrategy
+              ? artifact => onOpenArtifactInStrategy(message.id, artifact)
+              : undefined
+          }
           onSaveToAkte={
             onSaveArtifactToAkte
               ? artifact => {
