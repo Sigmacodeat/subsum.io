@@ -1230,7 +1230,7 @@ export const Component = () => {
             ? '🤖 AI-generiert aus Akte-Kontext'
             : '📋 Vorlagen-basiert (LLM nicht verfügbar)';
 
-          const responseText = `## ${generatedDoc.title}\n\n*${aiFlag} · ${new Date(generatedDoc.generatedAt).toLocaleString('de-DE')}*\n\n---\n\n${generatedDoc.markdown}${warningsBlock}\n\n---\n\n**📥 Export:** Kopiere den Inhalt oben in dein Textprogramm oder nutze den PDF-Export im Strategie-Tab → Schriftsätze.`;
+          const responseText = `## ${generatedDoc.title}\n\n*${aiFlag} · ${new Date(generatedDoc.generatedAt).toLocaleString('de-DE')}*\n\n**✅ In Akte gespeichert**\n\n---\n\n${generatedDoc.markdown}${warningsBlock}\n\n---\n\n**📥 Export:** Kopiere den Inhalt oben in dein Textprogramm oder nutze den PDF-Export im Strategie-Tab → Schriftsätze.`;
 
           legalChatService.appendMessages([
             {
@@ -1254,7 +1254,8 @@ export const Component = () => {
                   content: generatedDoc.markdown,
                   mimeType: 'text/markdown',
                   sizeBytes: new Blob([generatedDoc.markdown]).size,
-                  savedToAkte: false,
+                  savedToAkte: true,
+                  akteDocumentId: generatedDoc.id,
                   templateName: generatedDoc.template,
                   createdAt: generatedDoc.generatedAt,
                 } satisfies ChatArtifact,
