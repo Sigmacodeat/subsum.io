@@ -24,7 +24,6 @@ import type {
   LegalFinding,
   OcrJob,
   SemanticChunk,
-  Vollmacht,
 } from '../types';
 import type { ContradictionDetectorService } from './contradiction-detector';
 import type { CreditGatewayService } from './credit-gateway';
@@ -682,174 +681,6 @@ export class LegalCopilotWorkflowService extends Service {
       }
     }
     return '';
-  }
-
-  private isLikelyVollmachtDocument(
-    doc: Pick<
-      LegalDocumentRecord,
-      'title' | 'sourceRef' | 'tags' | 'normalizedText'
-    >
-  ) {
-    const haystack = [
-      doc.title,
-      doc.sourceRef,
-      ...(doc.tags ?? []),
-      doc.normalizedText,
-    ]
-      .filter(Boolean)
-      .join(' ')
-      .toLowerCase();
-
-    return /\b(vollmacht|bevollmächtigt|bevollmaechtigt|generalvollmacht|prozessvollmacht|vertretungsvollmacht|power\s+of\s+attorney|poa)\b/i.test(
-      haystack
-    );
-  }
-
-  private inferAutoDetectedVollmachtType(
-    doc: Pick<
-      LegalDocumentRecord,
-      'title' | 'sourceRef' | 'tags' | 'normalizedText'
-    >
-  ): Vollmacht['type'] {
-    const haystack = [
-      doc.title,
-      doc.sourceRef,
-      ...(doc.tags ?? []),
-      doc.normalizedText,
-    ]
-      .filter(Boolean)
-      .join(' ')
-      .toLowerCase();
-
-    if (/\b(prozessvollmacht|prozess\s*vollmacht)\b/i.test(haystack)) {
-      return 'process';
-    }
-    if (/\b(prokura|procuration)\b/i.test(haystack)) {
-      return 'procuration';
-    }
-    if (/\b(spezialvollmacht|special\s+power)\b/i.test(haystack)) {
-      return 'special';
-    }
-    return 'general';
-  }
-
-  private async upsertAutoDetectedVollmachtenForDocument(params: {
-    doc: LegalDocumentRecord;
-    caseId: string;
-    workspaceId: string;
-    graph?: CaseGraphRecord;
-  }) {
-    const { doc, caseId, workspaceId } = params;
-    if (!this.isLikelyVollmachtDocument(doc)) {
-      return;
-    }
-
-    const graph =
-      params.graph ??
-      ((await this.orchestration.getGraph()) as CaseGraphRecord);
-    const caseFile = graph.cases?.[caseId];
-    if (!caseFile?.matterId) {
-      return;
-    }
-
-    const matter = graph.matters?.[caseFile.matterId];
-    if (!matter) {
-      return;
-    }
-
-    const candidateClientIds = Array.from(
-      new Set([matter.clientId, ...(matter.clientIds ?? [])].filter(Boolean))
-    );
-    const targetClientIds = candidateClientIds.filter(clientId => {
-      const client = graph.clients?.[clientId];
-      return Boolean(
-        client && client.kind !== 'authority' && client.kind !== 'other'
-      );
-    });
-    if (targetClientIds.length === 0) {
-      return;
-    }
-
-    const assignedAnwalt = matter.assignedAnwaltId
-      ? graph.anwaelte?.[matter.assignedAnwaltId]
-      : undefined;
-    const grantedTo = matter.assignedAnwaltId ?? 'system:auto-detected';
-    const grantedToName = assignedAnwalt
-      ? normalizeWhitespace(
-          [
-            assignedAnwalt.title,
-            assignedAnwalt.firstName,
-            assignedAnwalt.lastName,
-          ]
-            .filter(Boolean)
-            .join(' ')
-        )
-      : 'Automatische Dokumenterkennung';
-
-    const inferredType = this.inferAutoDetectedVollmachtType(doc);
-    const titleBase = stripDocumentExtension(doc.title) || 'Vollmacht';
-    const now = new Date().toISOString();
-    const existingEntries = this.orchestration.vollmachten$.value ?? [];
-
-    for (const clientId of targetClientIds) {
-      const existing = existingEntries.find(
-        entry =>
-          entry.workspaceId === workspaceId &&
-          entry.clientId === clientId &&
-          entry.caseId === caseId &&
-          entry.documentId === doc.id
-      );
-
-      if (existing?.status === 'revoked') {
-        continue;
-      }
-
-      const nextEntry: Vollmacht = existing
-        ? {
-            ...existing,
-            title: existing.title || titleBase,
-            type: existing.type ?? inferredType,
-            caseId,
-            matterId: matter.id,
-            documentId: doc.id,
-            updatedAt: now,
-          }
-        : {
-            id: createId('vollmacht'),
-            workspaceId,
-            clientId,
-            caseId,
-            matterId: matter.id,
-            type: inferredType,
-            title: titleBase,
-            grantedTo,
-            grantedToName,
-            validFrom: doc.createdAt || now,
-            notes: `Automatisch erkannt aus Dokument: ${doc.title}`,
-            documentId: doc.id,
-            status: 'pending',
-            createdAt: now,
-            updatedAt: now,
-          };
-
-      await this.orchestration.upsertVollmacht(nextEntry);
-
-      if (!existing) {
-        await this.orchestration.appendAuditEntry({
-          caseId,
-          workspaceId,
-          action: 'vollmacht.auto_detected',
-          severity: 'info',
-          details: `Vollmacht automatisch erkannt: ${doc.title} (Mandant ${clientId}).`,
-          metadata: {
-            documentId: doc.id,
-            clientId,
-            matterId: matter.id,
-            type: inferredType,
-          },
-        });
-      }
-    }
   }
 
   private async getRemoteOcrConfig(): Promise<
@@ -2532,8 +2363,6 @@ export class LegalCopilotWorkflowService extends Service {
     const records: LegalDocumentRecord[] = [];
     const existingDocs: LegalDocumentRecord[] =
       this.legalDocuments$.value ?? [];
-    const graphSnapshot =
-      (await this.orchestration.getGraph()) as CaseGraphRecord;
 
     // ── OCR-Job Deduplication: track which docs already have active OCR jobs ──
     const activeOcrDocIds = new Set(
@@ -2692,13 +2521,6 @@ export class LegalCopilotWorkflowService extends Service {
           records.push(record);
           existingDocs.push(record);
 
-          await this.upsertAutoDetectedVollmachtenForDocument({
-            doc: record,
-            caseId: input.caseId,
-            workspaceId: input.workspaceId,
-            graph: graphSnapshot,
-          });
-
           if (!activeOcrDocIds.has(record.id)) {
             await this.orchestration.upsertOcrJob({
               id: createId('ocr-job'),
@@ -2825,13 +2647,6 @@ export class LegalCopilotWorkflowService extends Service {
           }
           records.push(record);
           existingDocs.push(record);
-
-          await this.upsertAutoDetectedVollmachtenForDocument({
-            doc: record,
-            caseId: input.caseId,
-            workspaceId: input.workspaceId,
-            graph: graphSnapshot,
-          });
 
           if (!activeOcrDocIds.has(record.id)) {
             await this.orchestration.upsertOcrJob({
@@ -2991,13 +2806,6 @@ export class LegalCopilotWorkflowService extends Service {
         }
         records.push(record);
         existingDocs.push(record);
-
-        await this.upsertAutoDetectedVollmachtenForDocument({
-          doc: record,
-          caseId: input.caseId,
-          workspaceId: input.workspaceId,
-          graph: graphSnapshot,
-        });
 
         // ── Persist Semantic Chunks ──
         if (processingResult.chunks.length > 0) {
@@ -3575,8 +3383,6 @@ export class LegalCopilotWorkflowService extends Service {
     ];
 
     const completed: OcrJob[] = [];
-    const graphSnapshot =
-      (await this.orchestration.getGraph()) as CaseGraphRecord;
 
     let crashedJobs = 0;
 
@@ -3919,13 +3725,6 @@ export class LegalCopilotWorkflowService extends Service {
         };
 
         await this.orchestration.upsertLegalDocument(updatedDoc);
-
-        await this.upsertAutoDetectedVollmachtenForDocument({
-          doc: updatedDoc,
-          caseId,
-          workspaceId,
-          graph: graphSnapshot,
-        });
 
         await this.orchestration.upsertSemanticChunks(doc.id, processed.chunks);
 

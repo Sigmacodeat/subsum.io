@@ -6,6 +6,7 @@ import { LegalCopilotWorkflowService } from '../../../../modules/case-assistant/
 import { CasePlatformOrchestrationService } from '../../../../modules/case-assistant/services/platform-orchestration';
 import { RECHNUNG_STATUS_LABELS } from '../../../../modules/case-assistant/services/rechnung';
 import { TimeTrackingService } from '../../../../modules/case-assistant/services/time-tracking';
+import { VollmachtService } from '../../../../modules/case-assistant/services/vollmacht';
 import { CaseAssistantStore } from '../../../../modules/case-assistant/stores/case-assistant';
 import type {
   Aktennotiz,
@@ -168,6 +169,17 @@ export const MandantDetailPage = () => {
   const workflow = useService(LegalCopilotWorkflowService);
   const timeTrackingService = useService(TimeTrackingService);
   const orchestration = useService(CasePlatformOrchestrationService);
+  const vollmachtService = useService(VollmachtService);
+
+  // ═══ Vollmacht Modal State ═══
+  const [isVollmachtModalOpen, setIsVollmachtModalOpen] = useState(false);
+  const [vType, setVType] = useState<Vollmacht['type']>('general');
+  const [vTitle, setVTitle] = useState('');
+  const [vMatterId, setVMatterId] = useState('');
+  const [vGrantedToName, setVGrantedToName] = useState('Kanzlei');
+  const [vScope, setVScope] = useState('');
+  const [vError, setVError] = useState<string | null>(null);
+  const [isSubmittingVollmacht, setIsSubmittingVollmacht] = useState(false);
 
   // ═══ Graph data ═══
   const graph = useLiveData(store.watchGraph()) ?? {
@@ -292,6 +304,25 @@ export const MandantDetailPage = () => {
     setHighlightedFocusTarget(focusTargetFromQuery);
   }, [focusTargetFromQuery]);
 
+  // One-shot cleanup: remove bogus Vollmacht entries that were auto-created
+  // by the document ingestion pipeline (grantedTo='system:auto-detected').
+  const hasPurgedVollmachtenRef = useRef(false);
+  useEffect(() => {
+    if (hasPurgedVollmachtenRef.current) return;
+    hasPurgedVollmachtenRef.current = true;
+    const bogus = (orchestration.vollmachten$.value ?? []).filter(
+      v =>
+        v.grantedTo === 'system:auto-detected' ||
+        v.grantedToName === 'Automatische Dokumenterkennung' ||
+        (typeof v.notes === 'string' &&
+          v.notes.startsWith('Automatisch erkannt aus Dokument:'))
+    );
+    if (bogus.length === 0) return;
+    Promise.all(bogus.map(v => orchestration.deleteVollmacht(v.id))).catch(
+      () => undefined
+    );
+  }, [orchestration]);
+
   useEffect(() => {
     if (!highlightedFocusTarget) return;
 
@@ -404,6 +435,53 @@ export const MandantDetailPage = () => {
         ),
     [allAktennotizen, clientId, matterIds]
   );
+
+  // ═══ Vollmacht create handler ═══
+  const handleCreateVollmacht = useCallback(async () => {
+    const workspaceId = client?.workspaceId;
+    if (!workspaceId || !clientId) {
+      setVError('Workspace oder Mandant nicht gefunden.');
+      return;
+    }
+    const titleTrimmed = vTitle.trim();
+    if (!titleTrimmed) {
+      setVError('Bitte einen Titel eingeben.');
+      return;
+    }
+    const grantedToName = vGrantedToName.trim() || 'Kanzlei';
+    setVError(null);
+    setIsSubmittingVollmacht(true);
+    try {
+      await vollmachtService.createVollmacht({
+        workspaceId,
+        clientId,
+        matterId: vMatterId || undefined,
+        type: vType,
+        title: titleTrimmed,
+        grantedTo: 'kanzlei:self',
+        grantedToName,
+        validFrom: new Date().toISOString(),
+        scope: vScope.trim() || undefined,
+      });
+      setIsVollmachtModalOpen(false);
+      setVTitle('');
+      setVScope('');
+      setVMatterId('');
+      setVType('general');
+    } catch (err) {
+      setVError(err instanceof Error ? err.message : 'Fehler beim Anlegen der Vollmacht.');
+    } finally {
+      setIsSubmittingVollmacht(false);
+    }
+  }, [client?.workspaceId, clientId, vTitle, vGrantedToName, vMatterId, vType, vScope, vollmachtService]);
+
+  // ═══ Vollmacht type → default title ═══
+  const vollmachtTypeDefaults: Record<Vollmacht['type'], string> = {
+    general: 'Generalvollmacht',
+    process: 'Prozessvollmacht',
+    special: 'Spezialvollmacht',
+    procuration: 'Prokura',
+  };
 
   // ═══ Vollmachten ═══
   const clientVollmachten = useMemo(
@@ -1359,6 +1437,21 @@ export const MandantDetailPage = () => {
                       <div className={styles.sectionTitle}>
                         Vollmachten ({clientVollmachten.length})
                       </div>
+                      <button
+                        type="button"
+                        className={styles.sectionAction}
+                        onClick={() => {
+                          setVType('general');
+                          setVTitle(vollmachtTypeDefaults['general']);
+                          setVScope('');
+                          setVMatterId('');
+                          setVGrantedToName('Kanzlei');
+                          setVError(null);
+                          setIsVollmachtModalOpen(true);
+                        }}
+                      >
+                        + Vollmacht anlegen
+                      </button>
                     </div>
                     <div className={styles.sectionBody}>
                       {clientVollmachten.length === 0 ? (
@@ -1463,6 +1556,171 @@ export const MandantDetailPage = () => {
           </div>
         </div>
       </ViewBody>
+
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {/* VOLLMACHT CREATE MODAL                                             */}
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {isVollmachtModalOpen && (
+        <div
+          className={styles.modalOverlay}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="vollmacht-modal-title"
+          onClick={e => {
+            if (e.target === e.currentTarget && !isSubmittingVollmacht) {
+              setIsVollmachtModalOpen(false);
+            }
+          }}
+        >
+          <div className={styles.modalBox}>
+            <div className={styles.modalHeader}>
+              <span id="vollmacht-modal-title" className={styles.modalTitle}>
+                Vollmacht anlegen
+              </span>
+              <button
+                type="button"
+                className={styles.modalCloseBtn}
+                onClick={() => setIsVollmachtModalOpen(false)}
+                disabled={isSubmittingVollmacht}
+                aria-label="Schließen"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className={styles.modalBody}>
+              {/* Type */}
+              <div className={styles.formField}>
+                <label className={styles.formLabel} htmlFor="v-type">
+                  Art der Vollmacht
+                </label>
+                <select
+                  id="v-type"
+                  className={styles.formSelect}
+                  value={vType}
+                  disabled={isSubmittingVollmacht}
+                  onChange={e => {
+                    const t = e.target.value as Vollmacht['type'];
+                    setVType(t);
+                    setVTitle(vollmachtTypeDefaults[t]);
+                  }}
+                >
+                  <option value="general">Generalvollmacht</option>
+                  <option value="process">Prozessvollmacht</option>
+                  <option value="special">Spezialvollmacht</option>
+                  <option value="procuration">Prokura</option>
+                </select>
+              </div>
+
+              {/* Title */}
+              <div className={styles.formField}>
+                <label className={styles.formLabel} htmlFor="v-title">
+                  Titel
+                </label>
+                <input
+                  id="v-title"
+                  type="text"
+                  className={styles.formInput}
+                  value={vTitle}
+                  disabled={isSubmittingVollmacht}
+                  autoFocus
+                  placeholder="z. B. Generalvollmacht Müller 2026"
+                  onChange={e => setVTitle(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      handleCreateVollmacht().catch(() => undefined);
+                    }
+                  }}
+                />
+              </div>
+
+              {/* Bevollmächtigter */}
+              <div className={styles.formField}>
+                <label className={styles.formLabel} htmlFor="v-granted-to">
+                  Bevollmächtigter (Name)
+                </label>
+                <input
+                  id="v-granted-to"
+                  type="text"
+                  className={styles.formInput}
+                  value={vGrantedToName}
+                  disabled={isSubmittingVollmacht}
+                  placeholder="z. B. Kanzlei Muster & Partner"
+                  onChange={e => setVGrantedToName(e.target.value)}
+                />
+              </div>
+
+              {/* Akte (optional) */}
+              {matters.length > 0 && (
+                <div className={styles.formField}>
+                  <label className={styles.formLabel} htmlFor="v-matter">
+                    Akte (optional)
+                  </label>
+                  <select
+                    id="v-matter"
+                    className={styles.formSelect}
+                    value={vMatterId}
+                    disabled={isSubmittingVollmacht}
+                    onChange={e => setVMatterId(e.target.value)}
+                  >
+                    <option value="">Keine Zuweisung</option>
+                    {matters.map(m => (
+                      <option key={m.id} value={m.id}>
+                        {m.externalRef ? `[${m.externalRef}] ` : ''}
+                        {m.title}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Scope / Anmerkungen */}
+              <div className={styles.formField}>
+                <label className={styles.formLabel} htmlFor="v-scope">
+                  Umfang / Anmerkungen (optional)
+                </label>
+                <textarea
+                  id="v-scope"
+                  className={styles.formTextarea}
+                  value={vScope}
+                  disabled={isSubmittingVollmacht}
+                  placeholder="z. B. Beschränkt auf Immobiliengeschäfte, unbefristet …"
+                  onChange={e => setVScope(e.target.value)}
+                />
+              </div>
+
+              {/* Error */}
+              {vError && (
+                <div className={styles.formError} role="alert">
+                  {vError}
+                </div>
+              )}
+            </div>
+
+            <div className={styles.modalFooter}>
+              <button
+                type="button"
+                className={styles.modalBtnSecondary}
+                disabled={isSubmittingVollmacht}
+                onClick={() => setIsVollmachtModalOpen(false)}
+              >
+                Abbrechen
+              </button>
+              <button
+                type="button"
+                className={styles.modalBtnPrimary}
+                disabled={isSubmittingVollmacht || !vTitle.trim()}
+                onClick={() => {
+                  handleCreateVollmacht().catch(() => undefined);
+                }}
+              >
+                {isSubmittingVollmacht ? 'Wird angelegt…' : 'Vollmacht anlegen'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 };

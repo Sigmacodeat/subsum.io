@@ -952,6 +952,256 @@ export const statusWarning = style(statusToneWarningStyle);
 export const statusError = style(statusToneErrorStyle);
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// VOLLMACHT CREATE MODAL
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export const modalOverlay = style({
+  position: 'fixed',
+  inset: 0,
+  background: 'rgba(0,0,0,0.45)',
+  zIndex: 1000,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  padding: sp(4),
+  animation: `${fadeIn} 0.15s ease`,
+});
+
+export const modalBox = style({
+  background: cssVarV2('layer/background/primary'),
+  borderRadius: 16,
+  border: borderSubtle,
+  boxShadow: '0 24px 64px rgba(0,0,0,0.22)',
+  width: '100%',
+  maxWidth: 480,
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 0,
+  overflow: 'hidden',
+});
+
+export const modalHeader = style({
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  padding: `${sp(4)} ${sp(5)}`,
+  borderBottom: borderSubtle,
+});
+
+export const modalTitle = style({
+  fontSize: 16,
+  fontWeight: 700,
+  color: cssVarV2('text/primary'),
+  letterSpacing: '-0.01em',
+});
+
+export const modalCloseBtn = style({
+  appearance: 'none',
+  border: 0,
+  background: 'transparent',
+  width: 28,
+  height: 28,
+  borderRadius: 8,
+  cursor: 'pointer',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  fontSize: 18,
+  color: cssVarV2('text/secondary'),
+  transition: 'background 0.12s ease, color 0.12s ease',
+  selectors: {
+    '&:hover': {
+      background: 'var(--affine-hover-color)',
+      color: cssVarV2('text/primary'),
+    },
+  },
+});
+
+export const modalBody = style({
+  padding: `${sp(4)} ${sp(5)}`,
+  display: 'flex',
+  flexDirection: 'column',
+  gap: sp(4),
+});
+
+export const formField = style({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: sp(1),
+});
+
+export const formLabel = style({
+  fontSize: 12,
+  fontWeight: 600,
+  color: cssVarV2('text/secondary'),
+  letterSpacing: '0.01em',
+});
+
+export const formInput = style({
+  appearance: 'none',
+  width: '100%',
+  border: borderSubtle,
+  borderRadius: 8,
+  padding: `${sp(2)} ${sp(3)}`,
+  fontSize: 13,
+  lineHeight: '20px',
+  color: cssVarV2('text/primary'),
+  background: cssVarV2('layer/background/secondary'),
+  outline: 'none',
+  transition: 'border-color 0.15s ease',
+  selectors: {
+    '&:focus': {
+      borderColor: 'var(--affine-primary-color)',
+      background: cssVarV2('layer/background/primary'),
+    },
+    '&:disabled': {
+      opacity: 0.5,
+      cursor: 'not-allowed',
+    },
+  },
+});
+
+export const formSelect = style({
+  appearance: 'none',
+  width: '100%',
+  border: borderSubtle,
+  borderRadius: 8,
+  padding: `${sp(2)} ${sp(3)}`,
+  fontSize: 13,
+  lineHeight: '20px',
+  color: cssVarV2('text/primary'),
+  background: cssVarV2('layer/background/secondary'),
+  outline: 'none',
+  cursor: 'pointer',
+  transition: 'border-color 0.15s ease',
+  selectors: {
+    '&:focus': {
+      borderColor: 'var(--affine-primary-color)',
+    },
+    '&:disabled': {
+      opacity: 0.5,
+      cursor: 'not-allowed',
+    },
+  },
+});
+
+export const formTextarea = style({
+  appearance: 'none',
+  width: '100%',
+  border: borderSubtle,
+  borderRadius: 8,
+  padding: `${sp(2)} ${sp(3)}`,
+  fontSize: 13,
+  lineHeight: '20px',
+  color: cssVarV2('text/primary'),
+  background: cssVarV2('layer/background/secondary'),
+  outline: 'none',
+  resize: 'vertical',
+  minHeight: 72,
+  fontFamily: 'inherit',
+  transition: 'border-color 0.15s ease',
+  selectors: {
+    '&:focus': {
+      borderColor: 'var(--affine-primary-color)',
+    },
+    '&:disabled': {
+      opacity: 0.5,
+    },
+  },
+});
+
+export const formHint = style({
+  fontSize: 11,
+  color: cssVarV2('text/secondary'),
+  marginTop: 2,
+});
+
+export const formError = style({
+  fontSize: 12,
+  color: cssVarV2('status/error'),
+  fontWeight: 500,
+  padding: `${sp(2)} ${sp(3)}`,
+  borderRadius: 8,
+  background: `color-mix(in srgb, ${cssVarV2('status/error')} 10%, transparent)`,
+  border: `1px solid color-mix(in srgb, ${cssVarV2('status/error')} 22%, transparent)`,
+});
+
+export const modalFooter = style({
+  display: 'flex',
+  gap: sp(2),
+  padding: `${sp(3)} ${sp(5)} ${sp(4)}`,
+  borderTop: borderSubtle,
+  justifyContent: 'flex-end',
+});
+
+export const modalBtnSecondary = style({
+  appearance: 'none',
+  border: borderSubtle,
+  background: 'transparent',
+  color: cssVarV2('text/secondary'),
+  borderRadius: 8,
+  padding: `${sp(2)} ${sp(4)}`,
+  fontSize: 13,
+  fontWeight: 600,
+  cursor: 'pointer',
+  transition: 'all 0.15s ease',
+  selectors: {
+    '&:hover': {
+      background: 'var(--affine-hover-color)',
+      color: cssVarV2('text/primary'),
+    },
+    '&:disabled': { opacity: 0.5, cursor: 'not-allowed' },
+  },
+});
+
+export const modalBtnPrimary = style({
+  appearance: 'none',
+  border: 'none',
+  background: cssVarV2('button/primary'),
+  color: cssVarV2('button/pureWhiteText'),
+  borderRadius: 8,
+  padding: `${sp(2)} ${sp(4)}`,
+  fontSize: 13,
+  fontWeight: 600,
+  cursor: 'pointer',
+  transition: 'opacity 0.15s ease',
+  selectors: {
+    '&:hover': { opacity: 0.88 },
+    '&:disabled': { opacity: 0.45, cursor: 'not-allowed' },
+  },
+});
+
+export const modalModeToggle = style({
+  display: 'flex',
+  gap: sp(2),
+});
+
+export const modalModeBtn = style({
+  flex: 1,
+  appearance: 'none',
+  border: borderSubtle,
+  background: 'transparent',
+  borderRadius: 8,
+  padding: `${sp(2)} ${sp(3)}`,
+  fontSize: 12,
+  fontWeight: 600,
+  cursor: 'pointer',
+  color: cssVarV2('text/secondary'),
+  transition: 'all 0.15s ease',
+  textAlign: 'center' as any,
+  selectors: {
+    '&[data-active="true"]': {
+      background: accentBg,
+      borderColor: accentBorder,
+      color: cssVarV2('button/primary'),
+    },
+    '&:hover:not([data-active="true"])': {
+      background: 'var(--affine-hover-color)',
+    },
+  },
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // EMPTY STATE
 // ═══════════════════════════════════════════════════════════════════════════════
 

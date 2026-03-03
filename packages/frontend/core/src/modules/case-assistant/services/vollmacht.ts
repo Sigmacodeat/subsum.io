@@ -288,4 +288,27 @@ export class VollmachtService extends Service {
       (v: Vollmacht) => v.type === 'general'
     );
   }
+
+  /**
+   * Remove all Vollmacht entries that were auto-created by the document
+   * ingestion pipeline (identified by grantedTo='system:auto-detected' or
+   * grantedToName='Automatische Dokumenterkennung').
+   * Returns the number of deleted entries.
+   */
+  async purgeAutoDetectedVollmachten(workspaceId?: string): Promise<number> {
+    const all = this.vollmachten$.value ?? [];
+    const bogus = all.filter(v => {
+      if (workspaceId && v.workspaceId !== workspaceId) return false;
+      return (
+        v.grantedTo === 'system:auto-detected' ||
+        v.grantedToName === 'Automatische Dokumenterkennung' ||
+        (typeof v.notes === 'string' &&
+          v.notes.startsWith('Automatisch erkannt aus Dokument:'))
+      );
+    });
+    for (const v of bogus) {
+      await this.orchestration.deleteVollmacht(v.id);
+    }
+    return bogus.length;
+  }
 }
