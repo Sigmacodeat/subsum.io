@@ -210,7 +210,8 @@ export class CaseAssistantStore extends Store {
         continue;
       }
 
-      if (!caseFile.matterId) {
+      const looksLikeCaseId = caseId.startsWith('case-') || caseId.startsWith('case:');
+      if (!caseFile.matterId && looksLikeCaseId) {
         const matterId = `matter:${this.workspaceId}:${caseId}`;
         caseFile.matterId = matterId;
         const FILE_EXT_RE = /\.(pdf|docx?|txt|eml|msg|png|jpe?g|tiff?|bmp|webp|gif|heic|heif|odt|rtf|html?|md|csv|tsv|json|xml|xlsx?|xlsm|pptx?|ppt|ods)$/i;

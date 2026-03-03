@@ -865,9 +865,9 @@ export const AllAktenPage = () => {
         showActionStatus(
           t['com.affine.caseAssistant.allAkten.quickstart.creatingImportCase']()
         );
-        const docRecord = docsService.createDoc();
+        const caseId = `case-${preferredMatter.id}-${Date.now()}`;
         targetCase = await caseAssistantService.upsertCaseFile({
-          id: docRecord.id,
+          id: caseId,
           workspaceId: workspace.id,
           matterId: preferredMatter.id,
           title: `${preferredMatter.title} · Upload Eingang`,
@@ -896,7 +896,7 @@ export const AllAktenPage = () => {
       }
 
       workbench.openSidebar();
-      workbench.open(`/${targetCase.id}?${params.toString()}`);
+      workbench.open(`/akten/${preferredMatter.id}?${params.toString()}`);
       showActionStatus(
         `${t['com.affine.caseAssistant.allAkten.quickstart.openedWizard']()} Zielakte: ${preferredMatter.title}${preferredClient ? ` · Mandant: ${preferredClient.displayName}` : ''}.`
       );
