@@ -112,7 +112,9 @@ export const Component = () => {
   switch (authType) {
     case 'onboarding':
       return (
-        account && <OnboardingPage user={account} onOpenAffine={onOpenAffine} />
+        account && (
+          <OnboardingPage user={account} onOpenAffine={onOpenAffine} />
+        )
       );
     case 'signUp': {
       if (!account) {
@@ -158,10 +160,10 @@ export const Component = () => {
       );
     }
     case 'confirm-change-email': {
-      return <ConfirmChangeEmail onOpenDashboard={onOpenAffine} />;
+      return <ConfirmChangeEmail onOpenAffine={onOpenAffine} />;
     }
     case 'verify-email': {
-      return <ConfirmVerifiedEmail onOpenDashboard={onOpenAffine} />;
+      return <ConfirmVerifiedEmail onOpenAffine={onOpenAffine} />;
     }
   }
   return null;
