@@ -35,10 +35,6 @@ export class CaseAssistantService extends Service {
     this.store.setActiveJurisdiction(jurisdiction);
   }
 
-  private defaultClientId(workspaceId: string) {
-    return `client:${workspaceId}:default`;
-  }
-
   async upsertClient(input: Omit<ClientRecord, 'createdAt' | 'updatedAt'>) {
     const now = new Date().toISOString();
     const current = this.graph$.value?.clients?.[input.id];
@@ -95,7 +91,6 @@ export class CaseAssistantService extends Service {
     }
 
     graph.matters = graph.matters ?? {};
-    const defaultClientId = this.defaultClientId(client.workspaceId);
     const now = new Date().toISOString();
     for (const matter of Object.values(graph.matters ?? {})) {
       const isPrimary = matter.clientId === clientId;
@@ -104,13 +99,13 @@ export class CaseAssistantService extends Service {
       if (isPrimary || isInList) {
         const updatedClientIds = (matter.clientIds ?? [matter.clientId]).filter(id => id !== clientId);
         const newPrimary = isPrimary
-          ? (updatedClientIds[0] ?? defaultClientId)
+          ? (updatedClientIds[0] ?? '')
           : matter.clientId;
 
         graph.matters[matter.id] = {
           ...matter,
           clientId: newPrimary,
-          clientIds: updatedClientIds.length > 0 ? updatedClientIds : [newPrimary],
+          clientIds: updatedClientIds.length > 0 ? updatedClientIds : [],
           updatedAt: now,
         };
       }

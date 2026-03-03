@@ -238,7 +238,8 @@ describe('LegalCopilotWorkflowService OCR queueing', () => {
       {} as any,
       {} as any,
       creditGateway as any,
-      { syncChunksToBackend: vi.fn().mockResolvedValue(undefined) } as any
+      { syncChunksToBackend: vi.fn().mockResolvedValue(undefined) } as any,
+      {} as any
     );
 
     return {

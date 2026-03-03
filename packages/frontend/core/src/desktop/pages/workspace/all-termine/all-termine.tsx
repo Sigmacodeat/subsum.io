@@ -14,6 +14,7 @@ import { CaseAssistantStore } from '../../../../modules/case-assistant/stores/ca
 import type {
   ClientRecord,
   Gerichtstermin,
+  LegalDocumentRecord,
   MatterRecord,
 } from '../../../../modules/case-assistant/types';
 import { ViewBody, ViewIcon, ViewTitle } from '../../../../modules/workbench';
@@ -152,7 +153,8 @@ export const AllTerminePage = () => {
   const { openConfirmModal } = useConfirmModal();
 
   const graph = useLiveData(store.watchGraph());
-  const legalDocs = useLiveData(store.watchLegalDocuments()) ?? [];
+  const legalDocs: LegalDocumentRecord[] =
+    useLiveData(store.watchLegalDocuments()) ?? [];
   const termine =
     useLiveData(
       useMemo(

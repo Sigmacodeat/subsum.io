@@ -10,6 +10,7 @@ import { CaseAssistantStore } from '../../../../modules/case-assistant/stores/ca
 import type {
   CaseDeadline,
   ClientRecord,
+  LegalDocumentRecord,
   MatterRecord,
 } from '../../../../modules/case-assistant/types';
 import { AuthService } from '../../../../modules/cloud/services/auth';
@@ -337,7 +338,8 @@ export const AllFristenPage = () => {
     () => Object.values(graph.cases ?? {}),
     [graph.cases]
   );
-  const legalDocuments = useLiveData(store.watchLegalDocuments()) ?? [];
+  const legalDocuments: LegalDocumentRecord[] =
+    useLiveData(store.watchLegalDocuments()) ?? [];
 
   useEffect(() => {
     const t = window.setTimeout(() => setShowInitialSkeleton(false), 420);

@@ -492,8 +492,6 @@ type PendingToolApprovalRun = {
 export class LegalChatService extends Service {
   private static tenantModelsEndpointMissing = false;
   private readonly _availableModels$ = new LiveData<LlmModelOption[]>([]);
-  private readonly _chatSessions$ = new LiveData<LegalChatSession[]>([]);
-  private readonly _chatMessages$ = new LiveData<LegalChatMessage[]>([]);
   private modelsFetchPromise: Promise<LlmModelOption[]> | null = null;
   private hasTriedTenantModelFetch = false;
   private readonly pendingToolApprovals = new Map<

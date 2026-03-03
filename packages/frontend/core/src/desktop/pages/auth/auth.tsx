@@ -101,7 +101,7 @@ export const Component = () => {
     },
     [changePassword, searchParams]
   );
-  const onOpenDashboard = useCallback(() => {
+  const onOpenAffine = useCallback(() => {
     jumpToIndex(RouteLogic.REPLACE);
   }, [jumpToIndex]);
 
@@ -112,9 +112,7 @@ export const Component = () => {
   switch (authType) {
     case 'onboarding':
       return (
-        account && (
-          <OnboardingPage user={account} onOpenDashboard={onOpenDashboard} />
-        )
+        account && <OnboardingPage user={account} onOpenAffine={onOpenAffine} />
       );
     case 'signUp': {
       if (!account) {
@@ -126,19 +124,19 @@ export const Component = () => {
           user={account}
           passwordLimits={passwordLimits}
           onSetPassword={onSetPassword}
-          onOpenDashboard={onOpenDashboard}
+          onOpenAffine={onOpenAffine}
         />
       );
     }
     case 'signIn': {
-      return <SignInSuccessPage onOpenDashboard={onOpenDashboard} />;
+      return <SignInSuccessPage onOpenAffine={onOpenAffine} />;
     }
     case 'changePassword': {
       return (
         <ChangePasswordPage
           passwordLimits={passwordLimits}
           onSetPassword={onSetPassword}
-          onOpenDashboard={onOpenDashboard}
+          onOpenAffine={onOpenAffine}
         />
       );
     }
@@ -147,18 +145,23 @@ export const Component = () => {
         <SetPasswordPage
           passwordLimits={passwordLimits}
           onSetPassword={onSetPassword}
-          onOpenDashboard={onOpenDashboard}
+          onOpenAffine={onOpenAffine}
         />
       );
     }
     case 'changeEmail': {
-      return <ChangeEmailPage onChangeEmail={onSendVerifyChangeEmail} />;
+      return (
+        <ChangeEmailPage
+          onChangeEmail={onSendVerifyChangeEmail}
+          onOpenAffine={onOpenAffine}
+        />
+      );
     }
     case 'confirm-change-email': {
-      return <ConfirmChangeEmail onOpenDashboard={onOpenDashboard} />;
+      return <ConfirmChangeEmail onOpenDashboard={onOpenAffine} />;
     }
     case 'verify-email': {
-      return <ConfirmVerifiedEmail onOpenDashboard={onOpenDashboard} />;
+      return <ConfirmVerifiedEmail onOpenDashboard={onOpenAffine} />;
     }
   }
   return null;

@@ -15,8 +15,8 @@ import { CasePlatformOrchestrationService } from '../../../../modules/case-assis
 import { CaseAssistantStore } from '../../../../modules/case-assistant/stores/case-assistant';
 import type {
   CaseDeadline,
-  ClientKind,
   ClientRecord,
+  ClientKind,
   LegalDocumentRecord,
   MatterRecord,
   Vollmacht,
@@ -153,7 +153,7 @@ export const AllMandantenPage = () => {
   const { openConfirmModal } = useConfirmModal();
 
   const graph = useLiveData(store.watchGraph());
-  const legalDocs =
+  const legalDocs: LegalDocumentRecord[] =
     useLiveData(legalCopilotWorkflowService.legalDocuments$) ?? [];
   const allVollmachten =
     useLiveData(casePlatformOrchestrationService.vollmachten$) ?? [];

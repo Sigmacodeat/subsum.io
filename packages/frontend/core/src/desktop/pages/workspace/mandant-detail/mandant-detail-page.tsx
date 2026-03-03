@@ -181,7 +181,8 @@ export const MandantDetailPage = () => {
     updatedAt: new Date(0).toISOString(),
   };
 
-  const legalDocs = useLiveData(workflow.legalDocuments$) ?? [];
+  const legalDocs: LegalDocumentRecord[] =
+    useLiveData(workflow.legalDocuments$) ?? [];
   const allRechnungen = useLiveData(orchestration.rechnungen$) ?? [];
   const allAuslagen = useLiveData(orchestration.auslagen$) ?? [];
   const allTimeEntries = useLiveData(timeTrackingService.timeEntries$) ?? [];

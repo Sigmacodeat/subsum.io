@@ -163,7 +163,10 @@ export class LegalDeskQuickSearchSession
     LiveData.computed(get => {
       const query = get(this.query$).trim().toLowerCase();
       const graph = get(this.caseAssistantService.graph$);
-      const legalDocs = get(this.legalCopilotWorkflowService.legalDocuments$) ?? [];
+      const legalDocsSource =
+        this.legalCopilotWorkflowService
+          .legalDocuments$ as LiveData<LegalDocumentRecord[] | undefined>;
+      const legalDocs = get(legalDocsSource) ?? [];
 
       if (!query || query.length < 1) {
         return [];
