@@ -36,7 +36,7 @@ import type {
 } from './document-generator';
 import type { DocumentNormExtractorService } from './document-norm-extractor';
 import type { DocumentProcessingService } from './document-processing';
-import { normalizeText } from './document-processing';
+import { isLikelyBinaryGarbage, normalizeText } from './document-processing';
 import type { CaseIngestionService } from './ingestion';
 import type { JudikaturResearchService } from './judikatur-research';
 import type { JurisdictionService } from './jurisdiction';
@@ -466,7 +466,11 @@ function shouldRetryRemoteOcrHttpStatus(status: number) {
 }
 
 function hasViableOcrText(text: string) {
-  return typeof text === 'string' && text.trim().length >= 10;
+  if (typeof text !== 'string' || text.trim().length < 10) return false;
+  // Reject JPEG/PNG/binary data that leaked through as "text" — must never be
+  // stored as OCR result or rawText in the document record.
+  if (isLikelyBinaryGarbage(text)) return false;
+  return true;
 }
 
 function detectLanguageHint(text: string) {
@@ -813,13 +817,19 @@ export class LegalCopilotWorkflowService extends Service {
         return remote;
       }
 
-      // Non-binary content: normalize and return as fallback text
+      // Non-binary content: normalize and return as fallback text.
+      // Guard: if the stored content is binary data (JPEG/PNG/etc decoded as text),
+      // do NOT return it as OCR text — return an empty result so the job fails cleanly.
       const normalized = normalizeText(content);
-      if (!normalized || normalized.length < 10) {
+      if (
+        !normalized ||
+        normalized.length < 10 ||
+        isLikelyBinaryGarbage(normalized)
+      ) {
         return {
-          text: normalized,
+          text: '',
           language: doc.language,
-          qualityScore: 0.1,
+          qualityScore: 0,
           pageCount: doc.pageCount,
           engine: 'local-fallback-empty',
         };
@@ -2781,10 +2791,13 @@ export class LegalCopilotWorkflowService extends Service {
           discardedBinaryAt:
             isBase64 && !keepBinaryForOcrRetry ? now : undefined,
           preflight: doc.preflight,
-          extractionFidelityRatio: processingResult.contentFidelity.fidelityRatio,
-          extractionYieldPerPage: processingResult.contentFidelity.extractionYieldPerPage,
+          extractionFidelityRatio:
+            processingResult.contentFidelity.fidelityRatio,
+          extractionYieldPerPage:
+            processingResult.contentFidelity.extractionYieldPerPage,
           extractedPageCount: processingResult.qualityReport.extractedPageCount,
-          extractionIntegrityOk: processingResult.contentFidelity.contentIntegrityOk,
+          extractionIntegrityOk:
+            processingResult.contentFidelity.contentIntegrityOk,
         };
 
         // ── MEMORY: Release binary content NOW — processing is done ──
@@ -3668,9 +3681,14 @@ export class LegalCopilotWorkflowService extends Service {
             ? BINARY_CACHE_PLACEHOLDER
             : doc.rawText;
         } else {
-          // OCR succeeded — use extracted text, release binary from cache
+          // OCR succeeded — use extracted text, release binary from cache.
+          // Final safety guard: never store binary garbage as rawText regardless
+          // of what processDocumentAsync returned.
           this.releaseBinary(doc.id);
-          nextRawText = processed.normalizedText || ocrResult.text;
+          const candidateText = processed.normalizedText || ocrResult.text;
+          nextRawText = isLikelyBinaryGarbage(candidateText)
+            ? ''
+            : candidateText;
         }
         const mergedRefs = [
           ...(doc.paragraphReferences ?? []),
@@ -3719,7 +3737,8 @@ export class LegalCopilotWorkflowService extends Service {
               : doc.discardedBinaryAt,
           updatedAt: finishedAt,
           extractionFidelityRatio: processed.contentFidelity.fidelityRatio,
-          extractionYieldPerPage: processed.contentFidelity.extractionYieldPerPage,
+          extractionYieldPerPage:
+            processed.contentFidelity.extractionYieldPerPage,
           extractedPageCount: processed.qualityReport.extractedPageCount,
           extractionIntegrityOk: processed.contentFidelity.contentIntegrityOk,
         };
@@ -3818,12 +3837,13 @@ export class LegalCopilotWorkflowService extends Service {
 
         // ── Dev-facing structured performance log ──
         const jobDurationMs = queued.startedAt
-          ? new Date(finishedAt).getTime() - new Date(queued.startedAt).getTime()
+          ? new Date(finishedAt).getTime() -
+            new Date(queued.startedAt).getTime()
           : 0;
         console.info(
           `[OCR ✓] "${doc.title}" | engine=${ocrResult.engine ?? queued.engine} ` +
-          `chunks=${processed.chunks.length} quality=${processed.qualityReport.overallScore}% ` +
-          `pages=${ocrResult.pageCount ?? doc.pageCount ?? '?'} duration=${jobDurationMs}ms`
+            `chunks=${processed.chunks.length} quality=${processed.qualityReport.overallScore}% ` +
+            `pages=${ocrResult.pageCount ?? doc.pageCount ?? '?'} duration=${jobDurationMs}ms`
         );
 
         // ── OCR Pipeline Audit: Log detailed metrics for monitoring & QA ──
@@ -3911,8 +3931,8 @@ export class LegalCopilotWorkflowService extends Service {
     const failedCount = jobs.length - completed.length - crashedJobs;
     console.info(
       `[OCR batch] caseId=${caseId} total=${jobs.length} ` +
-      `completed=${completed.length} crashed=${crashedJobs} other_failed=${failedCount} ` +
-      `totalDuration=${batchDurationMs}ms`
+        `completed=${completed.length} crashed=${crashedJobs} other_failed=${failedCount} ` +
+        `totalDuration=${batchDurationMs}ms`
     );
 
     if (crashedJobs > 0) {

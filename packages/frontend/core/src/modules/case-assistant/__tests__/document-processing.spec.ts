@@ -1,7 +1,10 @@
-import { describe, expect, test } from 'vitest';
 import { Framework } from '@toeverything/infra';
+import { describe, expect, test } from 'vitest';
 
-import { DocumentProcessingService } from '../services/document-processing';
+import {
+  DocumentProcessingService,
+  isLikelyBinaryGarbage,
+} from '../services/document-processing';
 
 const XLSX_BASE64 =
   'UEsDBBQAAAAIAEZ+VFzoIxXfTQAAAF4AAAAUAAAAeGwvc2hhcmVkU3RyaW5ncy54bWyzsa/IzVEoSy0qzszPs1Uy1DNQUkjNS85PycxLt1UKDXHTtVCyt7MpLi4BEpl2NiV23jmJ6ak2+kC+PkgAIuiYV1xQVJqcgRDXB2kBAFBLAwQUAAAACABGflRcWalzZWkAAACkAAAAGAAAAHhsL3dvcmtzaGVldHMvc2hlZXQxLnhtbLOxr8jNUShLLSrOzM+zVTLUM1BSSM1Lzk/JzEu3VQoNcdO1ULK3synPL8ouzkhNLbGzAVMuiSWJdjZF+eV2NskKJbZKxUp2NmV2Bjb6ZXY2+slAQRDXxAjO1wcrRVdviCavj2S2PsJKAFBLAQIUAxQAAAAIAEZ+VFzoIxXfTQAAAF4AAAAUAAAAAAAAAAAAAACAAQAAAAB4bC9zaGFyZWRTdHJpbmdzLnhtbFBLAQIUAxQAAAAIAEZ+VFxZqXNlaQAAAKQAAAAYAAAAAAAAAAAAAACAAX8AAAB4bC93b3Jrc2hlZXRzL3NoZWV0MS54bWxQSwUGAAAAAAIAAgCIAAAAHgEAAAAA';
@@ -38,7 +41,8 @@ describe('DocumentProcessingService structured and office extraction', () => {
       workspaceId: 'ws-1',
       title: 'frist.xml',
       kind: 'note',
-      rawContent: '<root><frist>19.02.2026</frist><gericht>LG Wien</gericht></root>',
+      rawContent:
+        '<root><frist>19.02.2026</frist><gericht>LG Wien</gericht></root>',
       mimeType: 'application/xml',
     });
 
@@ -95,5 +99,36 @@ describe('DocumentProcessingService structured and office extraction', () => {
     expect(result.extractionEngine).toBe('pptx-parser');
     expect(result.normalizedText).toContain('Verhandlungstermin');
     expect(result.chunks.length).toBeGreaterThan(0);
+  });
+
+  test('rejects JPEG/JFIF binary garbage decoded as text', async () => {
+    const jpegLikeBinary =
+      'ÿØÿàJFIF\u0000\u0001\u0002ÿÛC\u0000\u0008\u0006\u0006\u0007\u0006\u0005\u0008\u0007\u0007\u0007\u0009\u0009\u0008\u000A\u000C';
+
+    expect(isLikelyBinaryGarbage(jpegLikeBinary)).toBe(true);
+
+    const result = await service.processDocumentAsync({
+      documentId: 'doc-binary-jfif-1',
+      caseId: 'case-1',
+      workspaceId: 'ws-1',
+      title: 'scan.txt',
+      kind: 'scan-pdf',
+      rawContent: jpegLikeBinary,
+      mimeType: 'text/plain',
+    });
+
+    expect(result.extractionEngine).toContain('binary-rejected');
+    expect(result.normalizedText).toBe('');
+    expect(result.chunks.length).toBe(0);
+    expect(result.processingStatus).toBe('failed');
+    expect(
+      result.qualityReport.problems.some(p => p.type === 'no_text_extracted')
+    ).toBe(true);
+  });
+
+  test('does not flag normal legal prose as binary garbage', () => {
+    const legalText =
+      'Im Namen der Republik. Das Gericht stellt fest, dass der Antrag gemäß § 823 BGB zulässig ist.';
+    expect(isLikelyBinaryGarbage(legalText)).toBe(false);
   });
 });

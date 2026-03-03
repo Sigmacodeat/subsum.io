@@ -1,4 +1,4 @@
-import { type AsyncMemento,LiveData, Store } from '@toeverything/infra';
+import { type AsyncMemento, LiveData, Store } from '@toeverything/infra';
 
 import type { GlobalState } from '../../storage';
 import type { WorkspaceService } from '../../workspace';
@@ -105,7 +105,10 @@ function sanitizeLegalDocForStore(
 
 export class CaseAssistantStore extends Store {
   private readonly watchStateCache = new Map<string, LiveData<unknown>>();
-  private readonly watchGraphCache = new Map<string, LiveData<CaseGraphRecord>>();
+  private readonly watchGraphCache = new Map<
+    string,
+    LiveData<CaseGraphRecord>
+  >();
 
   constructor(
     private readonly workspaceService: WorkspaceService,
@@ -116,14 +119,14 @@ export class CaseAssistantStore extends Store {
   }
 
   private watchState<T>(key: string, fallback: T) {
-    const cached = this.watchStateCache.get(key) as LiveData<T> | undefined;
-    if (cached) {
-      return cached;
+    const cached$ = this.watchStateCache.get(key) as LiveData<T> | undefined;
+    if (cached$) {
+      return cached$;
     }
 
-    const $liveData = LiveData.from(this.globalState.watch<T>(key), fallback);
-    this.watchStateCache.set(key, $liveData as LiveData<unknown>);
-    return $liveData;
+    const liveData$ = LiveData.from(this.globalState.watch<T>(key), fallback);
+    this.watchStateCache.set(key, liveData$ as LiveData<unknown>);
+    return liveData$;
   }
 
   private async readState<T>(key: string) {
@@ -163,7 +166,11 @@ export class CaseAssistantStore extends Store {
   }
 
   private get workspaceId() {
-    return this.workspaceService.workspace!.id;
+    const workspace = this.workspaceService.workspace;
+    if (!workspace) {
+      throw new Error('CaseAssistantStore: workspace is not available');
+    }
+    return workspace.id;
   }
 
   getWorkspaceId() {
@@ -210,15 +217,16 @@ export class CaseAssistantStore extends Store {
         continue;
       }
 
-      const looksLikeCaseId = caseId.startsWith('case-') || caseId.startsWith('case:');
+      const looksLikeCaseId =
+        caseId.startsWith('case-') || caseId.startsWith('case:');
       if (!caseFile.matterId && looksLikeCaseId) {
         const matterId = `matter:${this.workspaceId}:${caseId}`;
         caseFile.matterId = matterId;
-        const FILE_EXT_RE = /\.(pdf|docx?|txt|eml|msg|png|jpe?g|tiff?|bmp|webp|gif|heic|heif|odt|rtf|html?|md|csv|tsv|json|xml|xlsx?|xlsm|pptx?|ppt|ods)$/i;
+        const FILE_EXT_RE =
+          /\.(pdf|docx?|txt|eml|msg|png|jpe?g|tiff?|bmp|webp|gif|heic|heif|odt|rtf|html?|md|csv|tsv|json|xml|xlsx?|xlsm|pptx?|ppt|ods)$/i;
         if (!matters[matterId]) {
           const rawTitle = caseFile.title || 'Akte';
-          const cleanTitle =
-            rawTitle.replace(FILE_EXT_RE, '').trim() || 'Akte';
+          const cleanTitle = rawTitle.replace(FILE_EXT_RE, '').trim() || 'Akte';
           matters[matterId] = {
             id: matterId,
             workspaceId: this.workspaceId,
@@ -236,7 +244,13 @@ export class CaseAssistantStore extends Store {
           if (needsTitleFix || needsClientFix) {
             matters[matterId] = {
               ...existingMatter,
-              ...(needsTitleFix ? { title: existingMatter.title.replace(FILE_EXT_RE, '').trim() || 'Akte' } : {}),
+              ...(needsTitleFix
+                ? {
+                    title:
+                      existingMatter.title.replace(FILE_EXT_RE, '').trim() ||
+                      'Akte',
+                  }
+                : {}),
               ...(needsClientFix ? { clientId: firstClientId } : {}),
               updatedAt: now,
             };
@@ -433,18 +447,28 @@ export class CaseAssistantStore extends Store {
 
   watchGraph() {
     const key = this.graphKey;
-    const cached = this.watchGraphCache.get(key);
-    if (cached) {
-      return cached;
+    const cached$ = this.watchGraphCache.get(key);
+    if (cached$) {
+      return cached$;
     }
 
-    const $graph$ = this.watchState<CaseGraphRecord>(key, EMPTY_GRAPH).map(
+    const graph$ = this.watchState<CaseGraphRecord>(key, EMPTY_GRAPH).map(
       (graph: CaseGraphRecord | undefined) =>
         this.ensureGraphShape(graph ?? EMPTY_GRAPH)
     );
 
-    this.watchGraphCache.set(key, $graph$);
-    return $graph$;
+    // Seed from IndexedDB if localStorage has no graph entry.
+    // This happens when a previous writeState() call hit the localStorage quota:
+    // StorageMemento removes the key and the retry also fails, leaving localStorage
+    // empty while IndexedDB holds the correct data.
+    // Without this seed, watchGraph() returns EMPTY_GRAPH forever after refresh,
+    // making caseIds = {} which filters out ALL uploaded documents.
+    if (!this.globalState.get<CaseGraphRecord>(key)) {
+      void this.getGraph().catch(() => {});
+    }
+
+    this.watchGraphCache.set(key, graph$);
+    return graph$;
   }
 
   async getGraph() {
@@ -464,7 +488,11 @@ export class CaseAssistantStore extends Store {
   }
 
   watchAlerts() {
-    return this.watchState<DeadlineAlert[]>(this.alertsKey, []);
+    const ld$ = this.watchState<DeadlineAlert[]>(this.alertsKey, []);
+    if ((ld$.value?.length ?? 0) === 0) {
+      void this.getAlerts().catch(() => {});
+    }
+    return ld$;
   }
 
   async getAlerts() {
@@ -492,7 +520,11 @@ export class CaseAssistantStore extends Store {
   }
 
   watchConnectors() {
-    return this.watchState<ConnectorConfig[]>(this.connectorsKey, []);
+    const ld$ = this.watchState<ConnectorConfig[]>(this.connectorsKey, []);
+    if ((ld$.value?.length ?? 0) === 0) {
+      void this.getConnectors().catch(() => {});
+    }
+    return ld$;
   }
 
   async getConnectors() {
@@ -504,7 +536,11 @@ export class CaseAssistantStore extends Store {
   }
 
   watchIngestionJobs() {
-    return this.watchState<IngestionJob[]>(this.ingestionJobsKey, []);
+    const ld$ = this.watchState<IngestionJob[]>(this.ingestionJobsKey, []);
+    if ((ld$.value?.length ?? 0) === 0) {
+      void this.getIngestionJobs().catch(() => {});
+    }
+    return ld$;
   }
 
   async getIngestionJobs() {
@@ -516,7 +552,7 @@ export class CaseAssistantStore extends Store {
   }
 
   watchLegalDocuments() {
-    const $ld = this.watchState<LegalDocumentRecord[]>(
+    const ld$ = this.watchState<LegalDocumentRecord[]>(
       this.legalDocumentsKey,
       []
     );
@@ -524,10 +560,10 @@ export class CaseAssistantStore extends Store {
     // (happens when a previous write failed due to localStorage quota exceeded),
     // seed the reactive observable asynchronously so documents appear immediately
     // on load instead of only after the next write operation.
-    if (($ld.value?.length ?? 0) === 0) {
+    if ((ld$.value?.length ?? 0) === 0) {
       void this.getLegalDocuments().catch(() => {});
     }
-    return $ld;
+    return ld$;
   }
 
   async getLegalDocuments(options?: { includeTrashed?: boolean }) {
@@ -582,11 +618,11 @@ export class CaseAssistantStore extends Store {
   }
 
   watchOcrJobs() {
-    const $ld = this.watchState<OcrJob[]>(this.ocrJobsKey, []);
-    if (($ld.value?.length ?? 0) === 0) {
+    const ld$ = this.watchState<OcrJob[]>(this.ocrJobsKey, []);
+    if ((ld$.value?.length ?? 0) === 0) {
       void this.getOcrJobs().catch(() => {});
     }
-    return $ld;
+    return ld$;
   }
 
   async getOcrJobs() {
@@ -598,7 +634,11 @@ export class CaseAssistantStore extends Store {
   }
 
   watchLegalFindings() {
-    return this.watchState<LegalFinding[]>(this.legalFindingsKey, []);
+    const ld$ = this.watchState<LegalFinding[]>(this.legalFindingsKey, []);
+    if ((ld$.value?.length ?? 0) === 0) {
+      void this.getLegalFindings().catch(() => {});
+    }
+    return ld$;
   }
 
   async getLegalFindings() {
@@ -622,7 +662,11 @@ export class CaseAssistantStore extends Store {
   }
 
   watchBlueprints() {
-    return this.watchState<CaseBlueprint[]>(this.blueprintsKey, []);
+    const ld$ = this.watchState<CaseBlueprint[]>(this.blueprintsKey, []);
+    if ((ld$.value?.length ?? 0) === 0) {
+      void this.getBlueprints().catch(() => {});
+    }
+    return ld$;
   }
 
   async getBlueprints() {
@@ -646,7 +690,11 @@ export class CaseAssistantStore extends Store {
   }
 
   watchWorkflowEvents() {
-    return this.watchState<WorkflowEvent[]>(this.workflowEventsKey, []);
+    const ld$ = this.watchState<WorkflowEvent[]>(this.workflowEventsKey, []);
+    if ((ld$.value?.length ?? 0) === 0) {
+      void this.getWorkflowEvents().catch(() => {});
+    }
+    return ld$;
   }
 
   async getWorkflowEvents() {
@@ -660,7 +708,14 @@ export class CaseAssistantStore extends Store {
   }
 
   watchAuditEntries() {
-    return this.watchState<ComplianceAuditEntry[]>(this.auditEntriesKey, []);
+    const ld$ = this.watchState<ComplianceAuditEntry[]>(
+      this.auditEntriesKey,
+      []
+    );
+    if ((ld$.value?.length ?? 0) === 0) {
+      void this.getAuditEntries().catch(() => {});
+    }
+    return ld$;
   }
 
   async getAuditEntries() {
@@ -674,7 +729,11 @@ export class CaseAssistantStore extends Store {
   }
 
   watchAuditAnchors() {
-    return this.watchState<AuditChainAnchor[]>(this.auditAnchorsKey, []);
+    const ld$ = this.watchState<AuditChainAnchor[]>(this.auditAnchorsKey, []);
+    if ((ld$.value?.length ?? 0) === 0) {
+      void this.getAuditAnchors().catch(() => {});
+    }
+    return ld$;
   }
 
   async getAuditAnchors() {
@@ -754,11 +813,17 @@ export class CaseAssistantStore extends Store {
   }
 
   watchSemanticChunks() {
-    const $liveData = this.watchState<SemanticChunk[]>(this.semanticChunksKey, []);
+    const liveData$ = this.watchState<SemanticChunk[]>(
+      this.semanticChunksKey,
+      []
+    );
     // Seed from IndexedDB if localStorage has no entry yet.
     // Covers the case where chunks were only written to IndexedDB (e.g. after
     // a localStorage quota error) or when localStorage was cleared between sessions.
-    if (this.globalState.get<SemanticChunk[]>(this.semanticChunksKey) === undefined) {
+    if (
+      this.globalState.get<SemanticChunk[]>(this.semanticChunksKey) ===
+      undefined
+    ) {
       this.cacheStorage
         .get<SemanticChunk[]>(this.semanticChunksKey)
         .then(async cached => {
@@ -775,8 +840,9 @@ export class CaseAssistantStore extends Store {
 
           // If monolith is absent, try to reconstruct from segmented storage.
           const index =
-            (await this.cacheStorage.get<string[]>(this.semanticChunksIndexKey)) ??
-            [];
+            (await this.cacheStorage.get<string[]>(
+              this.semanticChunksIndexKey
+            )) ?? [];
           if (index.length === 0) return;
 
           const out: SemanticChunk[] = [];
@@ -796,17 +862,20 @@ export class CaseAssistantStore extends Store {
         })
         .catch(() => {});
     }
-    return $liveData;
+    return liveData$;
   }
 
   async getSemanticChunks() {
-    const monolith = await this.readState<SemanticChunk[]>(this.semanticChunksKey);
+    const monolith = await this.readState<SemanticChunk[]>(
+      this.semanticChunksKey
+    );
     if (monolith && monolith.length > 0) {
       return monolith;
     }
 
     const index =
-      (await this.cacheStorage.get<string[]>(this.semanticChunksIndexKey)) ?? [];
+      (await this.cacheStorage.get<string[]>(this.semanticChunksIndexKey)) ??
+      [];
     if (index.length === 0) {
       return [];
     }
@@ -823,7 +892,9 @@ export class CaseAssistantStore extends Store {
   }
 
   async setSemanticChunks(items: SemanticChunk[]) {
-    const docIds = Array.from(new Set(items.map(c => c.documentId))).filter(Boolean);
+    const docIds = Array.from(new Set(items.map(c => c.documentId))).filter(
+      Boolean
+    );
     if (docIds.length <= 1) {
       await this.writeState(this.semanticChunksKey, items);
       return;
@@ -839,7 +910,10 @@ export class CaseAssistantStore extends Store {
     const index: string[] = [];
     for (const [docId, chunks] of grouped.entries()) {
       index.push(docId);
-      await this.cacheStorage.set(this.semanticChunksByDocumentKey(docId), chunks);
+      await this.cacheStorage.set(
+        this.semanticChunksByDocumentKey(docId),
+        chunks
+      );
     }
     await this.cacheStorage.set(this.semanticChunksIndexKey, index);
 
@@ -853,7 +927,9 @@ export class CaseAssistantStore extends Store {
   }
 
   async getSemanticChunksForDocument(documentId: string) {
-    const monolith = await this.readState<SemanticChunk[]>(this.semanticChunksKey);
+    const monolith = await this.readState<SemanticChunk[]>(
+      this.semanticChunksKey
+    );
     if (monolith && monolith.length > 0) {
       return monolith.filter(c => c.documentId === documentId);
     }
@@ -864,18 +940,32 @@ export class CaseAssistantStore extends Store {
     );
   }
 
-  async setSemanticChunksForDocument(documentId: string, chunks: SemanticChunk[]) {
+  async setSemanticChunksForDocument(
+    documentId: string,
+    chunks: SemanticChunk[]
+  ) {
     const index =
-      (await this.cacheStorage.get<string[]>(this.semanticChunksIndexKey)) ?? [];
+      (await this.cacheStorage.get<string[]>(this.semanticChunksIndexKey)) ??
+      [];
     if (!index.includes(documentId)) {
       index.push(documentId);
       await this.cacheStorage.set(this.semanticChunksIndexKey, index);
     }
-    await this.cacheStorage.set(this.semanticChunksByDocumentKey(documentId), chunks);
+    await this.cacheStorage.set(
+      this.semanticChunksByDocumentKey(documentId),
+      chunks
+    );
   }
 
   watchQualityReports() {
-    return this.watchState<DocumentQualityReport[]>(this.qualityReportsKey, []);
+    const ld$ = this.watchState<DocumentQualityReport[]>(
+      this.qualityReportsKey,
+      []
+    );
+    if ((ld$.value?.length ?? 0) === 0) {
+      void this.getQualityReports().catch(() => {});
+    }
+    return ld$;
   }
 
   async getQualityReports() {

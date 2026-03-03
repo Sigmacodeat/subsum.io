@@ -874,7 +874,8 @@ export type QualityProblemType =
   | 'no_text_extracted'
   | 'suspicious_characters'
   | 'truncated'
-  | 'column_layout_detected';
+  | 'column_layout_detected'
+  | 'binary_content_rejected';
 
 export interface QualityProblem {
   type: QualityProblemType;
