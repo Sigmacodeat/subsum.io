@@ -15,17 +15,44 @@ import {
 import { cssVarV2 } from '@toeverything/theme/v2';
 import { assignInlineVars } from '@vanilla-extract/dynamic';
 import clsx from 'clsx';
-import { type DragEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  type DragEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 
 import type { UploadedFile } from './file-upload-zone';
 import * as localStyles from './premium-chat-section.css';
 
-const MODE_OPTIONS: Array<{ id: LegalChatMode; label: string; description: string }> = [
+const MODE_OPTIONS: Array<{
+  id: LegalChatMode;
+  label: string;
+  description: string;
+}> = [
   { id: 'general', label: 'Allgemein', description: 'Allgemeine Fallberatung' },
-  { id: 'strategie', label: 'Strategie', description: 'Prozessstrategie entwickeln' },
-  { id: 'subsumtion', label: 'Subsumtion', description: 'Juristische Subsumtion' },
-  { id: 'gegner', label: 'Gegner', description: 'Gegner-Perspektive einnehmen' },
-  { id: 'richter', label: 'Richter', description: 'Richter-Perspektive & Urteilsprognose' },
+  {
+    id: 'strategie',
+    label: 'Strategie',
+    description: 'Prozessstrategie entwickeln',
+  },
+  {
+    id: 'subsumtion',
+    label: 'Subsumtion',
+    description: 'Juristische Subsumtion',
+  },
+  {
+    id: 'gegner',
+    label: 'Gegner',
+    description: 'Gegner-Perspektive einnehmen',
+  },
+  {
+    id: 'richter',
+    label: 'Richter',
+    description: 'Richter-Perspektive & Urteilsprognose',
+  },
   { id: 'beweislage', label: 'Beweis', description: 'Beweislage analysieren' },
   { id: 'fristen', label: 'Fristen', description: 'Fristen & Termine prüfen' },
   { id: 'normen', label: 'Normen', description: 'Normen-Analyse' },
@@ -42,7 +69,9 @@ const MODE_LABELS: Record<LegalChatMode, string> = {
   normen: 'Normen',
 };
 
-const RELATIVE_TIME_FORMATTER = new Intl.RelativeTimeFormat('de', { numeric: 'auto' });
+const RELATIVE_TIME_FORMATTER = new Intl.RelativeTimeFormat('de', {
+  numeric: 'auto',
+});
 
 function formatSessionTimestamp(value: string): string {
   const date = new Date(value);
@@ -75,22 +104,78 @@ function formatSessionTimestamp(value: string): string {
 }
 
 const SLASH_COMMANDS = [
-  { command: '/norm', description: 'Norm-Recherche', example: '/norm § 823 BGB' },
-  { command: '/beweis', description: 'Beweislage', example: '/beweis Welche Beweismittel fehlen?' },
-  { command: '/frist', description: 'Fristen', example: '/frist Welche Fristen laufen?' },
-  { command: '/ocr', description: 'OCR-Warteschlange verarbeiten', example: '/ocr' },
-  { command: '/analyse', description: 'Fallanalyse starten', example: '/analyse' },
-  { command: '/workflow', description: 'OCR + Analyse als Vollworkflow', example: '/workflow' },
-  { command: '/folder', description: 'Ordnerzusammenfassung', example: '/folder eingang/postfach' },
-  { command: '/strategie', description: 'Strategie', example: '/strategie Berufungsverfahren' },
-  { command: '/gegner', description: 'Gegner-Sicht', example: '/gegner Gegenargumente' },
-  { command: '/richter', description: 'Richter-Simulation', example: '/richter Wie würde das Gericht entscheiden?' },
-  { command: '/dropbox', description: 'Dropbox-Akten durchsuchen', example: '/dropbox kündigung 2024' },
-  { command: '/zusammenfassung', description: 'Zusammenfassung', example: '/zusammenfassung' },
-  { command: '/dokument', description: 'Dokument per AI erstellen', example: '/dokument Schriftsatz Klageerwiderung' },
+  {
+    command: '/norm',
+    description: 'Norm-Recherche',
+    example: '/norm § 823 BGB',
+  },
+  {
+    command: '/beweis',
+    description: 'Beweislage',
+    example: '/beweis Welche Beweismittel fehlen?',
+  },
+  {
+    command: '/frist',
+    description: 'Fristen',
+    example: '/frist Welche Fristen laufen?',
+  },
+  {
+    command: '/ocr',
+    description: 'OCR-Warteschlange verarbeiten',
+    example: '/ocr',
+  },
+  {
+    command: '/analyse',
+    description: 'Fallanalyse starten',
+    example: '/analyse',
+  },
+  {
+    command: '/workflow',
+    description: 'OCR + Analyse als Vollworkflow',
+    example: '/workflow',
+  },
+  {
+    command: '/folder',
+    description: 'Ordnerzusammenfassung',
+    example: '/folder eingang/postfach',
+  },
+  {
+    command: '/strategie',
+    description: 'Strategie',
+    example: '/strategie Berufungsverfahren',
+  },
+  {
+    command: '/gegner',
+    description: 'Gegner-Sicht',
+    example: '/gegner Gegenargumente',
+  },
+  {
+    command: '/richter',
+    description: 'Richter-Simulation',
+    example: '/richter Wie würde das Gericht entscheiden?',
+  },
+  {
+    command: '/dropbox',
+    description: 'Dropbox-Akten durchsuchen',
+    example: '/dropbox kündigung 2024',
+  },
+  {
+    command: '/zusammenfassung',
+    description: 'Zusammenfassung',
+    example: '/zusammenfassung',
+  },
+  {
+    command: '/dokument',
+    description: 'Dokument per AI erstellen',
+    example: '/dokument Schriftsatz Klageerwiderung',
+  },
 ];
 
-const EMPTY_SESSION_SUGGESTIONS: Array<{ label: string; mode: LegalChatMode; prompt: string }> = [
+const EMPTY_SESSION_SUGGESTIONS: Array<{
+  label: string;
+  mode: LegalChatMode;
+  prompt: string;
+}> = [
   {
     label: 'Kurze Fallzusammenfassung',
     mode: 'general',
@@ -198,7 +283,12 @@ function getModelPriorityBucket(model: LlmModelOption): ModelPriorityBucket {
     return 'recommended';
   }
 
-  if (model.costTier === 'low' || id.includes('mini') || id.includes('nano') || id.includes('flash')) {
+  if (
+    model.costTier === 'low' ||
+    id.includes('mini') ||
+    id.includes('nano') ||
+    id.includes('flash')
+  ) {
     return 'speed';
   }
 
@@ -216,6 +306,7 @@ function getModelPriorityBucket(model: LlmModelOption): ModelPriorityBucket {
 
 type InsightSuggestion = {
   id: string;
+  kind: 'risk' | 'deadline' | 'note' | 'actor';
   entity: 'issue' | 'actor' | 'memory_event';
   title: string;
   content: string;
@@ -279,7 +370,12 @@ function buildInsightSuggestions(text: string): InsightSuggestion[] {
       /(risiko|fehler|widerspruch|haftung|amtshaft|kausal|ursache|beweislücke|verjähr|fristversäumnis|anspruch)/.test(
         lower
       );
-    const hasMemorySignal = /(notiz|hinweis|nächste schritte|to-?do|merke|dokumentiere)/.test(lower);
+    const hasDeadlineSignal =
+      /(frist|deadline|termin|ablauf|verjährung|wiedervorlage|einspruchsfrist|beschwerdefrist)/.test(
+        lower
+      );
+    const hasMemorySignal =
+      /(notiz|hinweis|nächste schritte|to-?do|merke|dokumentiere)/.test(lower);
 
     if (hasIssueSignal) {
       const key = `issue:${segment.toLowerCase()}`;
@@ -287,10 +383,26 @@ function buildInsightSuggestions(text: string): InsightSuggestion[] {
         seen.add(key);
         suggestions.push({
           id: `issue:${index}`,
+          kind: 'risk',
           entity: 'issue',
           title: 'Problem/Risiko',
           content: segment,
           confidence: 0.8,
+        });
+      }
+    }
+
+    if (hasDeadlineSignal && !hasIssueSignal) {
+      const key = `deadline:${segment.toLowerCase()}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        suggestions.push({
+          id: `deadline:${index}`,
+          kind: 'deadline',
+          entity: 'memory_event',
+          title: 'Frist/Termin',
+          content: segment,
+          confidence: 0.76,
         });
       }
     }
@@ -301,6 +413,7 @@ function buildInsightSuggestions(text: string): InsightSuggestion[] {
         seen.add(key);
         suggestions.push({
           id: `actor:${index}`,
+          kind: 'actor',
           entity: 'actor',
           title: 'Beteiligte Person/Partei',
           content: segment,
@@ -309,12 +422,19 @@ function buildInsightSuggestions(text: string): InsightSuggestion[] {
       }
     }
 
-    if (hasMemorySignal || (!hasIssueSignal && !hasActorSignal && segment.length > 60)) {
+    if (
+      hasMemorySignal ||
+      (!hasIssueSignal &&
+        !hasDeadlineSignal &&
+        !hasActorSignal &&
+        segment.length > 60)
+    ) {
       const key = `memory:${segment.toLowerCase()}`;
       if (!seen.has(key)) {
         seen.add(key);
         suggestions.push({
           id: `memory:${index}`,
+          kind: 'note',
           entity: 'memory_event',
           title: 'Aktennotiz',
           content: pickTitle(segment),
@@ -327,6 +447,26 @@ function buildInsightSuggestions(text: string): InsightSuggestion[] {
   }
 
   return suggestions;
+}
+
+const insightPriorityRank: Record<InsightSuggestion['kind'], number> = {
+  risk: 0,
+  deadline: 1,
+  note: 2,
+  actor: 3,
+};
+
+const insightPriorityLabel: Record<InsightSuggestion['kind'], string> = {
+  risk: 'Risiko',
+  deadline: 'Frist',
+  note: 'Notiz',
+  actor: 'Beteiligte',
+};
+
+function getConfidenceLevel(confidence: number): 'high' | 'medium' | 'low' {
+  if (confidence >= 0.75) return 'high';
+  if (confidence >= 0.6) return 'medium';
+  return 'low';
 }
 
 type Props = {
@@ -375,8 +515,14 @@ type Props = {
   onCancelNlpAction?: () => void;
   onRegenerateMessage?: (messageId: string) => void;
   onDeleteMessage?: (messageId: string) => void;
-  onSaveArtifactToAkte?: (messageId: string, artifact: ChatArtifact) => Promise<void> | void;
-  onOpenArtifactInStrategy?: (messageId: string, artifact: ChatArtifact) => void;
+  onSaveArtifactToAkte?: (
+    messageId: string,
+    artifact: ChatArtifact
+  ) => Promise<void> | void;
+  onOpenArtifactInStrategy?: (
+    messageId: string,
+    artifact: ChatArtifact
+  ) => void;
   onResolveToolApproval?: (
     messageId: string,
     toolCallId: string,
@@ -496,7 +642,8 @@ export const PremiumChatSection = ({
           }))
           .sort((a, b) => {
             const priorityDelta =
-              MODEL_PRIORITY_ORDER[a.priority] - MODEL_PRIORITY_ORDER[b.priority];
+              MODEL_PRIORITY_ORDER[a.priority] -
+              MODEL_PRIORITY_ORDER[b.priority];
             if (priorityDelta !== 0) {
               return priorityDelta;
             }
@@ -553,10 +700,10 @@ export const PremiumChatSection = ({
   );
   const casePickerListId = 'case-picker-listbox';
   const activeCaseOptionId =
-    activeCaseOptionIndex >= 0 && activeCaseOptionIndex < casePickerOptions.length
+    activeCaseOptionIndex >= 0 &&
+    activeCaseOptionIndex < casePickerOptions.length
       ? `case-picker-option-${activeCaseOptionIndex}`
       : undefined;
-
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -608,7 +755,9 @@ export const PremiumChatSection = ({
       setActiveCaseOptionIndex(-1);
       return;
     }
-    const selectedIndex = casePickerOptions.findIndex(option => option.id === selectedCaseId);
+    const selectedIndex = casePickerOptions.findIndex(
+      option => option.id === selectedCaseId
+    );
     if (selectedIndex >= 0) {
       setActiveCaseOptionIndex(selectedIndex);
       return;
@@ -644,7 +793,10 @@ export const PremiumChatSection = ({
     setInputValue(nextPrefill);
     requestAnimationFrame(() => {
       inputRef.current?.focus();
-      inputRef.current?.setSelectionRange(nextPrefill.length, nextPrefill.length);
+      inputRef.current?.setSelectionRange(
+        nextPrefill.length,
+        nextPrefill.length
+      );
     });
   }, [prefillInput]);
 
@@ -663,101 +815,130 @@ export const PremiumChatSection = ({
     setShowSlashMenu(false);
     setAttachedFiles([]);
     setAttachmentError(null);
-  }, [attachedFiles, hasSelectedCase, inputValue, isChatBusy, isPreparingAttachments, onSendMessage]);
+  }, [
+    attachedFiles,
+    hasSelectedCase,
+    inputValue,
+    isChatBusy,
+    isPreparingAttachments,
+    onSendMessage,
+  ]);
 
   const onOpenFilePicker = useCallback(() => {
     if (isChatBusy || isPreparingAttachments) return;
     fileInputRef.current?.click();
   }, [isChatBusy, isPreparingAttachments]);
 
-  const onAttachmentInputChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
-    const list = event.target.files;
-    event.target.value = '';
-    if (!hasSelectedCase) {
-      setAttachmentError('Bitte zuerst eine Akte auswählen.');
-      return;
-    }
-    if (!list || list.length === 0) {
-      return;
-    }
-
-    const files = Array.from(list);
-    (async () => {
-      setIsPreparingAttachments(true);
-      setAttachmentError(null);
-
-      try {
-        const { accepted, rejected } = await prepareLegalUploadFiles({
-          files,
-          maxFiles: 80,
-        });
-        const next: UploadedFile[] = accepted;
-
-        if (next.length === 0) {
-          setAttachmentError(rejected[0]?.reason ?? 'Keine unterstützten Dateien ausgewählt.');
-          return;
-        }
-
-        if (rejected.length > 0) {
-          setAttachmentError(`${rejected.length} Datei(en) wurden übersprungen (nicht unterstützt, zu groß oder Lesefehler).`);
-        }
-
-        setAttachedFiles(prev => {
-          const seen = new Set(prev.map(item => `${item.name}:${item.size}:${item.lastModifiedAt}`));
-          const merged = [...prev];
-          for (const file of next) {
-            const key = `${file.name}:${file.size}:${file.lastModifiedAt}`;
-            if (!seen.has(key)) {
-              seen.add(key);
-              merged.push(file);
-            }
-          }
-          return merged;
-        });
-      } catch {
-        setAttachmentError('Dateianhänge konnten nicht gelesen werden.');
-      } finally {
-        setIsPreparingAttachments(false);
+  const onAttachmentInputChange = useCallback(
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      const list = event.target.files;
+      event.target.value = '';
+      if (!hasSelectedCase) {
+        setAttachmentError('Bitte zuerst eine Akte auswählen.');
+        return;
       }
-    })().catch(() => {
-      setAttachmentError('Dateianhänge konnten nicht gelesen werden.');
-      setIsPreparingAttachments(false);
-    });
-  }, [hasSelectedCase]);
+      if (!list || list.length === 0) {
+        return;
+      }
 
-  const onDropFiles = useCallback((event: DragEvent<HTMLElement>) => {
-    event.preventDefault();
-    event.stopPropagation();
-    setIsDragOver(false);
+      const files = Array.from(list);
+      (async () => {
+        setIsPreparingAttachments(true);
+        setAttachmentError(null);
 
-    if (!hasSelectedCase) {
-      setAttachmentError('Bitte zuerst eine Akte auswählen.');
-      return;
-    }
+        try {
+          const { accepted, rejected } = await prepareLegalUploadFiles({
+            files,
+            maxFiles: 80,
+          });
+          const next: UploadedFile[] = accepted;
 
-    if (isChatBusy || isPreparingAttachments) {
-      return;
-    }
+          if (next.length === 0) {
+            setAttachmentError(
+              rejected[0]?.reason ?? 'Keine unterstützten Dateien ausgewählt.'
+            );
+            return;
+          }
 
-    const dropped = event.dataTransfer?.files;
-    if (!dropped || dropped.length === 0) {
-      return;
-    }
+          if (rejected.length > 0) {
+            setAttachmentError(
+              `${rejected.length} Datei(en) wurden übersprungen (nicht unterstützt, zu groß oder Lesefehler).`
+            );
+          }
 
-    const fakeEvent = {
-      target: { files: dropped, value: '' },
-    } as unknown as React.ChangeEvent<HTMLInputElement>;
+          setAttachedFiles(prev => {
+            const seen = new Set(
+              prev.map(
+                item => `${item.name}:${item.size}:${item.lastModifiedAt}`
+              )
+            );
+            const merged = [...prev];
+            for (const file of next) {
+              const key = `${file.name}:${file.size}:${file.lastModifiedAt}`;
+              if (!seen.has(key)) {
+                seen.add(key);
+                merged.push(file);
+              }
+            }
+            return merged;
+          });
+        } catch {
+          setAttachmentError('Dateianhänge konnten nicht gelesen werden.');
+        } finally {
+          setIsPreparingAttachments(false);
+        }
+      })().catch(() => {
+        setAttachmentError('Dateianhänge konnten nicht gelesen werden.');
+        setIsPreparingAttachments(false);
+      });
+    },
+    [hasSelectedCase]
+  );
 
-    onAttachmentInputChange(fakeEvent);
-  }, [hasSelectedCase, isChatBusy, isPreparingAttachments, onAttachmentInputChange]);
+  const onDropFiles = useCallback(
+    (event: DragEvent<HTMLElement>) => {
+      event.preventDefault();
+      event.stopPropagation();
+      setIsDragOver(false);
 
-  const onDragOverSection = useCallback((event: DragEvent<HTMLElement>) => {
-    event.preventDefault();
-    event.stopPropagation();
-    if (hasSelectedCase && !isDragOver) {
-      setIsDragOver(true);
-    }
-  }, [hasSelectedCase, isDragOver]);
+      if (!hasSelectedCase) {
+        setAttachmentError('Bitte zuerst eine Akte auswählen.');
+        return;
+      }
+
+      if (isChatBusy || isPreparingAttachments) {
+        return;
+      }
+
+      const dropped = event.dataTransfer?.files;
+      if (!dropped || dropped.length === 0) {
+        return;
+      }
+
+      const fakeEvent = {
+        target: { files: dropped, value: '' },
+      } as unknown as React.ChangeEvent<HTMLInputElement>;
+
+      onAttachmentInputChange(fakeEvent);
+    },
+    [
+      hasSelectedCase,
+      isChatBusy,
+      isPreparingAttachments,
+      onAttachmentInputChange,
+    ]
+  );
+
+  const onDragOverSection = useCallback(
+    (event: DragEvent<HTMLElement>) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (hasSelectedCase && !isDragOver) {
+        setIsDragOver(true);
+      }
+    },
+    [hasSelectedCase, isDragOver]
+  );
 
   const onDragLeaveSection = useCallback((event: DragEvent<HTMLElement>) => {
     event.preventDefault();
@@ -776,9 +957,13 @@ export const PremiumChatSection = ({
         return;
       }
 
-      const picker = (window as unknown as { showDirectoryPicker?: () => Promise<any> }).showDirectoryPicker;
+      const picker = (
+        window as unknown as { showDirectoryPicker?: () => Promise<any> }
+      ).showDirectoryPicker;
       if (!picker) {
-        setAttachmentError('Lokaler Ordnerzugriff wird in diesem Browser nicht unterstützt.');
+        setAttachmentError(
+          'Lokaler Ordnerzugriff wird in diesem Browser nicht unterstützt.'
+        );
         return;
       }
 
@@ -806,7 +991,9 @@ export const PremiumChatSection = ({
 
         await collect(directoryHandle);
         if (fileHandles.length === 0) {
-          setAttachmentError('Im gewählten Ordner wurden keine Dateien gefunden.');
+          setAttachmentError(
+            'Im gewählten Ordner wurden keine Dateien gefunden.'
+          );
           return;
         }
 
@@ -818,14 +1005,18 @@ export const PremiumChatSection = ({
 
         const prepared = await prepareLegalUploadFiles({ files, maxFiles });
         if (prepared.accepted.length === 0) {
-          setAttachmentError('Im Ordner wurden keine unterstützten Dateitypen gefunden.');
+          setAttachmentError(
+            'Im Ordner wurden keine unterstützten Dateitypen gefunden.'
+          );
           return;
         }
 
         const uploads: UploadedFile[] = prepared.accepted;
 
         if (prepared.rejected.length > 0) {
-          setAttachmentError(`${prepared.rejected.length} Datei(en) im Ordner wurden übersprungen (nicht unterstützt, zu groß oder Lesefehler).`);
+          setAttachmentError(
+            `${prepared.rejected.length} Datei(en) im Ordner wurden übersprungen (nicht unterstützt, zu groß oder Lesefehler).`
+          );
         }
 
         void onSendMessage(
@@ -865,10 +1056,13 @@ export const PremiumChatSection = ({
     inputRef.current?.focus();
   }, []);
 
-  const handleStartRename = useCallback((sessionId: string, currentTitle: string) => {
-    setEditingSessionId(sessionId);
-    setEditingTitle(currentTitle);
-  }, []);
+  const handleStartRename = useCallback(
+    (sessionId: string, currentTitle: string) => {
+      setEditingSessionId(sessionId);
+      setEditingTitle(currentTitle);
+    },
+    []
+  );
 
   const handleFinishRename = useCallback(() => {
     if (editingSessionId && editingTitle.trim()) {
@@ -878,31 +1072,37 @@ export const PremiumChatSection = ({
     setEditingTitle('');
   }, [editingSessionId, editingTitle, onRenameSession]);
 
-  const handleSessionTouchStart = useCallback((sessionId: string, event: React.TouchEvent<HTMLDivElement>) => {
-    touchStartXRef.current = event.touches[0]?.clientX ?? 0;
-    touchSessionIdRef.current = sessionId;
-    didSwipeGestureRef.current = false;
-  }, []);
+  const handleSessionTouchStart = useCallback(
+    (sessionId: string, event: React.TouchEvent<HTMLDivElement>) => {
+      touchStartXRef.current = event.touches[0]?.clientX ?? 0;
+      touchSessionIdRef.current = sessionId;
+      didSwipeGestureRef.current = false;
+    },
+    []
+  );
 
-  const handleSessionTouchMove = useCallback((sessionId: string, event: React.TouchEvent<HTMLDivElement>) => {
-    if (touchSessionIdRef.current !== sessionId) {
-      return;
-    }
-    const currentX = event.touches[0]?.clientX ?? 0;
-    const deltaX = currentX - touchStartXRef.current;
+  const handleSessionTouchMove = useCallback(
+    (sessionId: string, event: React.TouchEvent<HTMLDivElement>) => {
+      if (touchSessionIdRef.current !== sessionId) {
+        return;
+      }
+      const currentX = event.touches[0]?.clientX ?? 0;
+      const deltaX = currentX - touchStartXRef.current;
 
-    if (Math.abs(deltaX) > 8) {
-      event.preventDefault();
-    }
+      if (Math.abs(deltaX) > 8) {
+        event.preventDefault();
+      }
 
-    if (deltaX <= -36) {
-      setSwipedSessionId(sessionId);
-      didSwipeGestureRef.current = true;
-    } else if (deltaX >= 24) {
-      setSwipedSessionId(current => (current === sessionId ? null : current));
-      didSwipeGestureRef.current = true;
-    }
-  }, []);
+      if (deltaX <= -36) {
+        setSwipedSessionId(sessionId);
+        didSwipeGestureRef.current = true;
+      } else if (deltaX >= 24) {
+        setSwipedSessionId(current => (current === sessionId ? null : current));
+        didSwipeGestureRef.current = true;
+      }
+    },
+    []
+  );
 
   const handleSessionTouchEnd = useCallback(() => {
     touchSessionIdRef.current = null;
@@ -921,9 +1121,10 @@ export const PremiumChatSection = ({
   const contextOcrPending = contextStats?.ocrPending ?? 0;
   const contextFindings = contextStats?.findings ?? 0;
   const contextChunks = contextStats?.chunks ?? 0;
-  const indexingPercent = contextDocuments > 0
-    ? Math.min(100, Math.round((contextIndexed / contextDocuments) * 100))
-    : 0;
+  const indexingPercent =
+    contextDocuments > 0
+      ? Math.min(100, Math.round((contextIndexed / contextDocuments) * 100))
+      : 0;
   const ingestReadinessLabel = !hasSelectedCase
     ? 'Akte wählen'
     : contextDocuments === 0
@@ -935,21 +1136,44 @@ export const PremiumChatSection = ({
           : 'Pipeline läuft';
 
   const onRunOcrQuickAction = useCallback(() => {
-    if (!hasSelectedCase || !activeSession || isChatBusy || isPreparingAttachments) {
+    if (
+      !hasSelectedCase ||
+      !activeSession ||
+      isChatBusy ||
+      isPreparingAttachments
+    ) {
       return;
     }
     void onSendMessage('/ocr');
-  }, [activeSession, hasSelectedCase, isChatBusy, isPreparingAttachments, onSendMessage]);
+  }, [
+    activeSession,
+    hasSelectedCase,
+    isChatBusy,
+    isPreparingAttachments,
+    onSendMessage,
+  ]);
 
   const onRunAnalyzeQuickAction = useCallback(() => {
-    if (!hasSelectedCase || !activeSession || isChatBusy || isPreparingAttachments) {
+    if (
+      !hasSelectedCase ||
+      !activeSession ||
+      isChatBusy ||
+      isPreparingAttachments
+    ) {
       return;
     }
     void onSendMessage('/analyse');
-  }, [activeSession, hasSelectedCase, isChatBusy, isPreparingAttachments, onSendMessage]);
+  }, [
+    activeSession,
+    hasSelectedCase,
+    isChatBusy,
+    isPreparingAttachments,
+    onSendMessage,
+  ]);
 
   const greetingTitle = useMemo(() => {
-    if (caseClientName && caseMatterTitle) return `Willkommen. Wobei soll ich Sie in „${caseMatterTitle}“ unterstützen?`;
+    if (caseClientName && caseMatterTitle)
+      return `Willkommen. Wobei soll ich Sie in „${caseMatterTitle}“ unterstützen?`;
     return 'Willkommen. Wobei soll ich Sie aktenbasiert unterstützen?';
   }, [caseClientName, caseMatterTitle]);
 
@@ -1003,7 +1227,9 @@ export const PremiumChatSection = ({
                         : selectedCaseOption.label
                       : 'Akte auswählen…'}
                   </span>
-                  <span className={localStyles.iconSm}>{showCasePicker ? 'Schließen' : 'Öffnen'}</span>
+                  <span className={localStyles.iconSm}>
+                    {showCasePicker ? 'Schließen' : 'Öffnen'}
+                  </span>
                 </button>
                 {showCasePicker ? (
                   <div className={localStyles.casePickerDropdown}>
@@ -1028,7 +1254,10 @@ export const PremiumChatSection = ({
                           event.preventDefault();
                           if (casePickerOptions.length === 0) return;
                           setActiveCaseOptionIndex(current =>
-                            current < 0 || current >= casePickerOptions.length - 1 ? 0 : current + 1
+                            current < 0 ||
+                            current >= casePickerOptions.length - 1
+                              ? 0
+                              : current + 1
                           );
                           return;
                         }
@@ -1036,7 +1265,9 @@ export const PremiumChatSection = ({
                           event.preventDefault();
                           if (casePickerOptions.length === 0) return;
                           setActiveCaseOptionIndex(current =>
-                            current <= 0 ? casePickerOptions.length - 1 : current - 1
+                            current <= 0
+                              ? casePickerOptions.length - 1
+                              : current - 1
                           );
                           return;
                         }
@@ -1049,7 +1280,9 @@ export const PremiumChatSection = ({
                         if (event.key === 'End') {
                           event.preventDefault();
                           if (casePickerOptions.length === 0) return;
-                          setActiveCaseOptionIndex(casePickerOptions.length - 1);
+                          setActiveCaseOptionIndex(
+                            casePickerOptions.length - 1
+                          );
                           return;
                         }
                         if (event.key === 'PageDown') {
@@ -1057,7 +1290,10 @@ export const PremiumChatSection = ({
                           if (casePickerOptions.length === 0) return;
                           setActiveCaseOptionIndex(current => {
                             const from = current < 0 ? 0 : current;
-                            return Math.min(casePickerOptions.length - 1, from + 5);
+                            return Math.min(
+                              casePickerOptions.length - 1,
+                              from + 5
+                            );
                           });
                           return;
                         }
@@ -1070,9 +1306,15 @@ export const PremiumChatSection = ({
                           });
                           return;
                         }
-                        if (event.key === 'Enter' && casePickerOptions.length > 0) {
+                        if (
+                          event.key === 'Enter' &&
+                          casePickerOptions.length > 0
+                        ) {
                           event.preventDefault();
-                          const targetIndex = activeCaseOptionIndex >= 0 ? activeCaseOptionIndex : 0;
+                          const targetIndex =
+                            activeCaseOptionIndex >= 0
+                              ? activeCaseOptionIndex
+                              : 0;
                           onPickCase(casePickerOptions[targetIndex].id);
                         }
                       }}
@@ -1084,7 +1326,9 @@ export const PremiumChatSection = ({
                       aria-label="Gefilterte Akten"
                     >
                       {casePickerOptions.length === 0 ? (
-                        <div className={localStyles.casePickerEmpty}>Keine Akte zum Suchbegriff gefunden.</div>
+                        <div className={localStyles.casePickerEmpty}>
+                          Keine Akte zum Suchbegriff gefunden.
+                        </div>
                       ) : (
                         casePickerOptions.map((option, index) => (
                           <button
@@ -1095,15 +1339,21 @@ export const PremiumChatSection = ({
                             id={`case-picker-option-${index}`}
                             className={clsx(
                               localStyles.casePickerItem,
-                              index === activeCaseOptionIndex && localStyles.casePickerItemActive,
-                              option.id === selectedCaseId && localStyles.casePickerItemActive
+                              index === activeCaseOptionIndex &&
+                                localStyles.casePickerItemActive,
+                              option.id === selectedCaseId &&
+                                localStyles.casePickerItemActive
                             )}
                             onClick={() => onPickCase(option.id)}
                             onMouseEnter={() => setActiveCaseOptionIndex(index)}
                           >
-                            <span className={localStyles.casePickerItemLabel}>{option.label}</span>
+                            <span className={localStyles.casePickerItemLabel}>
+                              {option.label}
+                            </span>
                             {option.meta ? (
-                              <span className={localStyles.casePickerItemMeta}>{option.meta}</span>
+                              <span className={localStyles.casePickerItemMeta}>
+                                {option.meta}
+                              </span>
                             ) : null}
                           </button>
                         ))
@@ -1124,7 +1374,9 @@ export const PremiumChatSection = ({
             aria-label="Neuen Chat starten"
             disabled={!hasSelectedCase}
           >
-            <span className={localStyles.newChatCtaIcon} aria-hidden="true">+</span>
+            <span className={localStyles.newChatCtaIcon} aria-hidden="true">
+              +
+            </span>
             Neuer Chat
           </button>
           {showSessionHistory ? (
@@ -1144,7 +1396,12 @@ export const PremiumChatSection = ({
             onClick={onImportLocalFolder}
             className={localStyles.headerActionButton}
             title="Lokalen Ordner verbinden und analysieren"
-            disabled={!hasSelectedCase || !activeSession || isChatBusy || isPreparingAttachments}
+            disabled={
+              !hasSelectedCase ||
+              !activeSession ||
+              isChatBusy ||
+              isPreparingAttachments
+            }
           >
             Ordner importieren
           </button>
@@ -1156,21 +1413,30 @@ export const PremiumChatSection = ({
           <div className={localStyles.contextCompactInfo}>
             <span className={localStyles.contextCompactTitle}>Datenstatus</span>
             <div className={localStyles.contextCompactMeta}>
-              <span className={localStyles.contextCompactBadge}>{ingestReadinessLabel}</span>
+              <span className={localStyles.contextCompactBadge}>
+                {ingestReadinessLabel}
+              </span>
               <span>{contextDocuments} Dok.</span>
               <span>{indexingPercent}% indexiert</span>
               <span>{contextOcrPending} OCR offen</span>
               <span>{contextFindings} Findings</span>
               <span>{contextChunks} Chunks</span>
             </div>
-            <div className={localStyles.contextCompactHint}>{caseContextStatus ?? 'Bereit'}</div>
+            <div className={localStyles.contextCompactHint}>
+              {caseContextStatus ?? 'Bereit'}
+            </div>
           </div>
           <div className={localStyles.contextCompactActions}>
             <button
               type="button"
               className={localStyles.contextCompactAction}
               onClick={onRunOcrQuickAction}
-              disabled={!hasSelectedCase || !activeSession || isChatBusy || isPreparingAttachments}
+              disabled={
+                !hasSelectedCase ||
+                !activeSession ||
+                isChatBusy ||
+                isPreparingAttachments
+              }
               title="OCR-Warteschlange prüfen"
             >
               OCR prüfen
@@ -1179,7 +1445,12 @@ export const PremiumChatSection = ({
               type="button"
               className={localStyles.contextCompactAction}
               onClick={onRunAnalyzeQuickAction}
-              disabled={!hasSelectedCase || !activeSession || isChatBusy || isPreparingAttachments}
+              disabled={
+                !hasSelectedCase ||
+                !activeSession ||
+                isChatBusy ||
+                isPreparingAttachments
+              }
               title="Analyse aktualisieren"
             >
               Analyse
@@ -1190,7 +1461,12 @@ export const PremiumChatSection = ({
 
       {/* ═══ SESSION LIST DROPDOWN ═══ */}
       {showSessionHistory && showSessionList && (
-        <div className={localStyles.sessionList} id="session-list-panel" role="region" aria-label="Chat-Verlauf">
+        <div
+          className={localStyles.sessionList}
+          id="session-list-panel"
+          role="region"
+          aria-label="Chat-Verlauf"
+        >
           <div className={localStyles.labelXs}>Chat-Verlauf</div>
           {sessions.length === 0 ? (
             <div className={localStyles.emptyText}>
@@ -1200,16 +1476,18 @@ export const PremiumChatSection = ({
             sessions.map((session, index) => (
               <div
                 key={session.id}
-                className={
-                  clsx(
-                    localStyles.sessionItem,
-                    session.id === activeSessionId && localStyles.sessionItemActive,
-                    swipedSessionId === session.id && localStyles.sessionItemSwiped,
-                    swipedSessionId === session.id && 'session-swiped'
-                  )
-                }
+                className={clsx(
+                  localStyles.sessionItem,
+                  session.id === activeSessionId &&
+                    localStyles.sessionItemActive,
+                  swipedSessionId === session.id &&
+                    localStyles.sessionItemSwiped,
+                  swipedSessionId === session.id && 'session-swiped'
+                )}
                 style={{ animationDelay: `${Math.min(index, 8) * 24}ms` }}
-                onTouchStart={event => handleSessionTouchStart(session.id, event)}
+                onTouchStart={event =>
+                  handleSessionTouchStart(session.id, event)
+                }
                 onTouchMove={event => handleSessionTouchMove(session.id, event)}
                 onTouchEnd={handleSessionTouchEnd}
                 onTouchCancel={handleSessionTouchEnd}
@@ -1227,7 +1505,9 @@ export const PremiumChatSection = ({
                     setShowSessionList(false);
                     setSwipedSessionId(null);
                   }}
-                  aria-current={session.id === activeSessionId ? 'page' : undefined}
+                  aria-current={
+                    session.id === activeSessionId ? 'page' : undefined
+                  }
                   aria-label={`Session ${session.title} öffnen`}
                 >
                   <div className={localStyles.flex1}>
@@ -1240,30 +1520,40 @@ export const PremiumChatSection = ({
                           <div className={localStyles.sessionMeta}>
                             {session.messageCount} Nachrichten
                           </div>
-                          <span className={localStyles.sessionModeBadge}>{MODE_LABELS[session.mode]}</span>
+                          <span className={localStyles.sessionModeBadge}>
+                            {MODE_LABELS[session.mode]}
+                          </span>
                           {session.isPinned ? (
-                            <span className={localStyles.sessionPinnedBadge}>Angeheftet</span>
+                            <span className={localStyles.sessionPinnedBadge}>
+                              Angeheftet
+                            </span>
                           ) : null}
                           <span className={localStyles.sessionTimestamp}>
                             {formatSessionTimestamp(session.updatedAt)}
                           </span>
                         </div>
                         {session.lastMessagePreview ? (
-                          <div className={localStyles.sessionPreview}>{session.lastMessagePreview}</div>
+                          <div className={localStyles.sessionPreview}>
+                            {session.lastMessagePreview}
+                          </div>
                         ) : null}
                       </>
                     )}
                   </div>
                 </button>
 
-                <div className={`${localStyles.sessionActions} session-actions`}>
+                <div
+                  className={`${localStyles.sessionActions} session-actions`}
+                >
                   {editingSessionId === session.id ? (
                     <input
                       type="text"
                       value={editingTitle}
                       onChange={e => setEditingTitle(e.target.value)}
                       onBlur={handleFinishRename}
-                      onKeyDown={e => { if (e.key === 'Enter') handleFinishRename(); }}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') handleFinishRename();
+                      }}
                       autoFocus
                       className={localStyles.renameInput}
                       onClick={e => e.stopPropagation()}
@@ -1279,7 +1569,11 @@ export const PremiumChatSection = ({
                         }}
                         className={localStyles.iconButton}
                         title={session.isPinned ? 'Lösen' : 'Anheften'}
-                        aria-label={session.isPinned ? `Session ${session.title} lösen` : `Session ${session.title} anheften`}
+                        aria-label={
+                          session.isPinned
+                            ? `Session ${session.title} lösen`
+                            : `Session ${session.title} anheften`
+                        }
                       >
                         {session.isPinned ? 'Lösen' : 'Pin'}
                       </button>
@@ -1318,91 +1612,109 @@ export const PremiumChatSection = ({
       )}
 
       {/* ═══ MESSAGES AREA ═══ */}
-      <div className={localStyles.messagesArea} role="log" aria-label="Chat-Nachrichten" aria-live="polite">
+      <div
+        className={localStyles.messagesArea}
+        role="log"
+        aria-label="Chat-Nachrichten"
+        aria-live="polite"
+      >
         <div className={localStyles.messagesInner}>
-        {/* ═══ NLP ACTION CONFIRMATION BAR ═══ */}
-        {pendingNlpActionId && (
-          <div className={localStyles.pendingBar}>
-            <span className={localStyles.pendingLabel}>Aktion bestätigen?</span>
-            <button
-              type="button"
-              onClick={onConfirmNlpAction}
-              className={localStyles.pendingAccept}
-            >
-              Bestätigen
-            </button>
-            <button
-              type="button"
-              onClick={onCancelNlpAction}
-              className={localStyles.pendingCancel}
-            >
-              Abbrechen
-            </button>
-          </div>
-        )}
+          {/* ═══ NLP ACTION CONFIRMATION BAR ═══ */}
+          {pendingNlpActionId && (
+            <div className={localStyles.pendingBar}>
+              <span className={localStyles.pendingLabel}>
+                Aktion bestätigen?
+              </span>
+              <button
+                type="button"
+                onClick={onConfirmNlpAction}
+                className={localStyles.pendingAccept}
+              >
+                Bestätigen
+              </button>
+              <button
+                type="button"
+                onClick={onCancelNlpAction}
+                className={localStyles.pendingCancel}
+              >
+                Abbrechen
+              </button>
+            </div>
+          )}
 
-        {!hasSelectedCase ? (
-          <div className={localStyles.centerState}>
-            <div className={localStyles.centerTitle}>Bitte zuerst eine Akte auswählen.</div>
-            <div className={localStyles.centerBody}>
-              Der Chat arbeitet strikt auf Aktenkontext (Dokumente, Findings, Fristen, Judikatur). Wählen Sie oben eine Akte, um einen neuen Chat zu starten.
+          {!hasSelectedCase ? (
+            <div className={localStyles.centerState}>
+              <div className={localStyles.centerTitle}>
+                Bitte zuerst eine Akte auswählen.
+              </div>
+              <div className={localStyles.centerBody}>
+                Der Chat arbeitet strikt auf Aktenkontext (Dokumente, Findings,
+                Fristen, Judikatur). Wählen Sie oben eine Akte, um einen neuen
+                Chat zu starten.
+              </div>
             </div>
-          </div>
-        ) : !activeSession ? (
-          <div className={localStyles.centerState}>
-            <div className={localStyles.centerTitle}>{greetingTitle}</div>
-            <div className={localStyles.centerBody}>
-              Ich analysiere Ihre Unterlagen aktenbasiert und liefere strukturierte Ergebnisse mit Quellen. Starten Sie direkt mit einem neuen Chat oder einer konkreten Frage.
+          ) : !activeSession ? (
+            <div className={localStyles.centerState}>
+              <div className={localStyles.centerTitle}>{greetingTitle}</div>
+              <div className={localStyles.centerBody}>
+                Ich analysiere Ihre Unterlagen aktenbasiert und liefere
+                strukturierte Ergebnisse mit Quellen. Starten Sie direkt mit
+                einem neuen Chat oder einer konkreten Frage.
+              </div>
             </div>
-          </div>
-        ) : activeSessionMessages.length === 0 ? (
-          <div className={localStyles.centerState}>
-            <div className={localStyles.centerTitle}>Starten wir strukturiert.</div>
-            <div className={localStyles.centerBody}>
-              Wählen Sie eine Option oder schreiben Sie frei. Ich antworte strukturiert, nachvollziehbar und mit Quellen.
+          ) : activeSessionMessages.length === 0 ? (
+            <div className={localStyles.centerState}>
+              <div className={localStyles.centerTitle}>
+                Starten wir strukturiert.
+              </div>
+              <div className={localStyles.centerBody}>
+                Wählen Sie eine Option oder schreiben Sie frei. Ich antworte
+                strukturiert, nachvollziehbar und mit Quellen.
+              </div>
+              <div className={localStyles.suggestionGrid}>
+                {EMPTY_SESSION_SUGGESTIONS.map(item => (
+                  <button
+                    key={item.label}
+                    type="button"
+                    className={localStyles.suggestionCard}
+                    onClick={() => {
+                      if (item.mode !== activeMode) {
+                        void onSwitchMode(item.mode);
+                      }
+                      void onSendMessage(item.prompt);
+                    }}
+                  >
+                    <div className={localStyles.suggestionTitle}>
+                      {item.label}
+                    </div>
+                    <div className={localStyles.suggestionBody}>
+                      {item.prompt.startsWith('/')
+                        ? 'Erstellt ein Dokument auf Basis der Akte.'
+                        : 'Aktenbasierte Analyse mit Quellen und klaren nächsten Schritten.'}
+                    </div>
+                  </button>
+                ))}
+              </div>
             </div>
-            <div className={localStyles.suggestionGrid}>
-              {EMPTY_SESSION_SUGGESTIONS.map(item => (
-                <button
-                  key={item.label}
-                  type="button"
-                  className={localStyles.suggestionCard}
-                  onClick={() => {
-                    if (item.mode !== activeMode) {
-                      void onSwitchMode(item.mode);
-                    }
-                    void onSendMessage(item.prompt);
-                  }}
-                >
-                  <div className={localStyles.suggestionTitle}>{item.label}</div>
-                  <div className={localStyles.suggestionBody}>
-                    {item.prompt.startsWith('/')
-                      ? 'Erstellt ein Dokument auf Basis der Akte.'
-                      : 'Aktenbasierte Analyse mit Quellen und klaren nächsten Schritten.'}
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
-        ) : (
-          activeSessionMessages.map(msg => (
-            <ChatBubble
-              key={msg.id}
-              message={msg}
-              isChatBusy={isChatBusy}
-              onRegenerate={onRegenerateMessage}
-              onDelete={onDeleteMessage}
-              onSaveInsight={onSaveInsight}
-              onUndoInsight={onUndoInsight}
-              onSaveArtifactToAkte={onSaveArtifactToAkte}
-              onOpenArtifactInStrategy={onOpenArtifactInStrategy}
-              onResolveToolApproval={onResolveToolApproval}
-              sourceCitationCaseByDocId={sourceCitationCaseByDocId}
-              onJumpToCaseFromCitation={onJumpToCaseFromCitation}
-            />
-          ))
-        )}
-        <div ref={messagesEndRef} />
+          ) : (
+            activeSessionMessages.map(msg => (
+              <ChatBubble
+                key={msg.id}
+                message={msg}
+                isChatBusy={isChatBusy}
+                onRegenerate={onRegenerateMessage}
+                onDelete={onDeleteMessage}
+                onSaveInsight={onSaveInsight}
+                onUndoInsight={onUndoInsight}
+                onSaveArtifactToAkte={onSaveArtifactToAkte}
+                onOpenArtifactInStrategy={onOpenArtifactInStrategy}
+                onResolveToolApproval={onResolveToolApproval}
+                sourceCitationCaseByDocId={sourceCitationCaseByDocId}
+                onJumpToCaseFromCitation={onJumpToCaseFromCitation}
+              />
+            ))
+          )}
+          <div ref={messagesEndRef} />
         </div>
       </div>
 
@@ -1421,7 +1733,10 @@ export const PremiumChatSection = ({
                 className={localStyles.slashCommandButton}
                 title={cmd.example}
               >
-                <strong>{cmd.command}</strong> <span className={localStyles.slashCommandDesc}>{cmd.description}</span>
+                <strong>{cmd.command}</strong>{' '}
+                <span className={localStyles.slashCommandDesc}>
+                  {cmd.description}
+                </span>
               </button>
             ))}
           </div>
@@ -1429,202 +1744,274 @@ export const PremiumChatSection = ({
       )}
 
       {/* ═══ INPUT BAR ═══ */}
-      <footer className={localStyles.inputBar} role="form" aria-label="Nachricht verfassen">
+      <footer
+        className={localStyles.inputBar}
+        role="form"
+        aria-label="Nachricht verfassen"
+      >
         <div className={localStyles.composerInner}>
-        <input
-          ref={fileInputRef}
-          type="file"
-          multiple
-          accept={LEGAL_UPLOAD_ACCEPT_ATTR}
-          style={{ display: 'none' }}
-          onChange={onAttachmentInputChange}
-          aria-hidden="true"
-        />
-        <div className={localStyles.inputRow}>
-          <textarea
-            ref={inputRef}
-            value={inputValue}
-            onChange={e => setInputValue(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder={
-              !hasSelectedCase
-                ? 'Bitte zuerst eine Akte auswählen…'
-                : activeSession
-                  ? `Ihre Nachricht (${currentModeOption.label})…`
-                  : 'Bitte zuerst einen Chat starten…'
-            }
-            disabled={!hasSelectedCase || !activeSession || isChatBusy}
-            rows={2}
-            className={localStyles.textarea}
-            aria-label="Chat-Nachricht eingeben"
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            accept={LEGAL_UPLOAD_ACCEPT_ATTR}
+            style={{ display: 'none' }}
+            onChange={onAttachmentInputChange}
+            aria-hidden="true"
           />
-          <div className={localStyles.composerControls}>
-          <Button
-            variant="plain"
-            onClick={onOpenFilePicker}
-            disabled={!hasSelectedCase || !activeSession || isChatBusy || isPreparingAttachments}
-            aria-label="Dateien anhängen (PDF, DOCX, WebP, bis 100 MB)"
-            className={localStyles.attachButton}
-          >
-            Anhang
-          </Button>
-          {availableModels && availableModels.length > 0 && (
-            <div className={localStyles.modelPickerWrap}>
-              <button
-                type="button"
-                className={localStyles.modelPickerButton}
-                onClick={() => {
-                  void setShowModelPicker(prev => !prev);
-                }}
-                aria-haspopup="listbox"
-                aria-expanded={showModelPicker}
-                disabled={!hasSelectedCase || !activeSession || isChatBusy}
-                title="LLM-Modell auswählen"
+          <div className={localStyles.inputRow}>
+            <textarea
+              ref={inputRef}
+              value={inputValue}
+              onChange={e => setInputValue(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder={
+                !hasSelectedCase
+                  ? 'Bitte zuerst eine Akte auswählen…'
+                  : activeSession
+                    ? `Ihre Nachricht (${currentModeOption.label})…`
+                    : 'Bitte zuerst einen Chat starten…'
+              }
+              disabled={!hasSelectedCase || !activeSession || isChatBusy}
+              rows={2}
+              className={localStyles.textarea}
+              aria-label="Chat-Nachricht eingeben"
+            />
+            <div className={localStyles.composerControls}>
+              <Button
+                variant="plain"
+                onClick={onOpenFilePicker}
+                disabled={
+                  !hasSelectedCase ||
+                  !activeSession ||
+                  isChatBusy ||
+                  isPreparingAttachments
+                }
+                aria-label="Dateien anhängen (PDF, DOCX, WebP, bis 100 MB)"
+                className={localStyles.attachButton}
               >
-                <span className={localStyles.modelPickerPrimary}>
-                  {selectedModel?.label ?? 'Modell wählen'}
-                </span>
-                <span className={localStyles.modelPickerSecondary}>
-                  {selectedModel
-                    ? `${(selectedModel.contextWindow / 1000).toFixed(0)}K ctx · ${COST_TIER_LABELS[selectedModel.costTier]}${selectedModel.thinkingLevel ? ` · Thinking ${selectedModel.thinkingLevel}` : ''}`
-                    : 'Provider & Kontext'}
-                </span>
-              </button>
-              {showModelPicker && (
-                <div className={localStyles.modelPickerDropdown} role="listbox" aria-label="Modell auswählen">
-                  {topRecommendedModels.length > 0 && (
-                    <div className={localStyles.modelPickerFeaturedSection}>
-                      <div className={localStyles.modelPickerFeaturedTitle}>Top Empfehlungen</div>
-                      <div className={localStyles.modelPickerFeaturedList}>
-                        {topRecommendedModels.map(({ model, providerIcon, providerLabel }) => (
-                          <button
-                            key={`featured:${model.id}`}
-                            type="button"
-                            role="option"
-                            aria-selected={model.id === selectedModel?.id}
-                            className={clsx(
-                              localStyles.modelPickerItem,
-                              model.id === selectedModel?.id && localStyles.modelPickerItemActive
+                Anhang
+              </Button>
+              {availableModels && availableModels.length > 0 && (
+                <div className={localStyles.modelPickerWrap}>
+                  <button
+                    type="button"
+                    className={localStyles.modelPickerButton}
+                    onClick={() => {
+                      void setShowModelPicker(prev => !prev);
+                    }}
+                    aria-haspopup="listbox"
+                    aria-expanded={showModelPicker}
+                    disabled={!hasSelectedCase || !activeSession || isChatBusy}
+                    title="LLM-Modell auswählen"
+                  >
+                    <span className={localStyles.modelPickerPrimary}>
+                      {selectedModel?.label ?? 'Modell wählen'}
+                    </span>
+                    <span className={localStyles.modelPickerSecondary}>
+                      {selectedModel
+                        ? `${(selectedModel.contextWindow / 1000).toFixed(0)}K ctx · ${COST_TIER_LABELS[selectedModel.costTier]}${selectedModel.thinkingLevel ? ` · Thinking ${selectedModel.thinkingLevel}` : ''}`
+                        : 'Provider & Kontext'}
+                    </span>
+                  </button>
+                  {showModelPicker && (
+                    <div
+                      className={localStyles.modelPickerDropdown}
+                      role="listbox"
+                      aria-label="Modell auswählen"
+                    >
+                      {topRecommendedModels.length > 0 && (
+                        <div className={localStyles.modelPickerFeaturedSection}>
+                          <div className={localStyles.modelPickerFeaturedTitle}>
+                            Top Empfehlungen
+                          </div>
+                          <div className={localStyles.modelPickerFeaturedList}>
+                            {topRecommendedModels.map(
+                              ({ model, providerIcon, providerLabel }) => (
+                                <button
+                                  key={`featured:${model.id}`}
+                                  type="button"
+                                  role="option"
+                                  aria-selected={model.id === selectedModel?.id}
+                                  className={clsx(
+                                    localStyles.modelPickerItem,
+                                    model.id === selectedModel?.id &&
+                                      localStyles.modelPickerItemActive
+                                  )}
+                                  onClick={() => {
+                                    void onSelectModel?.(model.id);
+                                    void setShowModelPicker(false);
+                                  }}
+                                >
+                                  <div
+                                    className={localStyles.modelPickerItemLabel}
+                                  >
+                                    <span>{model.label}</span>
+                                    <span
+                                      className={
+                                        localStyles.modelPickerTierBadge
+                                      }
+                                    >
+                                      {COST_TIER_LABELS[model.costTier]}
+                                    </span>
+                                  </div>
+                                  <div
+                                    className={localStyles.modelPickerItemDesc}
+                                  >
+                                    {providerIcon} {providerLabel}
+                                  </div>
+                                </button>
+                              )
                             )}
-                            onClick={() => {
-                              void onSelectModel?.(model.id);
-                              void setShowModelPicker(false);
-                            }}
-                          >
-                            <div className={localStyles.modelPickerItemLabel}>
-                              <span>{model.label}</span>
-                              <span className={localStyles.modelPickerTierBadge}>
-                                {COST_TIER_LABELS[model.costTier]}
-                              </span>
-                            </div>
-                            <div className={localStyles.modelPickerItemDesc}>
-                              {providerIcon} {providerLabel}
-                            </div>
-                          </button>
-                        ))}
-                      </div>
+                          </div>
+                        </div>
+                      )}
+                      {groupedModels.map(group => (
+                        <div
+                          key={group.providerId}
+                          className={localStyles.modelPickerGroup}
+                        >
+                          <div className={localStyles.modelPickerGroupLabel}>
+                            <span>{group.providerIcon}</span>
+                            <span>{group.providerLabel}</span>
+                            <span className={localStyles.modelPickerGroupCount}>
+                              {group.models.length}
+                            </span>
+                          </div>
+                          <div className={localStyles.modelPickerGroupItems}>
+                            {group.models.map(({ model, priority }) => (
+                              <button
+                                key={model.id}
+                                type="button"
+                                role="option"
+                                aria-selected={model.id === selectedModel?.id}
+                                className={clsx(
+                                  localStyles.modelPickerItem,
+                                  model.id === selectedModel?.id &&
+                                    localStyles.modelPickerItemActive
+                                )}
+                                onClick={() => {
+                                  void onSelectModel?.(model.id);
+                                  void setShowModelPicker(false);
+                                }}
+                              >
+                                <div
+                                  className={localStyles.modelPickerItemLabel}
+                                >
+                                  <span>{model.label}</span>
+                                  <span
+                                    className={localStyles.modelPickerTierBadge}
+                                  >
+                                    {COST_TIER_LABELS[model.costTier]}
+                                  </span>
+                                </div>
+                                <div
+                                  className={localStyles.modelPickerItemDesc}
+                                >
+                                  {model.description}
+                                </div>
+                                <div
+                                  className={localStyles.modelPickerItemMeta}
+                                >
+                                  <span
+                                    className={
+                                      localStyles.modelPickerGroupBadge
+                                    }
+                                  >
+                                    {MODEL_PRIORITY_LABELS[priority]}
+                                  </span>
+                                  <span>
+                                    {(model.contextWindow / 1000).toFixed(0)}K
+                                    ctx
+                                  </span>
+                                  {model.thinkingLevel && (
+                                    <span>thinking {model.thinkingLevel}</span>
+                                  )}
+                                  {typeof model.creditMultiplier ===
+                                    'number' && (
+                                    <span>
+                                      {model.creditMultiplier.toFixed(1)}x
+                                      credits
+                                    </span>
+                                  )}
+                                  {model.supportsStreaming && (
+                                    <span>streaming</span>
+                                  )}
+                                </div>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   )}
-                  {groupedModels.map(group => (
-                    <div key={group.providerId} className={localStyles.modelPickerGroup}>
-                      <div className={localStyles.modelPickerGroupLabel}>
-                        <span>{group.providerIcon}</span>
-                        <span>{group.providerLabel}</span>
-                        <span className={localStyles.modelPickerGroupCount}>{group.models.length}</span>
-                      </div>
-                      <div className={localStyles.modelPickerGroupItems}>
-                        {group.models.map(({ model, priority }) => (
-                          <button
-                            key={model.id}
-                            type="button"
-                            role="option"
-                            aria-selected={model.id === selectedModel?.id}
-                            className={clsx(
-                              localStyles.modelPickerItem,
-                              model.id === selectedModel?.id && localStyles.modelPickerItemActive
-                            )}
-                            onClick={() => {
-                              void onSelectModel?.(model.id);
-                              void setShowModelPicker(false);
-                            }}
-                          >
-                            <div className={localStyles.modelPickerItemLabel}>
-                              <span>{model.label}</span>
-                              <span className={localStyles.modelPickerTierBadge}>
-                                {COST_TIER_LABELS[model.costTier]}
-                              </span>
-                            </div>
-                            <div className={localStyles.modelPickerItemDesc}>{model.description}</div>
-                            <div className={localStyles.modelPickerItemMeta}>
-                              <span className={localStyles.modelPickerGroupBadge}>
-                                {MODEL_PRIORITY_LABELS[priority]}
-                              </span>
-                              <span>{(model.contextWindow / 1000).toFixed(0)}K ctx</span>
-                              {model.thinkingLevel && <span>thinking {model.thinkingLevel}</span>}
-                              {typeof model.creditMultiplier === 'number' && (
-                                <span>{model.creditMultiplier.toFixed(1)}x credits</span>
-                              )}
-                              {model.supportsStreaming && <span>streaming</span>}
-                            </div>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
                 </div>
               )}
+              <Button
+                variant="primary"
+                onClick={handleSend}
+                disabled={
+                  (!inputValue.trim() && attachedFiles.length === 0) ||
+                  !hasSelectedCase ||
+                  !activeSession ||
+                  isChatBusy ||
+                  isPreparingAttachments
+                }
+                className={localStyles.sendButton}
+                aria-label="Nachricht senden"
+              >
+                {isChatBusy ? 'Senden…' : 'Senden'}
+              </Button>
+            </div>
+          </div>
+          {attachedFiles.length > 0 ? (
+            <div
+              style={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: 6,
+                marginTop: 8,
+              }}
+            >
+              {attachedFiles.map((file, index) => (
+                <button
+                  key={`${file.name}:${file.size}:${index}`}
+                  type="button"
+                  onClick={() => {
+                    void onRemoveAttachment(index);
+                  }}
+                  style={{
+                    border: `0.5px solid color-mix(in srgb, rgba(255, 255, 255, 0.3) 32%, rgba(148, 163, 184, 0.35))`,
+                    borderRadius: 999,
+                    padding: '2px 8px',
+                    fontSize: 12,
+                  }}
+                  title={`${file.name} entfernen`}
+                >
+                  {file.name} · Entfernen
+                </button>
+              ))}
+            </div>
+          ) : null}
+          {attachmentError ? (
+            <div className={localStyles.busyRow} role="status">
+              {attachmentError}
+            </div>
+          ) : null}
+          {isPreparingAttachments ? (
+            <div className={localStyles.busyRow} role="status">
+              Dateien werden vorbereitet…
+            </div>
+          ) : null}
+          {isChatBusy && (
+            <div
+              className={localStyles.busyRow}
+              role="status"
+              aria-live="polite"
+            >
+              Subsumio AI analysiert…
             </div>
           )}
-          <Button
-            variant="primary"
-            onClick={handleSend}
-            disabled={
-              (!inputValue.trim() && attachedFiles.length === 0) ||
-              !hasSelectedCase ||
-              !activeSession ||
-              isChatBusy ||
-              isPreparingAttachments
-            }
-            className={localStyles.sendButton}
-            aria-label="Nachricht senden"
-          >
-            {isChatBusy ? 'Senden…' : 'Senden'}
-          </Button>
-          </div>
-        </div>
-        {attachedFiles.length > 0 ? (
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
-            {attachedFiles.map((file, index) => (
-              <button
-                key={`${file.name}:${file.size}:${index}`}
-                type="button"
-                onClick={() => {
-                  void onRemoveAttachment(index);
-                }}
-                style={{
-                  border: `0.5px solid color-mix(in srgb, rgba(255, 255, 255, 0.3) 32%, rgba(148, 163, 184, 0.35))`,
-                  borderRadius: 999,
-                  padding: '2px 8px',
-                  fontSize: 12,
-                }}
-                title={`${file.name} entfernen`}
-              >
-                {file.name} · Entfernen
-              </button>
-            ))}
-          </div>
-        ) : null}
-        {attachmentError ? (
-          <div className={localStyles.busyRow} role="status">{attachmentError}</div>
-        ) : null}
-        {isPreparingAttachments ? (
-          <div className={localStyles.busyRow} role="status">Dateien werden vorbereitet…</div>
-        ) : null}
-        {isChatBusy && (
-          <div className={localStyles.busyRow} role="status" aria-live="polite">
-            Subsumio AI analysiert…
-          </div>
-        )}
         </div>
       </footer>
     </section>
@@ -1695,7 +2082,8 @@ function getDownloadExtension(mimeType: string): string {
   if (normalized.includes('html')) return '.html';
   if (normalized.includes('csv')) return '.csv';
   if (normalized.includes('xml')) return '.xml';
-  if (normalized.includes('plain') || normalized.includes('text')) return '.txt';
+  if (normalized.includes('plain') || normalized.includes('text'))
+    return '.txt';
   return '.txt';
 }
 
@@ -1713,13 +2101,43 @@ const ToolCallStatusIcon = ({ status }: { status: ChatToolCall['status'] }) => (
     {status === 'running' ? (
       <span className={localStyles.toolCallSpinner} />
     ) : status === 'awaiting_approval' ? (
-      <span style={{ color: cssVarV2('button/primary'), fontSize: 14, lineHeight: 1 }}>{'!'}</span>
-    ) : status === 'cancelled' || status === 'skipped' || status === 'blocked' ? (
-      <span style={{ color: cssVarV2('text/secondary'), fontSize: 14, lineHeight: 1 }}>{'−'}</span>
+      <span
+        style={{
+          color: cssVarV2('button/primary'),
+          fontSize: 14,
+          lineHeight: 1,
+        }}
+      >
+        {'!'}
+      </span>
+    ) : status === 'cancelled' ||
+      status === 'skipped' ||
+      status === 'blocked' ? (
+      <span
+        style={{
+          color: cssVarV2('text/secondary'),
+          fontSize: 14,
+          lineHeight: 1,
+        }}
+      >
+        {'−'}
+      </span>
     ) : status === 'error' ? (
-      <span style={{ color: cssVarV2('status/error'), fontSize: 14, lineHeight: 1 }}>{'\u{2716}'}</span>
+      <span
+        style={{ color: cssVarV2('status/error'), fontSize: 14, lineHeight: 1 }}
+      >
+        {'\u{2716}'}
+      </span>
     ) : (
-      <span style={{ color: cssVarV2('status/success'), fontSize: 14, lineHeight: 1 }}>{'\u{2714}'}</span>
+      <span
+        style={{
+          color: cssVarV2('status/success'),
+          fontSize: 14,
+          lineHeight: 1,
+        }}
+      >
+        {'\u{2714}'}
+      </span>
     )}
   </span>
 );
@@ -1747,9 +2165,14 @@ const ToolCallCardItem = ({
   const [expanded, setExpanded] = useState(false);
   const hasDetails = tc.detailLines && tc.detailLines.length > 0;
   const approvalRequest = tc.approvalRequest;
-  const canResolveApproval = tc.status === 'awaiting_approval' && approvalRequest && onResolveApproval;
-  const [approvalFields, setApprovalFields] = useState<Record<string, string>>({});
-  const [approvalActionState, setApprovalActionState] = useState<'idle' | 'submitting' | 'error'>('idle');
+  const canResolveApproval =
+    tc.status === 'awaiting_approval' && approvalRequest && onResolveApproval;
+  const [approvalFields, setApprovalFields] = useState<Record<string, string>>(
+    {}
+  );
+  const [approvalActionState, setApprovalActionState] = useState<
+    'idle' | 'submitting' | 'error'
+  >('idle');
 
   useEffect(() => {
     if (!approvalRequest) {
@@ -1765,10 +2188,14 @@ const ToolCallCardItem = ({
 
   const detailWrapId = `tool-call-details-${messageId}-${tc.id}`;
   const hasMissingRequiredApprovalFields = Boolean(
-    approvalRequest?.fields.some(field => field.required && !(approvalFields[field.key] ?? '').trim())
+    approvalRequest?.fields.some(
+      field => field.required && !(approvalFields[field.key] ?? '').trim()
+    )
   );
   const approvalDisabled = Boolean(
-    disableInteractions || approvalActionState === 'submitting' || hasMissingRequiredApprovalFields
+    disableInteractions ||
+    approvalActionState === 'submitting' ||
+    hasMissingRequiredApprovalFields
   );
 
   const handleToggleExpanded = useCallback(() => {
@@ -1798,13 +2225,25 @@ const ToolCallCardItem = ({
       }
       setApprovalActionState('submitting');
       try {
-        await onResolveApproval(messageId, tc.id, decision, decision === 'approved' ? approvalFields : undefined);
+        await onResolveApproval(
+          messageId,
+          tc.id,
+          decision,
+          decision === 'approved' ? approvalFields : undefined
+        );
         setApprovalActionState('idle');
       } catch {
         setApprovalActionState('error');
       }
     },
-    [approvalDisabled, approvalFields, canResolveApproval, messageId, onResolveApproval, tc.id]
+    [
+      approvalDisabled,
+      approvalFields,
+      canResolveApproval,
+      messageId,
+      onResolveApproval,
+      tc.id,
+    ]
   );
 
   return (
@@ -1815,7 +2254,8 @@ const ToolCallCardItem = ({
           tc.status === 'running' && localStyles.toolCallRunning,
           tc.status === 'complete' && localStyles.toolCallComplete,
           tc.status === 'error' && localStyles.toolCallError,
-          tc.status === 'awaiting_approval' && localStyles.toolCallAwaitingApproval
+          tc.status === 'awaiting_approval' &&
+            localStyles.toolCallAwaitingApproval
         )}
         onClick={hasDetails ? handleToggleExpanded : undefined}
         onKeyDown={hasDetails ? handleCardKeyDown : undefined}
@@ -1823,7 +2263,11 @@ const ToolCallCardItem = ({
         tabIndex={hasDetails ? 0 : undefined}
         aria-expanded={hasDetails ? expanded : undefined}
         aria-controls={hasDetails ? detailWrapId : undefined}
-        aria-label={hasDetails ? `${tc.label} Details ${expanded ? 'einklappen' : 'ausklappen'}` : undefined}
+        aria-label={
+          hasDetails
+            ? `${tc.label} Details ${expanded ? 'einklappen' : 'ausklappen'}`
+            : undefined
+        }
         style={hasDetails ? { cursor: 'pointer' } : undefined}
       >
         <ToolCallStatusIcon status={tc.status} />
@@ -1832,10 +2276,17 @@ const ToolCallCardItem = ({
           <span className={localStyles.toolCallOutput}>{tc.outputSummary}</span>
         )}
         {tc.durationMs != null && tc.status !== 'running' && (
-          <span className={localStyles.toolCallDuration}>{formatDuration(tc.durationMs)}</span>
+          <span className={localStyles.toolCallDuration}>
+            {formatDuration(tc.durationMs)}
+          </span>
         )}
         {hasDetails && (
-          <span className={clsx(localStyles.toolCallChevron, expanded && localStyles.toolCallChevronOpen)}>
+          <span
+            className={clsx(
+              localStyles.toolCallChevron,
+              expanded && localStyles.toolCallChevronOpen
+            )}
+          >
             {'\u{25B6}'}
           </span>
         )}
@@ -1843,16 +2294,29 @@ const ToolCallCardItem = ({
           <div className={localStyles.toolCallProgressBar} />
         )}
         {tc.status === 'running' && tc.progress != null && tc.progress > 0 && (
-          <div className={localStyles.toolCallProgressDeterminate} style={{ width: `${tc.progress}%` }} />
+          <div
+            className={localStyles.toolCallProgressDeterminate}
+            style={{ width: `${tc.progress}%` }}
+          />
         )}
       </div>
       {canResolveApproval && approvalRequest ? (
-        <div className={localStyles.toolApprovalPanel} role="region" aria-label={`Freigabe für ${tc.label}`}>
-          <div className={localStyles.toolApprovalTitle}>{approvalRequest.title}</div>
-          <div className={localStyles.toolApprovalDescription}>{approvalRequest.description}</div>
+        <div
+          className={localStyles.toolApprovalPanel}
+          role="region"
+          aria-label={`Freigabe für ${tc.label}`}
+        >
+          <div className={localStyles.toolApprovalTitle}>
+            {approvalRequest.title}
+          </div>
+          <div className={localStyles.toolApprovalDescription}>
+            {approvalRequest.description}
+          </div>
           {approvalRequest.fields.map(field => (
             <label key={field.key} className={localStyles.toolApprovalField}>
-              <span className={localStyles.toolApprovalFieldLabel}>{field.label}</span>
+              <span className={localStyles.toolApprovalFieldLabel}>
+                {field.label}
+              </span>
               <input
                 type="text"
                 value={approvalFields[field.key] ?? ''}
@@ -1860,7 +2324,9 @@ const ToolCallCardItem = ({
                 aria-required={field.required}
                 placeholder={field.placeholder}
                 className={localStyles.toolApprovalInput}
-                disabled={disableInteractions || approvalActionState === 'submitting'}
+                disabled={
+                  disableInteractions || approvalActionState === 'submitting'
+                }
                 onChange={event =>
                   setApprovalFields(prev => ({
                     ...prev,
@@ -1875,34 +2341,44 @@ const ToolCallCardItem = ({
               type="button"
               className={localStyles.toolApprovalConfirm}
               onClick={() => {
-                void handleResolveApproval('approved');
+                handleResolveApproval('approved').catch(() => {});
               }}
               disabled={approvalDisabled}
               aria-label={`${approvalRequest.confirmLabel ?? 'Freigeben'} für ${tc.label}`}
             >
               {approvalActionState === 'submitting'
                 ? 'Verarbeite…'
-                : approvalRequest.confirmLabel ?? 'Freigeben'}
+                : (approvalRequest.confirmLabel ?? 'Freigeben')}
             </button>
             <button
               type="button"
               className={localStyles.toolApprovalReject}
               onClick={() => {
-                void handleResolveApproval('rejected');
+                handleResolveApproval('rejected').catch(() => {});
               }}
-              disabled={disableInteractions || approvalActionState === 'submitting'}
+              disabled={
+                disableInteractions || approvalActionState === 'submitting'
+              }
               aria-label={`${approvalRequest.cancelLabel ?? 'Abbrechen'} für ${tc.label}`}
             >
               {approvalRequest.cancelLabel ?? 'Abbrechen'}
             </button>
           </div>
           {hasMissingRequiredApprovalFields ? (
-            <div className={localStyles.toolApprovalDescription} role="status" aria-live="polite">
+            <div
+              className={localStyles.toolApprovalDescription}
+              role="status"
+              aria-live="polite"
+            >
               Bitte füllen Sie alle Pflichtfelder aus.
             </div>
           ) : null}
           {approvalActionState === 'error' ? (
-            <div className={localStyles.toolApprovalDescription} role="status" aria-live="polite">
+            <div
+              className={localStyles.toolApprovalDescription}
+              role="status"
+              aria-live="polite"
+            >
               Freigabe konnte nicht verarbeitet werden. Bitte erneut versuchen.
             </div>
           ) : null}
@@ -1910,22 +2386,28 @@ const ToolCallCardItem = ({
       ) : null}
       {expanded && hasDetails && (
         <div className={localStyles.toolCallDetailsWrap} id={detailWrapId}>
-          {tc.detailLines!.map((line, i) => (
+          {(tc.detailLines ?? []).map((line, i) => (
             <div key={i} className={localStyles.toolCallDetailLine}>
               <span className={localStyles.detailLineIcon}>
                 {DETAIL_LINE_ICONS[line.icon] ?? '\u{1F4C4}'}
               </span>
               <span className={localStyles.detailLineLabel}>{line.label}</span>
               {line.meta && (
-                <span className={localStyles.detailLineMeta}>({line.meta})</span>
+                <span className={localStyles.detailLineMeta}>
+                  ({line.meta})
+                </span>
               )}
               {(line.added != null || line.removed != null) && (
                 <>
                   {line.added != null && (
-                    <span className={localStyles.detailLineDiffAdded}>+{line.added}</span>
+                    <span className={localStyles.detailLineDiffAdded}>
+                      +{line.added}
+                    </span>
                   )}
                   {line.removed != null && (
-                    <span className={localStyles.detailLineDiffRemoved}>-{line.removed}</span>
+                    <span className={localStyles.detailLineDiffRemoved}>
+                      -{line.removed}
+                    </span>
                   )}
                 </>
               )}
@@ -1953,11 +2435,13 @@ const CATEGORY_LABELS: Record<string, string> = {
 const ToolCallCards = ({
   toolCalls,
   messageId,
+  compactByDefault,
   disableInteractions,
   onResolveApproval,
 }: {
   toolCalls: ChatToolCall[];
   messageId: string;
+  compactByDefault?: boolean;
   disableInteractions?: boolean;
   onResolveApproval?: (
     messageId: string,
@@ -1966,9 +2450,52 @@ const ToolCallCards = ({
     fields?: Record<string, string>
   ) => Promise<void> | void;
 }) => {
-  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(
+    new Set()
+  );
+  const runningCount = toolCalls.filter(tc => tc.status === 'running').length;
+  const approvalCount = toolCalls.filter(
+    tc => tc.status === 'awaiting_approval'
+  ).length;
+  const errorCount = toolCalls.filter(tc => tc.status === 'error').length;
+  const completedCount = toolCalls.filter(
+    tc => tc.status === 'complete'
+  ).length;
+  const totalDuration = toolCalls.reduce(
+    (sum, tc) => sum + (tc.durationMs ?? 0),
+    0
+  );
+  const shouldAutoExpand =
+    runningCount > 0 || approvalCount > 0 || errorCount > 0;
+  const [showDetails, setShowDetails] = useState(
+    !compactByDefault || shouldAutoExpand
+  );
+
+  useEffect(() => {
+    if (shouldAutoExpand) {
+      setShowDetails(true);
+    }
+  }, [shouldAutoExpand]);
 
   if (!toolCalls || toolCalls.length === 0) return null;
+
+  const summaryLabel =
+    approvalCount > 0
+      ? `${approvalCount} Freigabe${approvalCount > 1 ? 'n' : ''} erforderlich`
+      : runningCount > 0
+        ? `Analyse läuft (${runningCount} Schritt${runningCount > 1 ? 'e' : ''} aktiv)`
+        : errorCount > 0
+          ? `Analyse abgeschlossen mit ${errorCount} Hinweis${errorCount > 1 ? 'en' : ''}`
+          : `Analyse abgeschlossen (${completedCount} Schritt${completedCount !== 1 ? 'e' : ''})`;
+
+  const summaryMeta =
+    totalDuration > 0 ? formatDuration(totalDuration) : undefined;
+
+  const showToggle =
+    toolCalls.length > 1 ||
+    runningCount > 0 ||
+    errorCount > 0 ||
+    approvalCount > 0;
 
   // Group by category (or show flat if no categories)
   const hasCategories = toolCalls.some(tc => tc.category);
@@ -1976,15 +2503,37 @@ const ToolCallCards = ({
   if (!hasCategories) {
     return (
       <div className={localStyles.toolCallsWrap}>
-        {toolCalls.map(tc => (
-          <ToolCallCardItem
-            key={tc.id}
-            tc={tc}
-            messageId={messageId}
-            disableInteractions={disableInteractions}
-            onResolveApproval={onResolveApproval}
-          />
-        ))}
+        <div className={localStyles.workflowSummaryBar}>
+          <span className={localStyles.workflowSummaryStatus}>
+            {summaryLabel}
+          </span>
+          {summaryMeta ? (
+            <span className={localStyles.workflowSummaryMeta}>
+              {summaryMeta}
+            </span>
+          ) : null}
+          {showToggle ? (
+            <button
+              type="button"
+              className={localStyles.workflowSummaryToggle}
+              onClick={() => setShowDetails(current => !current)}
+              aria-expanded={showDetails}
+            >
+              {showDetails ? 'Details ausblenden' : 'Details anzeigen'}
+            </button>
+          ) : null}
+        </div>
+        {showDetails
+          ? toolCalls.map(tc => (
+              <ToolCallCardItem
+                key={tc.id}
+                tc={tc}
+                messageId={messageId}
+                disableInteractions={disableInteractions}
+                onResolveApproval={onResolveApproval}
+              />
+            ))
+          : null}
       </div>
     );
   }
@@ -2003,65 +2552,109 @@ const ToolCallCards = ({
   const toggleGroup = (cat: string) => {
     setCollapsedGroups(prev => {
       const next = new Set(prev);
-      if (next.has(cat)) { next.delete(cat); } else { next.add(cat); }
+      if (next.has(cat)) {
+        next.delete(cat);
+      } else {
+        next.add(cat);
+      }
       return next;
     });
   };
 
   return (
     <div className={localStyles.toolCallsWrap}>
-      {Array.from(groups.entries()).map(([cat, items]) => {
-        const isCollapsed = collapsedGroups.has(cat);
-        const allComplete = items.every(tc => tc.status === 'complete');
-        const hasError = items.some(tc => tc.status === 'error');
-        const totalDuration = items.reduce((sum, tc) => sum + (tc.durationMs ?? 0), 0);
+      <div className={localStyles.workflowSummaryBar}>
+        <span className={localStyles.workflowSummaryStatus}>
+          {summaryLabel}
+        </span>
+        {summaryMeta ? (
+          <span className={localStyles.workflowSummaryMeta}>{summaryMeta}</span>
+        ) : null}
+        {showToggle ? (
+          <button
+            type="button"
+            className={localStyles.workflowSummaryToggle}
+            onClick={() => setShowDetails(current => !current)}
+            aria-expanded={showDetails}
+          >
+            {showDetails ? 'Details ausblenden' : 'Details anzeigen'}
+          </button>
+        ) : null}
+      </div>
+      {showDetails
+        ? Array.from(groups.entries()).map(([cat, items]) => {
+            const isCollapsed = collapsedGroups.has(cat);
+            const allComplete = items.every(tc => tc.status === 'complete');
+            const hasError = items.some(tc => tc.status === 'error');
+            const totalDuration = items.reduce(
+              (sum, tc) => sum + (tc.durationMs ?? 0),
+              0
+            );
 
-        return (
-          <div key={cat}>
-            <div
-              className={localStyles.toolCallGroupHeader}
-              onClick={() => toggleGroup(cat)}
-              role="button"
-              tabIndex={0}
-              aria-expanded={!isCollapsed}
-              aria-controls={`tool-call-group-${messageId}-${cat}`}
-              onKeyDown={event => {
-                if (event.key === 'Enter' || event.key === ' ') {
-                  event.preventDefault();
-                  toggleGroup(cat);
-                }
-              }}
-            >
-              <span className={clsx(localStyles.toolCallGroupChevron, !isCollapsed && localStyles.toolCallGroupChevronOpen)}>
-                {'\u{25B6}'}
-              </span>
-              <span>
-                {CATEGORY_LABELS[cat] ?? cat}
-                {' '}({items.length})
-              </span>
-              {allComplete && !hasError && totalDuration > 0 && (
-                <span className={localStyles.toolCallDuration}>{formatDuration(totalDuration)}</span>
-              )}
-              {hasError && (
-                <span style={{ color: cssVarV2('status/error'), fontSize: 10, fontWeight: 700 }}>Fehler</span>
-              )}
-            </div>
-            {!isCollapsed && (
-              <div className={localStyles.toolCallGroupBody} id={`tool-call-group-${messageId}-${cat}`}>
-                {items.map(tc => (
-                  <ToolCallCardItem
-                    key={tc.id}
-                    tc={tc}
-                    messageId={messageId}
-                    disableInteractions={disableInteractions}
-                    onResolveApproval={onResolveApproval}
-                  />
-                ))}
+            return (
+              <div key={cat}>
+                <div
+                  className={localStyles.toolCallGroupHeader}
+                  onClick={() => toggleGroup(cat)}
+                  role="button"
+                  tabIndex={0}
+                  aria-expanded={!isCollapsed}
+                  aria-controls={`tool-call-group-${messageId}-${cat}`}
+                  onKeyDown={event => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      toggleGroup(cat);
+                    }
+                  }}
+                >
+                  <span
+                    className={clsx(
+                      localStyles.toolCallGroupChevron,
+                      !isCollapsed && localStyles.toolCallGroupChevronOpen
+                    )}
+                  >
+                    {'\u{25B6}'}
+                  </span>
+                  <span>
+                    {CATEGORY_LABELS[cat] ?? cat} ({items.length})
+                  </span>
+                  {allComplete && !hasError && totalDuration > 0 && (
+                    <span className={localStyles.toolCallDuration}>
+                      {formatDuration(totalDuration)}
+                    </span>
+                  )}
+                  {hasError && (
+                    <span
+                      style={{
+                        color: cssVarV2('status/error'),
+                        fontSize: 10,
+                        fontWeight: 700,
+                      }}
+                    >
+                      Fehler
+                    </span>
+                  )}
+                </div>
+                {!isCollapsed && (
+                  <div
+                    className={localStyles.toolCallGroupBody}
+                    id={`tool-call-group-${messageId}-${cat}`}
+                  >
+                    {items.map(tc => (
+                      <ToolCallCardItem
+                        key={tc.id}
+                        tc={tc}
+                        messageId={messageId}
+                        disableInteractions={disableInteractions}
+                        onResolveApproval={onResolveApproval}
+                      />
+                    ))}
+                  </div>
+                )}
               </div>
-            )}
-          </div>
-        );
-      })}
+            );
+          })
+        : null}
     </div>
   );
 };
@@ -2086,23 +2679,28 @@ const ArtifactCards = ({
   const [savingArtifactId, setSavingArtifactId] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
 
-  const handleDownload = useCallback((artifact: ChatArtifact) => {
-    if (onDownload) {
-      onDownload(artifact);
-      return;
-    }
-    const blob = new Blob([artifact.content], { type: artifact.mimeType });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    const extension = getDownloadExtension(artifact.mimeType);
-    const title = sanitizeDownloadName(artifact.title);
-    a.href = url;
-    a.download = title.toLowerCase().endsWith(extension) ? title : `${title}${extension}`;
-    document.body.append(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  }, [onDownload]);
+  const handleDownload = useCallback(
+    (artifact: ChatArtifact) => {
+      if (onDownload) {
+        onDownload(artifact);
+        return;
+      }
+      const blob = new Blob([artifact.content], { type: artifact.mimeType });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const extension = getDownloadExtension(artifact.mimeType);
+      const title = sanitizeDownloadName(artifact.title);
+      a.href = url;
+      a.download = title.toLowerCase().endsWith(extension)
+        ? title
+        : `${title}${extension}`;
+      document.body.append(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    },
+    [onDownload]
+  );
 
   const handleSaveToAkte = useCallback(
     async (artifact: ChatArtifact) => {
@@ -2112,7 +2710,7 @@ const ArtifactCards = ({
       setSaveError(null);
       setSavingArtifactId(artifact.id);
       try {
-        await onSaveToAkte(artifact);
+        await Promise.resolve(onSaveToAkte(artifact));
       } catch {
         setSaveError('Dokument konnte nicht in die Akte gespeichert werden.');
       } finally {
@@ -2186,22 +2784,32 @@ const ArtifactCards = ({
             {onSaveToAkte && !artifact.savedToAkte && (
               <button
                 type="button"
-                className={clsx(localStyles.artifactActionButton, localStyles.artifactActionButtonPrimary)}
+                className={clsx(
+                  localStyles.artifactActionButton,
+                  localStyles.artifactActionButtonPrimary
+                )}
                 onClick={() => {
-                  void handleSaveToAkte(artifact);
+                  handleSaveToAkte(artifact).catch(() => {});
                 }}
                 title="In Akte ablegen"
                 aria-label={`${artifact.title} in die Akte speichern`}
-                disabled={disableInteractions || savingArtifactId === artifact.id}
+                disabled={
+                  disableInteractions || savingArtifactId === artifact.id
+                }
               >
-                {'\u{1F4C2}'} {savingArtifactId === artifact.id ? 'Speichere…' : 'In Akte'}
+                {'\u{1F4C2}'}{' '}
+                {savingArtifactId === artifact.id ? 'Speichere…' : 'In Akte'}
               </button>
             )}
           </div>
         </div>
       ))}
       {saveError ? (
-        <div className={localStyles.toolApprovalDescription} role="status" aria-live="polite">
+        <div
+          className={localStyles.toolApprovalDescription}
+          role="status"
+          aria-live="polite"
+        >
           {saveError}
         </div>
       ) : null}
@@ -2221,7 +2829,10 @@ const ThinkingIndicator = ({ toolCalls }: { toolCalls?: ChatToolCall[] }) => {
   );
 
   useEffect(() => {
-    if (!runningTool) { setElapsed(0); return; }
+    if (!runningTool) {
+      setElapsed(0);
+      return;
+    }
     const start = new Date(runningTool.startedAt).getTime();
     const tick = () => setElapsed(Date.now() - start);
     tick();
@@ -2236,7 +2847,9 @@ const ThinkingIndicator = ({ toolCalls }: { toolCalls?: ChatToolCall[] }) => {
       <span className={localStyles.thinkingSpinner} />
       <span className={localStyles.thinkingLabel}>{label}</span>
       {elapsed > 0 && (
-        <span className={localStyles.thinkingTimer}>{formatDuration(elapsed)}</span>
+        <span className={localStyles.thinkingTimer}>
+          {formatDuration(elapsed)}
+        </span>
       )}
     </div>
   );
@@ -2250,7 +2863,19 @@ const StreamingIndicator = () => (
   </span>
 );
 
-const ChatBubble = ({ message, isChatBusy, onRegenerate, onDelete, onSaveInsight, onUndoInsight, onSaveArtifactToAkte, onOpenArtifactInStrategy, onResolveToolApproval, sourceCitationCaseByDocId, onJumpToCaseFromCitation }: {
+const ChatBubble = ({
+  message,
+  isChatBusy,
+  onRegenerate,
+  onDelete,
+  onSaveInsight,
+  onUndoInsight,
+  onSaveArtifactToAkte,
+  onOpenArtifactInStrategy,
+  onResolveToolApproval,
+  sourceCitationCaseByDocId,
+  onJumpToCaseFromCitation,
+}: {
   message: LegalChatMessage;
   isChatBusy?: boolean;
   onRegenerate?: (messageId: string) => void;
@@ -2262,8 +2887,14 @@ const ChatBubble = ({ message, isChatBusy, onRegenerate, onDelete, onSaveInsight
     options?: SaveInsightOptions
   ) => Promise<SaveInsightResult | void> | SaveInsightResult | void;
   onUndoInsight?: (undoToken: string) => Promise<void> | void;
-  onSaveArtifactToAkte?: (messageId: string, artifact: ChatArtifact) => Promise<void> | void;
-  onOpenArtifactInStrategy?: (messageId: string, artifact: ChatArtifact) => void;
+  onSaveArtifactToAkte?: (
+    messageId: string,
+    artifact: ChatArtifact
+  ) => Promise<void> | void;
+  onOpenArtifactInStrategy?: (
+    messageId: string,
+    artifact: ChatArtifact
+  ) => void;
   onResolveToolApproval?: (
     messageId: string,
     toolCallId: string,
@@ -2283,8 +2914,19 @@ const ChatBubble = ({ message, isChatBusy, onRegenerate, onDelete, onSaveInsight
   const isPending = message.status === 'pending';
   const isStreaming = message.status === 'streaming';
   const isError = (message.status as string) === 'error';
+  const bubbleRef = useRef<HTMLDivElement>(null);
   const [showSources, setShowSources] = useState(false);
   const [showActions, setShowActions] = useState(false);
+  const [showAllReviewSuggestions, setShowAllReviewSuggestions] =
+    useState(false);
+  const [reviewFilter, setReviewFilter] = useState<
+    'all' | 'high' | 'risk_deadline'
+  >('all');
+  const [selectedSuggestionIds, setSelectedSuggestionIds] = useState<
+    Set<string>
+  >(new Set());
+  const lastSelectedSuggestionIdRef = useRef<string | null>(null);
+  const [isBatchSaving, setIsBatchSaving] = useState(false);
   const [saveState, setSaveState] = useState<{
     entity: 'issue' | 'actor' | 'memory_event';
     status: 'idle' | 'saving' | 'saved' | 'error' | 'conflict';
@@ -2303,18 +2945,91 @@ const ChatBubble = ({ message, isChatBusy, onRegenerate, onDelete, onSaveInsight
     >
   >({});
 
-  const hasCitations = message.sourceCitations.length > 0 ||
+  const hasCitations =
+    message.sourceCitations.length > 0 ||
     message.normCitations.length > 0 ||
     message.findingRefs.length > 0;
+  const hasFallbackToolError = Boolean(
+    !isUser &&
+    message.toolCalls?.some(
+      tc =>
+        tc.status === 'error' &&
+        (tc.outputSummary ?? '').toLowerCase().includes('llm nicht erreichbar')
+    )
+  );
 
   const reviewSuggestions = useMemo(
-    () => (isUser || isPending ? [] : buildInsightSuggestions(message.content)),
+    () =>
+      isUser || isPending
+        ? []
+        : buildInsightSuggestions(message.content).sort((a, b) => {
+            const priorityDiff =
+              insightPriorityRank[a.kind] - insightPriorityRank[b.kind];
+            if (priorityDiff !== 0) return priorityDiff;
+            return b.confidence - a.confidence;
+          }),
     [isPending, isUser, message.content]
   );
+  const filteredReviewSuggestions = useMemo(() => {
+    if (reviewFilter === 'high') {
+      return reviewSuggestions.filter(
+        item => getConfidenceLevel(item.confidence) === 'high'
+      );
+    }
+    if (reviewFilter === 'risk_deadline') {
+      return reviewSuggestions.filter(
+        item => item.kind === 'risk' || item.kind === 'deadline'
+      );
+    }
+    return reviewSuggestions;
+  }, [reviewFilter, reviewSuggestions]);
+  const visibleReviewSuggestions = showAllReviewSuggestions
+    ? filteredReviewSuggestions
+    : filteredReviewSuggestions.slice(0, 3);
+  const hiddenReviewSuggestionCount = Math.max(
+    0,
+    filteredReviewSuggestions.length - visibleReviewSuggestions.length
+  );
+  const actionableVisibleSuggestions = useMemo(
+    () =>
+      visibleReviewSuggestions.filter(item => {
+        const status = savedSuggestions[item.id]?.status;
+        return status !== 'saved' && status !== 'saving';
+      }),
+    [savedSuggestions, visibleReviewSuggestions]
+  );
+  const suggestionMap = useMemo(() => {
+    const map = new Map<string, InsightSuggestion>();
+    reviewSuggestions.forEach(item => {
+      map.set(item.id, item);
+    });
+    return map;
+  }, [reviewSuggestions]);
+  const selectedSuggestionList = useMemo(
+    () => reviewSuggestions.filter(item => selectedSuggestionIds.has(item.id)),
+    [reviewSuggestions, selectedSuggestionIds]
+  );
+  useEffect(() => {
+    setSelectedSuggestionIds(prev => {
+      const next = new Set(
+        Array.from(prev).filter(id => suggestionMap.has(id))
+      );
+      if (next.size === prev.size) {
+        return prev;
+      }
+      return next;
+    });
+  }, [suggestionMap]);
 
   const saveInsight = useCallback(
     async (entity: 'issue' | 'actor' | 'memory_event') => {
-      if (!onSaveInsight || isUser || isPending || isStreaming || !message.content.trim()) {
+      if (
+        !onSaveInsight ||
+        isUser ||
+        isPending ||
+        isStreaming ||
+        !message.content.trim()
+      ) {
         return;
       }
 
@@ -2325,7 +3040,9 @@ const ChatBubble = ({ message, isChatBusy, onRegenerate, onDelete, onSaveInsight
           setSaveState({
             entity,
             status: 'conflict',
-            note: result.message ?? 'Konflikt erkannt. Bitte wählen Sie eine Auflösungsstrategie.',
+            note:
+              result.message ??
+              'Konflikt erkannt. Bitte wählen Sie eine Auflösungsstrategie.',
             conflict: result.conflict,
           });
           return;
@@ -2337,7 +3054,11 @@ const ChatBubble = ({ message, isChatBusy, onRegenerate, onDelete, onSaveInsight
           undoToken: result?.undoToken,
         });
       } catch {
-        setSaveState({ entity, status: 'error', note: 'Speichern fehlgeschlagen.' });
+        setSaveState({
+          entity,
+          status: 'error',
+          note: 'Speichern fehlgeschlagen.',
+        });
       }
     },
     [isPending, isStreaming, isUser, message.content, message.id, onSaveInsight]
@@ -2346,9 +3067,16 @@ const ChatBubble = ({ message, isChatBusy, onRegenerate, onDelete, onSaveInsight
   const saveSuggestion = useCallback(
     async (suggestion: InsightSuggestion) => {
       if (!onSaveInsight || isUser || isPending || isStreaming) return;
-      setSavedSuggestions(prev => ({ ...prev, [suggestion.id]: { status: 'saving' } }));
+      setSavedSuggestions(prev => ({
+        ...prev,
+        [suggestion.id]: { status: 'saving' },
+      }));
       try {
-        const result = await onSaveInsight(message.id, suggestion.entity, suggestion.content);
+        const result = await onSaveInsight(
+          message.id,
+          suggestion.entity,
+          suggestion.content
+        );
         if (result?.conflict) {
           setSavedSuggestions(prev => ({
             ...prev,
@@ -2361,16 +3089,126 @@ const ChatBubble = ({ message, isChatBusy, onRegenerate, onDelete, onSaveInsight
           [suggestion.id]: { status: 'saved', undoToken: result?.undoToken },
         }));
       } catch {
-        setSavedSuggestions(prev => ({ ...prev, [suggestion.id]: { status: 'error' } }));
+        setSavedSuggestions(prev => ({
+          ...prev,
+          [suggestion.id]: { status: 'error' },
+        }));
       }
     },
     [isPending, isStreaming, isUser, message.id, onSaveInsight]
   );
 
+  const runBatchSave = useCallback(
+    async (targets: InsightSuggestion[]) => {
+      if (
+        !onSaveInsight ||
+        isUser ||
+        isPending ||
+        isStreaming ||
+        targets.length === 0 ||
+        isBatchSaving
+      ) {
+        return;
+      }
+      setIsBatchSaving(true);
+      try {
+        for (const suggestion of targets) {
+          await saveSuggestion(suggestion);
+        }
+      } finally {
+        setIsBatchSaving(false);
+      }
+    },
+    [
+      isBatchSaving,
+      isPending,
+      isStreaming,
+      isUser,
+      onSaveInsight,
+      saveSuggestion,
+    ]
+  );
+
+  const handleBatchSave = useCallback(async () => {
+    const preferredTargets =
+      selectedSuggestionList.length > 0
+        ? selectedSuggestionList
+        : actionableVisibleSuggestions;
+    await runBatchSave(preferredTargets);
+    if (selectedSuggestionList.length > 0) {
+      setSelectedSuggestionIds(new Set());
+      lastSelectedSuggestionIdRef.current = null;
+    }
+  }, [actionableVisibleSuggestions, runBatchSave, selectedSuggestionList]);
+
+  const clearSelectedSuggestions = useCallback(() => {
+    setSelectedSuggestionIds(new Set());
+    lastSelectedSuggestionIdRef.current = null;
+  }, []);
+
+  const toggleSelectSuggestion = useCallback(
+    (suggestionId: string, options?: { shift?: boolean }) => {
+      if (!suggestionMap.has(suggestionId)) return;
+      setSelectedSuggestionIds(prev => {
+        const next = new Set(prev);
+        if (
+          options?.shift &&
+          lastSelectedSuggestionIdRef.current &&
+          filteredReviewSuggestions.length > 0
+        ) {
+          const ordered = filteredReviewSuggestions;
+          const anchorId = suggestionMap.has(
+            lastSelectedSuggestionIdRef.current
+          )
+            ? lastSelectedSuggestionIdRef.current
+            : suggestionId;
+          const anchorIndex = ordered.findIndex(item => item.id === anchorId);
+          const targetIndex = ordered.findIndex(
+            item => item.id === suggestionId
+          );
+          if (anchorIndex >= 0 && targetIndex >= 0) {
+            const [start, end] =
+              anchorIndex <= targetIndex
+                ? [anchorIndex, targetIndex]
+                : [targetIndex, anchorIndex];
+            for (let idx = start; idx <= end; idx += 1) {
+              const item = ordered[idx];
+              if (item) {
+                next.add(item.id);
+              }
+            }
+            return next;
+          }
+        }
+        if (next.has(suggestionId)) {
+          next.delete(suggestionId);
+        } else {
+          next.add(suggestionId);
+        }
+        lastSelectedSuggestionIdRef.current = suggestionId;
+        return next;
+      });
+    },
+    [filteredReviewSuggestions, suggestionMap]
+  );
+
+  const toggleSelectAllVisible = useCallback(() => {
+    const visibleIds = filteredReviewSuggestions.map(item => item.id);
+    setSelectedSuggestionIds(prev => {
+      const allSelected = visibleIds.every(id => prev.has(id));
+      if (allSelected) {
+        return new Set(Array.from(prev).filter(id => !visibleIds.includes(id)));
+      }
+      const next = new Set(prev);
+      visibleIds.forEach(id => next.add(id));
+      return next;
+    });
+  }, [filteredReviewSuggestions]);
+
   const undoInsight = useCallback(
     async (undoToken: string) => {
       if (!onUndoInsight) return;
-      void onUndoInsight(undoToken);
+      await Promise.resolve(onUndoInsight(undoToken));
       setSaveState(current =>
         current
           ? {
@@ -2458,7 +3296,10 @@ const ChatBubble = ({ message, isChatBusy, onRegenerate, onDelete, onSaveInsight
       strategy: 'merge' | 'replace' | 'create_new'
     ) => {
       if (!onSaveInsight) return;
-      setSavedSuggestions(prev => ({ ...prev, [suggestion.id]: { status: 'saving', conflict } }));
+      setSavedSuggestions(prev => ({
+        ...prev,
+        [suggestion.id]: { status: 'saving', conflict },
+      }));
       try {
         const result = await onSaveInsight(
           message.id,
@@ -2483,7 +3324,10 @@ const ChatBubble = ({ message, isChatBusy, onRegenerate, onDelete, onSaveInsight
           [suggestion.id]: { status: 'saved', undoToken: result?.undoToken },
         }));
       } catch {
-        setSavedSuggestions(prev => ({ ...prev, [suggestion.id]: { status: 'error' } }));
+        setSavedSuggestions(prev => ({
+          ...prev,
+          [suggestion.id]: { status: 'error' },
+        }));
       }
     },
     [message.id, onSaveInsight]
@@ -2492,7 +3336,7 @@ const ChatBubble = ({ message, isChatBusy, onRegenerate, onDelete, onSaveInsight
   const undoSuggestion = useCallback(
     async (suggestionId: string, undoToken: string) => {
       if (!onUndoInsight) return;
-      void onUndoInsight(undoToken);
+      await Promise.resolve(onUndoInsight(undoToken));
       setSavedSuggestions(prev => ({
         ...prev,
         [suggestionId]: { status: 'saved' },
@@ -2514,17 +3358,32 @@ const ChatBubble = ({ message, isChatBusy, onRegenerate, onDelete, onSaveInsight
         {!isUser && message.modelId && (
           <span className={localStyles.modelBadge}>{message.modelId}</span>
         )}
-        {message.durationMs ? ` · ${(message.durationMs / 1000).toFixed(1)}s` : ''}
+        {message.durationMs
+          ? ` · ${(message.durationMs / 1000).toFixed(1)}s`
+          : ''}
       </div>
 
       {/* Tool Call Cards (Cascade-Style) — shown before the message content */}
       {!isUser && message.toolCalls && message.toolCalls.length > 0 && (
-        <ToolCallCards
-          toolCalls={message.toolCalls}
-          messageId={message.id}
-          disableInteractions={isChatBusy}
-          onResolveApproval={onResolveToolApproval}
-        />
+        <>
+          {hasFallbackToolError ? (
+            <div
+              className={localStyles.fallbackBanner}
+              role="status"
+              aria-live="polite"
+            >
+              KI-Modell temporär nicht erreichbar. Die Antwort basiert aktuell
+              auf lokaler Analyse.
+            </div>
+          ) : null}
+          <ToolCallCards
+            toolCalls={message.toolCalls}
+            messageId={message.id}
+            compactByDefault
+            disableInteractions={isChatBusy}
+            onResolveApproval={onResolveToolApproval}
+          />
+        </>
       )}
 
       {/* Thinking Indicator (Cascade-style with step label + timer) */}
@@ -2534,6 +3393,7 @@ const ChatBubble = ({ message, isChatBusy, onRegenerate, onDelete, onSaveInsight
 
       {/* Bubble */}
       <div
+        ref={bubbleRef}
         className={clsx(
           localStyles.bubble,
           isUser ? localStyles.bubbleUser : localStyles.bubbleAssistant,
@@ -2542,17 +3402,25 @@ const ChatBubble = ({ message, isChatBusy, onRegenerate, onDelete, onSaveInsight
         )}
         onMouseEnter={() => setShowActions(true)}
         onMouseLeave={() => setShowActions(false)}
+        onFocusCapture={() => setShowActions(true)}
+        onBlurCapture={event => {
+          if (
+            !bubbleRef.current?.contains(event.relatedTarget as Node | null)
+          ) {
+            setShowActions(false);
+          }
+        }}
       >
-        {isPending && !message.content ? (
-          null
-        ) : isStreaming ? (
+        {isPending && !message.content ? null : isStreaming ? (
           <>
             <SimpleMarkdown text={message.content} />
             <StreamingIndicator />
           </>
         ) : isError ? (
           <>
-            <span><strong>Fehler: </strong></span>
+            <span>
+              <strong>Fehler: </strong>
+            </span>
             <SimpleMarkdown text={message.content} />
           </>
         ) : (
@@ -2591,7 +3459,7 @@ const ChatBubble = ({ message, isChatBusy, onRegenerate, onDelete, onSaveInsight
                 <button
                   type="button"
                   onClick={() => {
-                    void saveInsight('issue');
+                    saveInsight('issue').catch(() => {});
                   }}
                   className={localStyles.bubbleActionButton}
                   disabled={saveState?.status === 'saving'}
@@ -2602,7 +3470,7 @@ const ChatBubble = ({ message, isChatBusy, onRegenerate, onDelete, onSaveInsight
                 <button
                   type="button"
                   onClick={() => {
-                    void saveInsight('actor');
+                    saveInsight('actor').catch(() => {});
                   }}
                   className={localStyles.bubbleActionButton}
                   disabled={saveState?.status === 'saving'}
@@ -2613,7 +3481,7 @@ const ChatBubble = ({ message, isChatBusy, onRegenerate, onDelete, onSaveInsight
                 <button
                   type="button"
                   onClick={() => {
-                    void saveInsight('memory_event');
+                    saveInsight('memory_event').catch(() => {});
                   }}
                   className={localStyles.bubbleActionButton}
                   disabled={saveState?.status === 'saving'}
@@ -2621,11 +3489,15 @@ const ChatBubble = ({ message, isChatBusy, onRegenerate, onDelete, onSaveInsight
                 >
                   Als Notiz
                 </button>
-                {onUndoInsight && saveState?.status === 'saved' && saveState.undoToken ? (
+                {onUndoInsight &&
+                saveState?.status === 'saved' &&
+                saveState.undoToken ? (
                   <button
                     type="button"
                     onClick={() => {
-                      undoInsight(saveState.undoToken as string).catch(() => {});
+                      undoInsight(saveState.undoToken as string).catch(
+                        () => {}
+                      );
                     }}
                     className={localStyles.bubbleActionButton}
                     title="Letzte Übernahme rückgängig machen"
@@ -2641,8 +3513,10 @@ const ChatBubble = ({ message, isChatBusy, onRegenerate, onDelete, onSaveInsight
           <div className={localStyles.insightSaveStatus}>
             {saveState.status === 'saving'
               ? 'Speichere Erkenntnis…'
-              : saveState.note ??
-                (saveState.status === 'saved' ? 'Gespeichert.' : 'Fehler beim Speichern.')}
+              : (saveState.note ??
+                (saveState.status === 'saved'
+                  ? 'Gespeichert.'
+                  : 'Fehler beim Speichern.'))}
           </div>
         ) : null}
         {!isUser && saveState?.status === 'conflict' && saveState.conflict ? (
@@ -2665,7 +3539,12 @@ const ChatBubble = ({ message, isChatBusy, onRegenerate, onDelete, onSaveInsight
                   type="button"
                   className={localStyles.conflictActionButtonRecommended}
                   onClick={() => {
-                    void resolveConflict(saveState.conflict!.recommendedStrategy!);
+                    const recommendedStrategy =
+                      saveState.conflict?.recommendedStrategy;
+                    if (!recommendedStrategy) {
+                      return;
+                    }
+                    resolveConflict(recommendedStrategy).catch(() => {});
                   }}
                 >
                   ✓{' '}
@@ -2681,7 +3560,7 @@ const ChatBubble = ({ message, isChatBusy, onRegenerate, onDelete, onSaveInsight
                   type="button"
                   className={localStyles.conflictActionButton}
                   onClick={() => {
-                    void resolveConflict('merge');
+                    resolveConflict('merge').catch(() => {});
                   }}
                 >
                   Zusammenführen
@@ -2692,7 +3571,7 @@ const ChatBubble = ({ message, isChatBusy, onRegenerate, onDelete, onSaveInsight
                   type="button"
                   className={localStyles.conflictActionButton}
                   onClick={() => {
-                    void resolveConflict('replace');
+                    resolveConflict('replace').catch(() => {});
                   }}
                 >
                   Ersetzen
@@ -2703,7 +3582,7 @@ const ChatBubble = ({ message, isChatBusy, onRegenerate, onDelete, onSaveInsight
                   type="button"
                   className={localStyles.conflictActionButton}
                   onClick={() => {
-                    void resolveConflict('create_new');
+                    resolveConflict('create_new').catch(() => {});
                   }}
                 >
                   Neu anlegen
@@ -2727,7 +3606,9 @@ const ChatBubble = ({ message, isChatBusy, onRegenerate, onDelete, onSaveInsight
           onSaveToAkte={
             onSaveArtifactToAkte
               ? artifact => {
-                  void onSaveArtifactToAkte(message.id, artifact);
+                  Promise.resolve(
+                    onSaveArtifactToAkte(message.id, artifact)
+                  ).catch(() => {});
                 }
               : undefined
           }
@@ -2736,58 +3617,230 @@ const ChatBubble = ({ message, isChatBusy, onRegenerate, onDelete, onSaveInsight
 
       {!isUser && reviewSuggestions.length > 0 && onSaveInsight ? (
         <div className={localStyles.reviewQueuePanel}>
-          <div className={localStyles.reviewQueueHeader}>Auto-Vorschläge zur Übernahme in die Aktdaten</div>
+          <div className={localStyles.reviewQueueHeader}>
+            Auto-Vorschläge zur Übernahme in die Aktdaten
+          </div>
+          <div className={localStyles.reviewQueueStickyBar}>
+            <div className={localStyles.reviewQueueFilterRow}>
+              <button
+                type="button"
+                className={clsx(
+                  localStyles.reviewQueueFilterChip,
+                  reviewFilter === 'all' &&
+                    localStyles.reviewQueueFilterChipActive
+                )}
+                onClick={() => setReviewFilter('all')}
+                aria-pressed={reviewFilter === 'all'}
+              >
+                Alle ({reviewSuggestions.length})
+              </button>
+              <button
+                type="button"
+                className={clsx(
+                  localStyles.reviewQueueFilterChip,
+                  reviewFilter === 'high' &&
+                    localStyles.reviewQueueFilterChipActive
+                )}
+                onClick={() => setReviewFilter('high')}
+                aria-pressed={reviewFilter === 'high'}
+              >
+                Nur High-Confidence
+              </button>
+              <button
+                type="button"
+                className={clsx(
+                  localStyles.reviewQueueFilterChip,
+                  reviewFilter === 'risk_deadline' &&
+                    localStyles.reviewQueueFilterChipActive
+                )}
+                onClick={() => setReviewFilter('risk_deadline')}
+                aria-pressed={reviewFilter === 'risk_deadline'}
+              >
+                Risiken & Fristen
+              </button>
+            </div>
+            <div className={localStyles.reviewQueueSelectionRow}>
+              <div className={localStyles.reviewQueueSelectionMeta}>
+                {selectedSuggestionIds.size > 0
+                  ? `${selectedSuggestionIds.size} Vorschlag${selectedSuggestionIds.size === 1 ? '' : 'e'} ausgewählt`
+                  : 'Keine Auswahl'}
+              </div>
+              <div className={localStyles.reviewQueueSelectionButtons}>
+                <button
+                  type="button"
+                  className={localStyles.reviewQueueSelectionButton}
+                  onClick={toggleSelectAllVisible}
+                >
+                  {filteredReviewSuggestions.length > 0 &&
+                  filteredReviewSuggestions.every(item =>
+                    selectedSuggestionIds.has(item.id)
+                  )
+                    ? 'Sichtbare Auswahl aufheben'
+                    : 'Sichtbare auswählen'}
+                </button>
+                <button
+                  type="button"
+                  className={localStyles.reviewQueueSelectionButton}
+                  onClick={clearSelectedSuggestions}
+                  disabled={selectedSuggestionIds.size === 0}
+                >
+                  Auswahl löschen
+                </button>
+                <button
+                  type="button"
+                  className={localStyles.reviewQueueBatchButton}
+                  onClick={() => {
+                    handleBatchSave().catch(() => {});
+                  }}
+                  disabled={
+                    isBatchSaving ||
+                    isChatBusy ||
+                    (selectedSuggestionList.length === 0 &&
+                      actionableVisibleSuggestions.length === 0)
+                  }
+                >
+                  {isBatchSaving
+                    ? 'Übernehme Vorschläge…'
+                    : selectedSuggestionList.length > 0
+                      ? `Auswahl (${selectedSuggestionList.length}) übernehmen`
+                      : `Sichtbare (${actionableVisibleSuggestions.length}) übernehmen`}
+                </button>
+              </div>
+            </div>
+          </div>
           <div className={localStyles.reviewQueueList}>
-            {reviewSuggestions.map(item => {
+            {visibleReviewSuggestions.length === 0 ? (
+              <div className={localStyles.reviewQueueEmptyState}>
+                Keine Vorschläge für den gewählten Filter.
+              </div>
+            ) : null}
+            {visibleReviewSuggestions.map(item => {
               const status = savedSuggestions[item.id]?.status;
               const undoToken = savedSuggestions[item.id]?.undoToken;
               const conflict = savedSuggestions[item.id]?.conflict;
+              const confidenceLevel = getConfidenceLevel(item.confidence);
+              const isSelected = selectedSuggestionIds.has(item.id);
+              const suggestionIsActionable =
+                status !== 'saving' && status !== 'saved';
               return (
-                <div key={item.id} className={localStyles.reviewQueueItem}>
-                  <div className={localStyles.reviewQueueMetaRow}>
-                    <span className={localStyles.reviewQueueEntity}>{item.title}</span>
-                    <span className={localStyles.reviewQueueConfidence}>
-                      {(item.confidence * 100).toFixed(0)}%
-                    </span>
-                  </div>
-                  <div className={localStyles.reviewQueueContent}>{item.content}</div>
-                  <div className={localStyles.reviewQueueActions}>
-                    <button
-                      type="button"
-                      className={localStyles.reviewQueueSaveButton}
-                      disabled={status === 'saving' || status === 'saved'}
-                      onClick={() => {
-                        void saveSuggestion(item);
+                <div
+                  key={item.id}
+                  className={clsx(
+                    localStyles.reviewQueueItem,
+                    isSelected && localStyles.reviewQueueItemSelected
+                  )}
+                  role="group"
+                  aria-checked={isSelected}
+                  tabIndex={suggestionIsActionable ? 0 : -1}
+                  onKeyDown={event => {
+                    if (event.key === ' ' || event.key === 'Enter') {
+                      event.preventDefault();
+                      toggleSelectSuggestion(item.id, {
+                        shift: event.shiftKey,
+                      });
+                    }
+                  }}
+                  onClick={event => {
+                    const target = event.target as HTMLElement;
+                    if (target.closest('button')) return;
+                    if (target.tagName === 'INPUT') return;
+                    toggleSelectSuggestion(item.id, { shift: event.shiftKey });
+                  }}
+                >
+                  <div className={localStyles.reviewQueueCheckboxCol}>
+                    <input
+                      type="checkbox"
+                      className={localStyles.reviewQueueCheckbox}
+                      checked={isSelected}
+                      onChange={event => {
+                        const shiftPressed = Boolean(
+                          (event.nativeEvent as MouseEvent).shiftKey
+                        );
+                        toggleSelectSuggestion(item.id, {
+                          shift: shiftPressed,
+                        });
                       }}
-                    >
-                      {status === 'saved'
-                        ? 'Gespeichert'
-                        : status === 'saving'
-                          ? 'Speichern…'
-                          : 'In Aktdaten übernehmen'}
-                    </button>
-                    {onUndoInsight && status === 'saved' && undoToken ? (
+                      aria-label={`Vorschlag ${item.title} auswählen`}
+                    />
+                  </div>
+                  <div className={localStyles.reviewQueueCardContent}>
+                    <div className={localStyles.reviewQueueMetaRow}>
+                      <span className={localStyles.reviewQueueEntity}>
+                        {item.title}
+                      </span>
+                      <div className={localStyles.reviewQueueMetaBadges}>
+                        <span className={localStyles.reviewQueuePriorityBadge}>
+                          {insightPriorityLabel[item.kind]}
+                        </span>
+                        <span
+                          className={clsx(
+                            localStyles.reviewQueueConfidence,
+                            confidenceLevel === 'high' &&
+                              localStyles.reviewQueueConfidenceHigh,
+                            confidenceLevel === 'medium' &&
+                              localStyles.reviewQueueConfidenceMedium,
+                            confidenceLevel === 'low' &&
+                              localStyles.reviewQueueConfidenceLow
+                          )}
+                        >
+                          {(item.confidence * 100).toFixed(0)}%
+                        </span>
+                      </div>
+                    </div>
+                    <div className={localStyles.reviewQueueContent}>
+                      {item.content}
+                    </div>
+                    <div className={localStyles.reviewQueueActions}>
                       <button
                         type="button"
-                        className={localStyles.reviewQueueUndoButton}
+                        className={localStyles.reviewQueueSaveButton}
+                        disabled={status === 'saving' || status === 'saved'}
                         onClick={() => {
-                          void undoSuggestion(item.id, undoToken);
+                          saveSuggestion(item).catch(() => {});
                         }}
                       >
-                        Rückgängig
+                        {status === 'saved'
+                          ? 'Gespeichert'
+                          : status === 'saving'
+                            ? 'Speichern…'
+                            : 'In Aktdaten übernehmen'}
                       </button>
-                    ) : null}
-                    {status === 'error' ? (
-                      <span className={localStyles.reviewQueueError}>Fehler beim Speichern</span>
-                    ) : null}
+                      {onUndoInsight && status === 'saved' && undoToken ? (
+                        <button
+                          type="button"
+                          className={localStyles.reviewQueueUndoButton}
+                          onClick={() => {
+                            undoSuggestion(item.id, undoToken).catch(() => {});
+                          }}
+                        >
+                          Rückgängig
+                        </button>
+                      ) : null}
+                      {status === 'error' ? (
+                        <span className={localStyles.reviewQueueError}>
+                          Fehler beim Speichern
+                        </span>
+                      ) : null}
+                    </div>
                     {status === 'conflict' && conflict ? (
                       <div className={localStyles.reviewQueueConflictActions}>
                         {conflict.recommendedStrategy ? (
                           <button
                             type="button"
-                            className={localStyles.reviewQueueConflictButtonRecommended}
+                            className={
+                              localStyles.reviewQueueConflictButtonRecommended
+                            }
                             onClick={() => {
-                              void resolveSuggestionConflict(item, conflict, conflict.recommendedStrategy!);
+                              const recommendedStrategy =
+                                conflict.recommendedStrategy;
+                              if (!recommendedStrategy) {
+                                return;
+                              }
+                              resolveSuggestionConflict(
+                                item,
+                                conflict,
+                                recommendedStrategy
+                              ).catch(() => {});
                             }}
                           >
                             ✓{' '}
@@ -2803,7 +3856,11 @@ const ChatBubble = ({ message, isChatBusy, onRegenerate, onDelete, onSaveInsight
                             type="button"
                             className={localStyles.reviewQueueConflictButton}
                             onClick={() => {
-                              void resolveSuggestionConflict(item, conflict, 'merge');
+                              resolveSuggestionConflict(
+                                item,
+                                conflict,
+                                'merge'
+                              ).catch(() => {});
                             }}
                           >
                             Merge
@@ -2814,7 +3871,11 @@ const ChatBubble = ({ message, isChatBusy, onRegenerate, onDelete, onSaveInsight
                             type="button"
                             className={localStyles.reviewQueueConflictButton}
                             onClick={() => {
-                              void resolveSuggestionConflict(item, conflict, 'replace');
+                              resolveSuggestionConflict(
+                                item,
+                                conflict,
+                                'replace'
+                              ).catch(() => {});
                             }}
                           >
                             Replace
@@ -2825,7 +3886,11 @@ const ChatBubble = ({ message, isChatBusy, onRegenerate, onDelete, onSaveInsight
                             type="button"
                             className={localStyles.reviewQueueConflictButton}
                             onClick={() => {
-                              void resolveSuggestionConflict(item, conflict, 'create_new');
+                              resolveSuggestionConflict(
+                                item,
+                                conflict,
+                                'create_new'
+                              ).catch(() => {});
                             }}
                           >
                             Neu
@@ -2838,6 +3903,20 @@ const ChatBubble = ({ message, isChatBusy, onRegenerate, onDelete, onSaveInsight
               );
             })}
           </div>
+          {hiddenReviewSuggestionCount > 0 ? (
+            <div className={localStyles.reviewQueueFooter}>
+              <button
+                type="button"
+                className={localStyles.reviewQueueToggle}
+                onClick={() => setShowAllReviewSuggestions(current => !current)}
+                aria-expanded={showAllReviewSuggestions}
+              >
+                {showAllReviewSuggestions
+                  ? 'Weniger Vorschläge anzeigen'
+                  : `${hiddenReviewSuggestionCount} weitere Vorschläge anzeigen`}
+              </button>
+            </div>
+          ) : null}
         </div>
       ) : null}
 
@@ -2849,21 +3928,34 @@ const ChatBubble = ({ message, isChatBusy, onRegenerate, onDelete, onSaveInsight
             onClick={() => setShowSources(!showSources)}
             className={localStyles.citationToggle}
           >
-            {message.sourceCitations.length + message.normCitations.length + message.findingRefs.length} Quellen
-            <span className={localStyles.iconSm}>{showSources ? 'Schließen' : 'Öffnen'}</span>
+            {message.sourceCitations.length +
+              message.normCitations.length +
+              message.findingRefs.length}{' '}
+            Quellen
+            <span className={localStyles.iconSm}>
+              {showSources ? 'Schließen' : 'Öffnen'}
+            </span>
           </button>
 
           {showSources && (
             <div className={localStyles.citationPanel}>
               {message.sourceCitations.length > 0 && (
                 <div>
-                  <div className={localStyles.citationSectionTitle}>Dokument-Quellen</div>
+                  <div className={localStyles.citationSectionTitle}>
+                    Dokument-Quellen
+                  </div>
                   {message.sourceCitations.map((c, i) => {
-                    const citationCase = sourceCitationCaseByDocId?.[c.documentId];
+                    const citationCase =
+                      sourceCitationCaseByDocId?.[c.documentId];
                     return (
                       <div key={i} className={localStyles.citationRow}>
                         <strong>{c.documentTitle}</strong>
-                        {c.category && <span className={localStyles.slashCommandDesc}> ({c.category})</span>}
+                        {c.category && (
+                          <span className={localStyles.slashCommandDesc}>
+                            {' '}
+                            ({c.category})
+                          </span>
+                        )}
                         <div className={localStyles.citationMeta}>
                           &quot;{c.quote.slice(0, 120)}…&quot;
                         </div>
@@ -2884,7 +3976,9 @@ const ChatBubble = ({ message, isChatBusy, onRegenerate, onDelete, onSaveInsight
                                 padding: '2px 8px',
                                 borderRadius: 999,
                                 border: `1px solid ${cssVarV2('layer/insideBorder/border')}`,
-                                background: cssVarV2('layer/background/primary'),
+                                background: cssVarV2(
+                                  'layer/background/primary'
+                                ),
                                 fontSize: 11,
                                 color: cssVarV2('text/secondary'),
                               }}
@@ -2896,7 +3990,9 @@ const ChatBubble = ({ message, isChatBusy, onRegenerate, onDelete, onSaveInsight
                                 type="button"
                                 className={localStyles.bubbleActionButton}
                                 onClick={() => {
-                                  void onJumpToCaseFromCitation(citationCase.caseId);
+                                  void onJumpToCaseFromCitation(
+                                    citationCase.caseId
+                                  );
                                 }}
                               >
                                 Akte öffnen
@@ -2912,11 +4008,18 @@ const ChatBubble = ({ message, isChatBusy, onRegenerate, onDelete, onSaveInsight
 
               {message.normCitations.length > 0 && (
                 <div>
-                  <div className={localStyles.citationSectionTitle}>Rechtsgrundlagen</div>
+                  <div className={localStyles.citationSectionTitle}>
+                    Rechtsgrundlagen
+                  </div>
                   {message.normCitations.map((c, i) => (
                     <div key={i} className={localStyles.findingRow}>
-                      <strong>{c.paragraph} {c.law}</strong> — {c.title}
-                      <span className={localStyles.slashCommandDesc}>{c.relevance}</span>
+                      <strong>
+                        {c.paragraph} {c.law}
+                      </strong>{' '}
+                      — {c.title}
+                      <span className={localStyles.slashCommandDesc}>
+                        {c.relevance}
+                      </span>
                     </div>
                   ))}
                 </div>
@@ -2924,7 +4027,9 @@ const ChatBubble = ({ message, isChatBusy, onRegenerate, onDelete, onSaveInsight
 
               {message.findingRefs.length > 0 && (
                 <div>
-                  <div className={localStyles.citationSectionTitle}>Verknüpfte Findings</div>
+                  <div className={localStyles.citationSectionTitle}>
+                    Verknüpfte Findings
+                  </div>
                   {message.findingRefs.map((f, i) => {
                     const severityColor =
                       f.severity === 'critical'
@@ -2936,14 +4041,18 @@ const ChatBubble = ({ message, isChatBusy, onRegenerate, onDelete, onSaveInsight
                             : cssVarV2('status/success');
 
                     return (
-                    <div key={i} className={localStyles.findingRow}>
-                      <span
-                        className={localStyles.severityDot}
-                        style={assignInlineVars({ [localStyles.severityColorVar]: severityColor })}
-                      />
-                      <strong>{f.title}</strong>
-                      <span className={localStyles.slashCommandDesc}>({f.type})</span>
-                    </div>
+                      <div key={i} className={localStyles.findingRow}>
+                        <span
+                          className={localStyles.severityDot}
+                          style={assignInlineVars({
+                            [localStyles.severityColorVar]: severityColor,
+                          })}
+                        />
+                        <strong>{f.title}</strong>
+                        <span className={localStyles.slashCommandDesc}>
+                          ({f.type})
+                        </span>
+                      </div>
                     );
                   })}
                 </div>
@@ -2966,17 +4075,20 @@ const SimpleMarkdown = ({ text }: { text: string }) => {
 
     // Fenced code blocks (```lang\n...\n```) — extract BEFORE escaping
     const codeBlocks: string[] = [];
-    result = result.replace(/```(\w*)\n([\s\S]*?)```/g, (_match, lang, code) => {
-      const idx = codeBlocks.length;
-      const escapedCode = code
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;');
-      codeBlocks.push(
-        `<pre><code${lang ? ` class="language-${lang}"` : ''}>${escapedCode}</code></pre>`
-      );
-      return `%%CODEBLOCK_${idx}%%`;
-    });
+    result = result.replace(
+      /```(\w*)\n([\s\S]*?)```/g,
+      (_match, lang, code) => {
+        const idx = codeBlocks.length;
+        const escapedCode = code
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;');
+        codeBlocks.push(
+          `<pre><code${lang ? ` class="language-${lang}"` : ''}>${escapedCode}</code></pre>`
+        );
+        return `%%CODEBLOCK_${idx}%%`;
+      }
+    );
 
     // HTML-escape remaining content
     result = result
@@ -2995,7 +4107,10 @@ const SimpleMarkdown = ({ text }: { text: string }) => {
     result = result.replace(/^## (.+)$/gm, '<h3>$1</h3>');
 
     // Bold + Italic
-    result = result.replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>');
+    result = result.replace(
+      /\*\*\*(.+?)\*\*\*/g,
+      '<strong><em>$1</em></strong>'
+    );
     result = result.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
     result = result.replace(/\*(.+?)\*/g, '<em>$1</em>');
 
@@ -3018,13 +4133,22 @@ const SimpleMarkdown = ({ text }: { text: string }) => {
         if (/^\|[\s\-:|]+\|$/.test(trimmed)) {
           continue;
         }
-        const cells = trimmed.slice(1, -1).split('|').map(c => c.trim());
+        const cells = trimmed
+          .slice(1, -1)
+          .split('|')
+          .map(c => c.trim());
         if (!inTable) {
           inTable = true;
           tableLines.length = 0;
-          tableLines.push('<table><thead><tr>' + cells.map(c => `<th>${c}</th>`).join('') + '</tr></thead><tbody>');
+          tableLines.push(
+            '<table><thead><tr>' +
+              cells.map(c => `<th>${c}</th>`).join('') +
+              '</tr></thead><tbody>'
+          );
         } else {
-          tableLines.push('<tr>' + cells.map(c => `<td>${c}</td>`).join('') + '</tr>');
+          tableLines.push(
+            '<tr>' + cells.map(c => `<td>${c}</td>`).join('') + '</tr>'
+          );
         }
       } else {
         if (inTable) {
@@ -3062,5 +4186,10 @@ const SimpleMarkdown = ({ text }: { text: string }) => {
     return result;
   }, [text]);
 
-  return <span className={localStyles.markdownRoot} dangerouslySetInnerHTML={{ __html: html }} />;
+  return (
+    <span
+      className={localStyles.markdownRoot}
+      dangerouslySetInnerHTML={{ __html: html }}
+    />
+  );
 };

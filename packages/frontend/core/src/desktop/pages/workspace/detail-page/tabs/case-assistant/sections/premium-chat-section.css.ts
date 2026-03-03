@@ -35,6 +35,38 @@ export const rootSection = style({
   },
 });
 
+export const reviewQueueFooter = style({
+  marginTop: 8,
+  display: 'flex',
+  justifyContent: 'flex-start',
+});
+
+export const reviewQueueToggle = style({
+  fontSize: 11,
+  fontWeight: 700,
+  padding: '4px 10px',
+  minHeight: 28,
+  borderRadius: 6,
+  border: `0.5px solid ${glassStroke}`,
+  background:
+    'color-mix(in srgb, var(--affine-background-primary-color) 78%, transparent)',
+  color: cssVarV2('text/secondary'),
+  cursor: 'pointer',
+  transition:
+    'background 0.12s ease, color 0.12s ease, border-color 0.12s ease',
+  selectors: {
+    '&:hover': {
+      background: cssVarV2('layer/background/hoverOverlay'),
+      color: cssVarV2('text/primary'),
+      borderColor: cssVarV2('button/primary'),
+    },
+    '&:focus-visible': {
+      outline: `2px solid ${cssVarV2('button/primary')}`,
+      outlineOffset: 2,
+    },
+  },
+});
+
 export const modelPickerFeaturedSection = style({
   display: 'flex',
   flexDirection: 'column',
@@ -156,7 +188,8 @@ export const caseSearchInput = style({
   selectors: {
     '&:focus-visible': {
       borderColor: cssVarV2('button/primary'),
-      boxShadow: '0 0 0 3px color-mix(in srgb, var(--affine-primary-color) 18%, transparent)',
+      boxShadow:
+        '0 0 0 3px color-mix(in srgb, var(--affine-primary-color) 18%, transparent)',
     },
   },
 });
@@ -194,7 +227,8 @@ export const casePickerItem = style({
 
 export const casePickerItemActive = style({
   borderColor: cssVarV2('button/primary'),
-  background: 'color-mix(in srgb, var(--affine-primary-color) 12%, var(--affine-background-primary-color))',
+  background:
+    'color-mix(in srgb, var(--affine-primary-color) 12%, var(--affine-background-primary-color))',
 });
 
 export const casePickerItemLabel = style({
@@ -217,7 +251,8 @@ export const casePickerEmpty = style({
 export const caseSelectHint = style({
   fontSize: 11,
   lineHeight: 1.3,
-  color: 'color-mix(in srgb, var(--affine-text-primary-color) 76%, var(--affine-text-secondary-color))',
+  color:
+    'color-mix(in srgb, var(--affine-text-primary-color) 76%, var(--affine-text-secondary-color))',
   maxWidth: 260,
 });
 
@@ -270,8 +305,7 @@ export const newChatCta = style({
   borderRadius: 16,
   padding: '5px 14px 5px 11px',
   border: `0.5px solid color-mix(in srgb, ${cssVarV2('button/primary')} 34%, transparent)`,
-  background:
-    `linear-gradient(135deg, color-mix(in srgb, ${cssVarV2('button/primary')} 68%, var(--affine-background-primary-color) 32%) 0%, color-mix(in srgb, ${cssVarV2('button/primary')} 56%, var(--affine-background-primary-color) 44%) 100%)`,
+  background: `linear-gradient(135deg, color-mix(in srgb, ${cssVarV2('button/primary')} 68%, var(--affine-background-primary-color) 32%) 0%, color-mix(in srgb, ${cssVarV2('button/primary')} 56%, var(--affine-background-primary-color) 44%) 100%)`,
   color: cssVarV2('button/pureWhiteText'),
   fontSize: 13,
   fontWeight: 700,
@@ -349,10 +383,17 @@ export const headerTitleRow = style({
     },
   },
 });
-export const headerTitle = style({ fontSize: 16, fontWeight: 760, lineHeight: 1.3, color: cssVarV2('text/primary'), letterSpacing: -0.2 });
+export const headerTitle = style({
+  fontSize: 16,
+  fontWeight: 760,
+  lineHeight: 1.3,
+  color: cssVarV2('text/primary'),
+  letterSpacing: -0.2,
+});
 export const headerSubtitle = style({
   fontSize: 13,
-  color: 'color-mix(in srgb, var(--affine-text-primary-color) 86%, var(--affine-text-secondary-color))',
+  color:
+    'color-mix(in srgb, var(--affine-text-primary-color) 86%, var(--affine-text-secondary-color))',
   marginTop: 0,
   lineHeight: 1.35,
   overflow: 'hidden',
@@ -385,7 +426,6 @@ export const headerActions = style({
   },
 });
 
-
 export const headerActionButton = style({
   background: 'var(--affine-background-primary-color)',
   border: `1px solid ${glassStroke}`,
@@ -401,7 +441,8 @@ export const headerActionButton = style({
   selectors: {
     '&:hover': {
       background: 'var(--affine-hover-color-filled)',
-      borderColor: 'color-mix(in srgb, var(--affine-border-color) 80%, transparent)',
+      borderColor:
+        'color-mix(in srgb, var(--affine-border-color) 80%, transparent)',
     },
     '&:focus-visible': {
       outline: `1px solid ${cssVarV2('button/primary')}`,
@@ -419,7 +460,6 @@ export const headerActionButton = style({
     },
   },
 });
-
 
 export const sessionList = style({
   maxHeight: 'min(220px, 34vh)',
@@ -540,6 +580,44 @@ export const contextCompactTitle = style({
   letterSpacing: 0.3,
 });
 
+export const reviewQueueBatchBar = style({
+  marginBottom: 8,
+  padding: '8px 10px',
+  borderRadius: 8,
+  border: `1px solid ${glassStroke}`,
+  background:
+    'color-mix(in srgb, var(--affine-background-primary-color) 76%, transparent)',
+});
+
+export const reviewQueueBatchButton = style({
+  width: '100%',
+  fontSize: 11,
+  fontWeight: 700,
+  padding: '6px 10px',
+  minHeight: 30,
+  borderRadius: 7,
+  border: `1px solid color-mix(in srgb, ${cssVarV2('button/primary')} 45%, transparent)`,
+  background: `color-mix(in srgb, ${cssVarV2('button/primary')} 14%, var(--affine-background-primary-color))`,
+  color: cssVarV2('button/primary'),
+  cursor: 'pointer',
+  transition:
+    'background 0.12s ease, border-color 0.12s ease, opacity 0.12s ease',
+  selectors: {
+    '&:hover': {
+      background: `color-mix(in srgb, ${cssVarV2('button/primary')} 20%, var(--affine-background-primary-color))`,
+      borderColor: cssVarV2('button/primary'),
+    },
+    '&:focus-visible': {
+      outline: `2px solid ${cssVarV2('button/primary')}`,
+      outlineOffset: 2,
+    },
+    '&:disabled': {
+      opacity: 0.55,
+      cursor: 'not-allowed',
+    },
+  },
+});
+
 export const contextCompactMeta = style({
   display: 'flex',
   alignItems: 'center',
@@ -600,7 +678,8 @@ export const contextCompactAction = style({
   selectors: {
     '&:hover': {
       background: 'var(--affine-hover-color-filled)',
-      borderColor: 'color-mix(in srgb, var(--affine-border-color) 80%, transparent)',
+      borderColor:
+        'color-mix(in srgb, var(--affine-border-color) 80%, transparent)',
     },
     '&:focus-visible': {
       outline: `1px solid ${cssVarV2('button/primary')}`,
@@ -621,7 +700,11 @@ export const labelXs = style({
   textTransform: 'uppercase',
   letterSpacing: 0.25,
 });
-export const emptyText = style({ fontSize: 12, color: cssVarV2('text/secondary'), padding: '10px 2px' });
+export const emptyText = style({
+  fontSize: 12,
+  color: cssVarV2('text/secondary'),
+  padding: '10px 2px',
+});
 
 export const sessionItem = style({
   display: 'grid',
@@ -633,31 +716,41 @@ export const sessionItem = style({
   marginBottom: 2,
   minHeight: 48,
   animation: `${sessionItemEnter} 0.22s cubic-bezier(0.2, 0.8, 0.2, 1) both`,
-  transition: 'background 0.16s ease, border-color 0.16s ease, box-shadow 0.18s ease',
+  transition:
+    'background 0.16s ease, border-color 0.16s ease, box-shadow 0.18s ease',
   border: `1px solid ${glassStroke}`,
-  background: 'color-mix(in srgb, var(--affine-background-primary-color) 86%, transparent)',
+  background:
+    'color-mix(in srgb, var(--affine-background-primary-color) 86%, transparent)',
   selectors: {
     '&:hover': {
-      borderColor: 'color-mix(in srgb, var(--affine-primary-color) 32%, var(--affine-border-color))',
-      background: 'color-mix(in srgb, var(--affine-hover-color) 70%, var(--affine-background-primary-color))',
-      boxShadow: '0 10px 20px -16px color-mix(in srgb, var(--affine-primary-color) 35%, transparent)',
+      borderColor:
+        'color-mix(in srgb, var(--affine-primary-color) 32%, var(--affine-border-color))',
+      background:
+        'color-mix(in srgb, var(--affine-hover-color) 70%, var(--affine-background-primary-color))',
+      boxShadow:
+        '0 10px 20px -16px color-mix(in srgb, var(--affine-primary-color) 35%, transparent)',
     },
     '&:focus-within': {
       borderColor: cssVarV2('button/primary'),
-      boxShadow: '0 0 0 1px color-mix(in srgb, var(--affine-primary-color) 35%, transparent)',
+      boxShadow:
+        '0 0 0 1px color-mix(in srgb, var(--affine-primary-color) 35%, transparent)',
     },
   },
 });
 
 export const sessionItemActive = style({
-  borderColor: 'color-mix(in srgb, var(--affine-primary-color) 48%, var(--affine-border-color))',
+  borderColor:
+    'color-mix(in srgb, var(--affine-primary-color) 48%, var(--affine-border-color))',
   background:
     'linear-gradient(135deg, color-mix(in srgb, var(--affine-primary-color) 10%, var(--affine-background-primary-color)) 0%, color-mix(in srgb, var(--affine-background-primary-color) 92%, transparent) 100%)',
-  boxShadow: '0 0 0 1px color-mix(in srgb, var(--affine-primary-color) 24%, transparent)',
+  boxShadow:
+    '0 0 0 1px color-mix(in srgb, var(--affine-primary-color) 24%, transparent)',
 });
 export const sessionItemSwiped = style({
-  borderColor: 'color-mix(in srgb, var(--affine-primary-color) 42%, var(--affine-border-color))',
-  boxShadow: '0 12px 20px -18px color-mix(in srgb, var(--affine-primary-color) 42%, transparent)',
+  borderColor:
+    'color-mix(in srgb, var(--affine-primary-color) 42%, var(--affine-border-color))',
+  boxShadow:
+    '0 12px 20px -18px color-mix(in srgb, var(--affine-primary-color) 42%, transparent)',
 });
 export const sessionMainButton = style({
   width: '100%',
@@ -681,11 +774,24 @@ export const sessionMainButton = style({
   },
 });
 export const sessionIcon = style({ fontSize: 11 });
-export const sessionTitle = style({ fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: cssVarV2('text/primary'), lineHeight: 1.3 });
-export const sessionMeta = style({ fontSize: 11, color: cssVarV2('text/secondary'), marginTop: 3 });
+export const sessionTitle = style({
+  fontSize: 13,
+  fontWeight: 600,
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+  color: cssVarV2('text/primary'),
+  lineHeight: 1.3,
+});
+export const sessionMeta = style({
+  fontSize: 11,
+  color: cssVarV2('text/secondary'),
+  marginTop: 3,
+});
 export const sessionPreview = style({
   fontSize: 11,
-  color: 'color-mix(in srgb, var(--affine-text-secondary-color) 88%, transparent)',
+  color:
+    'color-mix(in srgb, var(--affine-text-secondary-color) 88%, transparent)',
   marginTop: 3,
   overflow: 'hidden',
   textOverflow: 'ellipsis',
@@ -704,8 +810,10 @@ export const sessionModeBadge = style({
   alignItems: 'center',
   borderRadius: 999,
   padding: '1px 7px',
-  border: '1px solid color-mix(in srgb, var(--affine-border-color) 88%, transparent)',
-  background: 'color-mix(in srgb, var(--affine-background-primary-color) 80%, transparent)',
+  border:
+    '1px solid color-mix(in srgb, var(--affine-border-color) 88%, transparent)',
+  background:
+    'color-mix(in srgb, var(--affine-background-primary-color) 80%, transparent)',
   color: cssVarV2('text/secondary'),
   fontSize: 10,
   fontWeight: 650,
@@ -716,8 +824,10 @@ export const sessionPinnedBadge = style({
   alignItems: 'center',
   borderRadius: 999,
   padding: '1px 7px',
-  border: '1px solid color-mix(in srgb, var(--affine-primary-color) 38%, transparent)',
-  background: 'color-mix(in srgb, var(--affine-primary-color) 12%, transparent)',
+  border:
+    '1px solid color-mix(in srgb, var(--affine-primary-color) 38%, transparent)',
+  background:
+    'color-mix(in srgb, var(--affine-primary-color) 12%, transparent)',
   color: cssVarV2('button/primary'),
   fontSize: 10,
   fontWeight: 700,
@@ -725,7 +835,8 @@ export const sessionPinnedBadge = style({
 });
 export const sessionTimestamp = style({
   fontSize: 10,
-  color: 'color-mix(in srgb, var(--affine-text-secondary-color) 86%, transparent)',
+  color:
+    'color-mix(in srgb, var(--affine-text-secondary-color) 86%, transparent)',
 });
 export const renameInput = style({
   width: '100%',
@@ -772,7 +883,8 @@ export const sessionActions = style({
 
 export const iconButton = style({
   background: 'var(--affine-background-primary-color)',
-  border: '1px solid color-mix(in srgb, var(--affine-border-color) 86%, transparent)',
+  border:
+    '1px solid color-mix(in srgb, var(--affine-border-color) 86%, transparent)',
   borderRadius: 6,
   cursor: 'pointer',
   fontSize: 10,
@@ -784,17 +896,23 @@ export const iconButton = style({
   selectors: {
     '&:hover': {
       background: 'var(--affine-hover-color-filled)',
-      borderColor: 'color-mix(in srgb, var(--affine-primary-color) 28%, var(--affine-border-color))',
+      borderColor:
+        'color-mix(in srgb, var(--affine-primary-color) 28%, var(--affine-border-color))',
     },
-    '&:focus-visible': { outline: `2px solid ${cssVarV2('button/primary')}`, outlineOffset: 2 },
+    '&:focus-visible': {
+      outline: `2px solid ${cssVarV2('button/primary')}`,
+      outlineOffset: 2,
+    },
   },
 });
 export const iconButtonDanger = style({
   color: cssVarV2('status/error'),
-  borderColor: 'color-mix(in srgb, var(--affine-v2-status-error) 55%, transparent)',
+  borderColor:
+    'color-mix(in srgb, var(--affine-v2-status-error) 55%, transparent)',
   selectors: {
     '&:hover': {
-      background: 'color-mix(in srgb, var(--affine-v2-status-error) 10%, var(--affine-background-primary-color))',
+      background:
+        'color-mix(in srgb, var(--affine-v2-status-error) 10%, var(--affine-background-primary-color))',
       borderColor: cssVarV2('status/error'),
     },
   },
@@ -850,7 +968,11 @@ export const pendingBar = style({
     },
   },
 });
-export const pendingLabel = style({ fontSize: 13, fontWeight: 600, color: cssVarV2('button/primary') });
+export const pendingLabel = style({
+  fontSize: 13,
+  fontWeight: 600,
+  color: cssVarV2('button/primary'),
+});
 export const pendingAccept = style({
   padding: '5px 14px',
   borderRadius: 7,
@@ -907,9 +1029,33 @@ export const centerState = style({
 });
 export const centerIconLg = style({ fontSize: 48 });
 export const centerIconMd = style({ fontSize: 36 });
-export const centerTitle = style({ fontSize: 22, fontWeight: 750, textAlign: 'center', color: cssVarV2('text/primary'), letterSpacing: -0.4, lineHeight: 1.3 });
-export const centerBody = style({ fontSize: 14, color: cssVarV2('text/secondary'), textAlign: 'center', maxWidth: 560, lineHeight: 1.75 });
-export const providerWarning = style({ marginTop: 16, padding: '14px 20px', background: cssVarV2('layer/background/secondary'), borderRadius: 12, border: `1px solid ${glassStroke}`, fontSize: 13, color: cssVarV2('text/secondary'), textAlign: 'center', maxWidth: 480, lineHeight: 1.6 });
+export const centerTitle = style({
+  fontSize: 22,
+  fontWeight: 750,
+  textAlign: 'center',
+  color: cssVarV2('text/primary'),
+  letterSpacing: -0.4,
+  lineHeight: 1.3,
+});
+export const centerBody = style({
+  fontSize: 14,
+  color: cssVarV2('text/secondary'),
+  textAlign: 'center',
+  maxWidth: 560,
+  lineHeight: 1.75,
+});
+export const providerWarning = style({
+  marginTop: 16,
+  padding: '14px 20px',
+  background: cssVarV2('layer/background/secondary'),
+  borderRadius: 12,
+  border: `1px solid ${glassStroke}`,
+  fontSize: 13,
+  color: cssVarV2('text/secondary'),
+  textAlign: 'center',
+  maxWidth: 480,
+  lineHeight: 1.6,
+});
 
 export const suggestionGrid = style({
   display: 'grid',
@@ -931,13 +1077,17 @@ export const suggestionCard = style({
   border: `1px solid ${glassStroke}`,
   background: 'var(--affine-background-primary-color)',
   cursor: 'pointer',
-  transition: 'background 0.15s ease, border-color 0.15s ease, transform 0.12s ease, box-shadow 0.15s ease',
+  transition:
+    'background 0.15s ease, border-color 0.15s ease, transform 0.12s ease, box-shadow 0.15s ease',
   selectors: {
     '&:hover': {
       background: 'var(--affine-hover-color-filled)',
       borderColor: 'var(--affine-border-color)',
     },
-    '&:focus-visible': { outline: `2px solid ${cssVarV2('button/primary')}`, outlineOffset: 2 },
+    '&:focus-visible': {
+      outline: `2px solid ${cssVarV2('button/primary')}`,
+      outlineOffset: 2,
+    },
   },
   '@media': {
     '(max-width: 420px)': {
@@ -960,9 +1110,21 @@ export const suggestionBody = style({
   color: cssVarV2('text/secondary'),
 });
 
-export const slashMenu = style({ padding: '6px 14px', borderTop: `1px solid ${glassStroke}`, background: 'transparent' });
+export const slashMenu = style({
+  padding: '6px 14px',
+  borderTop: `1px solid ${glassStroke}`,
+  background: 'transparent',
+});
 export const slashList = style({ display: 'flex', flexWrap: 'wrap', gap: 4 });
-export const slashCommandButton = style({ padding: '3px 8px', borderRadius: 5, border: `1px solid ${glassStroke}`, background: 'var(--affine-background-primary-color)', cursor: 'pointer', fontSize: 11, color: cssVarV2('text/primary') });
+export const slashCommandButton = style({
+  padding: '3px 8px',
+  borderRadius: 5,
+  border: `1px solid ${glassStroke}`,
+  background: 'var(--affine-background-primary-color)',
+  cursor: 'pointer',
+  fontSize: 11,
+  color: cssVarV2('text/primary'),
+});
 export const slashCommandDesc = style({ opacity: 0.7 });
 
 export const inputBar = style({
@@ -1047,7 +1209,8 @@ export const composerControls = style({
     '(max-width: 980px)': {
       width: '100%',
       display: 'grid',
-      gridTemplateColumns: 'minmax(96px, auto) minmax(190px, 1fr) minmax(110px, auto)',
+      gridTemplateColumns:
+        'minmax(96px, auto) minmax(190px, 1fr) minmax(110px, auto)',
       gap: 8,
       alignItems: 'stretch',
     },
@@ -1092,7 +1255,8 @@ export const sendButton = style({
     '&:disabled': {
       opacity: 1,
       filter: 'saturate(0.82) brightness(0.9)',
-      color: 'color-mix(in srgb, var(--affine-layer-pureWhite, #ffffff) 78%, var(--affine-text-secondary-color))',
+      color:
+        'color-mix(in srgb, var(--affine-layer-pureWhite, #ffffff) 78%, var(--affine-text-secondary-color))',
     },
   },
   '@media': {
@@ -1112,7 +1276,8 @@ export const sendButton = style({
 });
 export const busyRow = style({
   fontSize: 12,
-  color: 'color-mix(in srgb, var(--affine-text-primary-color) 86%, var(--affine-primary-color))',
+  color:
+    'color-mix(in srgb, var(--affine-text-primary-color) 86%, var(--affine-primary-color))',
   marginTop: 6,
   fontWeight: 600,
   display: 'flex',
@@ -1120,13 +1285,18 @@ export const busyRow = style({
   gap: 6,
 });
 
-export const bubbleWrap = style({ display: 'flex', flexDirection: 'column', gap: 6 });
+export const bubbleWrap = style({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 6,
+});
 export const bubbleAlignUser = style({ alignItems: 'flex-end' });
 export const bubbleAlignAssistant = style({ alignItems: 'flex-start' });
 export const roleLabel = style({
   fontSize: 11,
   fontWeight: 650,
-  color: 'color-mix(in srgb, var(--affine-text-primary-color) 72%, var(--affine-text-secondary-color))',
+  color:
+    'color-mix(in srgb, var(--affine-text-primary-color) 72%, var(--affine-text-secondary-color))',
   display: 'flex',
   alignItems: 'center',
   gap: 6,
@@ -1162,19 +1332,45 @@ export const bubbleUser = style({
   background:
     'linear-gradient(135deg, color-mix(in srgb, var(--affine-primary-color) 88%, var(--affine-theme-secondary, #06b6d4) 12%) 0%, color-mix(in srgb, var(--affine-primary-color) 72%, #0b1220) 100%)',
   color: cssVarV2('layer/pureWhite'),
-  borderColor: 'color-mix(in srgb, var(--affine-primary-color) 68%, var(--affine-theme-secondary, #06b6d4) 32%)',
+  borderColor:
+    'color-mix(in srgb, var(--affine-primary-color) 68%, var(--affine-theme-secondary, #06b6d4) 32%)',
 });
 export const bubbleAssistant = style({ borderRadius: '16px 16px 16px 4px' });
-export const bubbleError = style({ color: cssVarV2('status/error'), borderColor: cssVarV2('status/error') });
+export const bubbleError = style({
+  color: cssVarV2('status/error'),
+  borderColor: cssVarV2('status/error'),
+});
 export const bubblePending = style({ opacity: 0.6 });
 
-export const bubbleActionRow = style({ display: 'flex', gap: 6, marginTop: 8, paddingTop: 8, borderTop: `1px solid ${glassStroke}` });
-export const bubbleActionButton = style({ fontSize: 11, padding: '4px 10px', borderRadius: 6, border: `1px solid ${glassStroke}`,
+export const bubbleActionRow = style({
+  display: 'flex',
+  gap: 6,
+  marginTop: 8,
+  paddingTop: 8,
+  borderTop: `1px solid ${glassStroke}`,
+});
+export const bubbleActionButton = style({
+  fontSize: 11,
+  padding: '4px 10px',
+  borderRadius: 6,
+  border: `1px solid ${glassStroke}`,
   background: 'var(--affine-background-primary-color)',
-  cursor: 'pointer', color: cssVarV2('button/primary'), fontWeight: 600, minHeight: 28,
+  cursor: 'pointer',
+  color: cssVarV2('button/primary'),
+  fontWeight: 600,
+  minHeight: 28,
   transition: 'background 0.12s ease',
-  selectors: { '&:hover': { background: 'var(--affine-hover-color)' }, '&:focus-visible': { outline: `2px solid ${cssVarV2('button/primary')}`, outlineOffset: 2 } } });
-export const bubbleActionButtonDanger = style({ color: cssVarV2('status/error') });
+  selectors: {
+    '&:hover': { background: 'var(--affine-hover-color)' },
+    '&:focus-visible': {
+      outline: `2px solid ${cssVarV2('button/primary')}`,
+      outlineOffset: 2,
+    },
+  },
+});
+export const bubbleActionButtonDanger = style({
+  color: cssVarV2('status/error'),
+});
 
 export const insightSaveStatus = style({
   marginTop: 8,
@@ -1187,7 +1383,8 @@ export const conflictPanel = style({
   padding: '10px 12px',
   borderRadius: 10,
   border: `0.5px solid ${cssVarV2('status/error')}`,
-  background: 'color-mix(in srgb, var(--affine-background-primary-color) 70%, rgba(239,68,68,0.1))',
+  background:
+    'color-mix(in srgb, var(--affine-background-primary-color) 70%, rgba(239,68,68,0.1))',
 });
 
 export const conflictTitle = style({
@@ -1195,6 +1392,28 @@ export const conflictTitle = style({
   fontWeight: 700,
   color: cssVarV2('status/error'),
   marginBottom: 4,
+});
+
+export const reviewQueueMetaBadges = style({
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 6,
+  flexShrink: 0,
+});
+
+export const reviewQueuePriorityBadge = style({
+  display: 'inline-flex',
+  alignItems: 'center',
+  minHeight: 18,
+  padding: '1px 7px',
+  borderRadius: 999,
+  border: `1px solid color-mix(in srgb, ${cssVarV2('button/primary')} 34%, transparent)`,
+  background: `color-mix(in srgb, ${cssVarV2('button/primary')} 10%, transparent)`,
+  color: cssVarV2('button/primary'),
+  fontSize: 10,
+  fontWeight: 700,
+  letterSpacing: 0.12,
+  textTransform: 'uppercase',
 });
 
 export const conflictText = style({
@@ -1228,7 +1447,8 @@ export const conflictActionButton = style({
   minHeight: 28,
   borderRadius: 6,
   border: `0.5px solid ${glassStroke}`,
-  background: 'color-mix(in srgb, var(--affine-background-primary-color) 75%, transparent)',
+  background:
+    'color-mix(in srgb, var(--affine-background-primary-color) 75%, transparent)',
   color: cssVarV2('text/primary'),
   cursor: 'pointer',
   selectors: {
@@ -1244,12 +1464,14 @@ export const conflictActionButton = style({
 
 export const conflictActionButtonRecommended = style({
   border: `1.5px solid ${cssVarV2('button/primary')}`,
-  background: 'color-mix(in srgb, var(--affine-primary-color) 12%, var(--affine-background-primary-color))',
+  background:
+    'color-mix(in srgb, var(--affine-primary-color) 12%, var(--affine-background-primary-color))',
   color: cssVarV2('button/primary'),
   fontWeight: 800,
   selectors: {
     '&:hover': {
-      background: 'color-mix(in srgb, var(--affine-primary-color) 18%, var(--affine-background-primary-color))',
+      background:
+        'color-mix(in srgb, var(--affine-primary-color) 18%, var(--affine-background-primary-color))',
     },
   },
 });
@@ -1271,17 +1493,162 @@ export const reviewQueueHeader = style({
   letterSpacing: 0.3,
 });
 
+export const reviewQueueStickyBar = style({
+  position: 'sticky',
+  top: 0,
+  zIndex: 1,
+  marginBottom: 8,
+  paddingBottom: 8,
+  background: `linear-gradient(180deg, ${cssVarV2('layer/background/secondary')} 82%, transparent 100%)`,
+});
+
+export const reviewQueueSelectionRow = style({
+  display: 'flex',
+  flexWrap: 'wrap',
+  gap: 8,
+  alignItems: 'center',
+  justifyContent: 'space-between',
+});
+
+export const reviewQueueSelectionMeta = style({
+  fontSize: 11,
+  fontWeight: 600,
+  color: cssVarV2('text/secondary'),
+});
+
+export const reviewQueueSelectionButtons = style({
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 6,
+  flexWrap: 'wrap',
+});
+
+export const reviewQueueSelectionButton = style({
+  borderRadius: 999,
+  border: `0.5px solid ${glassStroke}`,
+  background:
+    'color-mix(in srgb, var(--affine-background-primary-color) 74%, transparent)',
+  color: cssVarV2('text/secondary'),
+  fontSize: 10,
+  fontWeight: 700,
+  padding: '3px 12px',
+  minHeight: 26,
+  cursor: 'pointer',
+  transition:
+    'background 0.12s ease, border-color 0.12s ease, color 0.12s ease',
+  selectors: {
+    '&:hover': {
+      background: cssVarV2('layer/background/hoverOverlay'),
+      color: cssVarV2('text/primary'),
+      borderColor: cssVarV2('button/primary'),
+    },
+    '&:focus-visible': {
+      outline: `2px solid ${cssVarV2('button/primary')}`,
+      outlineOffset: 2,
+    },
+    '&:disabled': {
+      opacity: 0.45,
+      cursor: 'not-allowed',
+    },
+  },
+});
+
+export const reviewQueueFilterRow = style({
+  display: 'flex',
+  alignItems: 'center',
+  gap: 6,
+  flexWrap: 'wrap',
+  marginBottom: 8,
+});
+
+export const reviewQueueFilterChip = style({
+  display: 'inline-flex',
+  alignItems: 'center',
+  minHeight: 26,
+  borderRadius: 999,
+  border: `0.5px solid ${glassStroke}`,
+  background:
+    'color-mix(in srgb, var(--affine-background-primary-color) 74%, transparent)',
+  color: cssVarV2('text/secondary'),
+  fontSize: 10,
+  fontWeight: 700,
+  padding: '3px 10px',
+  cursor: 'pointer',
+  transition:
+    'background 0.12s ease, border-color 0.12s ease, color 0.12s ease',
+  selectors: {
+    '&:hover': {
+      background: cssVarV2('layer/background/hoverOverlay'),
+      color: cssVarV2('text/primary'),
+      borderColor: cssVarV2('button/primary'),
+    },
+    '&:focus-visible': {
+      outline: `2px solid ${cssVarV2('button/primary')}`,
+      outlineOffset: 2,
+    },
+  },
+});
+
+export const reviewQueueFilterChipActive = style({
+  borderColor: `color-mix(in srgb, ${cssVarV2('button/primary')} 56%, transparent)`,
+  background: `color-mix(in srgb, ${cssVarV2('button/primary')} 12%, var(--affine-background-primary-color))`,
+  color: cssVarV2('button/primary'),
+});
+
 export const reviewQueueList = style({
   display: 'flex',
   flexDirection: 'column',
   gap: 8,
 });
 
+export const reviewQueueEmptyState = style({
+  fontSize: 12,
+  color: cssVarV2('text/secondary'),
+  padding: '10px 10px',
+  borderRadius: 8,
+  border: `0.5px dashed ${glassStroke}`,
+  background:
+    'color-mix(in srgb, var(--affine-background-primary-color) 72%, transparent)',
+});
+
 export const reviewQueueItem = style({
   padding: '8px 10px',
   borderRadius: 8,
   border: `0.5px solid ${glassStroke}`,
-  background: 'color-mix(in srgb, var(--affine-background-primary-color) 78%, transparent)',
+  background:
+    'color-mix(in srgb, var(--affine-background-primary-color) 78%, transparent)',
+  display: 'flex',
+  gap: 10,
+  transition:
+    'border-color 0.12s ease, background 0.12s ease, box-shadow 0.12s ease',
+});
+
+export const reviewQueueItemSelected = style({
+  borderColor: cssVarV2('button/primary'),
+  background: `color-mix(in srgb, ${cssVarV2('button/primary')} 12%, var(--affine-background-primary-color))`,
+  boxShadow:
+    '0 12px 28px -18px color-mix(in srgb, var(--affine-primary-color) 35%, transparent)',
+});
+
+export const reviewQueueCheckboxCol = style({
+  display: 'flex',
+  alignItems: 'flex-start',
+  paddingTop: 4,
+});
+
+export const reviewQueueCheckbox = style({
+  width: 16,
+  height: 16,
+  borderRadius: 4,
+  accentColor: cssVarV2('button/primary'),
+});
+
+export const reviewQueueCardContent = style({
+  flex: 1,
+  minWidth: 0,
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 6,
 });
 
 export const reviewQueueMetaRow = style({
@@ -1302,6 +1669,32 @@ export const reviewQueueConfidence = style({
   fontSize: 10,
   color: cssVarV2('text/secondary'),
   fontWeight: 600,
+  display: 'inline-flex',
+  alignItems: 'center',
+  minHeight: 18,
+  padding: '1px 7px',
+  borderRadius: 999,
+  border: `1px solid ${glassStroke}`,
+  background:
+    'color-mix(in srgb, var(--affine-background-primary-color) 75%, transparent)',
+});
+
+export const reviewQueueConfidenceHigh = style({
+  color: cssVarV2('status/success'),
+  borderColor: `color-mix(in srgb, ${cssVarV2('status/success')} 46%, transparent)`,
+  background: `color-mix(in srgb, ${cssVarV2('status/success')} 10%, transparent)`,
+});
+
+export const reviewQueueConfidenceMedium = style({
+  color: cssVarV2('button/primary'),
+  borderColor: `color-mix(in srgb, ${cssVarV2('button/primary')} 46%, transparent)`,
+  background: `color-mix(in srgb, ${cssVarV2('button/primary')} 10%, transparent)`,
+});
+
+export const reviewQueueConfidenceLow = style({
+  color: cssVarV2('status/error'),
+  borderColor: `color-mix(in srgb, ${cssVarV2('status/error')} 42%, transparent)`,
+  background: `color-mix(in srgb, ${cssVarV2('status/error')} 10%, transparent)`,
 });
 
 export const reviewQueueContent = style({
@@ -1325,7 +1718,8 @@ export const reviewQueueSaveButton = style({
   minHeight: 28,
   borderRadius: 6,
   border: `0.5px solid ${glassStroke}`,
-  background: 'color-mix(in srgb, var(--affine-background-primary-color) 70%, transparent)',
+  background:
+    'color-mix(in srgb, var(--affine-background-primary-color) 70%, transparent)',
   color: cssVarV2('button/primary'),
   cursor: 'pointer',
   selectors: {
@@ -1355,7 +1749,8 @@ export const reviewQueueUndoButton = style({
   cursor: 'pointer',
   selectors: {
     '&:hover': {
-      background: 'color-mix(in srgb, var(--affine-background-primary-color) 60%, rgba(239,68,68,0.12))',
+      background:
+        'color-mix(in srgb, var(--affine-background-primary-color) 60%, rgba(239,68,68,0.12))',
     },
     '&:focus-visible': {
       outline: `2px solid ${cssVarV2('status/error')}`,
@@ -1400,22 +1795,58 @@ export const reviewQueueConflictButton = style({
 
 export const reviewQueueConflictButtonRecommended = style({
   border: `1.5px solid ${cssVarV2('button/primary')}`,
-  background: 'color-mix(in srgb, var(--affine-primary-color) 10%, transparent)',
+  background:
+    'color-mix(in srgb, var(--affine-primary-color) 10%, transparent)',
   color: cssVarV2('button/primary'),
   fontWeight: 800,
   selectors: {
     '&:hover': {
-      background: 'color-mix(in srgb, var(--affine-primary-color) 16%, transparent)',
+      background:
+        'color-mix(in srgb, var(--affine-primary-color) 16%, transparent)',
     },
   },
 });
 
 export const citationWrap = style({ paddingLeft: 4, marginTop: 4 });
-export const citationToggle = style({ fontSize: 12, color: cssVarV2('button/primary'), fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer', padding: '4px 0', display: 'flex', alignItems: 'center', gap: 6, transition: 'color 0.12s ease' });
-export const citationPanel = style({ marginTop: 6, padding: '10px 14px', background: cssVarV2('layer/background/secondary'), borderRadius: 10, border: `1px solid ${glassStroke}`, display: 'flex', flexDirection: 'column', gap: 8 });
-export const citationSectionTitle = style({ fontSize: 11, fontWeight: 700, marginBottom: 4, color: cssVarV2('text/secondary') });
-export const citationRow = style({ fontSize: 12, padding: '4px 0', borderBottom: `0.5px solid ${glassStroke}` });
-export const citationMeta = style({ fontSize: 11, color: cssVarV2('text/secondary'), marginTop: 2 });
+export const citationToggle = style({
+  fontSize: 12,
+  color: cssVarV2('button/primary'),
+  fontWeight: 600,
+  background: 'none',
+  border: 'none',
+  cursor: 'pointer',
+  padding: '4px 0',
+  display: 'flex',
+  alignItems: 'center',
+  gap: 6,
+  transition: 'color 0.12s ease',
+});
+export const citationPanel = style({
+  marginTop: 6,
+  padding: '10px 14px',
+  background: cssVarV2('layer/background/secondary'),
+  borderRadius: 10,
+  border: `1px solid ${glassStroke}`,
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 8,
+});
+export const citationSectionTitle = style({
+  fontSize: 11,
+  fontWeight: 700,
+  marginBottom: 4,
+  color: cssVarV2('text/secondary'),
+});
+export const citationRow = style({
+  fontSize: 12,
+  padding: '4px 0',
+  borderBottom: `0.5px solid ${glassStroke}`,
+});
+export const citationMeta = style({
+  fontSize: 11,
+  color: cssVarV2('text/secondary'),
+  marginTop: 2,
+});
 export const citationSourceMetaRow = style({
   display: 'flex',
   alignItems: 'center',
@@ -1433,8 +1864,21 @@ export const citationCaseBadge = style({
   fontSize: 11,
   color: cssVarV2('text/secondary'),
 });
-export const findingRow = style({ fontSize: 12, padding: '3px 0', display: 'flex', alignItems: 'center', gap: 6 });
-export const severityDot = style({ vars: { [severityColorVar]: cssVarV2('text/secondary') }, display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: severityColorVar });
+export const findingRow = style({
+  fontSize: 12,
+  padding: '3px 0',
+  display: 'flex',
+  alignItems: 'center',
+  gap: 6,
+});
+export const severityDot = style({
+  vars: { [severityColorVar]: cssVarV2('text/secondary') },
+  display: 'inline-block',
+  width: 8,
+  height: 8,
+  borderRadius: '50%',
+  background: severityColorVar,
+});
 
 // ── Tool Call Cards v2 (Cascade-Style Workflow Steps) ────────────────────────
 
@@ -1458,6 +1902,71 @@ export const toolCallsWrap = style({
   flexDirection: 'column',
   gap: 2,
   marginBottom: 10,
+});
+
+export const workflowSummaryBar = style({
+  display: 'flex',
+  alignItems: 'center',
+  gap: 8,
+  padding: '6px 10px',
+  borderRadius: 8,
+  border: `1px solid ${glassStroke}`,
+  background:
+    'color-mix(in srgb, var(--affine-background-primary-color) 82%, transparent)',
+  marginBottom: 4,
+  flexWrap: 'wrap',
+});
+
+export const workflowSummaryStatus = style({
+  fontSize: 12,
+  fontWeight: 700,
+  color: cssVarV2('text/primary'),
+});
+
+export const workflowSummaryMeta = style({
+  fontSize: 11,
+  fontWeight: 600,
+  color: cssVarV2('text/secondary'),
+  opacity: 0.85,
+});
+
+export const workflowSummaryToggle = style({
+  marginLeft: 'auto',
+  borderRadius: 6,
+  border: `0.5px solid ${glassStroke}`,
+  background: 'var(--affine-background-primary-color)',
+  color: cssVarV2('text/secondary'),
+  fontSize: 11,
+  fontWeight: 700,
+  minHeight: 26,
+  padding: '3px 9px',
+  cursor: 'pointer',
+  selectors: {
+    '&:hover': {
+      background: cssVarV2('layer/background/hoverOverlay'),
+      color: cssVarV2('text/primary'),
+      borderColor: cssVarV2('button/primary'),
+    },
+    '&:focus-visible': {
+      outline: `2px solid ${cssVarV2('button/primary')}`,
+      outlineOffset: 2,
+    },
+  },
+});
+
+export const fallbackBanner = style({
+  display: 'flex',
+  alignItems: 'center',
+  gap: 6,
+  padding: '8px 10px',
+  borderRadius: 8,
+  border: `1px solid color-mix(in srgb, ${cssVarV2('status/error')} 30%, ${glassStroke})`,
+  background: `color-mix(in srgb, ${cssVarV2('status/error')} 8%, var(--affine-background-primary-color) 88%)`,
+  color: cssVarV2('text/secondary'),
+  fontSize: 11,
+  fontWeight: 600,
+  marginBottom: 6,
+  lineHeight: 1.4,
 });
 
 export const toolCallGroupHeader = style({
@@ -1515,7 +2024,8 @@ export const toolCallCard = style({
   fontSize: 12,
   color: cssVarV2('text/secondary'),
   lineHeight: 1.4,
-  transition: 'background 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease',
+  transition:
+    'background 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease',
   minHeight: 34,
   animationName: toolSlideInKeyframes,
   animationDuration: '0.25s',
@@ -1526,7 +2036,8 @@ export const toolCallCard = style({
   overflow: 'hidden',
   selectors: {
     '&:hover': {
-      background: 'color-mix(in srgb, var(--affine-background-primary-color) 74%, transparent)',
+      background:
+        'color-mix(in srgb, var(--affine-background-primary-color) 74%, transparent)',
       borderColor: glassStroke,
     },
     '&:focus-visible': {
@@ -1591,7 +2102,8 @@ export const toolCallIcon = style({
   padding: '3px 8px',
   borderRadius: 999,
   border: `0.5px solid ${glassStroke}`,
-  background: 'color-mix(in srgb, var(--affine-background-primary-color) 86%, transparent)',
+  background:
+    'color-mix(in srgb, var(--affine-background-primary-color) 86%, transparent)',
   color: cssVarV2('text/secondary'),
   flexShrink: 0,
 });
@@ -1627,7 +2139,8 @@ export const toolApprovalPanel = style({
   padding: '10px 12px',
   borderRadius: 8,
   border: `1px solid color-mix(in srgb, ${cssVarV2('button/primary')} 38%, ${glassStroke})`,
-  background: 'color-mix(in srgb, var(--affine-primary-color) 5%, var(--affine-background-primary-color) 90%)',
+  background:
+    'color-mix(in srgb, var(--affine-primary-color) 5%, var(--affine-background-primary-color) 90%)',
   display: 'flex',
   flexDirection: 'column',
   gap: 8,
@@ -1745,7 +2258,8 @@ export const toolCallDetailLine = style({
   transition: 'background 0.12s ease',
   selectors: {
     '&:hover': {
-      background: 'color-mix(in srgb, var(--affine-background-primary-color) 70%, transparent)',
+      background:
+        'color-mix(in srgb, var(--affine-background-primary-color) 70%, transparent)',
     },
   },
 });
@@ -1809,8 +2323,10 @@ export const artifactCard = style({
   padding: '10px 14px',
   borderRadius: 10,
   border: `1px solid color-mix(in srgb, ${cssVarV2('button/primary')} 30%, ${glassStroke})`,
-  background: 'color-mix(in srgb, var(--affine-primary-color) 5%, var(--affine-background-primary-color) 88%)',
-  transition: 'border-color 0.18s ease, box-shadow 0.18s ease, transform 0.12s ease',
+  background:
+    'color-mix(in srgb, var(--affine-primary-color) 5%, var(--affine-background-primary-color) 88%)',
+  transition:
+    'border-color 0.18s ease, box-shadow 0.18s ease, transform 0.12s ease',
   animationName: toolSlideInKeyframes,
   animationDuration: '0.3s',
   animationTimingFunction: 'ease-out',
@@ -1903,7 +2419,8 @@ export const artifactActionButton = style({
   padding: '5px 10px',
   borderRadius: 6,
   border: `1px solid ${glassStroke}`,
-  background: 'color-mix(in srgb, var(--affine-background-primary-color) 86%, transparent)',
+  background:
+    'color-mix(in srgb, var(--affine-background-primary-color) 86%, transparent)',
   color: cssVarV2('text/secondary'),
   fontSize: 11,
   fontWeight: 650,
@@ -1947,7 +2464,8 @@ export const modelPickerTierBadge = style({
   textTransform: 'uppercase',
   color: cssVarV2('button/primary'),
   border: `1px solid color-mix(in srgb, ${cssVarV2('button/primary')} 65%, transparent)`,
-  background: 'color-mix(in srgb, var(--affine-primary-color) 16%, transparent)',
+  background:
+    'color-mix(in srgb, var(--affine-primary-color) 16%, transparent)',
   flexShrink: 0,
 });
 
@@ -2035,7 +2553,8 @@ export const modelPickerButton = style({
   fontWeight: 650,
   color: cssVarV2('text/secondary'),
   minHeight: 38,
-  transition: 'background 0.15s ease, border-color 0.15s ease, color 0.15s ease',
+  transition:
+    'background 0.15s ease, border-color 0.15s ease, color 0.15s ease',
   selectors: {
     '&:hover': {
       background: cssVarV2('layer/background/hoverOverlay'),
@@ -2111,7 +2630,8 @@ export const modelPickerGroupCount = style({
   borderRadius: 999,
   padding: '0 6px',
   border: `1px solid color-mix(in srgb, ${glassStroke} 70%, transparent)`,
-  background: 'color-mix(in srgb, var(--affine-background-primary-color) 78%, rgba(255,255,255,0.06))',
+  background:
+    'color-mix(in srgb, var(--affine-background-primary-color) 78%, rgba(255,255,255,0.06))',
   color: cssVarV2('text/primary'),
   fontSize: 10,
   fontWeight: 700,
@@ -2133,13 +2653,16 @@ export const modelPickerItem = style({
   borderRadius: 8,
   cursor: 'pointer',
   border: `1px solid color-mix(in srgb, ${glassStroke} 55%, transparent)`,
-  background: 'color-mix(in srgb, var(--affine-background-primary-color) 80%, rgba(15,23,42,0.08))',
+  background:
+    'color-mix(in srgb, var(--affine-background-primary-color) 80%, rgba(15,23,42,0.08))',
   textAlign: 'left',
-  transition: 'background 0.12s ease, border-color 0.12s ease, transform 0.12s ease',
+  transition:
+    'background 0.12s ease, border-color 0.12s ease, transform 0.12s ease',
   selectors: {
     '&:hover': {
       background: 'var(--affine-hover-color)',
-      borderColor: 'color-mix(in srgb, var(--affine-primary-color) 40%, transparent)',
+      borderColor:
+        'color-mix(in srgb, var(--affine-primary-color) 40%, transparent)',
     },
     '&:focus-visible': {
       outline: `2px solid ${cssVarV2('button/primary')}`,
@@ -2150,7 +2673,8 @@ export const modelPickerItem = style({
 
 export const modelPickerItemActive = style({
   borderColor: cssVarV2('button/primary'),
-  background: 'color-mix(in srgb, var(--affine-background-primary-color) 72%, rgba(59,130,246,0.1))',
+  background:
+    'color-mix(in srgb, var(--affine-background-primary-color) 72%, rgba(59,130,246,0.1))',
 });
 
 export const modelPickerItemLabel = style({
@@ -2281,23 +2805,83 @@ export const modelBadge = style({
   padding: '2px 7px',
   borderRadius: 5,
   border: `0.5px solid ${glassStroke}`,
-  background: 'color-mix(in srgb, var(--affine-background-primary-color) 78%, transparent)',
+  background:
+    'color-mix(in srgb, var(--affine-background-primary-color) 78%, transparent)',
   color: cssVarV2('text/secondary'),
   marginLeft: 6,
 });
 
 export const markdownRoot = style({});
 
-globalStyle(`${markdownRoot} h3`, { fontSize: 16, fontWeight: 700, margin: '14px 0 6px', lineHeight: 1.3 });
-globalStyle(`${markdownRoot} h4`, { fontSize: 14, fontWeight: 700, margin: '10px 0 4px', lineHeight: 1.3 });
-globalStyle(`${markdownRoot} code`, { background: 'color-mix(in srgb, var(--affine-background-primary-color) 84%, transparent)', padding: '2px 6px', borderRadius: 4, fontSize: 13, border: `0.5px solid ${glassStroke}` });
-globalStyle(`${markdownRoot} pre`, { background: 'color-mix(in srgb, var(--affine-background-primary-color) 84%, transparent)', padding: '12px 16px', borderRadius: 10, border: `0.5px solid ${glassStroke}`, overflowX: 'auto', margin: '10px 0' });
-globalStyle(`${markdownRoot} pre code`, { background: 'none', padding: 0, border: 'none', fontSize: 12, lineHeight: 1.6 });
-globalStyle(`${markdownRoot} blockquote`, { borderLeft: `3px solid ${cssVarV2('button/primary')}`, paddingLeft: 14, margin: '8px 0', color: cssVarV2('text/secondary'), fontStyle: 'italic' });
+globalStyle(`${markdownRoot} h3`, {
+  fontSize: 16,
+  fontWeight: 700,
+  margin: '14px 0 6px',
+  lineHeight: 1.3,
+});
+globalStyle(`${markdownRoot} h4`, {
+  fontSize: 14,
+  fontWeight: 700,
+  margin: '10px 0 4px',
+  lineHeight: 1.3,
+});
+globalStyle(`${markdownRoot} code`, {
+  background:
+    'color-mix(in srgb, var(--affine-background-primary-color) 84%, transparent)',
+  padding: '2px 6px',
+  borderRadius: 4,
+  fontSize: 13,
+  border: `0.5px solid ${glassStroke}`,
+});
+globalStyle(`${markdownRoot} pre`, {
+  background:
+    'color-mix(in srgb, var(--affine-background-primary-color) 84%, transparent)',
+  padding: '12px 16px',
+  borderRadius: 10,
+  border: `0.5px solid ${glassStroke}`,
+  overflowX: 'auto',
+  margin: '10px 0',
+});
+globalStyle(`${markdownRoot} pre code`, {
+  background: 'none',
+  padding: 0,
+  border: 'none',
+  fontSize: 12,
+  lineHeight: 1.6,
+});
+globalStyle(`${markdownRoot} blockquote`, {
+  borderLeft: `3px solid ${cssVarV2('button/primary')}`,
+  paddingLeft: 14,
+  margin: '8px 0',
+  color: cssVarV2('text/secondary'),
+  fontStyle: 'italic',
+});
 globalStyle(`${markdownRoot} li`, { marginLeft: 20, marginBottom: 2 });
-globalStyle(`${markdownRoot} hr`, { border: 'none', borderTop: `0.5px solid ${glassStroke}`, margin: '12px 0' });
-globalStyle(`${markdownRoot} table`, { width: '100%', borderCollapse: 'collapse', fontSize: 12, margin: '10px 0' });
-globalStyle(`${markdownRoot} th`, { padding: '6px 10px', borderBottom: `1px solid ${glassStroke}`, fontWeight: 700, textAlign: 'left', fontSize: 11 });
-globalStyle(`${markdownRoot} td`, { padding: '5px 10px', borderBottom: `0.5px solid ${glassStroke}` });
+globalStyle(`${markdownRoot} hr`, {
+  border: 'none',
+  borderTop: `0.5px solid ${glassStroke}`,
+  margin: '12px 0',
+});
+globalStyle(`${markdownRoot} table`, {
+  width: '100%',
+  borderCollapse: 'collapse',
+  fontSize: 12,
+  margin: '10px 0',
+});
+globalStyle(`${markdownRoot} th`, {
+  padding: '6px 10px',
+  borderBottom: `1px solid ${glassStroke}`,
+  fontWeight: 700,
+  textAlign: 'left',
+  fontSize: 11,
+});
+globalStyle(`${markdownRoot} td`, {
+  padding: '5px 10px',
+  borderBottom: `0.5px solid ${glassStroke}`,
+});
 globalStyle(`${markdownRoot} details`, { margin: '6px 0', padding: '4px 0' });
-globalStyle(`${markdownRoot} summary`, { cursor: 'pointer', fontWeight: 600, fontSize: 13 });
+globalStyle(`${markdownRoot} summary`, {
+  cursor: 'pointer',
+  fontWeight: 600,
+  fontSize: 13,
+});
