@@ -1,9 +1,10 @@
 import {
+  Button,
   IconButton,
   Menu,
   MenuItem,
+  Modal,
   useConfirmModal,
-  usePromptModal,
 } from '@affine/component';
 import { useI18n } from '@affine/i18n';
 import { MoreVerticalIcon } from '@blocksuite/icons/rc';
@@ -22,9 +23,12 @@ import type {
   MatterRecord,
   MatterStatus,
 } from '../../../../modules/case-assistant/types';
-import { DocsService } from '../../../../modules/doc';
-import { ViewBody, ViewIcon, ViewTitle } from '../../../../modules/workbench';
-import { WorkbenchService } from '../../../../modules/workbench';
+import {
+  ViewBody,
+  ViewIcon,
+  ViewTitle,
+  WorkbenchService,
+} from '../../../../modules/workbench';
 import { WorkspaceService } from '../../../../modules/workspace';
 import { createLocalRecordId } from '../detail-page/tabs/case-assistant/utils';
 import { AllDocSidebarTabs } from '../layouts/all-doc-sidebar-tabs';
@@ -61,6 +65,8 @@ const sortKeyLabelKey: Record<SortKey, string> = {
   status: 'com.affine.caseAssistant.allAkten.sort.status',
   createdAt: 'com.affine.caseAssistant.allAkten.sort.createdAt',
 };
+
+const EMPTY_LEGAL_DOCS: LegalDocumentRecord[] = [];
 
 function relativeTime(dateStr: string, language: string): string {
   const now = Date.now();
@@ -151,7 +157,6 @@ export const AllAktenPage = () => {
   const store = useService(CaseAssistantStore);
   const workbench = useService(WorkbenchService).workbench;
   const workspace = useService(WorkspaceService).workspace;
-  const docsService = useService(DocsService);
   const caseAssistantService = useService(CaseAssistantService);
   const legalCopilotWorkflowService = useService(LegalCopilotWorkflowService);
   const casePlatformOrchestrationService = useService(
@@ -159,7 +164,6 @@ export const AllAktenPage = () => {
   );
 
   const { openConfirmModal } = useConfirmModal();
-  const { openPromptModal } = usePromptModal();
 
   const graph = useLiveData(store.watchGraph());
 
@@ -173,6 +177,14 @@ export const AllAktenPage = () => {
   const [actionStatus, setActionStatus] = useState<string | null>(null);
   const [isStartingOnboarding, setIsStartingOnboarding] = useState(false);
   const [focusedIndex, setFocusedIndex] = useState<number>(-1);
+  const [isCreateMatterModalOpen, setIsCreateMatterModalOpen] = useState(false);
+  const [createMatterTitleDraft, setCreateMatterTitleDraft] = useState('');
+  const [createMatterClientIdDraft, setCreateMatterClientIdDraft] =
+    useState('');
+  const [createMatterError, setCreateMatterError] = useState<string | null>(
+    null
+  );
+  const [isCreatingMatter, setIsCreatingMatter] = useState(false);
 
   const searchInputRef = useRef<HTMLInputElement>(null);
   const createMatterButtonRef = useRef<HTMLButtonElement>(null);
@@ -204,6 +216,7 @@ export const AllAktenPage = () => {
     [graph.matters]
   );
   const clients = useMemo(() => graph.clients ?? {}, [graph.clients]);
+  const availableClients = useMemo(() => Object.values(clients), [clients]);
   const deadlines = useMemo(() => graph.deadlines ?? {}, [graph.deadlines]);
   const anwaelte = useMemo(() => (graph as any).anwaelte ?? {}, [graph]);
   const caseFiles = useMemo(
@@ -211,7 +224,8 @@ export const AllAktenPage = () => {
     [graph.cases]
   );
   const legalDocs: LegalDocumentRecord[] =
-    useLiveData(legalCopilotWorkflowService.legalDocuments$) ?? [];
+    useLiveData(legalCopilotWorkflowService.legalDocuments$) ??
+    EMPTY_LEGAL_DOCS;
 
   const caseToMatterMap = useMemo(() => {
     const map = new Map<string, string>();
@@ -510,7 +524,6 @@ export const AllAktenPage = () => {
       return;
     }
 
-    const availableClients = Object.values(clients);
     if (availableClients.length === 0) {
       showActionStatus(
         'Bitte zuerst einen Mandanten anlegen, bevor du eine Akte erstellst.'
@@ -526,6 +539,35 @@ export const AllAktenPage = () => {
           (a, b) =>
             new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
         )[0] ?? availableClients[0];
+
+    setCreateMatterTitleDraft('');
+    setCreateMatterClientIdDraft(preferredClient?.id ?? '');
+    setCreateMatterError(null);
+    setIsCreateMatterModalOpen(true);
+  }, [availableClients, showActionStatus, workbench, workspace]);
+
+  const handleSubmitCreateMatter = useCallback(async () => {
+    if (!workspace) {
+      setCreateMatterError('Workspace nicht bereit. Bitte erneut versuchen.');
+      return;
+    }
+
+    const title = createMatterTitleDraft.trim();
+    if (!title) {
+      setCreateMatterError('Bitte einen Akten-Titel angeben.');
+      return;
+    }
+
+    const selectedClient = availableClients.find(
+      client => client.id === createMatterClientIdDraft
+    );
+    if (!selectedClient) {
+      setCreateMatterError('Bitte einen Mandanten auswählen.');
+      return;
+    }
+
+    setCreateMatterError(null);
+
     const fallbackJurisdiction =
       [...matters]
         .sort(
@@ -534,58 +576,47 @@ export const AllAktenPage = () => {
         )
         .find(matter => Boolean(matter.jurisdiction))?.jurisdiction ?? 'AT';
 
-    openPromptModal({
-      title: 'Akte anlegen',
-      label: 'Titel',
-      inputOptions: {
-        placeholder: 'z. B. Kündigungsschutz 2026',
-      },
-      confirmText: 'Akte anlegen',
-      cancelText: t['com.affine.auth.sign-out.confirm-modal.cancel'](),
-      confirmButtonOptions: {
-        variant: 'primary',
-      },
-      onConfirm: async rawTitle => {
-        const title = rawTitle.trim();
-        if (!title) {
-          showActionStatus('Bitte einen Akten-Titel angeben.');
-          return;
-        }
+    setIsCreatingMatter(true);
+    try {
+      const externalRef = generateFallbackAktenzeichen(matters);
+      const created = await casePlatformOrchestrationService.upsertMatter({
+        id: createLocalRecordId('matter'),
+        workspaceId: workspace.id,
+        clientId: selectedClient.id,
+        clientIds: [selectedClient.id],
+        title,
+        externalRef,
+        jurisdiction: fallbackJurisdiction,
+        status: 'open',
+        tags: [],
+      });
 
-        const externalRef = generateFallbackAktenzeichen(matters);
-        const created = await casePlatformOrchestrationService.upsertMatter({
-          id: createLocalRecordId('matter'),
-          workspaceId: workspace.id,
-          clientId: preferredClient.id,
-          clientIds: [preferredClient.id],
-          title,
-          externalRef,
-          jurisdiction: fallbackJurisdiction,
-          status: 'open',
-          tags: [],
-        });
+      if (!created) {
+        const errorMessage = `Akte konnte nicht angelegt werden: ${title}.`;
+        setCreateMatterError(errorMessage);
+        showActionStatus(errorMessage);
+        return;
+      }
 
-        if (!created) {
-          showActionStatus(`Akte konnte nicht angelegt werden: ${title}.`);
-          return;
-        }
-
-        setSavedView('focus');
-        setStatusFilter('open');
-        setSearchQuery('');
-        showActionStatus(
-          `Akte angelegt: ${created.title} (${created.externalRef ?? externalRef}) · Mandant: ${preferredClient.displayName}.`
-        );
-      },
-    });
+      setSavedView('focus');
+      setStatusFilter('open');
+      setSearchQuery('');
+      setCreateMatterTitleDraft('');
+      setCreateMatterError(null);
+      setIsCreateMatterModalOpen(false);
+      showActionStatus(
+        `Akte angelegt: ${created.title} (${created.externalRef ?? externalRef}) · Mandant: ${selectedClient.displayName}.`
+      );
+    } finally {
+      setIsCreatingMatter(false);
+    }
   }, [
+    availableClients,
     casePlatformOrchestrationService,
-    clients,
+    createMatterClientIdDraft,
+    createMatterTitleDraft,
     matters,
-    openPromptModal,
     showActionStatus,
-    t,
-    workbench,
     workspace,
   ]);
 
@@ -924,7 +955,6 @@ export const AllAktenPage = () => {
     caseAssistantService,
     caseFiles,
     clients,
-    docsService,
     handleCreateMatter,
     isStartingOnboarding,
     matters,
@@ -1451,6 +1481,120 @@ export const AllAktenPage = () => {
           {actionStatus ? (
             <div className={styles.actionStatus}>{actionStatus}</div>
           ) : null}
+
+          <Modal
+            open={isCreateMatterModalOpen}
+            title="Akte anlegen"
+            width={520}
+            onOpenChange={open => {
+              if (isCreatingMatter) {
+                return;
+              }
+              setIsCreateMatterModalOpen(open);
+              if (!open) {
+                setCreateMatterError(null);
+              }
+            }}
+          >
+            <div className={styles.createMatterModalBody}>
+              <label
+                className={styles.createMatterLabel}
+                htmlFor="create-matter-title"
+              >
+                Titel
+                <input
+                  id="create-matter-title"
+                  className={styles.createMatterInput}
+                  type="text"
+                  value={createMatterTitleDraft}
+                  autoFocus
+                  onKeyDown={event => {
+                    if (event.key !== 'Enter') {
+                      return;
+                    }
+                    event.preventDefault();
+                    handleSubmitCreateMatter().catch(() => {
+                      setCreateMatterError(
+                        'Akte konnte nicht angelegt werden. Bitte erneut versuchen.'
+                      );
+                    });
+                  }}
+                  onChange={event => {
+                    setCreateMatterTitleDraft(event.target.value);
+                    if (createMatterError) {
+                      setCreateMatterError(null);
+                    }
+                  }}
+                  placeholder="z. B. Kündigungsschutz 2026"
+                  disabled={isCreatingMatter}
+                />
+              </label>
+
+              <label
+                className={styles.createMatterLabel}
+                htmlFor="create-matter-client"
+              >
+                Mandant
+                <select
+                  id="create-matter-client"
+                  className={styles.createMatterInput}
+                  value={createMatterClientIdDraft}
+                  onChange={event => {
+                    setCreateMatterClientIdDraft(event.target.value);
+                    if (createMatterError) {
+                      setCreateMatterError(null);
+                    }
+                  }}
+                  disabled={isCreatingMatter}
+                >
+                  <option value="">Bitte wählen</option>
+                  {availableClients
+                    .slice()
+                    .sort((a, b) =>
+                      a.displayName.localeCompare(b.displayName, 'de')
+                    )
+                    .map(client => (
+                      <option key={client.id} value={client.id}>
+                        {client.displayName}
+                        {client.archived ? ' (archiviert)' : ''}
+                      </option>
+                    ))}
+                </select>
+              </label>
+
+              {createMatterError ? (
+                <div className={styles.createMatterError} role="alert">
+                  {createMatterError}
+                </div>
+              ) : null}
+
+              <div className={styles.createMatterActions}>
+                <Button
+                  variant="secondary"
+                  disabled={isCreatingMatter}
+                  onClick={() => {
+                    setIsCreateMatterModalOpen(false);
+                    setCreateMatterError(null);
+                  }}
+                >
+                  {t['com.affine.auth.sign-out.confirm-modal.cancel']()}
+                </Button>
+                <Button
+                  variant="primary"
+                  disabled={isCreatingMatter}
+                  onClick={() => {
+                    handleSubmitCreateMatter().catch(() => {
+                      setCreateMatterError(
+                        'Akte konnte nicht angelegt werden. Bitte erneut versuchen.'
+                      );
+                    });
+                  }}
+                >
+                  {isCreatingMatter ? 'Wird angelegt…' : 'Akte anlegen'}
+                </Button>
+              </div>
+            </div>
+          </Modal>
 
           {/* Table */}
           <div className={styles.scrollArea}>

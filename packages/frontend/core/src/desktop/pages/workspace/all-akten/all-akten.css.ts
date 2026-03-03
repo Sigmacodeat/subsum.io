@@ -119,6 +119,64 @@ export const actionStatus = style({
   },
 });
 
+export const createMatterModalBody = style({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 12,
+  paddingTop: 4,
+});
+
+export const createMatterLabel = style({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 6,
+  fontSize: 12,
+  fontWeight: 600,
+  lineHeight: '16px',
+  color: cssVarV2('text/secondary'),
+});
+
+export const createMatterInput = style({
+  width: '100%',
+  minHeight: 36,
+  borderRadius: 10,
+  border: `1px solid ${cssVarV2('layer/insideBorder/border')}`,
+  background: cssVarV2('layer/background/primary'),
+  color: cssVarV2('text/primary'),
+  padding: '0 10px',
+  fontSize: 13,
+  lineHeight: '20px',
+  transition: 'border-color 0.12s ease, box-shadow 0.12s ease',
+  selectors: {
+    '&:focus-visible': {
+      outline: 'none',
+      borderColor: cssVarV2('button/primary'),
+      boxShadow: `0 0 0 2px color-mix(in srgb, ${cssVarV2('button/primary')} 18%, transparent)`,
+    },
+    '&:disabled': {
+      opacity: 0.65,
+      cursor: 'not-allowed',
+    },
+  },
+});
+
+export const createMatterError = style({
+  borderRadius: 10,
+  padding: '8px 10px',
+  fontSize: 12,
+  lineHeight: '18px',
+  color: cssVarV2('status/error'),
+  border: `1px solid color-mix(in srgb, ${cssVarV2('status/error')} 35%, transparent)`,
+  background: `color-mix(in srgb, ${cssVarV2('status/error')} 8%, transparent)`,
+});
+
+export const createMatterActions = style({
+  marginTop: 2,
+  display: 'flex',
+  justifyContent: 'flex-end',
+  gap: 8,
+});
+
 export const quickstartRow = style({
   padding: `8px ${layoutGutter}px 0`,
   '@container': {
