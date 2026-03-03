@@ -6,6 +6,7 @@ import { LegalCopilotWorkflowService } from '../../../../modules/case-assistant/
 import { CasePlatformOrchestrationService } from '../../../../modules/case-assistant/services/platform-orchestration';
 import { RECHNUNG_STATUS_LABELS } from '../../../../modules/case-assistant/services/rechnung';
 import { TimeTrackingService } from '../../../../modules/case-assistant/services/time-tracking';
+import { MandantenPortalService } from '../../../../modules/case-assistant/services/mandanten-portal';
 import { VollmachtService } from '../../../../modules/case-assistant/services/vollmacht';
 import { CaseAssistantStore } from '../../../../modules/case-assistant/stores/case-assistant';
 import type {
@@ -170,16 +171,28 @@ export const MandantDetailPage = () => {
   const timeTrackingService = useService(TimeTrackingService);
   const orchestration = useService(CasePlatformOrchestrationService);
   const vollmachtService = useService(VollmachtService);
+  const portalService = useService(MandantenPortalService);
 
   // ═══ Vollmacht Modal State ═══
   const [isVollmachtModalOpen, setIsVollmachtModalOpen] = useState(false);
+  const [vMode, setVMode] = useState<'direct' | 'portal'>('direct');
   const [vType, setVType] = useState<Vollmacht['type']>('general');
   const [vTitle, setVTitle] = useState('');
   const [vMatterId, setVMatterId] = useState('');
   const [vGrantedToName, setVGrantedToName] = useState('Kanzlei');
   const [vScope, setVScope] = useState('');
+  const [vSenderEmail, setVSenderEmail] = useState('');
   const [vError, setVError] = useState<string | null>(null);
   const [isSubmittingVollmacht, setIsSubmittingVollmacht] = useState(false);
+  const [vollmachtPortalSuccess, setVollmachtPortalSuccess] = useState<string | null>(null);
+
+  // ═══ KYC / Ausweis Modal State ═══
+  const [isKycModalOpen, setIsKycModalOpen] = useState(false);
+  const [kycSenderName, setKycSenderName] = useState('');
+  const [kycSenderEmail, setKycSenderEmail] = useState('');
+  const [kycError, setKycError] = useState<string | null>(null);
+  const [isSubmittingKyc, setIsSubmittingKyc] = useState(false);
+  const [kycSuccess, setKycSuccess] = useState<string | null>(null);
 
   // ═══ Graph data ═══
   const graph = useLiveData(store.watchGraph()) ?? {
@@ -458,7 +471,7 @@ export const MandantDetailPage = () => {
     }
   }, [orchestration]);
 
-  // ═══ Vollmacht create handler ═══
+  // ═══ Vollmacht create handler (direct mode) ═══
   const handleCreateVollmacht = useCallback(async () => {
     const workspaceId = client?.workspaceId;
     if (!workspaceId || !clientId) {
@@ -473,6 +486,55 @@ export const MandantDetailPage = () => {
     const grantedToName = vGrantedToName.trim() || 'Kanzlei';
     setVError(null);
     setIsSubmittingVollmacht(true);
+
+    if (vMode === 'portal') {
+      // → Portal-Workflow: Signing-Request per E-Mail an Mandanten
+      const emailTrimmed = vSenderEmail.trim();
+      if (!emailTrimmed) {
+        setVError('Bitte Kanzlei-E-Mail-Adresse eingeben (Absender des Portal-Links).');
+        setIsSubmittingVollmacht(false);
+        return;
+      }
+      if (!client?.primaryEmail) {
+        setVError('Der Mandant hat keine E-Mail-Adresse hinterlegt. Bitte zuerst im Profil ergänzen.');
+        setIsSubmittingVollmacht(false);
+        return;
+      }
+      try {
+        const result = await portalService.requestVollmachtPortal({
+          workspaceId,
+          clientId,
+          matterId: vMatterId || undefined,
+          title: titleTrimmed,
+          scope: vScope.trim() || undefined,
+          mode: 'upload',
+          provider: 'none',
+          senderName: grantedToName,
+          senderEmail: emailTrimmed,
+          senderId: workspaceId,
+          senderDisplayName: grantedToName,
+        });
+        setIsVollmachtModalOpen(false);
+        setVTitle('');
+        setVScope('');
+        setVMatterId('');
+        setVType('general');
+        setVMode('direct');
+        setVSenderEmail('');
+        setVollmachtPortalSuccess(
+          result.success
+            ? `Portal-Link für Vollmacht-Unterzeichnung an ${client.primaryEmail} versendet.`
+            : `Vollmacht angelegt, aber E-Mail konnte nicht gesendet werden: ${result.message}`
+        );
+      } catch (err) {
+        setVError(err instanceof Error ? err.message : 'Fehler beim Anfordern der Vollmacht.');
+      } finally {
+        setIsSubmittingVollmacht(false);
+      }
+      return;
+    }
+
+    // → Direct mode: sofort als aktiv anlegen (bereits unterschrieben/notariell)
     try {
       await vollmachtService.createVollmacht({
         workspaceId,
@@ -495,7 +557,52 @@ export const MandantDetailPage = () => {
     } finally {
       setIsSubmittingVollmacht(false);
     }
-  }, [client?.workspaceId, clientId, vTitle, vGrantedToName, vMatterId, vType, vScope, vollmachtService]);
+  }, [client?.workspaceId, client?.primaryEmail, clientId, vMode, vTitle, vGrantedToName,
+      vMatterId, vType, vScope, vSenderEmail, vollmachtService, portalService]);
+
+  // ═══ KYC / Ausweis request handler ═══
+  const handleRequestKyc = useCallback(async () => {
+    const workspaceId = client?.workspaceId;
+    if (!workspaceId || !clientId) {
+      setKycError('Workspace oder Mandant nicht gefunden.');
+      return;
+    }
+    if (!client?.primaryEmail) {
+      setKycError('Der Mandant hat keine E-Mail-Adresse hinterlegt. Bitte zuerst im Profil ergänzen.');
+      return;
+    }
+    const senderNameTrimmed = kycSenderName.trim();
+    const senderEmailTrimmed = kycSenderEmail.trim();
+    if (!senderEmailTrimmed) {
+      setKycError('Bitte Kanzlei-E-Mail-Adresse eingeben.');
+      return;
+    }
+    setKycError(null);
+    setIsSubmittingKyc(true);
+    try {
+      const result = await portalService.requestKycPortal({
+        workspaceId,
+        clientId,
+        clientName: client.displayName ?? clientId,
+        clientKind: client.kind ?? 'person',
+        senderName: senderNameTrimmed || 'Kanzlei',
+        senderEmail: senderEmailTrimmed,
+      });
+      setIsKycModalOpen(false);
+      setKycSenderName('');
+      setKycSenderEmail('');
+      setKycSuccess(
+        result.success
+          ? `Ausweis-Anfrage an ${client.primaryEmail} versendet.`
+          : `Anfrage erstellt, aber E-Mail-Versand fehlgeschlagen: ${result.message}`
+      );
+    } catch (err) {
+      setKycError(err instanceof Error ? err.message : 'Fehler beim Versenden der Anfrage.');
+    } finally {
+      setIsSubmittingKyc(false);
+    }
+  }, [client?.workspaceId, client?.primaryEmail, client?.displayName, client?.kind,
+      clientId, kycSenderName, kycSenderEmail, portalService]);
 
   // ═══ Vollmacht type → default title ═══
   const vollmachtTypeDefaults: Record<Vollmacht['type'], string> = {
@@ -1203,21 +1310,58 @@ export const MandantDetailPage = () => {
                       <div className={styles.sectionTitle}>
                         Ausweisdokumente ({ausweisDocs.length})
                       </div>
-                      {ausweisDocs.length === 0 ? (
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <button
+                          type="button"
+                          className={styles.sectionAction}
+                          onClick={() => {
+                            setKycError(null);
+                            setKycSuccess(null);
+                            setIsKycModalOpen(true);
+                          }}
+                        >
+                          Ausweis-Anfrage senden
+                        </button>
                         <button
                           type="button"
                           className={styles.sectionAction}
                           onClick={openMainChatForClient}
                         >
-                          Ausweis im Chat hochladen
+                          Im Chat hochladen
                         </button>
-                      ) : null}
+                      </div>
                     </div>
+                    {kycSuccess && (
+                      <div
+                        style={{
+                          margin: '0 0 8px',
+                          padding: '8px 12px',
+                          borderRadius: 8,
+                          fontSize: 12,
+                          fontWeight: 600,
+                          background: 'color-mix(in srgb, var(--affine-success-color, #22c55e) 12%, transparent)',
+                          color: 'var(--affine-success-color, #16a34a)',
+                          border: '1px solid color-mix(in srgb, var(--affine-success-color, #22c55e) 25%, transparent)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                        }}
+                        role="status"
+                      >
+                        <span>✓ {kycSuccess}</span>
+                        <button
+                          type="button"
+                          onClick={() => setKycSuccess(null)}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, opacity: 0.7 }}
+                        >
+                          ×
+                        </button>
+                      </div>
+                    )}
                     <div className={styles.sectionBody}>
                       {ausweisDocs.length === 0 ? (
                         <div className={styles.emptyInline}>
-                          Kein Ausweisdokument erkannt. Bitte Ausweis zur
-                          rechtssicheren Mandantenakte hochladen.
+                          Kein Ausweisdokument erkannt. Anfrage per E-Mail senden oder Ausweis direkt hochladen.
                         </div>
                       ) : (
                         <div className={styles.docGroup}>
@@ -1468,13 +1612,43 @@ export const MandantDetailPage = () => {
                           setVScope('');
                           setVMatterId('');
                           setVGrantedToName('Kanzlei');
+                          setVMode('direct');
+                          setVSenderEmail('');
                           setVError(null);
+                          setVollmachtPortalSuccess(null);
                           setIsVollmachtModalOpen(true);
                         }}
                       >
                         + Vollmacht anlegen
                       </button>
                     </div>
+                    {vollmachtPortalSuccess && (
+                      <div
+                        style={{
+                          margin: '0 0 8px',
+                          padding: '8px 12px',
+                          borderRadius: 8,
+                          fontSize: 12,
+                          fontWeight: 600,
+                          background: 'color-mix(in srgb, var(--affine-success-color, #22c55e) 12%, transparent)',
+                          color: 'var(--affine-success-color, #16a34a)',
+                          border: '1px solid color-mix(in srgb, var(--affine-success-color, #22c55e) 25%, transparent)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                        }}
+                        role="status"
+                      >
+                        <span>✓ {vollmachtPortalSuccess}</span>
+                        <button
+                          type="button"
+                          onClick={() => setVollmachtPortalSuccess(null)}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, opacity: 0.7 }}
+                        >
+                          ×
+                        </button>
+                      </div>
+                    )}
                     <div className={styles.sectionBody}>
                       {clientVollmachten.length === 0 ? (
                         <div className={styles.emptyInline}>
@@ -1645,7 +1819,38 @@ export const MandantDetailPage = () => {
             </div>
 
             <div className={styles.modalBody}>
-              {/* Type */}
+              {/* Mode toggle */}
+              <div className={styles.formField}>
+                <label className={styles.formLabel}>Modus</label>
+                <div className={styles.modalModeToggle}>
+                  <button
+                    type="button"
+                    className={styles.modalModeBtn}
+                    data-active={String(vMode === 'direct')}
+                    disabled={isSubmittingVollmacht}
+                    onClick={() => setVMode('direct')}
+                  >
+                    Direkt anlegen
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.modalModeBtn}
+                    data-active={String(vMode === 'portal')}
+                    disabled={isSubmittingVollmacht}
+                    onClick={() => setVMode('portal')}
+                  >
+                    Digital unterschreiben lassen
+                  </button>
+                </div>
+                <span className={styles.formHint}>
+                  {vMode === 'direct'
+                    ? 'Vollmacht wird sofort als aktiv gespeichert (z. B. notariell beglaubigt, bereits unterschrieben).'
+                    : 'Mandant erhält einen sicheren Portal-Link per E-Mail und unterzeichnet digital. Das signierte PDF wird automatisch gespeichert.'}
+                </span>
+              </div>
+
+              {/* Type (only relevant for direct mode) */}
+              {vMode === 'direct' && (
               <div className={styles.formField}>
                 <label className={styles.formLabel} htmlFor="v-type">
                   Art der Vollmacht
@@ -1667,6 +1872,7 @@ export const MandantDetailPage = () => {
                   <option value="procuration">Prokura</option>
                 </select>
               </div>
+              )}
 
               {/* Title */}
               <div className={styles.formField}>
@@ -1746,6 +1952,27 @@ export const MandantDetailPage = () => {
                 />
               </div>
 
+              {/* Portal mode: Kanzlei-E-Mail als Absender */}
+              {vMode === 'portal' && (
+                <div className={styles.formField}>
+                  <label className={styles.formLabel} htmlFor="v-sender-email">
+                    Kanzlei-E-Mail (Absender des Portal-Links) *
+                  </label>
+                  <input
+                    id="v-sender-email"
+                    type="email"
+                    className={styles.formInput}
+                    value={vSenderEmail}
+                    disabled={isSubmittingVollmacht}
+                    placeholder="kanzlei@beispiel.at"
+                    onChange={e => setVSenderEmail(e.target.value)}
+                  />
+                  <span className={styles.formHint}>
+                    Der Mandant erhält einen sicheren 7-Tage-Link an: <strong>{client?.primaryEmail ?? '(keine E-Mail hinterlegt)'}</strong>
+                  </span>
+                </div>
+              )}
+
               {/* Error */}
               {vError && (
                 <div className={styles.formError} role="alert">
@@ -1771,7 +1998,123 @@ export const MandantDetailPage = () => {
                   handleCreateVollmacht().catch(() => undefined);
                 }}
               >
-                {isSubmittingVollmacht ? 'Wird angelegt…' : 'Vollmacht anlegen'}
+                {isSubmittingVollmacht
+                  ? (vMode === 'portal' ? 'Sendet Portal-Link…' : 'Wird angelegt…')
+                  : (vMode === 'portal' ? 'Portal-Link senden' : 'Vollmacht anlegen')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══ KYC / Ausweis Anfrage Modal ═══ */}
+      {isKycModalOpen && (
+        <div
+          className={styles.modalOverlay}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="kyc-modal-title"
+          onClick={e => {
+            if (e.target === e.currentTarget) setIsKycModalOpen(false);
+          }}
+        >
+          <div className={styles.modalBox}>
+            <div className={styles.modalHeader}>
+              <h2 id="kyc-modal-title" className={styles.modalTitle}>
+                Ausweis-Anfrage senden
+              </h2>
+              <button
+                type="button"
+                className={styles.modalCloseBtn}
+                onClick={() => setIsKycModalOpen(false)}
+                disabled={isSubmittingKyc}
+                aria-label="Schließen"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className={styles.modalBody}>
+              <div
+                style={{
+                  padding: '10px 12px',
+                  borderRadius: 8,
+                  fontSize: 12,
+                  background: 'var(--affine-hover-color)',
+                  color: 'var(--affine-text-secondary-color)',
+                  marginBottom: 4,
+                  lineHeight: 1.5,
+                }}
+              >
+                Der Mandant <strong>{client?.displayName ?? clientId}</strong> erhält einen sicheren
+                7-Tage-Link an <strong>{client?.primaryEmail ?? '(keine E-Mail hinterlegt)'}</strong> und
+                kann seinen Personalausweis / Reisepass direkt hochladen. Das Dokument wird
+                automatisch in der Akte gespeichert.
+              </div>
+
+              {/* Kanzlei-Name */}
+              <div className={styles.formField}>
+                <label className={styles.formLabel} htmlFor="kyc-sender-name">
+                  Kanzlei-Name
+                </label>
+                <input
+                  id="kyc-sender-name"
+                  type="text"
+                  className={styles.formInput}
+                  value={kycSenderName}
+                  disabled={isSubmittingKyc}
+                  placeholder="Kanzlei Muster & Partner"
+                  onChange={e => setKycSenderName(e.target.value)}
+                />
+              </div>
+
+              {/* Kanzlei-E-Mail */}
+              <div className={styles.formField}>
+                <label className={styles.formLabel} htmlFor="kyc-sender-email">
+                  Kanzlei-E-Mail (Absender) *
+                </label>
+                <input
+                  id="kyc-sender-email"
+                  type="email"
+                  className={styles.formInput}
+                  value={kycSenderEmail}
+                  disabled={isSubmittingKyc}
+                  placeholder="kanzlei@beispiel.at"
+                  onChange={e => setKycSenderEmail(e.target.value)}
+                />
+              </div>
+
+              {!client?.primaryEmail && (
+                <div className={styles.formError} role="alert">
+                  Dieser Mandant hat keine E-Mail-Adresse hinterlegt. Bitte zuerst im Profil ergänzen.
+                </div>
+              )}
+
+              {kycError && (
+                <div className={styles.formError} role="alert">
+                  {kycError}
+                </div>
+              )}
+            </div>
+
+            <div className={styles.modalFooter}>
+              <button
+                type="button"
+                className={styles.modalBtnSecondary}
+                disabled={isSubmittingKyc}
+                onClick={() => setIsKycModalOpen(false)}
+              >
+                Abbrechen
+              </button>
+              <button
+                type="button"
+                className={styles.modalBtnPrimary}
+                disabled={isSubmittingKyc || !client?.primaryEmail || !kycSenderEmail.trim()}
+                onClick={() => {
+                  handleRequestKyc().catch(() => undefined);
+                }}
+              >
+                {isSubmittingKyc ? 'Sendet Anfrage…' : 'Ausweis-Anfrage senden'}
               </button>
             </div>
           </div>
