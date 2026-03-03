@@ -170,6 +170,8 @@ const OCR_JOB_TIMEOUT_PER_PAGE_MS = 20_000;
 const OCR_JOB_TIMEOUT_MAX_MS = 8 * 60_000;
 const OCR_RUNNING_STALE_THRESHOLD_MS = 15 * 60_000;
 const OCR_QUEUED_STALE_THRESHOLD_MS = 30 * 60_000;
+const OCR_TEXT_LAYER_TIMEOUT_MS = 45_000;
+const OCR_POSTPROCESS_TIMEOUT_MS = 75_000;
 const INTAKE_YIELD_EVERY = 6;
 const OCR_YIELD_EVERY = 4;
 
@@ -902,8 +904,8 @@ export class LegalCopilotWorkflowService extends Service {
     const isBinaryPayload =
       content.startsWith('data:') && content.includes(';base64,');
 
-    const remote = await this.runRemoteOcr(doc);
     if (!isBinaryPayload) {
+      const remote = await this.runRemoteOcr(doc);
       if (remote && hasViableOcrText(remote.text)) {
         this.releaseBinary(doc.id);
         return remote;
@@ -935,12 +937,6 @@ export class LegalCopilotWorkflowService extends Service {
       };
     }
 
-    if (remote && isStrongOcrResult(remote)) {
-      // Remote OCR is already strong enough; skip extra local OCR cost.
-      this.releaseBinary(doc.id);
-      return remote;
-    }
-
     let localCandidate: OcrProviderResult | null = null;
     if (isBinaryPayload) {
       const isPdf =
@@ -949,8 +945,8 @@ export class LegalCopilotWorkflowService extends Service {
         (doc.sourceMimeType?.toLowerCase().includes('pdf') ?? false);
       if (isPdf) {
         try {
-          const localPdfTextLayer =
-            await this.documentProcessingService.processDocumentAsync({
+          const localPdfTextLayer = await withTimeout(
+            this.documentProcessingService.processDocumentAsync({
               documentId: doc.id,
               caseId: doc.caseId,
               workspaceId: doc.workspaceId,
@@ -959,7 +955,10 @@ export class LegalCopilotWorkflowService extends Service {
               rawContent: content,
               mimeType: doc.sourceMimeType,
               expectedPageCount: doc.pageCount,
-            });
+            }),
+            OCR_TEXT_LAYER_TIMEOUT_MS,
+            `OCR text-layer timeout (${OCR_TEXT_LAYER_TIMEOUT_MS}ms): ${doc.title}`
+          );
           if (hasViableOcrText(localPdfTextLayer.normalizedText)) {
             localCandidate = {
               text: localPdfTextLayer.normalizedText,
@@ -1024,6 +1023,19 @@ export class LegalCopilotWorkflowService extends Service {
         }
       } catch {
         // ignore local OCR errors, fall through to empty result
+      }
+
+      // Local-first for binary payloads: avoids queue stalls when remote OCR
+      // endpoint is intermittently slow/unreachable on a subset of files.
+      if (localCandidate && isStrongOcrResult(localCandidate)) {
+        this.releaseBinary(doc.id);
+        return localCandidate;
+      }
+
+      const remote = await this.runRemoteOcr(doc);
+      if (remote && isStrongOcrResult(remote)) {
+        this.releaseBinary(doc.id);
+        return remote;
       }
 
       const chosen = pickBetterOcrResult(remote, localCandidate);
@@ -3813,8 +3825,8 @@ export class LegalCopilotWorkflowService extends Service {
           totalPages: lastTotal,
         });
         const finishedAt = new Date().toISOString();
-        const processed =
-          await this.documentProcessingService.processDocumentAsync({
+        const processed = await withTimeout(
+          this.documentProcessingService.processDocumentAsync({
             documentId: doc.id,
             caseId,
             workspaceId,
@@ -3823,7 +3835,10 @@ export class LegalCopilotWorkflowService extends Service {
             rawContent: ocrResult.text,
             mimeType: doc.sourceMimeType,
             expectedPageCount: doc.pageCount,
-          });
+          }),
+          OCR_POSTPROCESS_TIMEOUT_MS,
+          `OCR postprocess timeout (${OCR_POSTPROCESS_TIMEOUT_MS}ms): ${doc.title}`
+        );
 
         const nextStatus: LegalDocumentRecord['status'] =
           processed.processingStatus === 'failed' ? 'failed' : 'indexed';
