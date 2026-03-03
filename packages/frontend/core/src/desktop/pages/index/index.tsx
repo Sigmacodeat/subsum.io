@@ -37,7 +37,7 @@ import { AppContainer } from '../../components/app-container';
  * - initCloud: boolean, if true, when user is logged in, create a cloud workspace
  */
 export const Component = ({
-  defaultIndexRoute = 'all',
+  defaultIndexRoute = 'akten',
   children,
   fallback,
 }: {
@@ -165,7 +165,7 @@ export const Component = ({
               createdWorkspace.defaultPageId
             );
           } else {
-            openPage(createdWorkspace.meta.id, 'all');
+            openPage(createdWorkspace.meta.id, 'akten');
           }
         }
       })
