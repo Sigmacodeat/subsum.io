@@ -54,12 +54,14 @@ export const quickNavButton = style({
   padding: '7px 4px',
   borderRadius: 8,
   border: `0.5px solid ${glassStroke}`,
-  background: 'color-mix(in srgb, var(--affine-background-primary-color) 74%, transparent)',
+  background:
+    'color-mix(in srgb, var(--affine-background-primary-color) 74%, transparent)',
   backdropFilter: 'blur(10px) saturate(130%)',
   cursor: 'pointer',
   fontSize: 10,
   fontWeight: 600,
-  color: 'color-mix(in srgb, var(--affine-text-primary-color) 74%, var(--affine-text-secondary-color))',
+  color:
+    'color-mix(in srgb, var(--affine-text-primary-color) 74%, var(--affine-text-secondary-color))',
   transition: interactionTransition,
   selectors: {
     '&:hover': {
@@ -71,6 +73,19 @@ export const quickNavButton = style({
     '&:focus-visible': {
       outline: `2px solid ${cssVarV2('button/primary')}`,
       outlineOffset: 2,
+    },
+  },
+});
+
+export const quickNavButtonMuted = style({
+  opacity: 0.72,
+  fontWeight: 500,
+  selectors: {
+    '&:hover': {
+      opacity: 0.9,
+    },
+    '&:focus-visible': {
+      opacity: 1,
     },
   },
 });
@@ -201,7 +216,8 @@ export const severityBadge = style({
   letterSpacing: '0.02em',
   textTransform: 'uppercase',
   border: `0.5px solid ${glassStroke}`,
-  background: 'color-mix(in srgb, var(--affine-background-primary-color) 80%, transparent)',
+  background:
+    'color-mix(in srgb, var(--affine-background-primary-color) 80%, transparent)',
   backdropFilter: 'blur(10px) saturate(135%)',
 });
 

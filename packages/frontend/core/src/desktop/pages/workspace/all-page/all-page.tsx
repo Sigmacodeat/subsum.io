@@ -192,6 +192,21 @@ export const AllPage = () => {
     }
   }, [docsScope, selectedCollectionId, setSelectedCollectionId, tempFilters]);
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const requestedScope = params.get('docsScope');
+    if (requestedScope === 'all' || requestedScope === 'legal') {
+      setDocsScope(requestedScope);
+      params.delete('docsScope');
+      const nextSearch = params.toString();
+      window.history.replaceState(
+        window.history.state,
+        '',
+        `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ''}${window.location.hash}`
+      );
+    }
+  }, [setDocsScope]);
+
   const [explorerContextValue] = useState(() =>
     createDocExplorerContext(displayPreference)
   );
@@ -410,32 +425,24 @@ export const AllPage = () => {
         <div className={styles.body}>
           <MigrationAllDocsDataNotification />
           <div className={styles.topControls}>
-            <div
-              className={styles.scopeToggle}
-              role="tablist"
-              aria-label="Dokumentumfang"
-            >
-              <button
-                type="button"
-                className={styles.scopeToggleButton}
-                data-active={docsScope === 'all'}
-                role="tab"
-                aria-selected={docsScope === 'all'}
-                onClick={() => setDocsScope('all')}
+            {docsScope === 'all' ? (
+              <div
+                className={styles.scopeNotice}
+                role="status"
+                aria-live="polite"
               >
-                Alle Dokumente
-              </button>
-              <button
-                type="button"
-                className={styles.scopeToggleButton}
-                data-active={docsScope === 'legal'}
-                role="tab"
-                aria-selected={docsScope === 'legal'}
-                onClick={() => setDocsScope('legal')}
-              >
-                Schriftstücke
-              </button>
-            </div>
+                <span className={styles.scopeNoticeLabel}>
+                  Erweiterte Ansicht aktiv: Alle Dokumente
+                </span>
+                <button
+                  type="button"
+                  className={styles.scopeNoticeAction}
+                  onClick={() => setDocsScope('legal')}
+                >
+                  Zurück zu Schriftstücke
+                </button>
+              </div>
+            ) : null}
             <div className={styles.pinnedCollection}>
               <PinnedCollections
                 activeCollectionId={selectedCollectionId}
@@ -521,7 +528,7 @@ const useAllDocsOptions = () => {
       null
   );
   const [docsScope, setDocsScope] = useState<AllDocsScope>(
-    () => workspaceLocalState.get<AllDocsScope>('allDocsScope') ?? 'all'
+    () => workspaceLocalState.get<AllDocsScope>('allDocsScope') ?? 'legal'
   );
 
   const handleViewModeChange = useCallback(

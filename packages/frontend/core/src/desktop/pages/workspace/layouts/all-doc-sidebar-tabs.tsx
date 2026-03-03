@@ -11,13 +11,15 @@ import {
   ViewSidebarTab,
   WorkbenchService,
 } from '@affine/core/modules/workbench';
-import { NotificationIcon,TodayIcon } from '@blocksuite/icons/rc';
+import { NotificationIcon, TodayIcon } from '@blocksuite/icons/rc';
 import { useLiveData, useService } from '@toeverything/infra';
 import { useCallback, useMemo, useState } from 'react';
 
 import { sidebarScrollArea } from '../detail-page/detail-page.css';
 import { EditorJournalPanel } from '../detail-page/tabs/journal';
 import * as legalActivityStyles from './all-doc-sidebar-tabs.css';
+
+const EMPTY_LEGAL_DOCS: LegalDocumentRecord[] = [];
 
 /* ── helpers ─────────────────────────────────────────────── */
 
@@ -124,7 +126,8 @@ const LegalActivityPanel = () => {
   const workbench = useService(WorkbenchService).workbench;
   const legalCopilotWorkflowService = useService(LegalCopilotWorkflowService);
   const legalDocs =
-    useLiveData(legalCopilotWorkflowService.legalDocuments$) ?? [];
+    useLiveData(legalCopilotWorkflowService.legalDocuments$) ??
+    EMPTY_LEGAL_DOCS;
   const [actionStatus, setActionStatus] = useState<string | null>(null);
 
   const matters = useMemo(
@@ -596,6 +599,21 @@ const LegalActivityPanel = () => {
               �️
             </span>
             Termine
+          </Button>
+          <Button
+            variant="plain"
+            className={`${legalActivityStyles.quickNavButton} ${legalActivityStyles.quickNavButtonMuted}`}
+            onClick={() => navigateTo('/all?docsScope=all')}
+            title="Alle Dokumente (erweiterte Ansicht)"
+            aria-label="Erweiterte Dokumentansicht öffnen"
+          >
+            <span
+              className={legalActivityStyles.quickNavIcon}
+              aria-hidden="true"
+            >
+              📄
+            </span>
+            Alle Dokumente
           </Button>
         </div>
       </div>

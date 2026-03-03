@@ -36,6 +36,54 @@ export const topControls = style({
   },
 });
 
+export const scopeNotice = style({
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: 10,
+  padding: `0 ${layoutGutter}px`,
+  '@container': {
+    'docs-body (width <= 500px)': {
+      padding: `0 ${layoutGutterMd}px`,
+      flexDirection: 'column',
+      alignItems: 'flex-start',
+      gap: 6,
+    },
+    'docs-body (width <= 393px)': {
+      padding: `0 ${layoutGutterSm}px`,
+    },
+  },
+});
+
+export const scopeNoticeLabel = style({
+  fontSize: 12,
+  lineHeight: '18px',
+  color: 'var(--affine-text-secondary-color)',
+});
+
+export const scopeNoticeAction = style({
+  appearance: 'none',
+  border: 'none',
+  background: 'transparent',
+  padding: 0,
+  fontSize: 12,
+  lineHeight: '18px',
+  fontWeight: 600,
+  color: 'var(--affine-primary-color)',
+  cursor: 'pointer',
+  transition: interactionTransition,
+  selectors: {
+    '&:hover': {
+      textDecoration: 'underline',
+    },
+    '&:focus-visible': {
+      outline: '2px solid var(--affine-primary-color)',
+      outlineOffset: 2,
+      borderRadius: 4,
+    },
+  },
+});
+
 export const scopeToggle = style({
   display: 'inline-flex',
   alignItems: 'center',
