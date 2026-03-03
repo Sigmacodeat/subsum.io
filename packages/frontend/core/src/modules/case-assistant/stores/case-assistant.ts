@@ -184,12 +184,16 @@ export class CaseAssistantStore extends Store {
     const matters = graph.matters ?? {};
     const anwaelte = graph.anwaelte ?? {};
     const termine = graph.termine ?? {};
+    const firstClientId = Object.keys(clients)[0] ?? '';
 
     // Purge legacy auto-created default client if still present in stored data
     delete clients[this.defaultClientId];
 
     // Migration: ensure clientIds[] is populated from clientId for backward compat
     for (const matter of Object.values(matters)) {
+      if (firstClientId && (!matter.clientId || !clients[matter.clientId])) {
+        matter.clientId = firstClientId;
+      }
       if (!matter.clientIds || matter.clientIds.length === 0) {
         matter.clientIds = [matter.clientId];
       } else if (!matter.clientIds.includes(matter.clientId)) {
@@ -210,7 +214,6 @@ export class CaseAssistantStore extends Store {
         const matterId = `matter:${this.workspaceId}:${caseId}`;
         caseFile.matterId = matterId;
         const FILE_EXT_RE = /\.(pdf|docx?|txt|eml|msg|png|jpe?g|tiff?|bmp|webp|gif|heic|heif|odt|rtf|html?|md|csv|tsv|json|xml|xlsx?|xlsm|pptx?|ppt|ods)$/i;
-        const firstClientId = Object.keys(clients)[0] ?? '';
         if (!matters[matterId]) {
           const rawTitle = caseFile.title || 'Akte';
           const cleanTitle =
