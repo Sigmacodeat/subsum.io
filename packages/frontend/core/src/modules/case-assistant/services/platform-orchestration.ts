@@ -2665,6 +2665,12 @@ export class CasePlatformOrchestrationService extends Service {
     const permission =
       await this.accessControlService.evaluate('document.upload');
     if (!permission.ok) {
+      console.warn('[deleteDocumentsCascade] Permission denied for document.upload', {
+        reason: permission.message,
+        role: permission.role,
+        requiredRole: permission.requiredRole,
+        documentIds: uniqueDocumentIds,
+      });
       for (const documentId of uniqueDocumentIds) {
         blockedIds.push(documentId);
       }
@@ -2696,6 +2702,11 @@ export class CasePlatformOrchestrationService extends Service {
     for (const documentId of uniqueDocumentIds) {
       const doc = docById.get(documentId);
       if (!doc) {
+        console.warn('[deleteDocumentsCascade] Document not found in store', {
+          documentId,
+          availableDocumentIds: Array.from(docById.keys()).slice(0, 10),
+          totalAvailable: docById.size,
+        });
         blockedIds.push(documentId);
         continue;
       }
@@ -2711,7 +2722,18 @@ export class CasePlatformOrchestrationService extends Service {
         trashedById.set(documentId, movedToTrash);
         movedDocs.push(movedToTrash);
         succeededIds.push(documentId);
-      } catch {
+        console.log('[deleteDocumentsCascade] Document moved to trash', {
+          documentId,
+          documentTitle: doc.title,
+          trashedAt,
+          purgeAt,
+        });
+      } catch (error) {
+        console.error('[deleteDocumentsCascade] Failed to move document to trash', {
+          documentId,
+          documentTitle: doc.title,
+          error,
+        });
         failedIds.push(documentId);
       }
     }
@@ -2789,6 +2811,16 @@ export class CasePlatformOrchestrationService extends Service {
         )
       );
     }
+
+    console.log('[deleteDocumentsCascade] Summary', {
+      total: uniqueDocumentIds.length,
+      succeeded: succeededIds.length,
+      blocked: blockedIds.length,
+      failed: failedIds.length,
+      succeededIds,
+      blockedIds,
+      failedIds,
+    });
 
     return {
       total: uniqueDocumentIds.length,
