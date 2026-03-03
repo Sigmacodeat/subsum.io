@@ -2145,10 +2145,15 @@ export const EditorCaseAssistantPanel = ({
         ? `${latestJob.sourceType === 'folder' ? 'Ordner-Upload' : 'Upload'} · ${jobStatusLabel[latestJob.status] ?? latestJob.status}`
         : defaultPhaseLabel,
       progress: latestJob?.progress ?? 0,
-      active: Boolean(
-        latestJob &&
-        (latestJob.status === 'queued' || latestJob.status === 'running')
-      ) || ocrRunningCount > 0 || ocrPendingCount > 0 || uploadedCount > 0 || ocrCompletedCount > 0,
+      active:
+        Boolean(
+          latestJob &&
+          (latestJob.status === 'queued' || latestJob.status === 'running')
+        ) ||
+        ocrRunningCount > 0 ||
+        ocrPendingCount > 0 ||
+        uploadedCount > 0 ||
+        ocrCompletedCount > 0,
       indexedCount,
       ocrPendingCount,
       ocrRunningCount,
@@ -2532,11 +2537,26 @@ export const EditorCaseAssistantPanel = ({
   const lastFocusedElementBeforeDestructiveDialogRef =
     useRef<HTMLElement | null>(null);
 
+  const selectedMatterClients = useMemo((): ClientRecord[] => {
+    const matterId = selectedMatterId || caseMatter?.id;
+    if (!matterId) return [];
+    const matter = matters.find(m => m.id === matterId);
+    if (!matter) return [];
+    const ids = Array.from(
+      new Set([matter.clientId, ...(matter.clientIds ?? [])])
+    ).filter(Boolean);
+    return ids
+      .map(id => clients.find(c => c.id === id))
+      .filter((c): c is ClientRecord => c !== undefined);
+  }, [selectedMatterId, caseMatter, matters, clients]);
+
   const {
     onCreateClient,
     onCreateMatter,
     onAssignMatterToCase,
     onAssignClientToCase,
+    onAddClientToMatter,
+    onRemoveClientFromMatter,
     onRequestDeleteSelectedClient,
     onRequestArchiveSelectedClient,
     onRequestDeleteSelectedMatter,
@@ -3054,7 +3074,9 @@ export const EditorCaseAssistantPanel = ({
             id: d.id,
             title: d.title,
             caseId: d.caseId,
-            markdown: d.normalizedText ?? (d.rawText?.includes('__binary_cache__') ? '' : d.rawText),
+            markdown:
+              d.normalizedText ??
+              (d.rawText?.includes('__binary_cache__') ? '' : d.rawText),
           }));
         const op = await bulkOperationsService.bulkPdfExport({
           workspaceId,
@@ -3287,7 +3309,9 @@ export const EditorCaseAssistantPanel = ({
           {
             id: `sec:loaded:${doc.id}`,
             heading: 'Inhalt',
-            content: doc.rawText?.includes('__binary_cache__') ? '' : doc.rawText,
+            content: doc.rawText?.includes('__binary_cache__')
+              ? ''
+              : doc.rawText,
             citationIds: [],
           },
         ],
@@ -3340,7 +3364,13 @@ export const EditorCaseAssistantPanel = ({
         setIngestionStatus('PDF-Export fehlgeschlagen: Netzwerkfehler.');
       }
     },
-    [activeAnwaltDisplayName, caseId, kanzleiProfile?.name, setIngestionStatus, workspaceId]
+    [
+      activeAnwaltDisplayName,
+      caseId,
+      kanzleiProfile?.name,
+      setIngestionStatus,
+      workspaceId,
+    ]
   );
 
   const handleOptimizeGeneratedWithCopilot = useCallback(() => {
@@ -3625,6 +3655,9 @@ export const EditorCaseAssistantPanel = ({
                     // handled in onUndoMatterAction
                   });
                 }}
+                selectedMatterClients={selectedMatterClients}
+                onAddClientToMatter={onAddClientToMatter}
+                onRemoveClientFromMatter={onRemoveClientFromMatter}
                 activeAnwaelte={anwaelte.filter(a => a.isActive)}
                 matterDraftAssignedAnwaltId={matterDraftAssignedAnwaltId}
                 setMatterDraftAssignedAnwaltId={setMatterDraftAssignedAnwaltId}

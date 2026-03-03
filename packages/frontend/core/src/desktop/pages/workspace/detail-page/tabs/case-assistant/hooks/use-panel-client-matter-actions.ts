@@ -896,11 +896,103 @@ export const usePanelClientMatterActions = (params: Params) => {
     params.setPendingDestructiveAction,
   ]);
 
+  const onAddClientToMatter = useCallback(async () => {
+    const matterId = params.selectedMatterId || params.caseMatter?.id;
+    if (!matterId) {
+      params.setIngestionStatus('Bitte zuerst eine Akte auswählen.');
+      return;
+    }
+    const clientId = params.selectedClientId;
+    if (!clientId) {
+      params.setIngestionStatus('Bitte zuerst einen Mandanten auswählen.');
+      return;
+    }
+    const matter = params.matters.find(m => m.id === matterId);
+    if (!matter) {
+      params.setIngestionStatus('Akte nicht gefunden.');
+      return;
+    }
+    const existingIds = new Set(matter.clientIds ?? [matter.clientId]);
+    if (existingIds.has(clientId)) {
+      params.setIngestionStatus(
+        'Dieser Mandant ist der Akte bereits zugeordnet.'
+      );
+      return;
+    }
+    const updated = await params.casePlatformOrchestrationService.upsertMatter({
+      ...matter,
+      clientIds: [...Array.from(existingIds), clientId],
+    });
+    if (!updated) {
+      params.setIngestionStatus(
+        `Mandant konnte nicht zur Akte hinzugefügt werden (Rolle ${params.currentRole}, benötigt: operator).`
+      );
+      return;
+    }
+    const client = params.clients.find(c => c.id === clientId);
+    params.setIngestionStatus(
+      `${client?.displayName ?? clientId} zur Akte ${updated.title} als weiterer Mandant hinzugefügt.`
+    );
+  }, [
+    params.caseMatter,
+    params.casePlatformOrchestrationService,
+    params.clients,
+    params.currentRole,
+    params.matters,
+    params.selectedClientId,
+    params.selectedMatterId,
+    params.setIngestionStatus,
+  ]);
+
+  const onRemoveClientFromMatter = useCallback(
+    async (clientIdToRemove: string) => {
+      const matterId = params.selectedMatterId || params.caseMatter?.id;
+      if (!matterId) return;
+      const matter = params.matters.find(m => m.id === matterId);
+      if (!matter) return;
+
+      if (matter.clientId === clientIdToRemove) {
+        params.setIngestionStatus(
+          'Der Hauptmandant kann nicht direkt entfernt werden. Bitte zuerst einen anderen Mandanten als Hauptmandant setzen.'
+        );
+        return;
+      }
+
+      const updated =
+        await params.casePlatformOrchestrationService.upsertMatter({
+          ...matter,
+          clientIds: (matter.clientIds ?? [matter.clientId]).filter(
+            id => id !== clientIdToRemove
+          ),
+        });
+      if (!updated) {
+        params.setIngestionStatus(
+          'Mandant konnte nicht aus der Akte entfernt werden.'
+        );
+        return;
+      }
+      const client = params.clients.find(c => c.id === clientIdToRemove);
+      params.setIngestionStatus(
+        `${client?.displayName ?? clientIdToRemove} aus Akte ${updated.title} entfernt.`
+      );
+    },
+    [
+      params.caseMatter,
+      params.casePlatformOrchestrationService,
+      params.clients,
+      params.matters,
+      params.selectedMatterId,
+      params.setIngestionStatus,
+    ]
+  );
+
   return {
     onCreateClient,
     onCreateMatter,
     onAssignMatterToCase,
     onAssignClientToCase,
+    onAddClientToMatter,
+    onRemoveClientFromMatter,
     onDeleteSelectedClient,
     onDeleteSelectedMatter,
     onArchiveSelectedMatter,

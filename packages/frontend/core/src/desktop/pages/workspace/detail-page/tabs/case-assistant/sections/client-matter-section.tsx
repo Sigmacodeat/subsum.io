@@ -12,23 +12,38 @@ import { normalizeAuthorityReferences } from '@affine/core/modules/case-assistan
 import * as styles from '../../case-assistant.css';
 import * as localStyles from './client-matter-section.css';
 
-type AuthorityRefType = 'gericht' | 'staatsanwaltschaft' | 'polizei' | 'allgemein' | 'unbekannt';
+type AuthorityRefType =
+  | 'gericht'
+  | 'staatsanwaltschaft'
+  | 'polizei'
+  | 'allgemein'
+  | 'unbekannt';
 
 function classifyAuthorityReference(value: string): AuthorityRefType {
   const normalized = value.trim();
   if (!normalized) {
     return 'unbekannt';
   }
-  if (/\b(?:StA|Staatsanwaltschaft)\b/i.test(normalized) || /\b\d{1,4}\s*Js\s*\d{1,7}\/[0-9]{2,4}\b/i.test(normalized)) {
+  if (
+    /\b(?:StA|Staatsanwaltschaft)\b/i.test(normalized) ||
+    /\b\d{1,4}\s*Js\s*\d{1,7}\/[0-9]{2,4}\b/i.test(normalized)
+  ) {
     return 'staatsanwaltschaft';
   }
   if (/\b(?:Polizei|Kripo|LKA|BKA|PI)\b/i.test(normalized)) {
     return 'polizei';
   }
-  if (/\b(?:AG|LG|OLG|BGH|Bezirksgericht|Landesgericht|Amtsgericht|Landgericht|Oberlandesgericht|Verwaltungsgericht)\b/i.test(normalized)) {
+  if (
+    /\b(?:AG|LG|OLG|BGH|Bezirksgericht|Landesgericht|Amtsgericht|Landgericht|Oberlandesgericht|Verwaltungsgericht)\b/i.test(
+      normalized
+    )
+  ) {
     return 'gericht';
   }
-  if (/\b(?:AZ|Aktenzeichen|GZ|Gesch\.?\s*Z\.?)\b/i.test(normalized) || /[A-Z0-9][A-Z0-9\-/.]{3,}/i.test(normalized)) {
+  if (
+    /\b(?:AZ|Aktenzeichen|GZ|Gesch\.?\s*Z\.?)\b/i.test(normalized) ||
+    /[A-Z0-9][A-Z0-9\-/.]{3,}/i.test(normalized)
+  ) {
     return 'allgemein';
   }
   return 'unbekannt';
@@ -39,7 +54,10 @@ type Props = {
   caseMatter: MatterRecord | null;
 
   canAction: (action: CaseAssistantAction) => boolean;
-  runAsyncUiAction: (action: () => void | Promise<unknown>, errorContext: string) => void;
+  runAsyncUiAction: (
+    action: () => void | Promise<unknown>,
+    errorContext: string
+  ) => void;
 
   // Client drafts
   clientDraftName: string;
@@ -107,6 +125,11 @@ type Props = {
   onRequestArchiveSelectedMatter: () => void;
   onUndoMatterAction: () => void;
 
+  // Multi-Mandant: Mandanten der ausgewählten Akte verwalten
+  selectedMatterClients?: ClientRecord[];
+  onAddClientToMatter?: () => Promise<void>;
+  onRemoveClientFromMatter?: (clientId: string) => Promise<void>;
+
   // Anwalt-Zuordnung für Akte
   activeAnwaelte?: AnwaltProfile[];
   matterDraftAssignedAnwaltId: string;
@@ -115,7 +138,9 @@ type Props = {
 };
 
 export const ClientMatterSection = (props: Props) => {
-  const authorityRefs = normalizeAuthorityReferences(props.matterDraftAuthorityReferences).values;
+  const authorityRefs = normalizeAuthorityReferences(
+    props.matterDraftAuthorityReferences
+  ).values;
   const authorityRefStats = authorityRefs.reduce(
     (acc: Record<AuthorityRefType, number>, ref: string) => {
       const type = classifyAuthorityReference(ref);
@@ -133,7 +158,12 @@ export const ClientMatterSection = (props: Props) => {
 
   return (
     <details className={styles.toolAccordion}>
-      <summary className={styles.toolAccordionSummary} aria-label="Mandanten und Akten verwalten">Mandanten & Akten verwalten</summary>
+      <summary
+        className={styles.toolAccordionSummary}
+        aria-label="Mandanten und Akten verwalten"
+      >
+        Mandanten & Akten verwalten
+      </summary>
       <div className={styles.jobMeta}>
         Aktueller Kontext: Mandant {props.caseClient?.displayName ?? '—'} • Akte{' '}
         {props.caseMatter?.title ?? '—'}
@@ -150,7 +180,10 @@ export const ClientMatterSection = (props: Props) => {
             onKeyDown={event => {
               if (event.key === 'Enter' && !event.shiftKey) {
                 event.preventDefault();
-                props.runAsyncUiAction(props.onCreateClient, 'create client failed');
+                props.runAsyncUiAction(
+                  props.onCreateClient,
+                  'create client failed'
+                );
               }
             }}
             placeholder="z. B. Max Mustermann GmbH"
@@ -163,7 +196,9 @@ export const ClientMatterSection = (props: Props) => {
             id="cm-client-kind"
             className={styles.input}
             value={props.clientDraftKind}
-            onChange={event => props.setClientDraftKind(event.target.value as ClientKind)}
+            onChange={event =>
+              props.setClientDraftKind(event.target.value as ClientKind)
+            }
           >
             <option value="person">Person</option>
             <option value="company">Unternehmen</option>
@@ -257,7 +292,10 @@ export const ClientMatterSection = (props: Props) => {
           variant="secondary"
           disabled={!props.canAction('client.manage')}
           onClick={() => {
-            props.runAsyncUiAction(props.onCreateClient, 'create client failed');
+            props.runAsyncUiAction(
+              props.onCreateClient,
+              'create client failed'
+            );
           }}
         >
           Mandant anlegen
@@ -300,7 +338,9 @@ export const ClientMatterSection = (props: Props) => {
         </Button>
         <Button
           variant="plain"
-          disabled={!props.undoClientSnapshot || !props.canAction('client.manage')}
+          disabled={
+            !props.undoClientSnapshot || !props.canAction('client.manage')
+          }
           onClick={() => {
             props.runAsyncUiAction(
               async () => props.onUndoClientAction(),
@@ -332,7 +372,10 @@ export const ClientMatterSection = (props: Props) => {
             onKeyDown={event => {
               if (event.key === 'Enter' && !event.shiftKey) {
                 event.preventDefault();
-                props.runAsyncUiAction(props.onCreateMatter, 'create matter failed');
+                props.runAsyncUiAction(
+                  props.onCreateMatter,
+                  'create matter failed'
+                );
               }
             }}
             placeholder="z. B. Kündigungsschutz 2026"
@@ -346,7 +389,9 @@ export const ClientMatterSection = (props: Props) => {
             className={styles.input}
             value={props.matterDraftStatus}
             onChange={event =>
-              props.setMatterDraftStatus(event.target.value as MatterRecord['status'])
+              props.setMatterDraftStatus(
+                event.target.value as MatterRecord['status']
+              )
             }
           >
             <option value="open">Offen</option>
@@ -361,7 +406,9 @@ export const ClientMatterSection = (props: Props) => {
             className={styles.input}
             value={props.matterDraftJurisdiction}
             onChange={event =>
-              props.setMatterDraftJurisdiction(event.target.value as Jurisdiction)
+              props.setMatterDraftJurisdiction(
+                event.target.value as Jurisdiction
+              )
             }
             aria-required="true"
           >
@@ -383,7 +430,9 @@ export const ClientMatterSection = (props: Props) => {
               id="cm-matter-ref"
               className={`${styles.input} ${localStyles.refInputGrow}`}
               value={props.matterDraftExternalRef}
-              onChange={event => props.setMatterDraftExternalRef(event.target.value)}
+              onChange={event =>
+                props.setMatterDraftExternalRef(event.target.value)
+              }
               placeholder="z. B. 2026/001"
             />
             {props.onGenerateNextAktenzeichen ? (
@@ -420,12 +469,20 @@ export const ClientMatterSection = (props: Props) => {
             className={styles.input}
             rows={2}
             value={props.matterDraftAuthorityReferences}
-            onChange={event => props.setMatterDraftAuthorityReferences(event.target.value)}
+            onChange={event =>
+              props.setMatterDraftAuthorityReferences(event.target.value)
+            }
             placeholder="z. B. StA Wien 123 Js 456/26; PI Innere Stadt A1/23456"
           />
           <span className={styles.previewMeta}>
-            Erkannt: {authorityRefs.length} · Gericht {authorityRefStats.gericht} · StA {authorityRefStats.staatsanwaltschaft} · Polizei {authorityRefStats.polizei} · Allgemein {authorityRefStats.allgemein}
-            {authorityRefStats.unbekannt > 0 ? ` · ${authorityRefStats.unbekannt} unklar` : ''}
+            Erkannt: {authorityRefs.length} · Gericht{' '}
+            {authorityRefStats.gericht} · StA{' '}
+            {authorityRefStats.staatsanwaltschaft} · Polizei{' '}
+            {authorityRefStats.polizei} · Allgemein{' '}
+            {authorityRefStats.allgemein}
+            {authorityRefStats.unbekannt > 0
+              ? ` · ${authorityRefStats.unbekannt} unklar`
+              : ''}
           </span>
         </label>
         {(props.activeAnwaelte ?? []).length > 0 ? (
@@ -435,12 +492,15 @@ export const ClientMatterSection = (props: Props) => {
               id="cm-matter-anwalt"
               className={styles.input}
               value={props.matterDraftAssignedAnwaltId}
-              onChange={event => props.setMatterDraftAssignedAnwaltId(event.target.value)}
+              onChange={event =>
+                props.setMatterDraftAssignedAnwaltId(event.target.value)
+              }
             >
               <option value="">— Kein Anwalt zugeordnet —</option>
               {(props.activeAnwaelte ?? []).map(a => (
                 <option key={a.id} value={a.id}>
-                  {a.title} {a.firstName} {a.lastName}{a.fachgebiet ? ` (${a.fachgebiet})` : ''}
+                  {a.title} {a.firstName} {a.lastName}
+                  {a.fachgebiet ? ` (${a.fachgebiet})` : ''}
                 </option>
               ))}
             </select>
@@ -463,7 +523,9 @@ export const ClientMatterSection = (props: Props) => {
             className={styles.input}
             rows={2}
             value={props.matterDraftDescription}
-            onChange={event => props.setMatterDraftDescription(event.target.value)}
+            onChange={event =>
+              props.setMatterDraftDescription(event.target.value)
+            }
             placeholder="Kurze Beschreibung der Akte"
           />
         </label>
@@ -492,6 +554,87 @@ export const ClientMatterSection = (props: Props) => {
             ))}
           </select>
         </label>
+
+        {/* Multi-Mandant: Mandanten der gewählten Akte */}
+        {props.selectedMatterId &&
+        (props.selectedMatterClients ?? []).length > 0 ? (
+          <div className={localStyles.matterClientsSection}>
+            <span className={localStyles.matterClientsSectionLabel}>
+              Mandanten dieser Akte (
+              {(props.selectedMatterClients ?? []).length})
+            </span>
+            <div className={localStyles.matterClientChipList}>
+              {(props.selectedMatterClients ?? []).map(client => {
+                const isPrimary = props.caseMatter?.clientId === client.id;
+                return (
+                  <span
+                    key={client.id}
+                    className={localStyles.matterClientChip}
+                    data-primary={isPrimary ? 'true' : undefined}
+                    title={isPrimary ? 'Hauptmandant' : 'Weiterer Mandant'}
+                  >
+                    <span className={localStyles.matterClientChipLabel}>
+                      {client.displayName}
+                      {isPrimary ? (
+                        <span
+                          className={localStyles.matterClientChipPrimaryTag}
+                        >
+                          {' '}
+                          HM
+                        </span>
+                      ) : null}
+                    </span>
+                    {!isPrimary && props.onRemoveClientFromMatter ? (
+                      <button
+                        type="button"
+                        className={localStyles.matterClientChipRemove}
+                        aria-label={`${client.displayName} aus Akte entfernen`}
+                        onClick={() =>
+                          props.runAsyncUiAction(
+                            () => props.onRemoveClientFromMatter!(client.id),
+                            'remove client from matter failed'
+                          )
+                        }
+                      >
+                        ×
+                      </button>
+                    ) : null}
+                  </span>
+                );
+              })}
+            </div>
+          </div>
+        ) : null}
+
+        {props.selectedMatterId && props.onAddClientToMatter ? (
+          <div className={localStyles.addClientToMatterRow}>
+            <span className={localStyles.addClientToMatterLabel}>
+              Weiteren Mandanten hinzufügen:
+            </span>
+            <Button
+              variant="plain"
+              disabled={
+                !props.canAction('matter.manage') || !props.selectedClientId
+              }
+              onClick={() =>
+                props.runAsyncUiAction(
+                  props.onAddClientToMatter!,
+                  'add client to matter failed'
+                )
+              }
+              title={
+                !props.selectedClientId
+                  ? 'Bitte zuerst oben einen Mandanten auswählen'
+                  : 'Ausgewählten Mandanten als Streitgenossen zur Akte hinzufügen'
+              }
+            >
+              +{' '}
+              {props.visibleClients.find(c => c.id === props.selectedClientId)
+                ?.displayName ?? 'Ausgewählten Mandanten'}{' '}
+              zur Akte
+            </Button>
+          </div>
+        ) : null}
       </div>
 
       <div className={styles.quickActionRow}>
@@ -499,7 +642,10 @@ export const ClientMatterSection = (props: Props) => {
           variant="secondary"
           disabled={!props.canAction('matter.manage')}
           onClick={() => {
-            props.runAsyncUiAction(props.onCreateMatter, 'create matter failed');
+            props.runAsyncUiAction(
+              props.onCreateMatter,
+              'create matter failed'
+            );
           }}
         >
           Akte anlegen
@@ -542,7 +688,9 @@ export const ClientMatterSection = (props: Props) => {
         </Button>
         <Button
           variant="plain"
-          disabled={!props.undoMatterSnapshot || !props.canAction('matter.manage')}
+          disabled={
+            !props.undoMatterSnapshot || !props.canAction('matter.manage')
+          }
           onClick={() => {
             props.runAsyncUiAction(
               async () => props.onUndoMatterAction(),

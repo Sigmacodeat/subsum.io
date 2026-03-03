@@ -272,10 +272,6 @@ export const MandantenSection = memo((props: Props) => {
   }, [props.highlightMatterId, props.matters]);
 
   const filteredClients = props.clients.filter(client => {
-    const clientVisibleMatters = props.matters.filter(
-      m => m.clientId === client.id && m.status !== 'archived'
-    );
-    if (clientVisibleMatters.length === 0) return false;
     if (!props.showArchivedClients && client.archived) return false;
     const q = props.clientSearchQuery.trim().toLowerCase();
     if (!q) return true;

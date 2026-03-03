@@ -800,3 +800,179 @@ export const contextMenuDivider = style({
   background: glassStroke,
   margin: '4px 0',
 });
+
+export const additionalClientsSection = style({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 8,
+  padding: '10px 12px',
+  borderRadius: 10,
+  border: `1px dashed ${cssVarV2('layer/insideBorder/border')}`,
+  background: `color-mix(in srgb, ${cssVarV2('layer/background/secondary')} 60%, transparent)`,
+});
+
+export const additionalClientsSectionLabel = style({
+  fontSize: 11,
+  fontWeight: 700,
+  letterSpacing: '0.04em',
+  textTransform: 'uppercase',
+  color: cssVarV2('text/secondary'),
+  lineHeight: '14px',
+});
+
+export const additionalClientsSectionHint = style({
+  fontSize: 11,
+  lineHeight: '16px',
+  color: cssVarV2('text/secondary'),
+  selectors: {
+    '[data-theme="dark"] &': {
+      color:
+        'color-mix(in srgb, var(--affine-text-primary-color) 60%, var(--affine-text-secondary-color))',
+    },
+  },
+});
+
+export const clientChipList = style({
+  display: 'flex',
+  flexWrap: 'wrap',
+  gap: 6,
+  minHeight: 0,
+});
+
+export const clientChip = style({
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 4,
+  height: 26,
+  padding: '0 8px 0 10px',
+  borderRadius: 999,
+  fontSize: 12,
+  fontWeight: 600,
+  lineHeight: '16px',
+  color: cssVarV2('text/primary'),
+  background: cssVarV2('layer/background/secondary'),
+  border: `1px solid ${cssVarV2('layer/insideBorder/border')}`,
+  whiteSpace: 'nowrap',
+  transition: 'border-color 0.12s ease',
+  selectors: {
+    '&[data-primary="true"]': {
+      background: `color-mix(in srgb, ${cssVarV2('button/primary')} 12%, ${cssVarV2('layer/background/secondary')})`,
+      borderColor: `color-mix(in srgb, ${cssVarV2('button/primary')} 32%, transparent)`,
+      color: cssVarV2('text/primary'),
+    },
+  },
+});
+
+export const clientChipLabel = style({
+  fontSize: 12,
+  lineHeight: '16px',
+  maxWidth: 160,
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+});
+
+export const clientChipRemove = style({
+  appearance: 'none',
+  background: 'transparent',
+  border: 0,
+  padding: 0,
+  margin: 0,
+  width: 16,
+  height: 16,
+  borderRadius: '50%',
+  fontSize: 14,
+  lineHeight: '16px',
+  color: cssVarV2('text/secondary'),
+  cursor: 'pointer',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  flexShrink: 0,
+  transition: 'color 0.1s ease, background 0.1s ease',
+  selectors: {
+    '&:hover': {
+      color: cssVarV2('status/error'),
+      background: `color-mix(in srgb, ${cssVarV2('status/error')} 12%, transparent)`,
+    },
+    '&:focus-visible': {
+      outline: `1.5px solid ${cssVarV2('button/primary')}`,
+      outlineOffset: 1,
+    },
+  },
+});
+
+export const clientAddRow = style({
+  display: 'flex',
+  gap: 6,
+  alignItems: 'center',
+});
+
+export const clientAddSelect = style({
+  flex: 1,
+  minWidth: 0,
+  height: 30,
+  borderRadius: 8,
+  border: `1px solid ${cssVarV2('layer/insideBorder/border')}`,
+  background: cssVarV2('layer/background/primary'),
+  color: cssVarV2('text/primary'),
+  padding: '0 8px',
+  fontSize: 12,
+  lineHeight: '18px',
+  selectors: {
+    '&:focus-visible': {
+      outline: 'none',
+      borderColor: cssVarV2('button/primary'),
+    },
+    '&:disabled': {
+      opacity: 0.55,
+      cursor: 'not-allowed',
+    },
+  },
+});
+
+export const clientAddButton = style({
+  appearance: 'none',
+  border: `1px solid ${cssVarV2('layer/insideBorder/border')}`,
+  borderRadius: 8,
+  padding: '0 10px',
+  height: 30,
+  fontSize: 12,
+  fontWeight: 600,
+  lineHeight: '18px',
+  color: cssVarV2('text/primary'),
+  background: cssVarV2('layer/background/primary'),
+  cursor: 'pointer',
+  whiteSpace: 'nowrap',
+  transition: 'border-color 0.12s ease, background 0.12s ease',
+  selectors: {
+    '&:hover:not(:disabled)': {
+      borderColor: cssVarV2('button/primary'),
+      background: `color-mix(in srgb, ${cssVarV2('button/primary')} 8%, ${cssVarV2('layer/background/primary')})`,
+    },
+    '&:focus-visible': {
+      outline: `1.5px solid ${cssVarV2('button/primary')}`,
+      outlineOffset: 1,
+    },
+    '&:disabled': {
+      opacity: 0.55,
+      cursor: 'not-allowed',
+    },
+  },
+});
+
+export const multiClientNames = style({
+  display: 'inline',
+  selectors: {
+    '&[data-overflow="true"]': {
+      cursor: 'default',
+    },
+  },
+});
+
+export const multiClientOverflow = style({
+  fontSize: 11,
+  fontWeight: 600,
+  color: cssVarV2('button/primary'),
+  marginLeft: 2,
+});

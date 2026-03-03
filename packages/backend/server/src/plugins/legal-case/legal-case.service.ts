@@ -240,13 +240,37 @@ export class LegalCaseService {
         })
       : await this.db.legalMatter.create({ data });
 
+    // Sync Multi-Mandant: keep LegalMatterClient join table in sync with clientIds[]
+    const rawClientIds: string[] = Array.isArray(input.clientIds)
+      ? (input.clientIds as string[])
+      : [input.clientId];
+    const allClientIds = Array.from(
+      new Set([input.clientId, ...rawClientIds])
+    ).filter(Boolean) as string[];
+
+    if (allClientIds.length > 0) {
+      await this.db.$transaction([
+        this.db.legalMatterClient.deleteMany({
+          where: { matterId: result.id },
+        }),
+        this.db.legalMatterClient.createMany({
+          data: allClientIds.map((cid, idx) => ({
+            matterId: result.id,
+            clientId: cid,
+            role: cid === input.clientId ? 'primary' : `additional_${idx}`,
+          })),
+          skipDuplicates: true,
+        }),
+      ]);
+    }
+
     await this.audit.append({
       workspaceId,
       userId,
       matterId: result.id,
       clientId: input.clientId,
       action: input.id ? 'matter.updated' : 'matter.created',
-      details: `Akte "${result.title}" wurde ${input.id ? 'aktualisiert' : 'angelegt'}.`,
+      details: `Akte "${result.title}" wurde ${input.id ? 'aktualisiert' : 'angelegt'}.${allClientIds.length > 1 ? ` Multi-Mandant: ${allClientIds.length} Mandanten.` : ''}`,
       ipAddress,
     });
 
@@ -846,7 +870,9 @@ export class LegalCaseService {
     }
 
     if (!result) {
-      throw new Error('Rechnung konnte nicht erstellt werden. Bitte erneut versuchen.');
+      throw new Error(
+        'Rechnung konnte nicht erstellt werden. Bitte erneut versuchen.'
+      );
     }
 
     if (input.timeEntryIds?.length) {

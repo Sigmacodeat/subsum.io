@@ -181,6 +181,9 @@ export const AllAktenPage = () => {
   const [createMatterTitleDraft, setCreateMatterTitleDraft] = useState('');
   const [createMatterClientIdDraft, setCreateMatterClientIdDraft] =
     useState('');
+  const [createMatterAdditionalClientIds, setCreateMatterAdditionalClientIds] =
+    useState<string[]>([]);
+  const [createMatterAddClientId, setCreateMatterAddClientId] = useState('');
   const [createMatterError, setCreateMatterError] = useState<string | null>(
     null
   );
@@ -542,6 +545,8 @@ export const AllAktenPage = () => {
 
     setCreateMatterTitleDraft('');
     setCreateMatterClientIdDraft(preferredClient?.id ?? '');
+    setCreateMatterAdditionalClientIds([]);
+    setCreateMatterAddClientId('');
     setCreateMatterError(null);
     setIsCreateMatterModalOpen(true);
   }, [availableClients, showActionStatus, workbench, workspace]);
@@ -576,6 +581,11 @@ export const AllAktenPage = () => {
         )
         .find(matter => Boolean(matter.jurisdiction))?.jurisdiction ?? 'AT';
 
+    const allClientIds = [
+      selectedClient.id,
+      ...createMatterAdditionalClientIds.filter(id => id !== selectedClient.id),
+    ];
+
     setIsCreatingMatter(true);
     try {
       const externalRef = generateFallbackAktenzeichen(matters);
@@ -583,7 +593,7 @@ export const AllAktenPage = () => {
         id: createLocalRecordId('matter'),
         workspaceId: workspace.id,
         clientId: selectedClient.id,
-        clientIds: [selectedClient.id],
+        clientIds: allClientIds,
         title,
         externalRef,
         jurisdiction: fallbackJurisdiction,
@@ -604,15 +614,25 @@ export const AllAktenPage = () => {
       setCreateMatterTitleDraft('');
       setCreateMatterError(null);
       setIsCreateMatterModalOpen(false);
+      const additionalNames = createMatterAdditionalClientIds
+        .map(id => availableClients.find(c => c.id === id)?.displayName)
+        .filter(Boolean);
+      const clientSummary =
+        additionalNames.length > 0
+          ? `${selectedClient.displayName} + ${additionalNames.join(', ')}`
+          : selectedClient.displayName;
       showActionStatus(
-        `Akte angelegt: ${created.title} (${created.externalRef ?? externalRef}) · Mandant: ${selectedClient.displayName}.`
+        `Akte angelegt: ${created.title} (${created.externalRef ?? externalRef}) · Mandant: ${clientSummary}.`
       );
+      setCreateMatterAdditionalClientIds([]);
+      setCreateMatterAddClientId('');
     } finally {
       setIsCreatingMatter(false);
     }
   }, [
     availableClients,
     casePlatformOrchestrationService,
+    createMatterAdditionalClientIds,
     createMatterClientIdDraft,
     createMatterTitleDraft,
     matters,
@@ -964,13 +984,21 @@ export const AllAktenPage = () => {
     workspace,
   ]);
 
-  const getClientName = useCallback(
+  const getClientNames = useCallback(
     (matter: MatterRecord): string => {
-      const client = clients[matter.clientId] as ClientRecord | undefined;
-      return (
-        client?.displayName ??
-        t['com.affine.caseAssistant.allAkten.fallback.none']()
-      );
+      const allIds = Array.from(
+        new Set([matter.clientId, ...(matter.clientIds ?? [])])
+      ).filter(Boolean);
+      const names = allIds
+        .map(id => (clients[id] as ClientRecord | undefined)?.displayName)
+        .filter((n): n is string => Boolean(n));
+      if (names.length === 0) {
+        return t['com.affine.caseAssistant.allAkten.fallback.none']();
+      }
+      if (names.length <= 2) {
+        return names.join(' · ');
+      }
+      return `${names[0]} +${names.length - 1}`;
     },
     [clients, t]
   );
@@ -1534,13 +1562,17 @@ export const AllAktenPage = () => {
                 className={styles.createMatterLabel}
                 htmlFor="create-matter-client"
               >
-                Mandant
+                Hauptmandant *
                 <select
                   id="create-matter-client"
                   className={styles.createMatterInput}
                   value={createMatterClientIdDraft}
                   onChange={event => {
-                    setCreateMatterClientIdDraft(event.target.value);
+                    const newPrimary = event.target.value;
+                    setCreateMatterClientIdDraft(newPrimary);
+                    setCreateMatterAdditionalClientIds(prev =>
+                      prev.filter(id => id !== newPrimary)
+                    );
                     if (createMatterError) {
                       setCreateMatterError(null);
                     }
@@ -1561,6 +1593,93 @@ export const AllAktenPage = () => {
                     ))}
                 </select>
               </label>
+
+              {/* Multi-Mandant: Streitgenossenschaft / Erbengemeinschaft */}
+              <div className={styles.additionalClientsSection}>
+                <span className={styles.additionalClientsSectionLabel}>
+                  Weitere Mandanten (optional)
+                </span>
+                <span className={styles.additionalClientsSectionHint}>
+                  Streitgenossenschaft, Erbengemeinschaft, GbR-Vertretung
+                </span>
+                {createMatterAdditionalClientIds.length > 0 ? (
+                  <div className={styles.clientChipList}>
+                    {createMatterAdditionalClientIds.map(id => {
+                      const client = availableClients.find(c => c.id === id);
+                      return (
+                        <span key={id} className={styles.clientChip}>
+                          <span className={styles.clientChipLabel}>
+                            {client?.displayName ?? id}
+                          </span>
+                          <button
+                            type="button"
+                            className={styles.clientChipRemove}
+                            aria-label={`${client?.displayName ?? id} entfernen`}
+                            disabled={isCreatingMatter}
+                            onClick={() =>
+                              setCreateMatterAdditionalClientIds(prev =>
+                                prev.filter(pid => pid !== id)
+                              )
+                            }
+                          >
+                            ×
+                          </button>
+                        </span>
+                      );
+                    })}
+                  </div>
+                ) : null}
+                <div className={styles.clientAddRow}>
+                  <select
+                    className={styles.clientAddSelect}
+                    value={createMatterAddClientId}
+                    onChange={event =>
+                      setCreateMatterAddClientId(event.target.value)
+                    }
+                    disabled={isCreatingMatter}
+                    aria-label="Weiteren Mandanten auswählen"
+                  >
+                    <option value="">Weiteren Mandanten wählen…</option>
+                    {availableClients
+                      .slice()
+                      .sort((a, b) =>
+                        a.displayName.localeCompare(b.displayName, 'de')
+                      )
+                      .filter(
+                        c =>
+                          c.id !== createMatterClientIdDraft &&
+                          !createMatterAdditionalClientIds.includes(c.id)
+                      )
+                      .map(client => (
+                        <option key={client.id} value={client.id}>
+                          {client.displayName}
+                        </option>
+                      ))}
+                  </select>
+                  <button
+                    type="button"
+                    className={styles.clientAddButton}
+                    disabled={
+                      !createMatterAddClientId ||
+                      isCreatingMatter ||
+                      createMatterAdditionalClientIds.includes(
+                        createMatterAddClientId
+                      )
+                    }
+                    onClick={() => {
+                      if (createMatterAddClientId) {
+                        setCreateMatterAdditionalClientIds(prev => [
+                          ...prev,
+                          createMatterAddClientId,
+                        ]);
+                        setCreateMatterAddClientId('');
+                      }
+                    }}
+                  >
+                    + Hinzufügen
+                  </button>
+                </div>
+              </div>
 
               {createMatterError ? (
                 <div className={styles.createMatterError} role="alert">
@@ -1781,7 +1900,7 @@ export const AllAktenPage = () => {
                           {matter.title}
                         </div>
                         <div className={styles.akteSubtitle}>
-                          {getClientName(matter)}
+                          {getClientNames(matter)}
                           {matter.gericht ? ` · ${matter.gericht}` : ''}
                         </div>
                         <div className={styles.akteFolderMeta}>

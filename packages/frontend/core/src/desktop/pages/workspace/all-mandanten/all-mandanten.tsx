@@ -15,8 +15,8 @@ import { CasePlatformOrchestrationService } from '../../../../modules/case-assis
 import { CaseAssistantStore } from '../../../../modules/case-assistant/stores/case-assistant';
 import type {
   CaseDeadline,
-  ClientRecord,
   ClientKind,
+  ClientRecord,
   LegalDocumentRecord,
   MatterRecord,
   Vollmacht,
@@ -528,7 +528,7 @@ export const AllMandantenPage = () => {
 
   // Filtering
   const filtered = useMemo(() => {
-    let result = enrichedClients.filter(c => c.aktenCount > 0);
+    let result = [...enrichedClients];
 
     if (savedView === 'archived') {
       result = result.filter(c => c.archived);
