@@ -1,27 +1,25 @@
 import { Button } from '@affine/component';
-import type {
-  AnwaltProfile,
-  CaseActor,
-  CaseAssistantAction,
-  CaseAssistantRole,
-  CaseDeadline,
-  CaseIssue,
-  ClientKind,
-  ClientRecord,
-  CopilotTask,
-  DocumentQualityReport,
-  Jurisdiction,
-  LegalDocumentRecord,
-  LegalFinding,
-  MatterRecord,
-  OnboardingDetectionResult,
-  OnboardingFinalizeResult,
-  StagedLegalFile,
-} from '@affine/core/modules/case-assistant';
-import { readStagedFilesStreaming } from '@affine/core/modules/case-assistant';
 import {
+  type AnwaltProfile,
+  type CaseActor,
+  type CaseAssistantAction,
+  type CaseAssistantRole,
+  type CaseDeadline,
+  type CaseIssue,
+  type ClientKind,
+  type ClientRecord,
+  type CopilotTask,
+  type DocumentQualityReport,
+  type Jurisdiction,
+  type LegalDocumentRecord,
+  type LegalFinding,
+  type MatterRecord,
   normalizeAuthorityReferences,
   normalizeDisplayText,
+  type OnboardingDetectionResult,
+  type OnboardingFinalizeResult,
+  readStagedFilesStreaming,
+  type StagedLegalFile,
 } from '@affine/core/modules/case-assistant';
 import { useI18n } from '@affine/i18n';
 import clsx from 'clsx';
@@ -510,12 +508,20 @@ export const CaseOnboardingWizard = (props: Props) => {
     initialFlow,
     caseId,
 
-    onRetryDeadLetterBatch,
     canAction,
     isWorkflowBusy,
 
     documents,
     qualityReports,
+    runAsyncUiAction,
+    onInferOnboardingMetadata,
+    onFinalizeOnboarding,
+    onAnalyzeCase,
+    selectedClientId,
+    clientDraftName,
+    matterDraftTitle,
+    onCreateClient,
+    onCreateMatter,
   } = props;
   const matterDraftAuthorityReferences = props.matterDraftAuthorityReferences;
   const t = useI18n();
@@ -566,10 +572,10 @@ export const CaseOnboardingWizard = (props: Props) => {
   const [detectedMetadata, setDetectedMetadata] =
     useState<OnboardingDetectionResult | null>(null);
   const [hasStartedUploadJourney, setHasStartedUploadJourney] = useState(false);
-  const [pipelineStage, _setPipelineStage] = useState<
+  const [pipelineStage, setPipelineStage] = useState<
     'idle' | 'ocr' | 'analysis' | 'metadata' | 'complete'
   >('idle');
-  const [pipelineProgress, _setPipelineProgress] = useState(0);
+  const [pipelineProgress, setPipelineProgress] = useState(0);
   const [extractedAktenzeichen, setExtractedAktenzeichen] = useState<
     string | null
   >(null);
@@ -580,8 +586,11 @@ export const CaseOnboardingWizard = (props: Props) => {
 
   const initialStep: WizardStep = initialFlow === 'documents-first' ? 3 : 1;
 
-  const visibleSteps: WizardStep[] =
-    initialFlow === 'documents-first' ? [3, 4, 2, 1, 5] : [1, 2, 3, 4, 5];
+  const visibleSteps: WizardStep[] = useMemo(
+    () =>
+      initialFlow === 'documents-first' ? [3, 4, 2, 1, 5] : [1, 2, 3, 4, 5],
+    [initialFlow]
+  );
   const visibleStepIndex = Math.max(0, visibleSteps.indexOf(step));
   const progressPercent = Math.round(
     ((visibleStepIndex + 1) / visibleSteps.length) * 100
@@ -1212,7 +1221,7 @@ export const CaseOnboardingWizard = (props: Props) => {
       document.body.append(textarea);
       textarea.select();
       document.execCommand('copy');
-      document.body.removeChild(textarea);
+      textarea.remove?.();
     } catch {
       // ignore
     }
@@ -1361,9 +1370,53 @@ export const CaseOnboardingWizard = (props: Props) => {
         // Collect all files with content for the pipeline
         const filesWithContent: UploadedFile[] = [...directReadyFiles];
         let readCount = 0;
+        const readStartTs = Date.now();
+
+        const addCommitLog = (event: Omit<CommitLogEvent, 'id' | 'ts'>) => {
+          const entry: CommitLogEvent = {
+            id: `clog-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+            ts: Date.now(),
+            ...event,
+          };
+          setCommitLogEvents(prev => [...prev.slice(-199), entry]);
+          setIsCommitLogCollapsed(false);
+        };
+
+        addCommitLog({
+          level: 'info',
+          label: `Commit gestartet: ${filesToCommit.length} Datei(en)`,
+          phase: 'read',
+        });
+        if (directReadyFiles.length > 0) {
+          addCommitLog({
+            level: 'info',
+            label: `${directReadyFiles.length} Datei(en) direkt verfügbar`,
+            phase: 'read',
+          });
+        }
 
         if (refsToRead.length > 0) {
-          const READ_BATCH = 8;
+          // Adaptive batch size based on average file size
+          const avgSize =
+            refsToRead.reduce((s, r) => s + (r.size ?? 0), 0) /
+            refsToRead.length;
+          const READ_BATCH =
+            avgSize > 25 * 1024 * 1024
+              ? 2
+              : avgSize > 10 * 1024 * 1024
+                ? 4
+                : avgSize > 4 * 1024 * 1024
+                  ? 6
+                  : avgSize > 1 * 1024 * 1024
+                    ? 8
+                    : 12;
+
+          addCommitLog({
+            level: 'info',
+            label: `${refsToRead.length} Datei(en) werden gelesen (Batch=${READ_BATCH})`,
+            phase: 'read',
+          });
+
           for await (const batch of readStagedFilesStreaming(
             refsToRead,
             READ_BATCH
@@ -1379,7 +1432,65 @@ export const CaseOnboardingWizard = (props: Props) => {
                 folderPath: matchedRef?.folderPath,
               });
             }
+            // Track read-failed files in dead letter queue
+            if (batch.rejected.length > 0) {
+              const now = new Date().toISOString();
+              const newDeadLetters: UploadDeadLetterItem[] =
+                batch.rejected.flatMap(rej => {
+                  const stagedFile = filesToCommit.find(
+                    f => f.name === rej.fileName
+                  );
+                  if (!stagedFile) return [];
+                  const fileKey = getUploadFileKey(stagedFile);
+                  return [
+                    {
+                      fileKey,
+                      fileName: rej.fileName,
+                      stage: 'read' as const,
+                      reasonCode: rej.code,
+                      details: rej.code,
+                      retryCount: 0,
+                      lastAttemptAt: now,
+                    },
+                  ];
+                });
+              if (newDeadLetters.length > 0) {
+                setUploadDeadLetters(prev => {
+                  const map = new Map(prev.map(e => [e.fileKey, e]));
+                  for (const dl of newDeadLetters) {
+                    const existing = map.get(dl.fileKey);
+                    map.set(
+                      dl.fileKey,
+                      existing
+                        ? {
+                            ...existing,
+                            retryCount: existing.retryCount + 1,
+                            lastAttemptAt: now,
+                          }
+                        : dl
+                    );
+                  }
+                  return Array.from(map.values());
+                });
+                addCommitLog({
+                  level: 'warn',
+                  label: `${batch.rejected.length} Datei(en) konnten nicht gelesen werden`,
+                  phase: 'read',
+                });
+              }
+            }
             readCount += batch.prepared.length;
+            const elapsedSec = Math.max(0.1, (Date.now() - readStartTs) / 1000);
+            const throughput = readCount / elapsedSec;
+            const remaining = refsToRead.length - readCount;
+            const etaSec = throughput > 0 ? remaining / throughput : 0;
+            setCommitLiveMetrics({
+              fileCurrent: readCount,
+              fileTotal: refsToRead.length,
+              throughput,
+              etaSec,
+              updatedAt: Date.now(),
+            });
             setUploadBatchStatus(
               t.t('com.affine.caseAssistant.wizard.upload.reading', {
                 read: readCount,
@@ -1395,6 +1506,13 @@ export const CaseOnboardingWizard = (props: Props) => {
               };
             });
           }
+
+          addCommitLog({
+            level: readCount === refsToRead.length ? 'success' : 'warn',
+            label: `Lesen abgeschlossen: ${readCount}/${refsToRead.length} Dateien`,
+            phase: 'read',
+            durationMs: Date.now() - readStartTs,
+          });
         }
 
         if (filesWithContent.length === 0) {
@@ -1423,6 +1541,12 @@ export const CaseOnboardingWizard = (props: Props) => {
         }
 
         // ── Phase 2: Send to pipeline ──
+        const pipelineStartTs = Date.now();
+        addCommitLog({
+          level: 'info',
+          label: `Pipeline gestartet: ${filesWithContent.length} Datei(en) werden verarbeitet`,
+          phase: 'pipeline',
+        });
         setUploadBatchStatus(
           duplicateCount > 0
             ? t.t(
@@ -1488,6 +1612,13 @@ export const CaseOnboardingWizard = (props: Props) => {
           };
         });
 
+        setCommitLiveMetrics(null);
+        addCommitLog({
+          level: outcome.ingestedCount > 0 ? 'success' : 'warn',
+          label: `Pipeline fertig: ${outcome.ingestedCount} aufgenommen, ${outcome.skippedCount + duplicateCount} übersprungen${outcome.failedCount > 0 ? `, ${outcome.failedCount} Fehler` : ''}${outcome.ocrQueuedCount > 0 ? `, ${outcome.ocrQueuedCount} OCR-Queue` : ''}`,
+          phase: 'pipeline',
+          durationMs: Date.now() - pipelineStartTs,
+        });
         setStagedUploadFiles([]);
         stagedUploadRefs.current.clear();
         if (outcome.ingestedCount <= 0) {
@@ -1519,6 +1650,17 @@ export const CaseOnboardingWizard = (props: Props) => {
       } catch (error) {
         const message =
           error instanceof Error ? error.message : String(error ?? 'unknown');
+        setCommitLiveMetrics(null);
+        setCommitLogEvents(prev => [
+          ...prev,
+          {
+            id: `clog-err-${Date.now()}`,
+            ts: Date.now(),
+            level: 'error' as CommitLogLevel,
+            label: `Fehler: ${message}`,
+            phase: 'commit',
+          },
+        ]);
         setUploadCommitProgress(prev => {
           const base =
             prev ??
@@ -1559,35 +1701,60 @@ export const CaseOnboardingWizard = (props: Props) => {
     ]
   );
 
+  const handleRetryDeadLetterBatch = useCallback(async () => {
+    const retryableKeys = new Set(
+      uploadDeadLetters
+        .filter(item => stagedUploadKeySet.has(item.fileKey))
+        .map(item => item.fileKey)
+    );
+    if (retryableKeys.size === 0) return;
+    const filesToRetry = stagedUploadFiles.filter(f =>
+      retryableKeys.has(getUploadFileKey(f))
+    );
+    if (filesToRetry.length === 0) return;
+    const now = new Date().toISOString();
+    setUploadDeadLetters(prev =>
+      prev.map(item =>
+        retryableKeys.has(item.fileKey)
+          ? { ...item, retryCount: item.retryCount + 1, lastAttemptAt: now }
+          : item
+      )
+    );
+    await onCommitStagedUploadFiles(filesToRetry);
+  }, [
+    onCommitStagedUploadFiles,
+    stagedUploadFiles,
+    stagedUploadKeySet,
+    uploadDeadLetters,
+  ]);
+
   const canGoNext = useCallback(() => {
     if (step === 1) {
       // Step 1: Need either selected client or valid client draft name
-      return (
-        props.selectedClientId !== '' || props.clientDraftName.trim() !== ''
-      );
+      return selectedClientId !== '' || clientDraftName.trim() !== '';
     }
     if (step === 2) {
       // Step 2: existing matter context is sufficient, otherwise need matter title
-      return hasMatterContext || props.matterDraftTitle.trim() !== '';
+      return hasMatterContext || matterDraftTitle.trim() !== '';
     }
     // Step 3 and 4: Navigation handled by upload/analysis completion
     return false;
   }, [
     step,
-    props.selectedClientId,
-    props.clientDraftName,
+    selectedClientId,
+    clientDraftName,
     hasMatterContext,
-    props.matterDraftTitle,
+    matterDraftTitle,
   ]);
 
   const onNext = useCallback(async () => {
     if (step === 1) {
       // Step 1: Validate and create/select client
-      if (!props.selectedClientId && !props.clientDraftName.trim()) {
+      if (!selectedClientId && !clientDraftName.trim()) {
         return;
       }
-      if (!props.selectedClientId) {
-        await props.onCreateClient();
+      if (!selectedClientId) {
+        await onCreateClient();
       }
       goNextVisibleStep();
     } else if (step === 2) {
@@ -1597,10 +1764,10 @@ export const CaseOnboardingWizard = (props: Props) => {
         return;
       }
       // Otherwise create a new matter from draft data.
-      if (!props.matterDraftTitle.trim()) {
+      if (!matterDraftTitle.trim()) {
         return;
       }
-      await props.onCreateMatter();
+      await onCreateMatter();
       goNextVisibleStep();
     } else if (step === 3) {
       // Step 3: Upload step - navigation handled by upload completion
@@ -1610,54 +1777,66 @@ export const CaseOnboardingWizard = (props: Props) => {
       return;
     }
   }, [
+    clientDraftName,
     step,
-    props.selectedClientId,
-    props.clientDraftName,
-    props.matterDraftTitle,
-    props.onCreateClient,
-    props.onCreateMatter,
+    hasMatterContext,
+    matterDraftTitle,
+    onCreateClient,
+    onCreateMatter,
     goNextVisibleStep,
+    selectedClientId,
   ]);
 
   const onFinalize = useCallback(async () => {
     setIsFinalizing(true);
     try {
-      await props.onFinalizeOnboarding({
+      await onFinalizeOnboarding({
         reviewConfirmed,
         proofNote,
       });
-      props.onClose();
+      onClose();
     } finally {
       setIsFinalizing(false);
     }
-  }, [reviewConfirmed, proofNote, props.onFinalizeOnboarding, props.onClose]);
+  }, [onClose, onFinalizeOnboarding, proofNote, reviewConfirmed]);
 
   const onRunAnalysis = useCallback(async () => {
+    setPipelineStage('ocr');
+    setPipelineProgress(5);
     setAnalysisStatus(
       t['com.affine.caseAssistant.wizard.status.analysis.running']()
     );
     try {
-      await props.onAnalyzeCase();
+      setPipelineProgress(20);
+      await onAnalyzeCase();
+      setPipelineProgress(60);
       setAnalysisStatus(
         t['com.affine.caseAssistant.wizard.status.analysis.completed']()
       );
+      setPipelineStage('analysis');
+      setPipelineProgress(65);
       return true;
-    } catch (error) {
+    } catch {
+      setPipelineStage('idle');
+      setPipelineProgress(0);
       setAnalysisStatus(
         t['com.affine.caseAssistant.wizard.status.analysis.failed']()
       );
       return false;
     }
-  }, [props.onAnalyzeCase, t]);
+  }, [onAnalyzeCase, t]);
 
   const [isDetectingMetadata, setIsDetectingMetadata] = useState(false);
   const onInferMetadata = useCallback(async () => {
     setIsDetectingMetadata(true);
+    setPipelineStage('metadata');
+    setPipelineProgress(70);
     setDetectionStatus(
       t['com.affine.caseAssistant.wizard.status.detection.running']()
     );
     try {
-      const result = await props.onInferOnboardingMetadata();
+      setPipelineProgress(80);
+      const result = await onInferOnboardingMetadata();
       if (result) {
         setDetectedMetadata(result);
         setDetectionStatus(
@@ -1668,14 +1847,16 @@ export const CaseOnboardingWizard = (props: Props) => {
           t['com.affine.caseAssistant.wizard.status.detection.noResults']()
         );
       }
-    } catch (error) {
+      setPipelineStage('complete');
+      setPipelineProgress(100);
+    } catch {
       setDetectionStatus(
         t['com.affine.caseAssistant.wizard.status.detection.failed']()
       );
     } finally {
       setIsDetectingMetadata(false);
     }
-  }, [props.onInferOnboardingMetadata, t]);
+  }, [onInferOnboardingMetadata, t]);
 
   useEffect(() => {
     if (isCommitLogCollapsed || !commitLogAutoScroll) {
@@ -1767,7 +1948,7 @@ export const CaseOnboardingWizard = (props: Props) => {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [isOpen, props.onClose, step]);
+  }, [isOpen, onClose, step, t]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -1867,6 +2048,8 @@ export const CaseOnboardingWizard = (props: Props) => {
     setHasStartedUploadJourney(false);
     setIsSubmittingStep(false);
     setIsFinalizing(false);
+    setPipelineStage('idle');
+    setPipelineProgress(0);
     hasAutoInferredMetadataRef.current = false;
     hasAutoAdvancedAfterCommitRef.current = false;
     hasAutoStep4PipelineRunRef.current = false;
@@ -1905,7 +2088,7 @@ export const CaseOnboardingWizard = (props: Props) => {
     );
     goNextVisibleStep();
   }, [
-    props.isOpen,
+    isOpen,
     step,
     uploadCommitProgress,
     isBatchUploading,
@@ -1915,7 +2098,7 @@ export const CaseOnboardingWizard = (props: Props) => {
   ]);
 
   useEffect(() => {
-    if (!props.isOpen) {
+    if (!isOpen) {
       return;
     }
     if (step !== 4) {
@@ -1927,7 +2110,7 @@ export const CaseOnboardingWizard = (props: Props) => {
 
     hasAutoStep4PipelineRunRef.current = true;
     hasAutoInferredMetadataRef.current = true;
-    props.runAsyncUiAction(async () => {
+    runAsyncUiAction(async () => {
       const analysisOk = await onRunAnalysis();
       if (!analysisOk) {
         return;
@@ -1943,16 +2126,16 @@ export const CaseOnboardingWizard = (props: Props) => {
       }
     }, 'wizard auto pipeline failed');
   }, [
-    props.isOpen,
-    step,
     hasDocuments,
-    onRunAnalysis,
+    isOpen,
     onInferMetadata,
-    props.runAsyncUiAction,
+    onRunAnalysis,
+    runAsyncUiAction,
+    step,
   ]);
 
   useEffect(() => {
-    if (!props.isOpen) {
+    if (!isOpen) {
       return;
     }
     const viewport = stepViewportRef.current;
@@ -1960,7 +2143,23 @@ export const CaseOnboardingWizard = (props: Props) => {
       return;
     }
     viewport.scrollTo({ top: 0, behavior: 'smooth' });
-  }, [props.isOpen, step]);
+  }, [isOpen, step]);
+
+  // Pipeline progress heartbeat — prevents frozen progress bar during long analysis/metadata waits.
+  // Slowly ticks toward a ceiling just below the next real update value.
+  useEffect(() => {
+    if (pipelineStage !== 'ocr' && pipelineStage !== 'metadata') {
+      return;
+    }
+    // OCR/analysis phase: real updates jump to 60 and 65. Heartbeat advances up to 55.
+    // Metadata phase: real update jumps to 100. Heartbeat advances up to 92.
+    const ceiling = pipelineStage === 'ocr' ? 55 : 92;
+    const tickMs = 3500;
+    const timerId = setInterval(() => {
+      setPipelineProgress(prev => (prev < ceiling ? prev + 1 : prev));
+    }, tickMs);
+    return () => clearInterval(timerId);
+  }, [pipelineStage]);
 
   if (!props.isOpen) return null;
 
@@ -2740,7 +2939,7 @@ export const CaseOnboardingWizard = (props: Props) => {
                             }
                             onClick={() =>
                               props.runAsyncUiAction(
-                                onRetryDeadLetterBatch,
+                                handleRetryDeadLetterBatch,
                                 'wizard dead-letter retry failed'
                               )
                             }
@@ -3197,7 +3396,7 @@ export const CaseOnboardingWizard = (props: Props) => {
                                 }
                                 onClick={() =>
                                   props.runAsyncUiAction(
-                                    onRetryDeadLetterBatch,
+                                    handleRetryDeadLetterBatch,
                                     'wizard dead-letter retry failed'
                                   )
                                 }

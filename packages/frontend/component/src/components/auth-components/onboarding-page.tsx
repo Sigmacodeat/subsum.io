@@ -98,10 +98,13 @@ export const ScrollableLayout = ({
 export const OnboardingPage = ({
   user,
   onOpenDashboard,
+  onOpenAffine,
 }: {
   user: User;
-  onOpenDashboard: () => void;
+  onOpenDashboard?: () => void;
+  onOpenAffine?: () => void;
 }) => {
+  const onOpen = onOpenAffine ?? onOpenDashboard;
   const location = useLocation();
   const navigate = useNavigate();
   const [questionIdx, setQuestionIdx] = useState(0);
@@ -257,7 +260,7 @@ export const OnboardingPage = ({
             if (callbackUrl) {
               navigate(callbackUrl);
             } else {
-              onOpenDashboard();
+              onOpen?.();
             }
           }}
           suffix={<ArrowRightSmallIcon />}

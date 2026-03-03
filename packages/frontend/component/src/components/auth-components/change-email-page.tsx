@@ -9,10 +9,15 @@ import { emailRegex } from './utils';
 
 export const ChangeEmailPage = ({
   onChangeEmail: propsOnChangeEmail,
+  onOpenAffine,
+  onOpenDashboard,
 }: {
   onChangeEmail: (email: string) => Promise<boolean>;
+  onOpenAffine?: () => void;
+  onOpenDashboard?: () => void;
 }) => {
   const t = useI18n();
+  const onOpen = onOpenAffine ?? onOpenDashboard;
   const [hasSetUp, setHasSetUp] = useState(false);
   const [email, setEmail] = useState('');
   const [isValidEmail, setIsValidEmail] = useState(true);
@@ -42,30 +47,41 @@ export const ChangeEmailPage = ({
       title={t['com.affine.auth.change.email.page.title']()}
       subtitle={t['com.affine.auth.change.email.page.subtitle']()}
     >
-      <>
-        <AuthInput
-          className={styles.input}
-          label={t['com.affine.settings.email']()}
-          placeholder={t['com.affine.auth.sign.email.placeholder']()}
-          value={email}
-          onChange={onEmailChange}
-          error={!isValidEmail}
-          errorHint={
-            isValidEmail ? '' : t['com.affine.auth.sign.email.error']()
-          }
-          onEnter={onContinue}
-          disabled={hasSetUp}
-        />
+      {hasSetUp ? (
         <Button
           variant="primary"
           size="large"
-          onClick={onContinue}
-          loading={loading}
-          disabled={hasSetUp}
+          onClick={onOpen}
+          disabled={!onOpen}
         >
-          {t['com.affine.auth.set.email.save']()}
+          {t['com.affine.auth.open.affine']()}
         </Button>
-      </>
+      ) : (
+        <>
+          <AuthInput
+            className={styles.input}
+            label={t['com.affine.settings.email']()}
+            placeholder={t['com.affine.auth.sign.email.placeholder']()}
+            value={email}
+            onChange={onEmailChange}
+            error={!isValidEmail}
+            errorHint={
+              isValidEmail ? '' : t['com.affine.auth.sign.email.error']()
+            }
+            onEnter={onContinue}
+            disabled={hasSetUp}
+          />
+          <Button
+            variant="primary"
+            size="large"
+            onClick={onContinue}
+            loading={loading}
+            disabled={hasSetUp}
+          >
+            {t['com.affine.auth.set.email.save']()}
+          </Button>
+        </>
+      )}
     </AuthPageContainer>
   );
 };

@@ -1572,19 +1572,11 @@ export const usePanelWorkflowActions = (params: Params) => {
   );
 
   const onRetryDeadLetterBatch = useCallback(async () => {
-    // This function should retry failed uploads from the dead letter queue
-    // For now, it's a placeholder that would need to be implemented based on the dead letter retry logic
-    params.setIngestionStatus('Dead-Letter-Retry wird ausgeführt...');
-
-    // TODO: Implement actual dead letter retry logic
-    // This would typically involve:
-    // 1. Getting the dead letter items from the wizard state
-    // 2. Filtering retryable items
-    // 3. Re-processing them through the upload pipeline
-    // 4. Updating the dead letter state
-
-    params.setIngestionStatus('Dead-Letter-Retry abgeschlossen.');
-  }, [params.setIngestionStatus]);
+    // The actual dead-letter retry is handled locally inside CaseOnboardingWizard
+    // via handleRetryDeadLetterBatch, which has direct access to the wizard's staged-file
+    // state and calls onCommitStagedUploadFiles with only the retryable files.
+    // This panel-level prop is kept for API compatibility but is intentionally a no-op.
+  }, []);
 
   const onRetryFailedDocument = useCallback(
     async (documentId: string): Promise<boolean> => {

@@ -13,15 +13,18 @@ export const SignUpPage: FC<{
   user: { email?: string };
   onSetPassword: (password: string) => Promise<void>;
   openButtonText?: string;
-  onOpenDashboard: () => void;
+  onOpenDashboard?: () => void;
+  onOpenAffine?: () => void;
 }> = ({
   passwordLimits,
   user: { email },
   onSetPassword: propsOnSetPassword,
   onOpenDashboard,
+  onOpenAffine,
   openButtonText,
 }) => {
   const t = useI18n();
+  const onOpen = onOpenAffine ?? onOpenDashboard;
   const [hasSetUp, setHasSetUp] = useState(false);
 
   const onSetPassword = useCallback(
@@ -63,7 +66,7 @@ export const SignUpPage: FC<{
       }
     >
       {hasSetUp ? (
-        <Button variant="primary" size="large" onClick={onOpenDashboard}>
+        <Button variant="primary" size="large" onClick={onOpen}>
           {openButtonText ?? t['com.affine.auth.open.affine']()}
         </Button>
       ) : (
