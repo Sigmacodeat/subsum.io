@@ -190,6 +190,9 @@ type Props = {
     ocrPendingCount: number;
     ocrRunningCount: number;
     failedCount: number;
+    uploadedCount: number;
+    ocrCompletedCount: number;
+    total: number;
   };
   onUploadTelemetryAlert?: (alert: UploadTelemetryAlert) => void | Promise<void>;
 };
@@ -1022,9 +1025,11 @@ export const FileUploadZone = memo((props: Props) => {
                 />
               </div>
               <div className={s.chipRow}>
-                <span className={`${s.chip} ${s.chipSuccess}`}>{pipelineProgress.indexedCount} indexiert</span>
-                <span className={s.chip}>{pipelineProgress.ocrRunningCount} OCR</span>
-                <span className={s.chip}>{pipelineProgress.ocrPendingCount} ausstehend</span>
+                <span className={`${s.chip} ${s.chipSuccess}`}>{pipelineProgress.indexedCount}/{pipelineProgress.total ?? '?'} indexiert</span>
+                {pipelineProgress.ocrRunningCount > 0 && <span className={s.chip}>{pipelineProgress.ocrRunningCount} OCR läuft</span>}
+                {pipelineProgress.ocrPendingCount > 0 && <span className={s.chip}>{pipelineProgress.ocrPendingCount} OCR ausstehend</span>}
+                {pipelineProgress.ocrCompletedCount > 0 && <span className={s.chip}>{pipelineProgress.ocrCompletedCount} OCR fertig</span>}
+                {pipelineProgress.uploadedCount > 0 && <span className={s.chip}>{pipelineProgress.uploadedCount} wird indexiert</span>}
                 {pipelineProgress.failedCount > 0 && (
                   <span className={`${s.chip} ${s.chipError}`}>{pipelineProgress.failedCount} fehlgeschlagen</span>
                 )}
@@ -1247,9 +1252,11 @@ export const FileUploadZone = memo((props: Props) => {
             />
           </div>
           <div className={s.chipRow}>
-            <span className={`${s.chip} ${s.chipSuccess}`}>{pipelineProgress.indexedCount} {t['com.affine.caseAssistant.uploadZone.status.indexed']()}</span>
-            <span className={s.chip}>{pipelineProgress.ocrRunningCount} {t['com.affine.caseAssistant.uploadZone.status.ocr']()}</span>
-            <span className={s.chip}>{pipelineProgress.ocrPendingCount} {t['com.affine.caseAssistant.uploadZone.status.pending']()}</span>
+            <span className={`${s.chip} ${s.chipSuccess}`}>{pipelineProgress.indexedCount}/{pipelineProgress.total ?? '?'} {t['com.affine.caseAssistant.uploadZone.status.indexed']()}</span>
+            {pipelineProgress.ocrRunningCount > 0 && <span className={s.chip}>{pipelineProgress.ocrRunningCount} {t['com.affine.caseAssistant.uploadZone.status.ocr']()}</span>}
+            {pipelineProgress.ocrPendingCount > 0 && <span className={s.chip}>{pipelineProgress.ocrPendingCount} {t['com.affine.caseAssistant.uploadZone.status.pending']()}</span>}
+            {pipelineProgress.ocrCompletedCount > 0 && <span className={s.chip}>{pipelineProgress.ocrCompletedCount} OCR fertig</span>}
+            {pipelineProgress.uploadedCount > 0 && <span className={s.chip}>{pipelineProgress.uploadedCount} wird indexiert</span>}
             {pipelineProgress.failedCount > 0 && (
               <span className={`${s.chip} ${s.chipError}`}>{pipelineProgress.failedCount} {t['com.affine.caseAssistant.uploadZone.status.failed']()}</span>
             )}

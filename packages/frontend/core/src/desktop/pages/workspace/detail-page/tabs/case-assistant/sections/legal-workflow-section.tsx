@@ -54,6 +54,9 @@ type Props = {
     ocrPendingCount: number;
     ocrRunningCount: number;
     failedCount: number;
+    uploadedCount: number;
+    ocrCompletedCount: number;
+    total: number;
   };
 
   onUploadFiles: (files: UploadedFile[]) => Promise<number>;
@@ -87,7 +90,7 @@ export const LegalWorkflowSection = (props: Props) => {
 
     const text = doc.normalizedText ?? doc.rawText ?? '';
     // Be conservative: if rawText is a binary placeholder or huge, do not scan.
-    if (!text || text === '[BINARY_CACHE]') return null;
+    if (!text || text.includes('__binary_cache__')) return null;
     if (text.length > 250_000) return null;
 
     const docRefs = extractAuthorityRefsFromText(text);

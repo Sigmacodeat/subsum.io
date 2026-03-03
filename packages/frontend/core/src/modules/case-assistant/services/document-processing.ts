@@ -1916,9 +1916,9 @@ function buildPipelineResult(params: {
 
   // ── Content Fidelity Verification ──────────────────────────────────────────
   const totalChunkChars = chunks.reduce((sum, c) => sum + c.text.length, 0);
-  // splitIntoChunks uses a fixed overlap (CHUNK_OVERLAP). That overlap is intentional
+  // splitIntoChunks uses a fixed overlap (CHUNK_OVERLAP = 200 chars). That overlap is intentional
   // but would otherwise inflate totalChunkChars and produce false "high ratio" alerts.
-  const estimatedOverlapChars = chunks.length > 1 ? (chunks.length - 1) * 100 : 0;
+  const estimatedOverlapChars = chunks.length > 1 ? (chunks.length - 1) * CHUNK_OVERLAP : 0;
   const effectiveChunkChars = Math.max(0, totalChunkChars - estimatedOverlapChars);
   const extractedCharsCount = extractedText.length;
   const normalizedCharsCount = normalizedText.length;

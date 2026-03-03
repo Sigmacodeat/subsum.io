@@ -2121,15 +2121,24 @@ export const EditorCaseAssistantPanel = ({
     const failedCount = caseDocuments.filter(
       doc => doc.status === 'failed'
     ).length;
+    const uploadedCount = caseDocuments.filter(
+      doc => doc.status === 'uploaded'
+    ).length;
+    const ocrCompletedCount = caseDocuments.filter(
+      doc => doc.status === 'ocr_completed'
+    ).length;
+    const total = caseDocuments.length;
 
     const defaultPhaseLabel =
       ocrRunningCount > 0
         ? 'OCR läuft'
         : ocrPendingCount > 0
           ? 'OCR ausstehend'
-          : indexedCount > 0
-            ? 'Indexierung abgeschlossen'
-            : 'Warten auf Upload';
+          : uploadedCount > 0 || ocrCompletedCount > 0
+            ? 'Indexierung läuft'
+            : indexedCount > 0
+              ? 'Indexierung abgeschlossen'
+              : 'Warten auf Upload';
 
     return {
       phaseLabel: latestJob
@@ -2139,11 +2148,14 @@ export const EditorCaseAssistantPanel = ({
       active: Boolean(
         latestJob &&
         (latestJob.status === 'queued' || latestJob.status === 'running')
-      ),
+      ) || ocrRunningCount > 0 || ocrPendingCount > 0 || uploadedCount > 0 || ocrCompletedCount > 0,
       indexedCount,
       ocrPendingCount,
       ocrRunningCount,
       failedCount,
+      uploadedCount,
+      ocrCompletedCount,
+      total,
     };
   }, [caseJobs, caseDocuments]);
 
@@ -3042,7 +3054,7 @@ export const EditorCaseAssistantPanel = ({
             id: d.id,
             title: d.title,
             caseId: d.caseId,
-            markdown: d.normalizedText ?? d.rawText,
+            markdown: d.normalizedText ?? (d.rawText?.includes('__binary_cache__') ? '' : d.rawText),
           }));
         const op = await bulkOperationsService.bulkPdfExport({
           workspaceId,
@@ -3270,12 +3282,12 @@ export const EditorCaseAssistantPanel = ({
         id: doc.id,
         template: (doc.tags?.[0] ?? 'other') as DocumentTemplate,
         title: doc.title,
-        markdown: doc.rawText,
+        markdown: doc.rawText?.includes('__binary_cache__') ? '' : doc.rawText,
         sections: [
           {
             id: `sec:loaded:${doc.id}`,
             heading: 'Inhalt',
-            content: doc.rawText,
+            content: doc.rawText?.includes('__binary_cache__') ? '' : doc.rawText,
             citationIds: [],
           },
         ],
@@ -3295,7 +3307,7 @@ export const EditorCaseAssistantPanel = ({
         workspaceId,
         caseId,
         title: doc.title,
-        markdown: doc.rawText,
+        markdown: doc.rawText?.includes('__binary_cache__') ? '' : doc.rawText,
         lawFirm: {
           lawFirmName: kanzleiProfile?.name,
           lawyerName: activeAnwaltDisplayName,

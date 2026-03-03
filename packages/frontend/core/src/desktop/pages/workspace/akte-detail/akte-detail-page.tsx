@@ -762,34 +762,47 @@ export const AkteDetailPage = () => {
       uploadedCount + ocrCompletedCount + ocrPendingCount + ocrRunningCount;
     const completedCount = indexedCount + failedCount;
 
-    const progress = isIntakeRunning
+    // Use intake progress only while upload is actually in progress (< 100%).
+    // Once intake completes (intakeProgress === 100) but pipeline is still
+    // running (OCR pending/running or docs not yet indexed), switch to the
+    // real pipeline ratio so the bar doesn't incorrectly show 100%.
+    const uploadStillRunning = isIntakeRunning && intakeProgress < 100;
+    const progress = uploadStillRunning
       ? intakeProgress
       : total === 0
         ? 0
         : activeCount > 0
-          ? Math.max(55, Math.round((completedCount / total) * 100))
+          ? Math.max(10, Math.round((completedCount / total) * 100))
           : 100;
 
-    const phaseLabel = isIntakeRunning
+    const pipelineActive = ocrRunningCount > 0 || ocrPendingCount > 0 ||
+      uploadedCount > 0 || ocrCompletedCount > 0;
+
+    const phaseLabel = uploadStillRunning
       ? t['com.affine.caseAssistant.akteDetail.pipeline.phase.upload']()
       : ocrRunningCount > 0
         ? t['com.affine.caseAssistant.akteDetail.pipeline.phase.ocrRunning']()
         : ocrPendingCount > 0
           ? t['com.affine.caseAssistant.akteDetail.pipeline.phase.ocrPending']()
-          : indexedCount > 0
-            ? t['com.affine.caseAssistant.akteDetail.pipeline.phase.indexed']()
-            : failedCount > 0
-              ? t['com.affine.caseAssistant.akteDetail.pipeline.phase.failed']()
-              : t['com.affine.caseAssistant.akteDetail.pipeline.phase.idle']();
+          : uploadedCount > 0 || ocrCompletedCount > 0
+            ? 'Indexierung läuft'
+            : indexedCount > 0
+              ? t['com.affine.caseAssistant.akteDetail.pipeline.phase.indexed']()
+              : failedCount > 0
+                ? t['com.affine.caseAssistant.akteDetail.pipeline.phase.failed']()
+                : t['com.affine.caseAssistant.akteDetail.pipeline.phase.idle']();
 
     return {
       phaseLabel,
       progress,
-      active: isIntakeRunning || ocrRunningCount > 0 || ocrPendingCount > 0,
+      active: uploadStillRunning || pipelineActive,
       indexedCount,
       ocrPendingCount,
       ocrRunningCount,
       failedCount,
+      uploadedCount,
+      ocrCompletedCount,
+      total,
     };
   }, [isIntakeRunning, intakeProgress, matterDocs, t]);
 
@@ -3033,14 +3046,22 @@ export const AkteDetailPage = () => {
                                       <span
                                         className={styles.docCardThumbTitle}
                                       >
-                                        {(doc.title || 'D')
-                                          .slice(0, 2)
-                                          .toUpperCase()}
+                                        {(() => {
+                                          const raw = doc.title || '';
+                                          const stripped = raw
+                                            .replace(/^\d+\s*[-–—]?\s*/, '')
+                                            .trim();
+                                          if (!stripped) return (doc.kind ?? 'D').slice(0, 2).toUpperCase();
+                                          const words = stripped.split(/\s+/).filter(Boolean);
+                                          if (words.length >= 2)
+                                            return (words[0][0] + (words[1][0] ?? '')).toUpperCase();
+                                          return stripped.slice(0, 2).toUpperCase();
+                                        })()}
                                       </span>
                                       <span className={styles.docCardThumbMeta}>
                                         {doc.pageCount
                                           ? `${doc.pageCount} S.`
-                                          : 'Seiten ?'}
+                                          : ''}
                                       </span>
                                     </div>
                                     <div className={styles.docCardBody}>
