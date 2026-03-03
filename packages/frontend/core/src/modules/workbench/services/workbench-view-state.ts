@@ -25,6 +25,7 @@ export const InMemoryWorkbenchDefaultState: WorkbenchDefaultState = {
   views: [
     {
       id: nanoid(),
+      path: { pathname: '/akten' },
     },
   ],
   activeViewIndex: 0,
