@@ -295,8 +295,11 @@ export class VollmachtService extends Service {
    * grantedToName='Automatische Dokumenterkennung').
    * Returns the number of deleted entries.
    */
-  async purgeAutoDetectedVollmachten(workspaceId?: string): Promise<number> {
-    const all = this.vollmachten$.value ?? [];
+  async purgeAutoDetectedVollmachten(
+    liveData?: Vollmacht[],
+    workspaceId?: string
+  ): Promise<number> {
+    const all = liveData ?? this.vollmachten$.value ?? [];
     const bogus = all.filter(v => {
       if (workspaceId && v.workspaceId !== workspaceId) return false;
       return (

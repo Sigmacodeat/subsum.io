@@ -304,24 +304,24 @@ export const MandantDetailPage = () => {
     setHighlightedFocusTarget(focusTargetFromQuery);
   }, [focusTargetFromQuery]);
 
-  // One-shot cleanup: remove bogus Vollmacht entries that were auto-created
-  // by the document ingestion pipeline (grantedTo='system:auto-detected').
+  // Reactive one-shot cleanup: runs whenever allVollmachten updates,
+  // deletes entries auto-created by the old document ingestion pipeline.
   const hasPurgedVollmachtenRef = useRef(false);
   useEffect(() => {
     if (hasPurgedVollmachtenRef.current) return;
-    hasPurgedVollmachtenRef.current = true;
-    const bogus = (orchestration.vollmachten$.value ?? []).filter(
+    const bogus = (allVollmachten as Vollmacht[]).filter(
       v =>
         v.grantedTo === 'system:auto-detected' ||
         v.grantedToName === 'Automatische Dokumenterkennung' ||
         (typeof v.notes === 'string' &&
           v.notes.startsWith('Automatisch erkannt aus Dokument:'))
     );
-    if (bogus.length === 0) return;
+    if (bogus.length === 0) return; // data not loaded yet or nothing to purge
+    hasPurgedVollmachtenRef.current = true; // mark done only AFTER finding entries
     Promise.all(bogus.map(v => orchestration.deleteVollmacht(v.id))).catch(
       () => undefined
     );
-  }, [orchestration]);
+  }, [allVollmachten, orchestration]);
 
   useEffect(() => {
     if (!highlightedFocusTarget) return;
@@ -435,6 +435,28 @@ export const MandantDetailPage = () => {
         ),
     [allAktennotizen, clientId, matterIds]
   );
+
+  // ═══ Vollmacht card actions state ═══
+  const [vollmachtActionId, setVollmachtActionId] = useState<string | null>(null);
+
+  const handleRevokeVollmacht = useCallback(async (id: string) => {
+    setVollmachtActionId(id);
+    try {
+      await vollmachtService.revokeVollmacht(id);
+    } finally {
+      setVollmachtActionId(null);
+    }
+  }, [vollmachtService]);
+
+  const handleDeleteVollmacht = useCallback(async (id: string) => {
+    if (!window.confirm('Vollmacht wirklich löschen? Dies kann nicht rückgängig gemacht werden.')) return;
+    setVollmachtActionId(id);
+    try {
+      await orchestration.deleteVollmacht(id);
+    } finally {
+      setVollmachtActionId(null);
+    }
+  }, [orchestration]);
 
   // ═══ Vollmacht create handler ═══
   const handleCreateVollmacht = useCallback(async () => {
@@ -1466,36 +1488,70 @@ export const MandantDetailPage = () => {
                             gap: 8,
                           }}
                         >
-                          {clientVollmachten.map(v => (
-                            <div key={v.id} className={styles.vollmachtCard}>
-                              <div className={styles.vollmachtInfo}>
-                                <div className={styles.vollmachtTitle}>
-                                  {v.title}
+                          {clientVollmachten.map(v => {
+                            const isActing = vollmachtActionId === v.id;
+                            return (
+                              <div key={v.id} className={styles.vollmachtCard}>
+                                <div className={styles.vollmachtInfo}>
+                                  <div className={styles.vollmachtTitle}>
+                                    {v.title}
+                                  </div>
+                                  <div className={styles.vollmachtMeta}>
+                                    {vollmachtTypeLabel[v.type]}
+                                    {' · '}An: {v.grantedToName}
+                                    {' · '}Gültig ab {fmtDate(v.validFrom)}
+                                    {v.validUntil
+                                      ? ` bis ${fmtDate(v.validUntil)}`
+                                      : ' (unbefristet)'}
+                                    {v.scope ? ` · ${v.scope}` : ''}
+                                  </div>
                                 </div>
-                                <div className={styles.vollmachtMeta}>
-                                  {vollmachtTypeLabel[v.type]}
-                                  {' · '}An: {v.grantedToName}
-                                  {' · '}Gültig ab {fmtDate(v.validFrom)}
-                                  {v.validUntil
-                                    ? ` bis ${fmtDate(v.validUntil)}`
-                                    : ' (unbefristet)'}
+                                <div className={styles.vollmachtCardActions}>
+                                  <span
+                                    className={`${styles.statusBadgeCompact} ${
+                                      v.status === 'active'
+                                        ? styles.statusOpen
+                                        : v.status === 'expired'
+                                          ? styles.statusExpired
+                                          : v.status === 'revoked'
+                                            ? styles.statusError
+                                            : styles.statusPending
+                                    }`}
+                                  >
+                                    {vollmachtStatusLabel[v.status]}
+                                  </span>
+                                  {(v.status === 'active' || v.status === 'pending') && (
+                                    <button
+                                      type="button"
+                                      className={styles.cardActionBtn}
+                                      disabled={isActing}
+                                      onClick={() =>
+                                        handleRevokeVollmacht(v.id).catch(
+                                          () => undefined
+                                        )
+                                      }
+                                      title="Vollmacht widerrufen"
+                                    >
+                                      {isActing ? '…' : 'Widerrufen'}
+                                    </button>
+                                  )}
+                                  <button
+                                    type="button"
+                                    className={`${styles.cardActionBtn} ${styles.cardActionBtnDanger}`}
+                                    disabled={isActing}
+                                    onClick={() =>
+                                      handleDeleteVollmacht(v.id).catch(
+                                        () => undefined
+                                      )
+                                    }
+                                    title="Vollmacht löschen"
+                                  >
+                                    {isActing ? '…' : '×'}
+                                  </button>
                                 </div>
                               </div>
-                              <span
-                                className={`${styles.statusBadgeCompact} ${
-                                  v.status === 'active'
-                                    ? styles.statusOpen
-                                    : v.status === 'expired'
-                                      ? styles.statusExpired
-                                      : v.status === 'revoked'
-                                        ? styles.statusError
-                                        : styles.statusPending
-                                }`}
-                              >
-                                {vollmachtStatusLabel[v.status]}
-                              </span>
-                            </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       )}
                     </div>

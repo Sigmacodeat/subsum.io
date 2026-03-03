@@ -883,6 +883,49 @@ export const noteMeta = style({
   marginTop: sp(1),
 });
 
+export const vollmachtCardActions = style({
+  display: 'flex',
+  alignItems: 'center',
+  gap: sp(1),
+  flexShrink: 0,
+});
+
+export const cardActionBtn = style({
+  appearance: 'none',
+  border: borderSubtle,
+  background: 'transparent',
+  borderRadius: 6,
+  padding: '2px 8px',
+  fontSize: 11,
+  fontWeight: 600,
+  cursor: 'pointer',
+  color: cssVarV2('text/secondary'),
+  lineHeight: '16px',
+  transition: 'all 0.12s ease',
+  whiteSpace: 'nowrap',
+  selectors: {
+    '&:hover': {
+      color: cssVarV2('text/primary'),
+      borderColor: 'color-mix(in srgb, var(--affine-border-color) 60%, transparent)',
+      background: 'var(--affine-hover-color)',
+    },
+    '&:disabled': {
+      opacity: 0.4,
+      cursor: 'not-allowed',
+    },
+  },
+});
+
+export const cardActionBtnDanger = style({
+  selectors: {
+    '&:hover': {
+      color: cssVarV2('status/error'),
+      borderColor: `color-mix(in srgb, ${cssVarV2('status/error')} 30%, transparent)`,
+      background: `color-mix(in srgb, ${cssVarV2('status/error')} 8%, transparent)`,
+    },
+  },
+});
+
 export const vollmachtCard = style({
   display: 'flex',
   alignItems: 'center',
