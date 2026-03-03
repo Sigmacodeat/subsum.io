@@ -1998,6 +1998,62 @@ export const AkteDetailPage = () => {
     setLastBulkTrashedDocIds([]);
   }, [casePlatformOrchestrationService, lastBulkTrashedDocIds, showStatus]);
 
+  const handleDeleteDocument = useCallback(
+    async (doc: LegalDocumentRecord) => {
+      let closed = false;
+      const { promise } = Promise.withResolvers<boolean>();
+      const handleClose = (confirmed: boolean) => {
+        if (!closed) {
+          closed = true;
+          if (confirmed) {
+            setIsBulkDeletingDocs(true);
+            casePlatformOrchestrationService.deleteDocumentsCascade([doc.id])
+              .then(result => {
+                const succeeded = result.succeededIds.length > 0;
+                const failed = result.failedIds.length > 0;
+                const blocked = result.blockedIds.length > 0;
+
+                if (succeeded) {
+                  showStatus(`Dokument "${doc.title}" wurde in den Papierkorb verschoben.`);
+                  setLastBulkTrashedDocIds(result.succeededIds);
+                }
+                if (failed) {
+                  showStatus(`Löschen fehlgeschlagen: ${doc.title}`);
+                }
+                if (blocked) {
+                  showStatus(`Löschen nicht erlaubt: ${doc.title}`);
+                }
+              })
+              .catch(() => {
+                showStatus(`Löschen fehlgeschlagen: ${doc.title}`);
+              })
+              .finally(() => {
+                setIsBulkDeletingDocs(false);
+              });
+          }
+        }
+      };
+
+      openConfirmModal({
+        title: 'Dokument löschen',
+        description: `Möchten Sie "${doc.title}" wirklich in den Papierkorb verschieben?`,
+        cancelText: 'Abbrechen',
+        confirmText: 'In Papierkorb',
+        confirmButtonOptions: {
+          variant: 'error',
+        },
+        onConfirm: () => handleClose(true),
+        onCancel: () => handleClose(false),
+        onOpenChange: (open: boolean) => {
+          if (!open) handleClose(false);
+        },
+      });
+
+      return promise;
+    },
+    [casePlatformOrchestrationService, showStatus, openConfirmModal]
+  );
+
   const mainTabListId = `akte-detail-main-tabs-${matterId}`;
   const getMainTabId = (tab: ActiveTab) => `${mainTabListId}-tab-${tab}`;
   const getMainPanelId = (tab: ActiveTab) => `${mainTabListId}-panel-${tab}`;
@@ -3409,6 +3465,23 @@ export const AkteDetailPage = () => {
                                                     aria-label={`Abgleichsansicht öffnen für ${doc.title}`}
                                                   >
                                                     ⇄
+                                                  </button>
+                                                  <button
+                                                    type="button"
+                                                    className={
+                                                      styles.docActionButton
+                                                    }
+                                                    onClick={e => {
+                                                      e.stopPropagation();
+                                                      handleDeleteDocument(doc).catch(() => {
+                                                        showStatus(
+                                                          `Löschen fehlgeschlagen: ${doc.title}`
+                                                        );
+                                                      });
+                                                    }}
+                                                    aria-label={`Dokument löschen: ${doc.title}`}
+                                                  >
+                                                    🗑
                                                   </button>
                                                 </span>
                                               </span>
