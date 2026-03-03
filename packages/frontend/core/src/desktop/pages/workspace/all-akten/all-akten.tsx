@@ -270,17 +270,29 @@ export const AllAktenPage = () => {
     hasRunCaseCleanupRef.current = true;
 
     void (async () => {
-      const result =
-        await casePlatformOrchestrationService.consolidateMatterCaseFiles();
-      if (result.removedCaseFiles <= 0) {
+      if (!workspace) {
         return;
       }
 
-      showActionStatus(
-        `${result.removedCaseFiles} interne Teilakte(n) zusammengeführt · ${result.relinkedDocuments} Dokument(e) neu zugeordnet.`
-      );
+      const legacyCleanup =
+        await casePlatformOrchestrationService.cleanupLegacyPageIdCaseFiles(
+          workspace.id
+        );
+      if (!legacyCleanup.skipped && legacyCleanup.removedLegacyCaseFiles > 0) {
+        showActionStatus(
+          `${legacyCleanup.removedLegacyCaseFiles} Legacy-Teilakte(n) bereinigt · ${legacyCleanup.relinkedDocuments} Dokument(e) neu zugeordnet.`
+        );
+      }
+
+      const consolidated =
+        await casePlatformOrchestrationService.consolidateMatterCaseFiles();
+      if (consolidated.removedCaseFiles > 0) {
+        showActionStatus(
+          `${consolidated.removedCaseFiles} interne Teilakte(n) zusammengeführt · ${consolidated.relinkedDocuments} Dokument(e) neu zugeordnet.`
+        );
+      }
     })().catch(() => {});
-  }, [casePlatformOrchestrationService, showActionStatus]);
+  }, [casePlatformOrchestrationService, showActionStatus, workspace]);
 
   useEffect(
     () => () => {

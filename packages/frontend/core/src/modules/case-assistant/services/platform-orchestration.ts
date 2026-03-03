@@ -1449,6 +1449,256 @@ export class CasePlatformOrchestrationService extends Service {
     return record;
   }
 
+  async cleanupLegacyPageIdCaseFiles(workspaceId: string) {
+    const scopeId = `migration:legacy-pageid-casefiles:v1:${workspaceId}`;
+    const existingAnchor = await this.store.getAuditAnchor(scopeId);
+    if (existingAnchor) {
+      return {
+        totalLegacyCaseFiles: 0,
+        migratedCaseFiles: 0,
+        removedLegacyCaseFiles: 0,
+        relinkedDocuments: 0,
+        skipped: true,
+      };
+    }
+
+    const permission = await this.accessControlService.evaluate('case.manage');
+    if (!permission.ok) {
+      await this.appendAuditEntry({
+        workspaceId,
+        action: 'case.cleanup.legacy_pageid.denied',
+        severity: 'warning',
+        details: permission.message,
+        metadata: {
+          role: permission.role,
+          requiredRole: permission.requiredRole,
+        },
+      });
+      return {
+        totalLegacyCaseFiles: 0,
+        migratedCaseFiles: 0,
+        removedLegacyCaseFiles: 0,
+        relinkedDocuments: 0,
+        skipped: true,
+      };
+    }
+
+    const graph = await this.store.getGraph();
+    const caseFiles = Object.values(graph.cases ?? {}) as CaseFile[];
+    const looksLikeCaseId = (id: string) =>
+      id.startsWith('case-') || id.startsWith('case:');
+    const legacyCaseFiles = caseFiles.filter(
+      item => Boolean(item.matterId) && !looksLikeCaseId(item.id)
+    );
+
+    if (legacyCaseFiles.length === 0) {
+      await this.store.upsertAuditAnchor({
+        scopeId,
+        workspaceId,
+        entryCount: 0,
+        chainHead: 'DONE',
+        exportedAt: new Date().toISOString(),
+      });
+      return {
+        totalLegacyCaseFiles: 0,
+        migratedCaseFiles: 0,
+        removedLegacyCaseFiles: 0,
+        relinkedDocuments: 0,
+        skipped: false,
+      };
+    }
+
+    const now = new Date().toISOString();
+    const [
+      legalDocuments,
+      ingestionJobs,
+      ocrJobs,
+      legalFindings,
+      copilotTasks,
+      blueprints,
+      copilotRuns,
+      judikaturSuggestions,
+      citationChains,
+      semanticChunks,
+      qualityReports,
+      workflowEvents,
+      auditEntries,
+      auditAnchors,
+      portalRequests,
+      vollmachtSigningRequests,
+      kycSubmissions,
+      timeEntries,
+      wiedervorlagen,
+      aktennotizen,
+      vollmachten,
+      rechnungen,
+      auslagen,
+      kassenbelege,
+      fiscalSignatures,
+      exportJournal,
+    ] = await Promise.all([
+      this.store.getLegalDocuments({ includeTrashed: true }),
+      this.store.getIngestionJobs(),
+      this.store.getOcrJobs(),
+      this.store.getLegalFindings(),
+      this.store.getCopilotTasks(),
+      this.store.getBlueprints(),
+      this.store.getCopilotRuns(),
+      this.store.getJudikaturSuggestions(),
+      this.store.getCitationChains(),
+      this.store.getSemanticChunks(),
+      this.store.getQualityReports(),
+      this.store.getWorkflowEvents(),
+      this.store.getAuditEntries(),
+      this.store.getAuditAnchors(),
+      this.store.getPortalRequests(),
+      this.store.getVollmachtSigningRequests(),
+      this.store.getKycSubmissions(),
+      this.store.getTimeEntries(),
+      this.store.getWiedervorlagen(),
+      this.store.getAktennotizen(),
+      this.store.getVollmachten(),
+      this.store.getRechnungen(),
+      this.store.getAuslagen(),
+      this.store.getKassenbelege(),
+      this.store.getFiscalSignatures(),
+      this.store.getExportJournal(),
+    ]);
+
+    const idMap = new Map<string, string>();
+    for (const legacy of legacyCaseFiles) {
+      idMap.set(legacy.id, `case:migrated:${legacy.id}`);
+    }
+
+    let migratedCaseFilesCount = 0;
+    let removedLegacyCaseFilesCount = 0;
+    let relinkedDocuments = 0;
+
+    for (const legacy of legacyCaseFiles) {
+      const nextId = idMap.get(legacy.id);
+      if (!nextId) continue;
+
+      if (!graph.cases[nextId]) {
+        graph.cases[nextId] = {
+          ...legacy,
+          id: nextId,
+          updatedAt: now,
+        };
+        migratedCaseFilesCount += 1;
+      }
+
+      delete graph.cases[legacy.id];
+      removedLegacyCaseFilesCount += 1;
+    }
+
+    const remapRequiredCaseId = <T extends { caseId: string }>(item: T): T => {
+      const next = idMap.get(item.caseId);
+      if (!next) return item;
+      return { ...item, caseId: next };
+    };
+    const remapOptionalCaseId = <T extends { caseId?: string }>(item: T): T => {
+      if (!item.caseId) return item;
+      const next = idMap.get(item.caseId);
+      if (!next) return item;
+      return { ...item, caseId: next };
+    };
+
+    const nextLegalDocuments = legalDocuments.map(doc => {
+      const nextCaseId = idMap.get(doc.caseId);
+      if (!nextCaseId) return doc;
+      relinkedDocuments += 1;
+      return {
+        ...doc,
+        caseId: nextCaseId,
+        updatedAt: now,
+      };
+    });
+
+    graph.updatedAt = now;
+
+    const activeDocs = nextLegalDocuments.filter(doc => !doc.trashedAt);
+    const trashedDocs = nextLegalDocuments.filter(doc => Boolean(doc.trashedAt));
+
+    await Promise.all([
+      this.store.setGraph(graph),
+      this.store.setLegalDocuments(activeDocs),
+      this.store.setTrashedLegalDocuments(trashedDocs),
+      this.store.setIngestionJobs(ingestionJobs.map(remapRequiredCaseId)),
+      this.store.setOcrJobs(ocrJobs.map(remapRequiredCaseId)),
+      this.store.setLegalFindings(legalFindings.map(remapRequiredCaseId)),
+      this.store.setCopilotTasks(copilotTasks.map(remapRequiredCaseId)),
+      this.store.setBlueprints(blueprints.map(remapRequiredCaseId)),
+      this.store.setCopilotRuns(copilotRuns.map(remapRequiredCaseId)),
+      this.store.setJudikaturSuggestions(judikaturSuggestions.map(remapRequiredCaseId)),
+      this.store.setCitationChains(citationChains.map(remapRequiredCaseId)),
+      this.store.setSemanticChunks(semanticChunks.map(remapRequiredCaseId)),
+      this.store.setQualityReports(qualityReports.map(remapRequiredCaseId)),
+      this.store.setWorkflowEvents(workflowEvents.map(remapOptionalCaseId)),
+      this.store.setAuditEntries(auditEntries.map(remapOptionalCaseId)),
+      this.store.setAuditAnchors(auditAnchors.map(remapOptionalCaseId)),
+      this.store.setPortalRequests(portalRequests.map(remapOptionalCaseId)),
+      this.store.setVollmachtSigningRequests(
+        vollmachtSigningRequests.map(remapOptionalCaseId)
+      ),
+      this.store.setKycSubmissions(kycSubmissions.map(remapOptionalCaseId)),
+      this.store.setTimeEntries(timeEntries.map(remapRequiredCaseId)),
+      this.store.setWiedervorlagen(wiedervorlagen.map(remapRequiredCaseId)),
+      this.store.setAktennotizen(aktennotizen.map(remapRequiredCaseId)),
+      this.store.setVollmachten(vollmachten.map(remapOptionalCaseId)),
+      this.store.setRechnungen(rechnungen.map(remapRequiredCaseId)),
+      this.store.setAuslagen(auslagen.map(remapRequiredCaseId)),
+      this.store.setKassenbelege(kassenbelege.map(remapRequiredCaseId)),
+      this.store.setFiscalSignatures(fiscalSignatures.map(remapOptionalCaseId)),
+      this.store.setExportJournal(exportJournal.map(remapOptionalCaseId)),
+    ]);
+
+    for (const legacy of legacyCaseFiles) {
+      const nextId = idMap.get(legacy.id);
+      if (!nextId) continue;
+      const migrated = graph.cases[nextId];
+      if (migrated?.matterId) {
+        await this.postLegalApi(
+          `/api/legal/workspaces/${encodeURIComponent(migrated.workspaceId)}/case-files`,
+          this.toLegalCaseFilePayload(migrated)
+        );
+      }
+      await this.deleteLegalApi(
+        `/api/legal/workspaces/${encodeURIComponent(legacy.workspaceId)}/case-files/${encodeURIComponent(legacy.id)}`
+      );
+    }
+
+    await this.appendAuditEntry({
+      workspaceId,
+      action: 'case.cleanup.legacy_pageid.migrated',
+      severity: 'info',
+      details:
+        `${removedLegacyCaseFilesCount} Legacy-Teilakte(n) mit Seiten-ID bereinigt · ` +
+        `${relinkedDocuments} Dokument(e) neu zugeordnet.`,
+      metadata: {
+        totalLegacyCaseFiles: String(legacyCaseFiles.length),
+        migratedCaseFiles: String(migratedCaseFilesCount),
+        removedLegacyCaseFiles: String(removedLegacyCaseFilesCount),
+        relinkedDocuments: String(relinkedDocuments),
+      },
+    });
+
+    await this.store.upsertAuditAnchor({
+      scopeId,
+      workspaceId,
+      entryCount: legacyCaseFiles.length,
+      chainHead: 'DONE',
+      exportedAt: now,
+    });
+
+    return {
+      totalLegacyCaseFiles: legacyCaseFiles.length,
+      migratedCaseFiles: migratedCaseFilesCount,
+      removedLegacyCaseFiles: removedLegacyCaseFilesCount,
+      relinkedDocuments,
+      skipped: false,
+    };
+  }
+
   async consolidateMatterCaseFiles() {
     const graph = await this.store.getGraph();
     const caseFiles = Object.values(graph.cases ?? {}) as CaseFile[];
