@@ -5,7 +5,7 @@ import { LegalCopilotWorkflowService } from '../services/legal-copilot-workflow'
 import type { SemanticChunk } from '../types';
 
 vi.mock('@toeverything/infra', async importOriginal => {
-  const actual = await importOriginal<typeof import('@toeverything/infra')>();
+  const actual = (await importOriginal()) as Record<string, unknown>;
   return {
     ...actual,
     Service: class {},
@@ -786,6 +786,130 @@ describe('LegalCopilotWorkflowService OCR queueing', () => {
         crashedJobs: String(failingIndexes.size),
         totalJobs: String(totalJobs),
         completedJobs: String(totalJobs - failingIndexes.size),
+      })
+    );
+  });
+
+  test('processPendingOcr marks stale queued jobs as failed via watchdog and writes audit trail', async () => {
+    const { service, orchestration } = createHarness();
+
+    const oldIso = new Date(Date.now() - 31 * 60_000).toISOString();
+    (orchestration['legalDocuments$'] as { value: unknown[] }).value = [
+      {
+        id: 'doc-stale-queued-1',
+        caseId,
+        workspaceId,
+        title: 'stale-queued.pdf',
+        kind: 'scan-pdf',
+        status: 'ocr_pending',
+        rawText: 'data:application/pdf;base64,AAAA',
+        tags: [],
+        createdAt: oldIso,
+        updatedAt: oldIso,
+      },
+    ];
+    (orchestration['ocrJobs$'] as { value: unknown[] }).value = [
+      {
+        id: 'ocr-stale-queued-1',
+        caseId,
+        workspaceId,
+        documentId: 'doc-stale-queued-1',
+        status: 'queued',
+        progress: 0,
+        engine: 'remote-ocr',
+        queuedAt: oldIso,
+        updatedAt: oldIso,
+      },
+    ];
+
+    (service as any).performOcr = vi.fn();
+
+    const completed = await service.processPendingOcr(caseId, workspaceId);
+
+    expect(completed).toEqual([]);
+    expect((service as any).performOcr).not.toHaveBeenCalled();
+    expect(orchestration.upsertOcrJob).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'ocr-stale-queued-1',
+        status: 'failed',
+        errorMessage:
+          'OCR-Job zu lange in Warteschlange ohne Start (Watchdog-Abbruch).',
+      })
+    );
+
+    const staleAudit = (orchestration.appendAuditEntry as any).mock.calls
+      .map((call: [Record<string, unknown>]) => call[0])
+      .find(
+        (entry: Record<string, unknown>) =>
+          entry.action === 'document.ocr.stale_job_failed'
+      );
+    expect(staleAudit).toEqual(
+      expect.objectContaining({
+        severity: 'warning',
+        metadata: expect.objectContaining({
+          jobId: 'ocr-stale-queued-1',
+          documentId: 'doc-stale-queued-1',
+          staleKind: 'queued',
+        }),
+      })
+    );
+  });
+
+  test('processPendingOcr writes structured failure audit with timeout classification on crash', async () => {
+    const { service, orchestration } = createHarness();
+
+    const now = new Date().toISOString();
+    (orchestration['legalDocuments$'] as { value: unknown[] }).value = [
+      {
+        id: 'doc-crash-timeout-1',
+        caseId,
+        workspaceId,
+        title: 'timeout-crash.pdf',
+        kind: 'scan-pdf',
+        status: 'ocr_pending',
+        rawText: 'data:application/pdf;base64,BBBB',
+        tags: [],
+        createdAt: now,
+        updatedAt: now,
+      },
+    ];
+    (orchestration['ocrJobs$'] as { value: unknown[] }).value = [
+      {
+        id: 'ocr-crash-timeout-1',
+        caseId,
+        workspaceId,
+        documentId: 'doc-crash-timeout-1',
+        status: 'queued',
+        progress: 0,
+        engine: 'remote-ocr',
+        queuedAt: now,
+        updatedAt: now,
+      },
+    ];
+
+    (service as any).performOcr = vi
+      .fn()
+      .mockRejectedValue(new Error('OCR timeout while waiting for provider'));
+
+    const completed = await service.processPendingOcr(caseId, workspaceId);
+    expect(completed).toEqual([]);
+
+    const failedAudit = (orchestration.appendAuditEntry as any).mock.calls
+      .map((call: [Record<string, unknown>]) => call[0])
+      .find(
+        (entry: Record<string, unknown>) =>
+          entry.action === 'document.ocr.failed'
+      );
+
+    expect(failedAudit).toEqual(
+      expect.objectContaining({
+        severity: 'error',
+        metadata: expect.objectContaining({
+          jobId: 'ocr-crash-timeout-1',
+          documentId: 'doc-crash-timeout-1',
+          failureCode: 'ocr_timeout',
+          errorSignature: expect.any(String),
+        }),
       })
     );
   });

@@ -165,6 +165,11 @@ const REMOTE_OCR_RETRY_BASE_DELAY_MS = 750;
 const ONBOARDING_LLM_TIMEOUT_MS = 20_000;
 
 const INTAKE_DOC_PROCESS_TIMEOUT_MS = 60_000;
+const OCR_JOB_TIMEOUT_BASE_MS = 90_000;
+const OCR_JOB_TIMEOUT_PER_PAGE_MS = 20_000;
+const OCR_JOB_TIMEOUT_MAX_MS = 8 * 60_000;
+const OCR_RUNNING_STALE_THRESHOLD_MS = 15 * 60_000;
+const OCR_QUEUED_STALE_THRESHOLD_MS = 30 * 60_000;
 const INTAKE_YIELD_EVERY = 6;
 const OCR_YIELD_EVERY = 4;
 
@@ -458,11 +463,89 @@ async function waitFor(ms: number) {
 }
 
 async function yieldToMainThread() {
-  await waitFor(0);
+  await new Promise<void>(resolve => {
+    setTimeout(resolve, 0);
+  });
 }
 
 function shouldRetryRemoteOcrHttpStatus(status: number) {
   return status === 408 || status === 429 || (status >= 500 && status <= 599);
+}
+
+function parseIsoToEpochMs(value: string | undefined) {
+  if (!value) return null;
+  const ms = Date.parse(value);
+  return Number.isFinite(ms) ? ms : null;
+}
+
+function computeOcrJobTimeoutMs(pageCount: number | undefined) {
+  const pages = Math.max(1, Math.min(500, pageCount ?? 1));
+  return Math.min(
+    OCR_JOB_TIMEOUT_BASE_MS + (pages - 1) * OCR_JOB_TIMEOUT_PER_PAGE_MS,
+    OCR_JOB_TIMEOUT_MAX_MS
+  );
+}
+
+function classifyOcrFailureCode(error: unknown) {
+  const raw =
+    error instanceof Error ? error.message : String(error ?? 'unknown');
+  const msg = raw.toLowerCase();
+  if (msg.includes('timeout')) return 'ocr_timeout';
+  if (msg.includes('abort')) return 'ocr_aborted';
+  if (msg.includes('network') || msg.includes('fetch')) return 'ocr_network';
+  if (msg.includes('binary-cache')) return 'binary_cache_lost';
+  if (msg.includes('no text') || msg.includes('leer')) return 'ocr_empty';
+  return 'ocr_crash';
+}
+
+function hashErrorSignature(message: string, stack: string | undefined) {
+  const input = `${message}\n${stack ?? ''}`;
+  let hash = 2166136261;
+  for (let i = 0; i < input.length; i++) {
+    hash ^= input.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(16);
+}
+
+function getStaleJobMeta(job: OcrJob, nowMs: number) {
+  const runningRef =
+    parseIsoToEpochMs(job.lastHeartbeatAt) ??
+    parseIsoToEpochMs(job.startedAt) ??
+    parseIsoToEpochMs(job.updatedAt);
+  const queuedRef =
+    parseIsoToEpochMs(job.updatedAt) ?? parseIsoToEpochMs(job.queuedAt);
+
+  if (job.status === 'running' && runningRef !== null) {
+    const ageMs = nowMs - runningRef;
+    if (ageMs > OCR_RUNNING_STALE_THRESHOLD_MS) {
+      return {
+        stale: true,
+        staleKind: 'running' as const,
+        ageMs,
+        thresholdMs: OCR_RUNNING_STALE_THRESHOLD_MS,
+      };
+    }
+  }
+
+  if (job.status === 'queued' && queuedRef !== null) {
+    const ageMs = nowMs - queuedRef;
+    if (ageMs > OCR_QUEUED_STALE_THRESHOLD_MS) {
+      return {
+        stale: true,
+        staleKind: 'queued' as const,
+        ageMs,
+        thresholdMs: OCR_QUEUED_STALE_THRESHOLD_MS,
+      };
+    }
+  }
+
+  return {
+    stale: false,
+    staleKind: null,
+    ageMs: 0,
+    thresholdMs: 0,
+  };
 }
 
 function hasViableOcrText(text: string) {
@@ -538,6 +621,10 @@ function deriveProcessingError(engineTag: string | undefined, title: string) {
     return `Dateiinhalt ist beschädigt (Base64 ungültig): ${title}`;
   if (tag.includes('binary-cache-lost'))
     return `Binärdaten verloren. Bitte Dokument erneut hochladen: ${title}`;
+  if (tag.includes('stale-watchdog'))
+    return `OCR-Job war zu lange ohne Fortschritt aktiv und wurde automatisch beendet: ${title}`;
+  if (tag.includes('ocr-timeout') || tag.includes('ocr_timeout'))
+    return `OCR-Timeout erreicht. Bitte erneut versuchen oder Dokument in kleinere Teile aufteilen: ${title}`;
   if (tag.includes('crash-recovery'))
     return `Verarbeitung abgestürzt. Bitte erneut versuchen: ${title}`;
   if (
@@ -578,6 +665,7 @@ export class LegalCopilotWorkflowService extends Service {
   readonly tasks$ = this.orchestration.copilotTasks$;
   readonly blueprints$ = this.orchestration.blueprints$;
   readonly copilotRuns$ = this.orchestration.copilotRuns$;
+  readonly semanticChunks$ = this.orchestration.semanticChunks$;
 
   private readonly _binaryCache = new Map<string, string>();
 
@@ -619,7 +707,11 @@ export class LegalCopilotWorkflowService extends Service {
       });
     }
 
-    return (orchestrationWithSnapshot.semanticChunks?.value ?? []).filter(
+    const fallbackChunks = (this.semanticChunks$.value ??
+      orchestrationWithSnapshot.semanticChunks?.value ??
+      []) as SemanticChunk[];
+
+    return fallbackChunks.filter(
       (chunk: SemanticChunk) =>
         chunk.caseId === input.caseId && chunk.workspaceId === input.workspaceId
     );
@@ -3344,11 +3436,71 @@ export class LegalCopilotWorkflowService extends Service {
         item.caseId === caseId && item.workspaceId === workspaceId
     );
 
+    const nowMs = Date.now();
+    const staleJobs = caseJobs
+      .map(job => ({ job, staleMeta: getStaleJobMeta(job, nowMs) }))
+      .filter(item => item.staleMeta.stale);
+
+    const staleJobIds = new Set(staleJobs.map(item => item.job.id));
+    for (const { job, staleMeta } of staleJobs) {
+      const failedAt = new Date().toISOString();
+      const staleMsg =
+        staleMeta.staleKind === 'running'
+          ? 'OCR-Job ohne Heartbeat zu lange aktiv (Watchdog-Abbruch).'
+          : 'OCR-Job zu lange in Warteschlange ohne Start (Watchdog-Abbruch).';
+
+      await this.orchestration.upsertOcrJob({
+        ...job,
+        status: 'failed',
+        progress: Math.max(job.progress ?? 0, 1),
+        errorMessage: staleMsg,
+        finishedAt: failedAt,
+        updatedAt: failedAt,
+      });
+
+      const staleDoc = (this.legalDocuments$.value ?? []).find(
+        (item: LegalDocumentRecord) => item.id === job.documentId
+      );
+      if (staleDoc) {
+        await this.orchestration.upsertLegalDocument({
+          ...staleDoc,
+          status: 'failed',
+          processingStatus: 'failed',
+          extractionEngine: `stale-watchdog:${staleMeta.staleKind}`,
+          processingError:
+            deriveProcessingError('stale-watchdog', staleDoc.title) ?? staleMsg,
+          updatedAt: failedAt,
+        });
+      }
+
+      await this.orchestration.appendAuditEntry({
+        caseId,
+        workspaceId,
+        action: 'document.ocr.stale_job_failed',
+        severity: 'warning',
+        details:
+          `OCR-Job als stale markiert: ${job.documentId} (${staleMeta.staleKind}) ` +
+          `nach ${Math.round(staleMeta.ageMs / 1000)}s ohne Fortschritt.`,
+        metadata: {
+          ocrRunId,
+          jobId: job.id,
+          documentId: job.documentId,
+          staleKind: staleMeta.staleKind ?? 'unknown',
+          ageMs: String(staleMeta.ageMs),
+          thresholdMs: String(staleMeta.thresholdMs),
+          lastHeartbeatAt: job.lastHeartbeatAt ?? '',
+          startedAt: job.startedAt ?? '',
+          queuedAt: job.queuedAt,
+        },
+      });
+    }
+
     const activeOcrDocIds = new Set(
       caseJobs
         .filter(
           (item: OcrJob) =>
-            item.status === 'queued' || item.status === 'running'
+            (item.status === 'queued' || item.status === 'running') &&
+            !staleJobIds.has(item.id)
         )
         .map(item => item.documentId)
     );
@@ -3390,7 +3542,9 @@ export class LegalCopilotWorkflowService extends Service {
 
     const jobs: OcrJob[] = [
       ...caseJobs.filter(
-        (item: OcrJob) => item.status === 'queued' || item.status === 'running'
+        (item: OcrJob) =>
+          (item.status === 'queued' || item.status === 'running') &&
+          !staleJobIds.has(item.id)
       ),
       ...retryJobs,
     ];
@@ -3580,28 +3734,33 @@ export class LegalCopilotWorkflowService extends Service {
 
         let ocrResult: OcrProviderResult;
         try {
-          ocrResult = await this.performOcr(doc, update => {
-            // Map per-page progress to 30..90 range
-            const total = Math.max(1, update.totalPages);
-            const current = Math.max(0, Math.min(update.currentPage, total));
-            const p = 30 + Math.round((current / total) * 60);
-            const shouldEmit =
-              current !== lastPage ||
-              total !== lastTotal ||
-              p - lastProgress >= 1;
-            if (!shouldEmit) return;
+          const ocrTimeoutMs = computeOcrJobTimeoutMs(doc.pageCount);
+          ocrResult = await withTimeout(
+            this.performOcr(doc, update => {
+              // Map per-page progress to 30..90 range
+              const total = Math.max(1, update.totalPages);
+              const current = Math.max(0, Math.min(update.currentPage, total));
+              const p = 30 + Math.round((current / total) * 60);
+              const shouldEmit =
+                current !== lastPage ||
+                total !== lastTotal ||
+                p - lastProgress >= 1;
+              if (!shouldEmit) return;
 
-            lastPage = current;
-            lastTotal = total;
-            lastProgress = p;
-            // Fire-and-forget update to keep OCR loop fast
-            void heartbeat({
-              progress: p,
-              stage: update.stage,
-              currentPage: current,
-              totalPages: total,
-            }).catch(() => {});
-          });
+              lastPage = current;
+              lastTotal = total;
+              lastProgress = p;
+              // Fire-and-forget update to keep OCR loop fast
+              void heartbeat({
+                progress: p,
+                stage: update.stage,
+                currentPage: current,
+                totalPages: total,
+              }).catch(() => {});
+            }),
+            ocrTimeoutMs,
+            `OCR timeout (${ocrTimeoutMs}ms): ${doc.title}`
+          );
         } finally {
           stopHeartbeatTimer();
         }
@@ -3888,10 +4047,17 @@ export class LegalCopilotWorkflowService extends Service {
         // Release binary from cache on crash to prevent memory leak
         this.releaseBinary(queued.documentId);
         const failedAt = new Date().toISOString();
-        const message =
+        const rawMessage =
           error instanceof Error
             ? error.message
             : 'OCR-Verarbeitung abgestürzt';
+        const failureCode = classifyOcrFailureCode(error);
+        const message =
+          failureCode === 'ocr_timeout'
+            ? 'OCR-Timeout: Verarbeitung hat das Zeitlimit überschritten.'
+            : rawMessage;
+        const stack = error instanceof Error ? error.stack : undefined;
+        const errorSignature = hashErrorSignature(rawMessage, stack);
 
         console.error(
           `[OCR ✗] "${queued.documentId}" crashed: ${message}`,
@@ -3904,7 +4070,7 @@ export class LegalCopilotWorkflowService extends Service {
           progress: 100,
           startedAt: queued.startedAt ?? startedAt,
           finishedAt: failedAt,
-          errorMessage: message,
+          errorMessage: `${message} [${failureCode}]`,
           updatedAt: failedAt,
         });
 
@@ -3916,13 +4082,38 @@ export class LegalCopilotWorkflowService extends Service {
             ...doc,
             status: 'failed',
             processingStatus: 'failed',
-            extractionEngine: `crash-recovery:${message.slice(0, 80)}`,
+            extractionEngine: `crash-recovery:${failureCode}:${rawMessage.slice(0, 64)}`,
             processingError:
-              deriveProcessingError(`crash-recovery:${message}`, doc.title) ??
+              deriveProcessingError(
+                `crash-recovery:${failureCode}`,
+                doc.title
+              ) ??
               'OCR-Verarbeitung ist abgestürzt. Bitte Dokument erneut hochladen.',
             updatedAt: failedAt,
           });
         }
+
+        await this.orchestration.appendAuditEntry({
+          caseId,
+          workspaceId,
+          action: 'document.ocr.failed',
+          severity: 'error',
+          details:
+            `OCR-Job fehlgeschlagen (${failureCode}): ${queued.documentId}. ` +
+            `Grund: ${rawMessage}`,
+          metadata: {
+            ocrRunId,
+            jobId: queued.id,
+            documentId: queued.documentId,
+            failureCode,
+            errorSignature,
+            startedAt: queued.startedAt ?? startedAt,
+            failedAt,
+            stage: queued.stage ?? 'recognizing',
+            engine: queued.engine ?? '',
+            stackTop: stack?.split('\n').slice(0, 3).join(' | ') ?? '',
+          },
+        });
       }
     }
 
