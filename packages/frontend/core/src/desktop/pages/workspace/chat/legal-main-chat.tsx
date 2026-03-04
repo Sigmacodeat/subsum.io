@@ -21,7 +21,6 @@ import {
   type LegalDocumentRecord,
   type LegalFinding,
   type LlmModelOption,
-  MandantenNotificationService,
   type MatterRecord,
 } from '@affine/core/modules/case-assistant';
 import {
@@ -79,26 +78,20 @@ export const Component = () => {
   const casePlatformOrchestrationService = useService(
     CasePlatformOrchestrationService
   );
-  const mandantenNotificationService = useService(MandantenNotificationService);
   const aiEmailDraftingService = useService(AIEmailDraftingService);
   const copilotNlpCrud = useService(CopilotNlpCrudService);
   const creditGateway = useService(CreditGatewayService);
 
   const graph = useLiveData(caseAssistantService.graph$);
-  const chatSessions: LegalChatSession[] =
+  const chatSessionsState: LegalChatSession[] =
     useLiveData(legalChatService.chatSessions$) ?? [];
-  const chatMessages: LegalChatMessage[] =
+  const chatSessionsVersion = chatSessionsState.length;
+  const chatMessagesState: LegalChatMessage[] =
     useLiveData(legalChatService.chatMessages$) ?? [];
   const legalDocuments: LegalDocumentRecord[] =
     useLiveData(legalCopilotWorkflowService.legalDocuments$) ?? [];
   const legalFindings: LegalFinding[] =
     useLiveData(legalCopilotWorkflowService.findings$) ?? [];
-  const judikaturSuggestions: JudikaturSuggestion[] =
-    useLiveData(casePlatformOrchestrationService.judikaturSuggestions$) ?? [];
-  const citationChains: CitationChain[] =
-    useLiveData(casePlatformOrchestrationService.citationChains$) ?? [];
-  const courtDecisions: CourtDecision[] =
-    useLiveData(casePlatformOrchestrationService.courtDecisions$) ?? [];
 
   const [selectedCaseId, setSelectedCaseId] = useState<string>('');
   const [comparisonCaseIds, setComparisonCaseIds] = useState<string[]>([]);
@@ -124,9 +117,8 @@ export const Component = () => {
     useLiveData(legalChatService.availableModels$) ??
     legalChatService.getAvailableModels();
 
-  const selectedModel: LlmModelOption = useMemo(
-    () => legalChatService.getSelectedModel(activeChatSessionId ?? undefined),
-    [legalChatService, activeChatSessionId, chatSessions, availableModels]
+  const selectedModel: LlmModelOption = legalChatService.getSelectedModel(
+    activeChatSessionId ?? undefined
   );
 
   const onSelectModel = useCallback(
@@ -339,69 +331,60 @@ export const Component = () => {
     [scopedContextCaseIds]
   );
 
-  const caseChatSessions = useMemo(
-    () =>
-      selectedCaseId
-        ? legalChatService.getSessions(selectedCaseId, workspace.id)
-        : ([] as LegalChatSession[]),
-    [legalChatService, selectedCaseId, workspace.id, chatSessions]
-  );
+  const caseChatSessions: LegalChatSession[] = selectedCaseId
+    ? legalChatService.getSessions(selectedCaseId, workspace.id)
+    : [];
 
   useEffect(() => {
+    if (!selectedCaseId) {
+      setActiveChatSessionId(null);
+      return;
+    }
+    const sessions = legalChatService.getSessions(selectedCaseId, workspace.id);
     if (
       !activeChatSessionId ||
-      !caseChatSessions.some(session => session.id === activeChatSessionId)
+      !sessions.some(session => session.id === activeChatSessionId)
     ) {
-      setActiveChatSessionId(caseChatSessions[0]?.id ?? null);
+      setActiveChatSessionId(sessions[0]?.id ?? null);
     }
-  }, [activeChatSessionId, caseChatSessions]);
+  }, [
+    activeChatSessionId,
+    legalChatService,
+    selectedCaseId,
+    workspace.id,
+    chatSessionsVersion,
+  ]);
 
-  const activeChatMessages = useMemo(
-    () =>
-      activeChatSessionId
-        ? legalChatService.getSessionMessages(activeChatSessionId)
-        : ([] as LegalChatMessage[]),
-    [legalChatService, activeChatSessionId, chatMessages]
+  const activeChatMessages: LegalChatMessage[] = activeChatSessionId
+    ? chatMessagesState
+        .filter(message => message.sessionId === activeChatSessionId)
+        .sort(
+          (a, b) =>
+            new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+        )
+    : [];
+
+  const caseDocuments = legalDocuments.filter(
+    document =>
+      document.caseId === selectedCaseId &&
+      document.workspaceId === workspace.id
   );
 
-  const caseDocuments = useMemo(
-    () =>
-      legalDocuments.filter(
-        document =>
-          document.caseId === selectedCaseId &&
-          document.workspaceId === workspace.id
-      ),
-    [legalDocuments, selectedCaseId, workspace.id]
+  const caseFindings = legalFindings.filter(
+    finding =>
+      finding.caseId === selectedCaseId && finding.workspaceId === workspace.id
   );
 
-  const caseFindings = useMemo(
-    () =>
-      legalFindings.filter(
-        finding =>
-          finding.caseId === selectedCaseId &&
-          finding.workspaceId === workspace.id
-      ),
-    [legalFindings, selectedCaseId, workspace.id]
+  const scopedDocuments = legalDocuments.filter(
+    document =>
+      document.workspaceId === workspace.id &&
+      scopedCaseIdSet.has(document.caseId)
   );
 
-  const scopedDocuments = useMemo(
-    () =>
-      legalDocuments.filter(
-        document =>
-          document.workspaceId === workspace.id &&
-          scopedCaseIdSet.has(document.caseId)
-      ),
-    [legalDocuments, scopedCaseIdSet, workspace.id]
-  );
-
-  const scopedFindings = useMemo(
-    () =>
-      legalFindings.filter(
-        finding =>
-          finding.workspaceId === workspace.id &&
-          scopedCaseIdSet.has(finding.caseId)
-      ),
-    [legalFindings, scopedCaseIdSet, workspace.id]
+  const scopedFindings = legalFindings.filter(
+    finding =>
+      finding.workspaceId === workspace.id &&
+      scopedCaseIdSet.has(finding.caseId)
   );
 
   const caseTitleById = useMemo(
@@ -419,33 +402,6 @@ export const Component = () => {
     }
     return mapping;
   }, [caseTitleById, scopedDocuments]);
-
-  const caseJudikaturSuggestions = useMemo(
-    () =>
-      judikaturSuggestions
-        .filter(
-          item =>
-            item.caseId === selectedCaseId && item.workspaceId === workspace.id
-        )
-        .sort((a, b) => b.relevanceScore - a.relevanceScore),
-    [judikaturSuggestions, selectedCaseId, workspace.id]
-  );
-
-  const caseCitationChains = useMemo(
-    () =>
-      citationChains.filter(
-        item =>
-          item.caseId === selectedCaseId && item.workspaceId === workspace.id
-      ),
-    [citationChains, selectedCaseId, workspace.id]
-  );
-
-  const caseCourtDecisions = useMemo(() => {
-    const decisionIds = new Set(
-      caseJudikaturSuggestions.map(item => item.decisionId)
-    );
-    return courtDecisions.filter(item => decisionIds.has(item.id));
-  }, [caseJudikaturSuggestions, courtDecisions]);
 
   const scopedIndexedCount = scopedDocuments.filter(
     document => document.status === 'indexed'
@@ -516,58 +472,47 @@ export const Component = () => {
     [caseAssistantService, caseFileByMatterId, graph?.matters, workspaceId]
   );
 
-  const applyScopePreset = useCallback(
-    (preset: 'active' | 'matter' | 'ocr_open') => {
-      if (!selectedCaseId) {
-        return;
-      }
+  const applyScopePreset = (preset: 'active' | 'matter' | 'ocr_open') => {
+    if (!selectedCaseId) {
+      return;
+    }
 
-      if (preset === 'active') {
+    if (preset === 'active') {
+      setComparisonCaseIds([]);
+      return;
+    }
+
+    if (preset === 'matter') {
+      if (!selectedCase?.matterId) {
         setComparisonCaseIds([]);
         return;
       }
-
-      if (preset === 'matter') {
-        if (!selectedCase?.matterId) {
-          setComparisonCaseIds([]);
-          return;
-        }
-        const related = caseFiles
-          .filter(
-            caseFile =>
-              caseFile.id !== selectedCaseId &&
-              caseFile.matterId === selectedCase.matterId
-          )
-          .map(caseFile => caseFile.id);
-        setComparisonCaseIds(related);
-        return;
-      }
-
-      const caseIdsWithOpenOcr = new Set(
-        legalDocuments
-          .filter(
-            doc =>
-              doc.workspaceId === workspaceId && doc.status === 'ocr_pending'
-          )
-          .map(doc => doc.caseId)
-      );
       const related = caseFiles
         .filter(
           caseFile =>
             caseFile.id !== selectedCaseId &&
-            caseIdsWithOpenOcr.has(caseFile.id)
+            caseFile.matterId === selectedCase.matterId
         )
         .map(caseFile => caseFile.id);
       setComparisonCaseIds(related);
-    },
-    [
-      caseFiles,
-      legalDocuments,
-      selectedCase?.matterId,
-      selectedCaseId,
-      workspaceId,
-    ]
-  );
+      return;
+    }
+
+    const caseIdsWithOpenOcr = new Set(
+      legalDocuments
+        .filter(
+          doc => doc.workspaceId === workspaceId && doc.status === 'ocr_pending'
+        )
+        .map(doc => doc.caseId)
+    );
+    const related = caseFiles
+      .filter(
+        caseFile =>
+          caseFile.id !== selectedCaseId && caseIdsWithOpenOcr.has(caseFile.id)
+      )
+      .map(caseFile => caseFile.id);
+    setComparisonCaseIds(related);
+  };
 
   useEffect(() => {
     if (!selectedCaseId) {
@@ -988,8 +933,9 @@ export const Component = () => {
 
       if (slashPreflight?.command === 'berichtfreigabe') {
         const args = slashPreflight.args.trim();
-        const [draftId = '', ...noteParts] = args.split(/\s+/).filter(Boolean);
-        const reviewNote = noteParts.join(' ').trim();
+        const parts = args.split(/\s+/);
+        const draftId = parts[0] ?? '';
+        const reviewNote = parts.slice(1).join(' ').trim();
         if (!draftId) {
           setTransientStatus(
             'Bitte Draft-ID + Review-Notiz angeben, z. B. /berichtfreigabe email-draft:abc123 Inhalt juristisch geprüft und freigegeben.'
@@ -1904,11 +1850,8 @@ export const Component = () => {
       activeChatSessionId,
       casePlatformAdapterService,
       casePlatformOrchestrationService,
-      caseCitationChains,
-      caseCourtDecisions,
       caseDocuments,
       caseFindings,
-      caseJudikaturSuggestions,
       aiEmailDraftingService,
       copilotNlpCrud,
       creditGateway,
@@ -1917,12 +1860,16 @@ export const Component = () => {
       isChatBusy,
       legalChatService,
       legalCopilotWorkflowService,
-      mandantenNotificationService,
       selectedCase,
-      selectedCase?.matterId,
       selectedCaseId,
       scopedContextCaseIds,
+      scopedDocuments.length,
+      scopedFindings.length,
+      scopedOcrPendingCount,
       selectedClient?.displayName,
+      selectedClient?.primaryPhone,
+      graph?.kanzleiProfile?.email,
+      graph?.kanzleiProfile?.name,
       selectedMatter?.externalRef,
       selectedMatter?.gericht,
       selectedMatter?.clientId,

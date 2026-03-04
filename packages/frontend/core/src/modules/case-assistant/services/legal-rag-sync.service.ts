@@ -80,9 +80,9 @@ export class LegalRagSyncService extends Service {
 
     for (let i = 0; i < payload.length; i += INDEX_BATCH_SIZE) {
       const batch = payload.slice(i, i + INDEX_BATCH_SIZE);
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), INDEX_TIMEOUT_MS);
       try {
-        const ctrl = new AbortController();
-        const timer = setTimeout(() => ctrl.abort(), INDEX_TIMEOUT_MS);
         const res = await globalThis.fetch(endpoint, {
           method: 'POST',
           headers: {
@@ -92,7 +92,6 @@ export class LegalRagSyncService extends Service {
           body: JSON.stringify({ caseId, documentId, chunks: batch }),
           signal: ctrl.signal,
         });
-        clearTimeout(timer);
         if (res.ok) {
           const json = (await res.json()) as RagIndexResponse;
           console.debug(
@@ -108,6 +107,8 @@ export class LegalRagSyncService extends Service {
       } catch (err) {
         console.warn(`[LegalRagSync] Index failed for doc ${documentId}:`, err);
         this._backendAvailable = false;
+      } finally {
+        clearTimeout(timer);
       }
     }
   }
@@ -131,10 +132,10 @@ export class LegalRagSyncService extends Service {
     if (this._backendAvailable === false) return null;
 
     const endpoint = `/api/legal/workspaces/${encodeURIComponent(workspaceId)}/rag/search`;
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), SEARCH_TIMEOUT_MS);
 
     try {
-      const ctrl = new AbortController();
-      const timer = setTimeout(() => ctrl.abort(), SEARCH_TIMEOUT_MS);
       const res = await globalThis.fetch(endpoint, {
         method: 'POST',
         headers: {
@@ -144,7 +145,6 @@ export class LegalRagSyncService extends Service {
         body: JSON.stringify({ caseId, query, topK, threshold }),
         signal: ctrl.signal,
       });
-      clearTimeout(timer);
 
       if (!res.ok) {
         this._backendAvailable = false;
@@ -158,6 +158,8 @@ export class LegalRagSyncService extends Service {
       console.warn('[LegalRagSync] searchSemantic failed:', err);
       this._backendAvailable = false;
       return null;
+    } finally {
+      clearTimeout(timer);
     }
   }
 

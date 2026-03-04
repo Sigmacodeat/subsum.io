@@ -55,6 +55,69 @@ function createId(prefix: string) {
   return `${prefix}:${Date.now().toString(36)}:${Math.random().toString(36).slice(2, 8)}`;
 }
 
+function hashDeterministicInt(input: string) {
+  let hash = 2166136261;
+  for (let i = 0; i < input.length; i++) {
+    hash ^= input.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
+function computeDeterministicRetryDelayMs(documentId: string, attempt: number) {
+  const normalizedAttempt = Math.max(1, attempt);
+  const cappedExponent = Math.min(6, normalizedAttempt - 1);
+  const base = OCR_RETRY_BACKOFF_BASE_MS * 2 ** cappedExponent;
+  // deterministic spread (not random jitter): 0..3999ms derived from documentId+attempt
+  const spread =
+    hashDeterministicInt(`${documentId}:${normalizedAttempt}`) % 4000;
+  return base + spread;
+}
+
+function parseRetryAttempt(job: OcrJob | undefined) {
+  return Math.max(0, job?.retryAttempt ?? 0);
+}
+
+function shouldPreferRemoteFirst(doc: LegalDocumentRecord) {
+  const pageCount = doc.pageCount ?? 0;
+  const isLargePdf =
+    (doc.kind === 'pdf' || doc.kind === 'scan-pdf') && pageCount >= 80;
+  const preflightRisk = doc.preflight?.riskLevel;
+  const preflightRoute = doc.preflight?.routeDecision;
+  return (
+    isLargePdf && preflightRisk !== 'critical' && preflightRoute !== 'ocr_queue'
+  );
+}
+
+function shouldFailQualityGate(input: {
+  score: number;
+  fidelityRatio: number;
+  extractionYieldPerPage: number;
+  contentIntegrityOk: boolean;
+  suspiciousLowYield: boolean;
+}) {
+  if (!input.contentIntegrityOk || input.suspiciousLowYield) {
+    return true;
+  }
+  if (input.score < OCR_QUALITY_GATE_MIN_SCORE) {
+    return true;
+  }
+  if (input.fidelityRatio < OCR_QUALITY_GATE_MIN_FIDELITY) {
+    return true;
+  }
+  if (input.extractionYieldPerPage < OCR_QUALITY_GATE_MIN_YIELD_PER_PAGE) {
+    return true;
+  }
+  return false;
+}
+
+function percentile(values: number[], p: number) {
+  if (values.length === 0) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const idx = Math.ceil((p / 100) * sorted.length) - 1;
+  return sorted[Math.max(0, Math.min(idx, sorted.length - 1))] ?? 0;
+}
+
 type OcrProviderResult = {
   text: string;
   language?: string;
@@ -172,6 +235,13 @@ const OCR_RUNNING_STALE_THRESHOLD_MS = 15 * 60_000;
 const OCR_QUEUED_STALE_THRESHOLD_MS = 30 * 60_000;
 const OCR_TEXT_LAYER_TIMEOUT_MS = 45_000;
 const OCR_POSTPROCESS_TIMEOUT_MS = 75_000;
+const OCR_CHUNK_PERSIST_TIMEOUT_MS = 30_000;
+const OCR_DEAD_LETTER_MAX_ATTEMPTS = 4;
+const OCR_RETRY_BACKOFF_BASE_MS = 15_000;
+const OCR_QUALITY_GATE_MIN_SCORE = 55;
+const OCR_QUALITY_GATE_MIN_FIDELITY = 0.62;
+const OCR_QUALITY_GATE_MIN_YIELD_PER_PAGE = 45;
+const OCR_QUALITY_GATE_MAX_AUTO_RERUNS = 1;
 const INTAKE_YIELD_EVERY = 6;
 const OCR_YIELD_EVERY = 4;
 
@@ -492,12 +562,25 @@ function classifyOcrFailureCode(error: unknown) {
   const raw =
     error instanceof Error ? error.message : String(error ?? 'unknown');
   const msg = raw.toLowerCase();
+  if (msg.includes('semantic chunk persistence')) return 'vector_persist';
   if (msg.includes('timeout')) return 'ocr_timeout';
   if (msg.includes('abort')) return 'ocr_aborted';
   if (msg.includes('network') || msg.includes('fetch')) return 'ocr_network';
+  if (msg.includes('quality gate')) return 'ocr_quality_gate';
   if (msg.includes('binary-cache')) return 'binary_cache_lost';
   if (msg.includes('no text') || msg.includes('leer')) return 'ocr_empty';
   return 'ocr_crash';
+}
+
+function isRetryableFailureCode(code: string) {
+  return (
+    code === 'ocr_timeout' ||
+    code === 'ocr_network' ||
+    code === 'ocr_aborted' ||
+    code === 'ocr_crash' ||
+    code === 'ocr_quality_gate' ||
+    code === 'vector_persist'
+  );
 }
 
 function hashErrorSignature(message: string, stack: string | undefined) {
@@ -627,6 +710,10 @@ function deriveProcessingError(engineTag: string | undefined, title: string) {
     return `OCR-Job war zu lange ohne Fortschritt aktiv und wurde automatisch beendet: ${title}`;
   if (tag.includes('ocr-timeout') || tag.includes('ocr_timeout'))
     return `OCR-Timeout erreicht. Bitte erneut versuchen oder Dokument in kleinere Teile aufteilen: ${title}`;
+  if (tag.includes('ocr_quality_gate'))
+    return `OCR-Qualitätsgrenze nicht erreicht. Dokument benötigt erneute Verarbeitung oder manuelle Prüfung: ${title}`;
+  if (tag.includes('vector_persist'))
+    return `Text wurde extrahiert, aber die Vektor-Indexierung konnte nicht gespeichert werden. Bitte Retry starten: ${title}`;
   if (tag.includes('crash-recovery'))
     return `Verarbeitung abgestürzt. Bitte erneut versuchen: ${title}`;
   if (
@@ -1025,17 +1112,32 @@ export class LegalCopilotWorkflowService extends Service {
         // ignore local OCR errors, fall through to empty result
       }
 
-      // Local-first for binary payloads: avoids queue stalls when remote OCR
-      // endpoint is intermittently slow/unreachable on a subset of files.
-      if (localCandidate && isStrongOcrResult(localCandidate)) {
-        this.releaseBinary(doc.id);
-        return localCandidate;
-      }
+      const remoteFirst = shouldPreferRemoteFirst(doc);
+      let remote: OcrProviderResult | null = null;
 
-      const remote = await this.runRemoteOcr(doc);
-      if (remote && isStrongOcrResult(remote)) {
-        this.releaseBinary(doc.id);
-        return remote;
+      if (remoteFirst) {
+        remote = await this.runRemoteOcr(doc);
+        if (remote && isStrongOcrResult(remote)) {
+          this.releaseBinary(doc.id);
+          return remote;
+        }
+        if (localCandidate && isStrongOcrResult(localCandidate)) {
+          this.releaseBinary(doc.id);
+          return localCandidate;
+        }
+      } else {
+        // Local-first for binary payloads: avoids queue stalls when remote OCR
+        // endpoint is intermittently slow/unreachable on a subset of files.
+        if (localCandidate && isStrongOcrResult(localCandidate)) {
+          this.releaseBinary(doc.id);
+          return localCandidate;
+        }
+
+        remote = await this.runRemoteOcr(doc);
+        if (remote && isStrongOcrResult(remote)) {
+          this.releaseBinary(doc.id);
+          return remote;
+        }
       }
 
       const chosen = pickBetterOcrResult(remote, localCandidate);
@@ -2319,7 +2421,11 @@ export class LegalCopilotWorkflowService extends Service {
       });
 
       if (processed.chunks.length > 0) {
-        await this.orchestration.upsertSemanticChunks(doc.id, processed.chunks);
+        await withTimeout(
+          this.orchestration.upsertSemanticChunks(doc.id, processed.chunks),
+          OCR_CHUNK_PERSIST_TIMEOUT_MS,
+          `Semantic chunk persistence timeout (${OCR_CHUNK_PERSIST_TIMEOUT_MS}ms): ${doc.title}`
+        );
       }
       if (processed.qualityReport) {
         await this.orchestration.upsertQualityReport(processed.qualityReport);
@@ -2375,7 +2481,11 @@ export class LegalCopilotWorkflowService extends Service {
     });
 
     // Remove orphaned chunks by upserting empty array for this document
-    await this.orchestration.upsertSemanticChunks(documentId, []);
+    await withTimeout(
+      this.orchestration.upsertSemanticChunks(documentId, []),
+      OCR_CHUNK_PERSIST_TIMEOUT_MS,
+      `Semantic chunk persistence timeout (${OCR_CHUNK_PERSIST_TIMEOUT_MS}ms): ${doc.title}`
+    );
 
     this.releaseBinary(documentId);
 
@@ -2565,7 +2675,9 @@ export class LegalCopilotWorkflowService extends Service {
         );
         const duplicate = this.documentProcessingService.isDuplicate(
           fingerprint,
-          existingDocsInCase
+          existingDocsInCase,
+          doc.title,
+          doc.sourceSizeBytes
         );
         if (duplicate && duplicate.processingStatus !== 'failed') {
           duplicateCount++;
@@ -2930,11 +3042,15 @@ export class LegalCopilotWorkflowService extends Service {
             `[workflow] Persisting ${processingResult.chunks.length} chunks for doc ${documentId}`
           );
           try {
-            await this.orchestration.upsertSemanticChunks(
-              documentId,
-              processingResult.chunks
+            await withTimeout(
+              this.orchestration.upsertSemanticChunks(
+                documentId,
+                processingResult.chunks
+              ),
+              OCR_CHUNK_PERSIST_TIMEOUT_MS,
+              `Semantic chunk persistence timeout (${OCR_CHUNK_PERSIST_TIMEOUT_MS}ms): ${doc.title}`
             );
-            // ── RAG Sync: push chunks to backend pgvector (fire-and-forget) ──
+            // ── RAG Sync: push chunks to backend pgvector ──
             this.ragSync
               .syncChunksToBackend(
                 input.workspaceId,
@@ -2942,6 +3058,17 @@ export class LegalCopilotWorkflowService extends Service {
                 documentId,
                 processingResult.chunks
               )
+              .then(() => {
+                if (this.ragSync.isBackendAvailable) {
+                  void this.orchestration
+                    .upsertLegalDocument({
+                      ...record,
+                      ragIndexed: true,
+                      updatedAt: new Date().toISOString(),
+                    })
+                    .catch(() => undefined);
+                }
+              })
               .catch(() => undefined);
           } catch (chunkErr) {
             console.error(
@@ -3518,13 +3645,46 @@ export class LegalCopilotWorkflowService extends Service {
     );
 
     const retryJobs: OcrJob[] = [];
+    const latestJobByDocumentId = new Map<string, OcrJob>();
+    for (const job of caseJobs) {
+      const prev = latestJobByDocumentId.get(job.documentId);
+      if (!prev) {
+        latestJobByDocumentId.set(job.documentId, job);
+        continue;
+      }
+      const prevMs = parseIsoToEpochMs(prev.updatedAt) ?? 0;
+      const jobMs = parseIsoToEpochMs(job.updatedAt) ?? 0;
+      if (jobMs > prevMs) {
+        latestJobByDocumentId.set(job.documentId, job);
+      }
+    }
     const failedRetryableDocs = (this.legalDocuments$.value ?? []).filter(
-      (doc: LegalDocumentRecord) =>
-        doc.caseId === caseId &&
-        doc.workspaceId === workspaceId &&
-        doc.status === 'failed' &&
-        isRetryableOcrDocument(doc) &&
-        !activeOcrDocIds.has(doc.id)
+      (doc: LegalDocumentRecord) => {
+        if (
+          doc.caseId !== caseId ||
+          doc.workspaceId !== workspaceId ||
+          doc.status !== 'failed' ||
+          !isRetryableOcrDocument(doc) ||
+          activeOcrDocIds.has(doc.id)
+        ) {
+          return false;
+        }
+        const latestJob = latestJobByDocumentId.get(doc.id);
+        if (!latestJob) {
+          return true;
+        }
+        if (latestJob.deadLetteredAt) {
+          return false;
+        }
+        if ((latestJob.retryAttempt ?? 0) >= OCR_DEAD_LETTER_MAX_ATTEMPTS) {
+          return false;
+        }
+        const dueMs = parseIsoToEpochMs(latestJob.nextRetryAt);
+        if (dueMs && dueMs > nowMs) {
+          return false;
+        }
+        return latestJob.status === 'failed';
+      }
     );
 
     for (const doc of failedRetryableDocs) {
@@ -3571,6 +3731,11 @@ export class LegalCopilotWorkflowService extends Service {
       }
 
       const queued = jobs[jobIndex];
+      const nowMs = Date.now();
+      const nextRetryAtMs = parseIsoToEpochMs(queued.nextRetryAt);
+      if (nextRetryAtMs && nextRetryAtMs > nowMs) {
+        continue;
+      }
       const startedAt = new Date().toISOString();
 
       try {
@@ -3840,6 +4005,22 @@ export class LegalCopilotWorkflowService extends Service {
           `OCR postprocess timeout (${OCR_POSTPROCESS_TIMEOUT_MS}ms): ${doc.title}`
         );
 
+        const qualityGateFailed = shouldFailQualityGate({
+          score: processed.qualityReport.overallScore,
+          fidelityRatio: processed.contentFidelity.fidelityRatio,
+          extractionYieldPerPage:
+            processed.contentFidelity.extractionYieldPerPage,
+          contentIntegrityOk: processed.contentFidelity.contentIntegrityOk,
+          suspiciousLowYield: processed.contentFidelity.suspiciousLowYield,
+        });
+        if (qualityGateFailed) {
+          throw new Error(
+            `OCR quality gate failed: score=${processed.qualityReport.overallScore}, fidelity=${processed.contentFidelity.fidelityRatio.toFixed(
+              3
+            )}, yield=${Math.round(processed.contentFidelity.extractionYieldPerPage)}`
+          );
+        }
+
         const nextStatus: LegalDocumentRecord['status'] =
           processed.processingStatus === 'failed' ? 'failed' : 'indexed';
         const hasBinaryInCache = this._binaryCache.has(doc.id);
@@ -3919,13 +4100,27 @@ export class LegalCopilotWorkflowService extends Service {
 
         await this.orchestration.upsertLegalDocument(updatedDoc);
 
-        await this.orchestration.upsertSemanticChunks(doc.id, processed.chunks);
+        await withTimeout(
+          this.orchestration.upsertSemanticChunks(doc.id, processed.chunks),
+          OCR_CHUNK_PERSIST_TIMEOUT_MS,
+          `Semantic chunk persistence timeout (${OCR_CHUNK_PERSIST_TIMEOUT_MS}ms): ${doc.title}`
+        );
 
         // ── RAG Sync: push structure-aware chunks to backend pgvector ──
-        // Fire-and-forget — does not block OCR processing or UI feedback.
         if (nextStatus === 'indexed' && processed.chunks.length > 0) {
           this.ragSync
             .syncChunksToBackend(workspaceId, caseId, doc.id, processed.chunks)
+            .then(() => {
+              if (this.ragSync.isBackendAvailable) {
+                void this.orchestration
+                  .upsertLegalDocument({
+                    ...updatedDoc,
+                    ragIndexed: true,
+                    updatedAt: new Date().toISOString(),
+                  })
+                  .catch(() => undefined);
+              }
+            })
             .catch(() => undefined);
         }
 
@@ -4058,7 +4253,6 @@ export class LegalCopilotWorkflowService extends Service {
           },
         });
       } catch (error) {
-        crashedJobs++;
         // Release binary from cache on crash to prevent memory leak
         this.releaseBinary(queued.documentId);
         const failedAt = new Date().toISOString();
@@ -4073,11 +4267,73 @@ export class LegalCopilotWorkflowService extends Service {
             : rawMessage;
         const stack = error instanceof Error ? error.stack : undefined;
         const errorSignature = hashErrorSignature(rawMessage, stack);
+        const nextAttempt = parseRetryAttempt(queued) + 1;
+        const qualityGateRetryAllowed =
+          failureCode !== 'ocr_quality_gate' ||
+          nextAttempt <= OCR_QUALITY_GATE_MAX_AUTO_RERUNS;
+        const shouldRetry =
+          isRetryableFailureCode(failureCode) &&
+          qualityGateRetryAllowed &&
+          nextAttempt <= OCR_DEAD_LETTER_MAX_ATTEMPTS;
 
         console.error(
           `[OCR ✗] "${queued.documentId}" crashed: ${message}`,
           error
         );
+
+        if (shouldRetry) {
+          const delayMs = computeDeterministicRetryDelayMs(
+            queued.documentId,
+            nextAttempt
+          );
+          const nextRetryAt = new Date(Date.now() + delayMs).toISOString();
+          await this.orchestration.upsertOcrJob({
+            ...queued,
+            status: 'queued',
+            progress: Math.max(1, queued.progress ?? 0),
+            retryAttempt: nextAttempt,
+            nextRetryAt,
+            failureCode,
+            errorMessage: `${message} [${failureCode}] · Retry #${nextAttempt}/${OCR_DEAD_LETTER_MAX_ATTEMPTS}`,
+            updatedAt: failedAt,
+          });
+          await this.orchestration.appendAuditEntry({
+            caseId,
+            workspaceId,
+            action: 'document.ocr.retry_scheduled',
+            severity: 'warning',
+            details:
+              `OCR-Retry geplant (${nextAttempt}/${OCR_DEAD_LETTER_MAX_ATTEMPTS}) ` +
+              `für ${queued.documentId} in ${Math.round(delayMs / 1000)}s (${failureCode}).`,
+            metadata: {
+              ocrRunId,
+              jobId: queued.id,
+              documentId: queued.documentId,
+              retryAttempt: String(nextAttempt),
+              nextRetryAt,
+              delayMs: String(delayMs),
+              failureCode,
+            },
+          });
+
+          const retryDoc = (this.legalDocuments$.value ?? []).find(
+            (item: LegalDocumentRecord) => item.id === queued.documentId
+          );
+          if (retryDoc) {
+            await this.orchestration.upsertLegalDocument({
+              ...retryDoc,
+              status: 'ocr_pending',
+              processingStatus: 'extracting',
+              processingError:
+                `Automatischer OCR-Retry geplant (${nextAttempt}/${OCR_DEAD_LETTER_MAX_ATTEMPTS}). ` +
+                `Nächster Versuch: ${new Date(nextRetryAt).toLocaleTimeString()}.`,
+              updatedAt: failedAt,
+            });
+          }
+          continue;
+        }
+
+        crashedJobs++;
 
         await this.orchestration.upsertOcrJob({
           ...queued,
@@ -4085,6 +4341,9 @@ export class LegalCopilotWorkflowService extends Service {
           progress: 100,
           startedAt: queued.startedAt ?? startedAt,
           finishedAt: failedAt,
+          retryAttempt: nextAttempt,
+          deadLetteredAt: failedAt,
+          failureCode,
           errorMessage: `${message} [${failureCode}]`,
           updatedAt: failedAt,
         });
@@ -4206,7 +4465,81 @@ export class LegalCopilotWorkflowService extends Service {
       }
     }
 
+    const telemetry = this.getOcrTelemetrySnapshot(caseId, workspaceId);
+    await this.orchestration.appendAuditEntry({
+      caseId,
+      workspaceId,
+      action: 'document.ocr.telemetry.snapshot',
+      severity: 'info',
+      details:
+        `OCR Telemetrie: p95=${Math.round(telemetry.p95DurationMs)}ms, ` +
+        `Timeout-Rate=${(telemetry.timeoutRate * 100).toFixed(1)}%, ` +
+        `Recovery-Rate=${(telemetry.recoveryRate * 100).toFixed(1)}%, ` +
+        `Vector-Persist-Fail-Rate=${(telemetry.vectorPersistFailRate * 100).toFixed(1)}%.`,
+      metadata: {
+        ocrRunId,
+        sampleCount: String(telemetry.sampleCount),
+        p95DurationMs: String(Math.round(telemetry.p95DurationMs)),
+        timeoutRate: telemetry.timeoutRate.toFixed(4),
+        recoveryRate: telemetry.recoveryRate.toFixed(4),
+        vectorPersistFailRate: telemetry.vectorPersistFailRate.toFixed(4),
+      },
+    });
+
     return completed;
+  }
+
+  getOcrTelemetrySnapshot(caseId: string, workspaceId: string) {
+    const jobs = (this.ocrJobs$.value ?? []).filter(
+      (item: OcrJob) =>
+        item.caseId === caseId && item.workspaceId === workspaceId
+    );
+    const durations = jobs
+      .map(job => {
+        const start = parseIsoToEpochMs(job.startedAt);
+        const end = parseIsoToEpochMs(job.finishedAt);
+        if (start === null || end === null || end < start) {
+          return 0;
+        }
+        return end - start;
+      })
+      .filter(v => v > 0);
+    const p95DurationMs = percentile(durations, 95);
+
+    const timeoutCount = jobs.filter(
+      job =>
+        job.failureCode === 'ocr_timeout' ||
+        (job.errorMessage ?? '').toLowerCase().includes('timeout')
+    ).length;
+    const retriesTriggered = jobs.filter(
+      job => (job.retryAttempt ?? 0) > 0
+    ).length;
+    const recoveredCount = jobs.filter(
+      job => (job.retryAttempt ?? 0) > 0 && job.status === 'completed'
+    ).length;
+
+    const docs = (this.legalDocuments$.value ?? []).filter(
+      (item: LegalDocumentRecord) =>
+        item.caseId === caseId && item.workspaceId === workspaceId
+    );
+    const vectorPersistFails = docs.filter(item =>
+      (item.extractionEngine ?? '').toLowerCase().includes('vector_persist')
+    ).length;
+    const vectorPersistPopulation = Math.max(
+      1,
+      docs.filter(item => item.status === 'indexed' || item.status === 'failed')
+        .length
+    );
+
+    const sampleCount = Math.max(1, jobs.length);
+    return {
+      sampleCount,
+      p95DurationMs,
+      timeoutRate: timeoutCount / sampleCount,
+      recoveryRate:
+        retriesTriggered > 0 ? recoveredCount / retriesTriggered : 0,
+      vectorPersistFailRate: vectorPersistFails / vectorPersistPopulation,
+    };
   }
 
   private buildFindingCitation(doc: LegalDocumentRecord, maxLen = 220) {

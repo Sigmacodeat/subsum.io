@@ -59,6 +59,8 @@ const OCR_RETRY_CONFIDENCE_THRESHOLD = 65;
 const OCR_MAX_RETRY_PAGES_PER_DOC = 10;
 /** Maximum base64 length to attempt local OCR (~37 MB raw) */
 const OCR_MAX_BASE64_LENGTH = 50_000_000;
+const OCR_WORKER_RECOVERY_TIMEOUT_MS = 5_000;
+const OCR_MAX_CONSECUTIVE_TIMEOUTS_BEFORE_RECOVERY = 2;
 
 function chooseRenderScale(page: { width: number; height: number }) {
   const maxScale = OCR_RENDER_SCALE;
@@ -69,6 +71,11 @@ function chooseRenderScale(page: { width: number; height: number }) {
     Math.sqrt(Math.max(1, OCR_RENDER_MAX_PIXELS / Math.max(1, basePixels)))
   );
   return Math.max(minScale, Math.min(maxScale, budgetScale));
+}
+
+function isTimeoutError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err ?? '');
+  return msg.toLowerCase().includes('timeout');
 }
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -121,7 +128,9 @@ export interface LocalOcrProgress {
 }
 
 type TesseractWorker = {
-  recognize: (image: ImageData | HTMLCanvasElement | OffscreenCanvas) => Promise<{
+  recognize: (
+    image: ImageData | HTMLCanvasElement | OffscreenCanvas
+  ) => Promise<{
     data: { text: string; confidence: number };
   }>;
   terminate: () => Promise<void>;
@@ -140,7 +149,8 @@ async function getTesseractWorker(): Promise<TesseractWorker> {
     try {
       // Dynamic import to avoid loading Tesseract.js until actually needed
       const Tesseract = await import('tesseract.js');
-      const createWorker = Tesseract.createWorker ?? (Tesseract as any).default?.createWorker;
+      const createWorker =
+        Tesseract.createWorker ?? (Tesseract as any).default?.createWorker;
       if (!createWorker) {
         throw new Error('Tesseract.js createWorker not found');
       }
@@ -191,7 +201,10 @@ function imageDataToRecognizeInput(
   }
 
   // Prefer HTMLCanvasElement in browser main-thread for maximum tesseract.js compatibility.
-  if (typeof document !== 'undefined' && typeof document.createElement === 'function') {
+  if (
+    typeof document !== 'undefined' &&
+    typeof document.createElement === 'function'
+  ) {
     const canvas = document.createElement('canvas');
     canvas.width = width;
     canvas.height = height;
@@ -274,13 +287,24 @@ function detectMimeFromMagicBytes(bytes: Uint8Array): string | null {
   }
   // TIFF
   if (
-    (bytes[0] === 0x49 && bytes[1] === 0x49 && bytes[2] === 0x2a && bytes[3] === 0x00) ||
-    (bytes[0] === 0x4d && bytes[1] === 0x4d && bytes[2] === 0x00 && bytes[3] === 0x2a)
+    (bytes[0] === 0x49 &&
+      bytes[1] === 0x49 &&
+      bytes[2] === 0x2a &&
+      bytes[3] === 0x00) ||
+    (bytes[0] === 0x4d &&
+      bytes[1] === 0x4d &&
+      bytes[2] === 0x00 &&
+      bytes[3] === 0x2a)
   ) {
     return 'image/tiff';
   }
   // PDF
-  if (bytes[0] === 0x25 && bytes[1] === 0x50 && bytes[2] === 0x44 && bytes[3] === 0x46) {
+  if (
+    bytes[0] === 0x25 &&
+    bytes[1] === 0x50 &&
+    bytes[2] === 0x44 &&
+    bytes[3] === 0x46
+  ) {
     return 'application/pdf';
   }
   return null;
@@ -299,7 +323,9 @@ function toGrayscale(imageData: ImageData): ImageData {
   const out = new ImageData(width, height);
   const d = out.data;
   for (let i = 0; i < data.length; i += 4) {
-    const gray = Math.round(data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114);
+    const gray = Math.round(
+      data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114
+    );
     d[i] = gray;
     d[i + 1] = gray;
     d[i + 2] = gray;
@@ -331,7 +357,10 @@ function enhanceContrast(imageData: ImageData): ImageData {
   for (let v = 0; v < 256; v++) {
     cumulative += histogram[v];
     if (cumulative >= clipLow && low === 0) low = v;
-    if (cumulative >= clipHigh) { high = v; break; }
+    if (cumulative >= clipHigh) {
+      high = v;
+      break;
+    }
   }
 
   if (high <= low) return imageData; // Already flat or single color
@@ -340,7 +369,9 @@ function enhanceContrast(imageData: ImageData): ImageData {
   const out = new ImageData(width, height);
   const d = out.data;
   for (let i = 0; i < data.length; i += 4) {
-    const stretched = Math.round(((Math.min(high, Math.max(low, data[i])) - low) / range) * 255);
+    const stretched = Math.round(
+      ((Math.min(high, Math.max(low, data[i])) - low) / range) * 255
+    );
     d[i] = stretched;
     d[i + 1] = stretched;
     d[i + 2] = stretched;
@@ -370,9 +401,15 @@ function denoiseMedian(imageData: ImageData): ImageData {
     for (let x = 1; x < width - 1; x++) {
       // Collect 3x3 neighborhood — insertion sort for 9 elements is faster than Array.sort
       const neighborhood = [
-        getPixel(x - 1, y - 1), getPixel(x, y - 1), getPixel(x + 1, y - 1),
-        getPixel(x - 1, y),     getPixel(x, y),     getPixel(x + 1, y),
-        getPixel(x - 1, y + 1), getPixel(x, y + 1), getPixel(x + 1, y + 1),
+        getPixel(x - 1, y - 1),
+        getPixel(x, y - 1),
+        getPixel(x + 1, y - 1),
+        getPixel(x - 1, y),
+        getPixel(x, y),
+        getPixel(x + 1, y),
+        getPixel(x - 1, y + 1),
+        getPixel(x, y + 1),
+        getPixel(x + 1, y + 1),
       ];
       // Partial sort to find median (5th element of 9)
       neighborhood.sort((a, b) => a - b);
@@ -388,14 +425,22 @@ function denoiseMedian(imageData: ImageData): ImageData {
   for (let x = 0; x < width; x++) {
     const topIdx = x * 4;
     const botIdx = ((height - 1) * width + x) * 4;
-    d[topIdx] = data[topIdx]; d[topIdx + 1] = data[topIdx]; d[topIdx + 2] = data[topIdx];
-    d[botIdx] = data[botIdx]; d[botIdx + 1] = data[botIdx]; d[botIdx + 2] = data[botIdx];
+    d[topIdx] = data[topIdx];
+    d[topIdx + 1] = data[topIdx];
+    d[topIdx + 2] = data[topIdx];
+    d[botIdx] = data[botIdx];
+    d[botIdx + 1] = data[botIdx];
+    d[botIdx + 2] = data[botIdx];
   }
   for (let y = 0; y < height; y++) {
-    const leftIdx = (y * width) * 4;
+    const leftIdx = y * width * 4;
     const rightIdx = (y * width + width - 1) * 4;
-    d[leftIdx] = data[leftIdx]; d[leftIdx + 1] = data[leftIdx]; d[leftIdx + 2] = data[leftIdx];
-    d[rightIdx] = data[rightIdx]; d[rightIdx + 1] = data[rightIdx]; d[rightIdx + 2] = data[rightIdx];
+    d[leftIdx] = data[leftIdx];
+    d[leftIdx + 1] = data[leftIdx];
+    d[leftIdx + 2] = data[leftIdx];
+    d[rightIdx] = data[rightIdx];
+    d[rightIdx + 1] = data[rightIdx];
+    d[rightIdx + 2] = data[rightIdx];
   }
 
   return out;
@@ -434,7 +479,10 @@ function binarizeOtsu(imageData: ImageData): ImageData {
     sumBackground += t * histogram[t];
     const meanBackground = sumBackground / weightBackground;
     const meanForeground = (sumTotal - sumBackground) / weightForeground;
-    const variance = weightBackground * weightForeground * (meanBackground - meanForeground) ** 2;
+    const variance =
+      weightBackground *
+      weightForeground *
+      (meanBackground - meanForeground) ** 2;
 
     if (variance > maxVariance) {
       maxVariance = variance;
@@ -573,7 +621,10 @@ function preprocessForOcr(imageData: ImageData, enhanced = false): ImageData {
  * Classify a page image as text-heavy, scan, hybrid, or blank.
  * Uses edge density and ink coverage heuristics on grayscale image.
  */
-function classifyPageImage(imageData: ImageData): { type: PageType; textDensity: number } {
+function classifyPageImage(imageData: ImageData): {
+  type: PageType;
+  textDensity: number;
+} {
   const { data, width, height } = imageData;
   const totalPixels = width * height;
 
@@ -633,29 +684,29 @@ function classifyPageImage(imageData: ImageData): { type: PageType; textDensity:
  */
 const OCR_ARTIFACT_REPLACEMENTS: Array<[RegExp, string]> = [
   // Common ligature/umlaut OCR errors
-  [/(?<=[a-zäöüß])ii(?=[a-zäöüß])/g, 'ü'],         // "ii" often = "ü" in German
+  [/(?<=[a-zäöüß])ii(?=[a-zäöüß])/g, 'ü'], // "ii" often = "ü" in German
   [/(?<=[A-ZÄÖÜ])II(?=[a-zäöüß])/g, 'Ü'],
   [/(?<=\b)Ober(?=gericht|landesgericht)/g, 'Ober'], // keep correct
-  [/[oO]¨/g, 'ö'],                                    // decomposed umlaut o + diaeresis
+  [/[oO]¨/g, 'ö'], // decomposed umlaut o + diaeresis
   [/[uU]¨/g, 'ü'],
   [/[aA]¨/g, 'ä'],
   // Digit/letter confusion
-  [/\bl\b(?=\.\s*\d)/g, '1'],                         // "l." at start of numbered list → "1."
-  [/(?<=§\s*)l(?=\d)/g, '1'],                          // "§ l23" → "§ 123"
-  [/(?<=\d)O(?=\d)/g, '0'],                            // "1O2" → "102"
-  [/(?<=\d)l(?=\d)/g, '1'],                            // "2l3" → "213"
+  [/\bl\b(?=\.\s*\d)/g, '1'], // "l." at start of numbered list → "1."
+  [/(?<=§\s*)l(?=\d)/g, '1'], // "§ l23" → "§ 123"
+  [/(?<=\d)O(?=\d)/g, '0'], // "1O2" → "102"
+  [/(?<=\d)l(?=\d)/g, '1'], // "2l3" → "213"
   // Broken German special chars
-  [/B(?=\s*G\s*B\b)/g, ''],                            // Don't break "BGB"
-  [/fi(?=nden|nal|sch|rm|x)/g, 'fi'],                 // fi-ligature already correct
-  [/fl(?=ieh|ug|ach|ücht)/g, 'fl'],                   // fl-ligature
+  [/B(?=\s*G\s*B\b)/g, ''], // Don't break "BGB"
+  [/fi(?=nden|nal|sch|rm|x)/g, 'fi'], // fi-ligature already correct
+  [/fl(?=ieh|ug|ach|ücht)/g, 'fl'], // fl-ligature
   // Noise characters from bad scans
-  [/[|¦¡!]{3,}/g, ''],                                 // noise columns
-  [/[~^`]{2,}/g, ''],                                  // tilde/caret noise
-  [/[\x00-\x08\x0b\x0c\x0e-\x1f]/g, ''],             // control chars
+  [/[|¦¡!]{3,}/g, ''], // noise columns
+  [/[~^`]{2,}/g, ''], // tilde/caret noise
+  [/[\p{Cc}]/gu, ''], // control chars
   // Whitespace normalization
-  [/([.,:;!?])([A-ZÄÖÜ])/g, '$1 $2'],                 // Missing space after punctuation
-  [/\s{3,}/g, '  '],                                   // Collapse excessive spaces
-  [/\n{4,}/g, '\n\n\n'],                               // Collapse excessive newlines
+  [/([.,:;!?])([A-ZÄÖÜ])/g, '$1 $2'], // Missing space after punctuation
+  [/\s{3,}/g, '  '], // Collapse excessive spaces
+  [/\n{4,}/g, '\n\n\n'], // Collapse excessive newlines
 ];
 
 /**
@@ -675,24 +726,32 @@ function removeOcrArtifacts(text: string): string {
  * Handles decomposed umlauts, typographic quotes, dashes, etc.
  */
 function normalizeOcrUnicode(text: string): string {
-  return text
-    .normalize('NFC')
-    // Typographic quotes → standard
-    .replace(/[\u201C\u201D\u201E\u201F]/g, '"')
-    .replace(/[\u2018\u2019\u201A\u201B]/g, "'")
-    // Various dashes → standard
-    .replace(/[\u2013\u2014\u2015]/g, '–')
-    // Non-breaking space → regular space
-    .replace(/\u00A0/g, ' ')
-    // Zero-width chars
-    .replace(/[\u200B\u200C\u200D\uFEFF]/g, '')
-    // Fullwidth digits/letters → ASCII
-    .replace(/[\uFF10-\uFF19]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0))
-    .replace(/[\uFF21-\uFF3A]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0))
-    .replace(/[\uFF41-\uFF5A]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0))
-    // Soft hyphen
-    .replace(/\u00AD/g, '')
-    .trim();
+  return (
+    text
+      .normalize('NFC')
+      // Typographic quotes → standard
+      .replace(/[\u201C\u201D\u201E\u201F]/g, '"')
+      .replace(/[\u2018\u2019\u201A\u201B]/g, "'")
+      // Various dashes → standard
+      .replace(/[\u2013\u2014\u2015]/g, '–')
+      // Non-breaking space → regular space
+      .replace(/\u00A0/g, ' ')
+      // Zero-width chars
+      .replace(/\u200B|\u200C|\u200D|\uFEFF/g, '')
+      // Fullwidth digits/letters → ASCII
+      .replace(/[\uFF10-\uFF19]/g, c =>
+        String.fromCharCode(c.charCodeAt(0) - 0xfee0)
+      )
+      .replace(/[\uFF21-\uFF3A]/g, c =>
+        String.fromCharCode(c.charCodeAt(0) - 0xfee0)
+      )
+      .replace(/[\uFF41-\uFF5A]/g, c =>
+        String.fromCharCode(c.charCodeAt(0) - 0xfee0)
+      )
+      // Soft hyphen
+      .replace(/\u00AD/g, '')
+      .trim()
+  );
 }
 
 /**
@@ -702,13 +761,21 @@ function normalizeOcrUnicode(text: string): string {
 function detectOcrLanguage(text: string): string {
   const lower = text.toLowerCase();
   const deScore =
-    (lower.match(/\b(der|die|das|und|ist|nicht|wurde|frist|anspruch|gericht|urteil|gemäß|beschluss|klage|beklagte|kläger|antrag)\b/g)?.length ?? 0);
+    lower.match(
+      /\b(der|die|das|und|ist|nicht|wurde|frist|anspruch|gericht|urteil|gemäß|beschluss|klage|beklagte|kläger|antrag)\b/g
+    )?.length ?? 0;
   const enScore =
-    (lower.match(/\b(the|and|is|not|was|has|have|court|judgment|claim|defendant|plaintiff|shall|whereas|hereby)\b/g)?.length ?? 0);
+    lower.match(
+      /\b(the|and|is|not|was|has|have|court|judgment|claim|defendant|plaintiff|shall|whereas|hereby)\b/g
+    )?.length ?? 0;
   const frScore =
-    (lower.match(/\b(le|la|les|des|est|pas|une|que|pour|dans|tribunal|jugement|arrêt|demande|défendeur)\b/g)?.length ?? 0);
+    lower.match(
+      /\b(le|la|les|des|est|pas|une|que|pour|dans|tribunal|jugement|arrêt|demande|défendeur)\b/g
+    )?.length ?? 0;
   const itScore =
-    (lower.match(/\b(il|la|le|del|della|non|che|per|con|tribunale|sentenza|domanda|convenuto)\b/g)?.length ?? 0);
+    lower.match(
+      /\b(il|la|le|del|della|non|che|per|con|tribunale|sentenza|domanda|convenuto)\b/g
+    )?.length ?? 0;
 
   const max = Math.max(deScore, enScore, frScore, itScore);
   if (max === 0) return 'unknown';
@@ -784,7 +851,9 @@ export async function ocrPdfFromBase64(
 
   try {
     pdfMeta = await withTimeout(
-      firstValueFrom(renderer.ob$('open', { data: bytes.buffer as ArrayBuffer })),
+      firstValueFrom(
+        renderer.ob$('open', { data: bytes.buffer as ArrayBuffer })
+      ),
       15_000,
       'PDF open timeout'
     );
@@ -808,17 +877,20 @@ export async function ocrPdfFromBase64(
   let totalYieldChars = 0;
 
   try {
-    const tesseract = await withTimeout(
+    let tesseract = await withTimeout(
       getTesseractWorker(),
       30_000,
       'Tesseract worker init timeout'
     );
+    let consecutiveTimeouts = 0;
 
     const totalDeadline = Date.now() + OCR_TOTAL_TIMEOUT_MS;
 
     for (let pageNum = 0; pageNum < pagesToOcr; pageNum++) {
       if (Date.now() > totalDeadline) {
-        console.warn(`[local-ocr] Total timeout reached after ${pageNum} pages`);
+        console.warn(
+          `[local-ocr] Total timeout reached after ${pageNum} pages`
+        );
         break;
       }
 
@@ -901,20 +973,12 @@ export async function ocrPdfFromBase64(
 
         const ocrInput = imageDataToRecognizeInput(preprocessed);
         const ocrStart = Date.now();
-        let ocrResult: { data: { text: string; confidence: number } };
-        try {
-          ocrResult = await withTimeout(
+        const ocrResult: { data: { text: string; confidence: number } } =
+          await withTimeout(
             tesseract.recognize(ocrInput),
             OCR_PAGE_TIMEOUT_MS,
             `Page ${pageNum} OCR timeout`
           );
-        } catch (err) {
-          // Do NOT terminate the shared singleton worker on a single page failure.
-          // terminateTesseractWorker() would null the worker, causing "Cannot read
-          // properties of null (reading 'postMessage')" for all subsequent OCR jobs.
-          // Re-throw so the outer per-page catch (pageErr) handles bookkeeping.
-          throw err;
-        }
         ocrMs += Date.now() - ocrStart;
 
         let pageText = ocrResult.data.text?.trim() ?? '';
@@ -948,13 +1012,17 @@ export async function ocrPdfFromBase64(
             const retryConfidence = retryResult.data.confidence ?? 0;
 
             // Only use retry result if it's actually better
-            if ((retryText.length > pageText.length && retryConfidence >= pageConfidence) || retryConfidence > pageConfidence + 8) {
+            if (
+              (retryText.length > pageText.length &&
+                retryConfidence >= pageConfidence) ||
+              retryConfidence > pageConfidence + 8
+            ) {
               pageText = retryText;
               pageConfidence = retryConfidence;
               wasRetried = true;
               retriedPages++;
             }
-          } catch (err) {
+          } catch {
             // Ignore retry failure; keep first-pass results
             ocrMs += Date.now() - retryOcrStart;
           }
@@ -969,7 +1037,11 @@ export async function ocrPdfFromBase64(
         }
 
         // If we see multiple pages with virtually no text, abort to avoid minutes of wasted OCR.
-        if (pageNum >= 4 && consecutiveNoYieldPages >= 5 && totalYieldChars < 200) {
+        if (
+          pageNum >= 4 &&
+          consecutiveNoYieldPages >= 5 &&
+          totalYieldChars < 200
+        ) {
           console.warn(
             `[local-ocr] Early stop: no viable text yield after ${pageNum + 1} pages (yield=${totalYieldChars})`
           );
@@ -1018,6 +1090,42 @@ export async function ocrPdfFromBase64(
         });
       } catch (pageErr) {
         console.warn(`[local-ocr] Page ${pageNum} failed:`, pageErr);
+        if (isTimeoutError(pageErr)) {
+          consecutiveTimeouts++;
+        } else {
+          consecutiveTimeouts = 0;
+        }
+
+        if (
+          consecutiveTimeouts >= OCR_MAX_CONSECUTIVE_TIMEOUTS_BEFORE_RECOVERY
+        ) {
+          console.warn(
+            `[local-ocr] Recovering Tesseract worker after ${consecutiveTimeouts} consecutive timeouts`
+          );
+          try {
+            await withTimeout(
+              terminateTesseractWorker(),
+              OCR_WORKER_RECOVERY_TIMEOUT_MS,
+              'Tesseract worker terminate timeout'
+            );
+          } catch {
+            // ignore terminate timeout; we'll still try to re-init
+          }
+          try {
+            tesseract = await withTimeout(
+              getTesseractWorker(),
+              30_000,
+              'Tesseract worker re-init timeout'
+            );
+            consecutiveTimeouts = 0;
+          } catch (reInitErr) {
+            console.warn(
+              '[local-ocr] Worker recovery re-init failed:',
+              reInitErr
+            );
+          }
+        }
+
         perPageConfidence.push(0);
         failedPages++;
         pagesOcrd++;
@@ -1042,8 +1150,10 @@ export async function ocrPdfFromBase64(
     validConfidences.length > 0
       ? validConfidences.reduce((a, b) => a + b, 0) / validConfidences.length
       : 0;
-  const minConfidence = validConfidences.length > 0 ? Math.min(...validConfidences) : 0;
-  const maxConfidence = validConfidences.length > 0 ? Math.max(...validConfidences) : 0;
+  const minConfidence =
+    validConfidences.length > 0 ? Math.min(...validConfidences) : 0;
+  const maxConfidence =
+    validConfidences.length > 0 ? Math.max(...validConfidences) : 0;
   const totalMs = Date.now() - startTime;
 
   const metrics: OcrPipelineMetrics = {
@@ -1065,9 +1175,9 @@ export async function ocrPdfFromBase64(
 
   console.log(
     `[local-ocr] PDF done: ${pagesOcrd}/${pageCount} pages, ` +
-    `avg=${Math.round(avgConfidence)}% conf, ` +
-    `${retriedPages} retried, ${failedPages} failed, ${skippedPages} blank, ` +
-    `${totalMs}ms total (pp=${preProcessingMs}ms, ocr=${ocrMs}ms, post=${postProcessingMs}ms)`
+      `avg=${Math.round(avgConfidence)}% conf, ` +
+      `${retriedPages} retried, ${failedPages} failed, ${skippedPages} blank, ` +
+      `${totalMs}ms total (pp=${preProcessingMs}ms, ocr=${ocrMs}ms, post=${postProcessingMs}ms)`
   );
 
   return {
@@ -1108,7 +1218,10 @@ export async function ocrImageFromBase64(
   try {
     const bytes = tryBase64ToUint8Array(base64);
     if (!bytes || bytes.length === 0) {
-      return emptyResult('tesseract-image-base64-invalid', Date.now() - startTime);
+      return emptyResult(
+        'tesseract-image-base64-invalid',
+        Date.now() - startTime
+      );
     }
     const inferred = detectMimeFromMagicBytes(bytes);
     if (inferred?.includes('pdf')) {
@@ -1116,15 +1229,23 @@ export async function ocrImageFromBase64(
     }
     const resolvedMime = inferred ?? (mimeType || 'image/png');
     if (!resolvedMime.startsWith('image/')) {
-      return emptyResult('tesseract-image-unsupported-mime', Date.now() - startTime);
+      return emptyResult(
+        'tesseract-image-unsupported-mime',
+        Date.now() - startTime
+      );
     }
 
-    const blob = new Blob([bytes.buffer as ArrayBuffer], { type: resolvedMime });
+    const blob = new Blob([bytes.buffer as ArrayBuffer], {
+      type: resolvedMime,
+    });
     let bitmap: ImageBitmap;
     try {
       bitmap = await createImageBitmap(blob);
     } catch {
-      return emptyResult('tesseract-image-decode-failed', Date.now() - startTime);
+      return emptyResult(
+        'tesseract-image-decode-failed',
+        Date.now() - startTime
+      );
     }
 
     const tesseract = await withTimeout(
@@ -1188,7 +1309,10 @@ export async function ocrImageFromBase64(
         const retryText = retryResult.data.text?.trim() ?? '';
         const retryConfidence = retryResult.data.confidence ?? 0;
 
-        if (retryConfidence > confidence && retryText.length >= text.length * 0.8) {
+        if (
+          retryConfidence > confidence &&
+          retryText.length >= text.length * 0.8
+        ) {
           text = retryText;
           confidence = retryConfidence;
           wasRetried = true;
@@ -1222,18 +1346,20 @@ export async function ocrImageFromBase64(
       postProcessingMs,
       totalMs,
       engineVersion: 'tesseract-local-v2',
-      pageClassification: [{
-        pageNum: 0,
-        type: classification.type,
-        textDensity: classification.textDensity,
-        ocrConfidence: confidence,
-        wasRetried,
-      }],
+      pageClassification: [
+        {
+          pageNum: 0,
+          type: classification.type,
+          textDensity: classification.textDensity,
+          ocrConfidence: confidence,
+          wasRetried,
+        },
+      ],
     };
 
     console.log(
       `[local-ocr] Image done: conf=${Math.round(confidence)}%, ` +
-      `retried=${wasRetried}, ${totalMs}ms total`
+        `retried=${wasRetried}, ${totalMs}ms total`
     );
 
     return {
@@ -1248,6 +1374,13 @@ export async function ocrImageFromBase64(
     };
   } catch (err) {
     console.warn('[local-ocr] Image OCR failed:', err);
+    if (isTimeoutError(err)) {
+      void withTimeout(
+        terminateTesseractWorker(),
+        OCR_WORKER_RECOVERY_TIMEOUT_MS,
+        'Tesseract worker terminate timeout'
+      ).catch(() => undefined);
+    }
     // Do NOT terminate the shared singleton worker here.
     // Killing it causes "Cannot read properties of null (reading 'postMessage')"
     // for all subsequent OCR jobs in the same processPendingOcr batch.
@@ -1277,12 +1410,15 @@ export async function ocrFromDataUrl(
     const base64 = base64Idx >= 0 ? dataUrl.slice(base64Idx + 8) : dataUrl;
 
     // Detect MIME type from data URL header
-    const detectedMime = base64Idx >= 0
-      ? dataUrl.slice(5, base64Idx).toLowerCase()
-      : (mimeType ?? '').toLowerCase();
+    const detectedMime =
+      base64Idx >= 0
+        ? dataUrl.slice(5, base64Idx).toLowerCase()
+        : (mimeType ?? '').toLowerCase();
 
     const bytesProbe = tryBase64ToUint8Array(base64.slice(0, 256 * 1024));
-    const inferredFromBytes = bytesProbe ? detectMimeFromMagicBytes(bytesProbe) : null;
+    const inferredFromBytes = bytesProbe
+      ? detectMimeFromMagicBytes(bytesProbe)
+      : null;
     const effectiveMime = (inferredFromBytes ?? detectedMime).toLowerCase();
 
     const isPdf = effectiveMime.includes('pdf');
@@ -1303,17 +1439,26 @@ export async function ocrFromDataUrl(
       pdfResult = await ocrPdfFromBase64(base64, onProgress);
     } catch (err) {
       console.warn('[local-ocr] Unknown-type PDF probe failed:', err);
-      pdfResult = emptyResult('tesseract-unknown-pdf-probe-failed', Date.now() - startTime);
+      pdfResult = emptyResult(
+        'tesseract-unknown-pdf-probe-failed',
+        Date.now() - startTime
+      );
     }
     if (pdfResult.text.length > 20) {
       return pdfResult;
     }
 
     try {
-      return await ocrImageFromBase64(base64, effectiveMime || 'application/octet-stream');
+      return await ocrImageFromBase64(
+        base64,
+        effectiveMime || 'application/octet-stream'
+      );
     } catch (err) {
       console.warn('[local-ocr] Unknown-type image probe failed:', err);
-      return emptyResult('tesseract-unknown-image-probe-failed', Date.now() - startTime);
+      return emptyResult(
+        'tesseract-unknown-image-probe-failed',
+        Date.now() - startTime
+      );
     }
   } catch (err) {
     console.warn('[local-ocr] ocrFromDataUrl failed:', err);

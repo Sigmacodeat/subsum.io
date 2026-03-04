@@ -60,7 +60,7 @@ function createProcessingResult(input: {
       estimatedOverlapChars: 0,
       effectiveChunkChars: 0,
       fidelityRatio: 1,
-      extractionYieldPerPage: 0,
+      extractionYieldPerPage: input.processingStatus === 'failed' ? 0 : 120,
       suspiciousLowYield: false,
       suspiciousHighRatio: false,
       contentIntegrityOk: true,
@@ -675,15 +675,30 @@ describe('LegalCopilotWorkflowService OCR queueing', () => {
     expect(completed).toHaveLength(1);
     expect(completed[0].documentId).toBe('doc-ocr-2');
 
-    const ocrStatusUpdates = (orchestration.upsertOcrJob as any).mock.calls.map(
-      (call: [{ status: string }]) => call[0].status
+    const ocrUpdates = (orchestration.upsertOcrJob as any).mock.calls.map(
+      (call: [Record<string, unknown>]) => call[0]
     );
-    expect(ocrStatusUpdates).toContain('failed');
-    expect(ocrStatusUpdates).toContain('completed');
+    const queuedRetry = ocrUpdates.find(
+      (update: Record<string, unknown>) =>
+        update.status === 'queued' && (update.retryAttempt as number) === 1
+    );
+    expect(queuedRetry).toBeTruthy();
+    expect(
+      ocrUpdates.some(
+        (update: Record<string, unknown>) => update.status === 'completed'
+      )
+    ).toBe(true);
 
-    expect(orchestration.appendAuditEntry).toHaveBeenCalledWith(
+    const retryAudit = (orchestration.appendAuditEntry as any).mock.calls
+      .map((call: [Record<string, unknown>]) => call[0])
+      .find(
+        (entry: Record<string, unknown>) =>
+          entry.action === 'document.ocr.retry_scheduled'
+      );
+    expect(retryAudit).toEqual(
       expect.objectContaining({
-        action: 'document.ocr.partial_failure',
+        action: 'document.ocr.retry_scheduled',
+        severity: 'warning',
       })
     );
   });
@@ -761,33 +776,30 @@ describe('LegalCopilotWorkflowService OCR queueing', () => {
     const ocrPayloads = (orchestration.upsertOcrJob as any).mock.calls.map(
       (call: [{ status: string; errorMessage?: string }]) => call[0]
     );
-    const failedFinalUpdates = ocrPayloads.filter(
-      (update: { status: string; errorMessage?: string }) =>
-        update.status === 'failed' && typeof update.errorMessage === 'string'
+    const retryQueuedUpdates = ocrPayloads.filter(
+      (update: { status: string; retryAttempt?: number }) =>
+        update.status === 'queued' && (update.retryAttempt ?? 0) > 0
     );
     const completedFinalUpdates = ocrPayloads.filter(
-      (update: { status: string; errorMessage?: string }) =>
-        update.status === 'completed'
+      (update: { status: string }) => update.status === 'completed'
     );
 
-    expect(failedFinalUpdates.length).toBe(failingIndexes.size);
+    expect(retryQueuedUpdates.length).toBe(failingIndexes.size);
     expect(completedFinalUpdates.length).toBe(totalJobs - failingIndexes.size);
 
-    const auditCalls = (orchestration.appendAuditEntry as any).mock.calls
+    const retryAudits = (orchestration.appendAuditEntry as any).mock.calls
       .map((call: [Record<string, unknown>]) => call[0])
       .filter(
         (entry: Record<string, unknown>) =>
-          entry.action === 'document.ocr.partial_failure'
+          entry.action === 'document.ocr.retry_scheduled'
       );
 
-    expect(auditCalls).toHaveLength(1);
-    expect(auditCalls[0]?.metadata).toEqual(
-      expect.objectContaining({
-        crashedJobs: String(failingIndexes.size),
-        totalJobs: String(totalJobs),
-        completedJobs: String(totalJobs - failingIndexes.size),
-      })
-    );
+    expect(retryAudits).toHaveLength(failingIndexes.size);
+    expect(
+      retryAudits.every(
+        (entry: Record<string, unknown>) => entry.severity === 'warning'
+      )
+    ).toBe(true);
   });
 
   test('processPendingOcr marks stale queued jobs as failed via watchdog and writes audit trail', async () => {
@@ -882,6 +894,7 @@ describe('LegalCopilotWorkflowService OCR queueing', () => {
         status: 'queued',
         progress: 0,
         engine: 'remote-ocr',
+        retryAttempt: 4,
         queuedAt: now,
         updatedAt: now,
       },

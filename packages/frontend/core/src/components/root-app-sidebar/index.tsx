@@ -34,6 +34,7 @@ import { useI18n } from '@affine/i18n';
 import { track } from '@affine/track';
 import type { Store } from '@blocksuite/affine/store';
 import {
+  AiOutlineIcon,
   CollaborationIcon,
   DateTimeIcon,
   ExportIcon,
@@ -42,7 +43,6 @@ import {
   JournalIcon,
   SettingsIcon,
 } from '@blocksuite/icons/rc';
-import { AiOutlineIcon } from '@blocksuite/icons/rc';
 import { useLiveData, useService, useServices } from '@toeverything/infra';
 import { cssVarV2 } from '@toeverything/theme/v2';
 import type { ReactElement } from 'react';

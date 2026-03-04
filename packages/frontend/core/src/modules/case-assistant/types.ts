@@ -930,6 +930,10 @@ export interface OcrJob {
   currentPage?: number;
   totalPages?: number;
   lastHeartbeatAt?: string;
+  retryAttempt?: number;
+  nextRetryAt?: string;
+  deadLetteredAt?: string;
+  failureCode?: string;
   engine?: string;
   languageHint?: string;
   errorMessage?: string;

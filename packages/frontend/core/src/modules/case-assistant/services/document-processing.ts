@@ -2935,17 +2935,41 @@ export class DocumentProcessingService extends Service {
 
   /**
    * Check if a document with the same content fingerprint already exists.
+   *
+   * Two-tier check:
+   * 1. Primary: exact contentFingerprint match.
+   * 2. Fallback (title + sourceSizeBytes): catches OCR documents where the
+   *    fingerprint was recomputed from extracted text after OCR completed,
+   *    so the binary-based intake fingerprint no longer matches the stored one.
    */
   isDuplicate(
     fingerprint: string,
-    existingDocuments: LegalDocumentRecord[]
+    existingDocuments: LegalDocumentRecord[],
+    title?: string,
+    sourceSizeBytes?: number
   ): LegalDocumentRecord | null {
-    if (fingerprint.startsWith('fp:empty:')) {
-      return null;
+    // Primary: exact fingerprint match (non-empty fingerprints only)
+    if (!fingerprint.startsWith('fp:empty:')) {
+      const byFingerprint = existingDocuments.find(
+        d => d.contentFingerprint === fingerprint
+      );
+      if (byFingerprint) return byFingerprint;
     }
-    return (
-      existingDocuments.find(d => d.contentFingerprint === fingerprint) ?? null
-    );
+
+    // Fallback: title + file size uniquely identify the same physical file.
+    // Handles the case where a scanned PDF's fingerprint was overwritten with
+    // the text-based fingerprint after OCR (binary fp ≠ stored text fp).
+    if (title && sourceSizeBytes != null && sourceSizeBytes > 0) {
+      const normalizedTitle = title.trim();
+      const byTitleSize = existingDocuments.find(
+        d =>
+          (d.title ?? '').trim() === normalizedTitle &&
+          d.sourceSizeBytes === sourceSizeBytes
+      );
+      if (byTitleSize) return byTitleSize;
+    }
+
+    return null;
   }
 
   /**

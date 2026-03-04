@@ -29,10 +29,12 @@ import type {
   VergleichswertResult,
 } from '@affine/core/modules/case-assistant';
 import type { Store } from '@blocksuite/affine/store';
-import { useCallback, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 
 import type { DraftReviewStatus, IntakeDraft } from '../panel-types';
 import { buildExportFileName, extractDocPlainText } from '../utils';
+
+/* oxlint-disable react-hooks/exhaustive-deps */
 
 function createId(prefix: string) {
   return `${prefix}:${Date.now().toString(36)}:${Math.random().toString(36).slice(2, 8)}`;
@@ -289,6 +291,66 @@ export const usePanelWorkflowActions = (params: Params) => {
   const BACKGROUND_OCR_COOLDOWN_MS = 45_000;
   const backgroundOcrInFlightRef = useRef(false);
   const backgroundOcrNextAllowedAtRef = useRef(0);
+  const backgroundOcrTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null
+  );
+  const backgroundOcrRerunRequestedRef = useRef(false);
+
+  const workflowService = params.legalCopilotWorkflowService;
+  const setWorkflowIngestionStatus = params.setIngestionStatus;
+  const setWorkflowBusy = params.setIsWorkflowBusy;
+
+  const triggerBackgroundOcr = useCallback(() => {
+    if (backgroundOcrInFlightRef.current) {
+      backgroundOcrRerunRequestedRef.current = true;
+      return;
+    }
+
+    const now = Date.now();
+    const delayMs = backgroundOcrNextAllowedAtRef.current - now;
+    if (delayMs > 0) {
+      if (!backgroundOcrTimerRef.current) {
+        backgroundOcrTimerRef.current = setTimeout(() => {
+          backgroundOcrTimerRef.current = null;
+          triggerBackgroundOcr();
+        }, delayMs);
+      }
+      return;
+    }
+
+    backgroundOcrInFlightRef.current = true;
+    backgroundOcrNextAllowedAtRef.current = now + BACKGROUND_OCR_COOLDOWN_MS;
+    const ocrRunId = createId('ocr-run');
+
+    void workflowService
+      .processPendingOcr(params.caseId, params.workspaceId, { ocrRunId })
+      .catch(error => {
+        console.warn('[upload] background OCR processing failed', error);
+      })
+      .finally(() => {
+        backgroundOcrInFlightRef.current = false;
+        if (backgroundOcrRerunRequestedRef.current) {
+          backgroundOcrRerunRequestedRef.current = false;
+          triggerBackgroundOcr();
+        }
+      });
+  }, [
+    BACKGROUND_OCR_COOLDOWN_MS,
+    params.caseId,
+    workflowService,
+    params.workspaceId,
+  ]);
+
+  useEffect(() => {
+    return () => {
+      if (backgroundOcrTimerRef.current) {
+        clearTimeout(backgroundOcrTimerRef.current);
+        backgroundOcrTimerRef.current = null;
+      }
+      backgroundOcrRerunRequestedRef.current = false;
+      backgroundOcrInFlightRef.current = false;
+    };
+  }, []);
 
   const withTimeout = useCallback(
     async <T>(
@@ -466,13 +528,12 @@ export const usePanelWorkflowActions = (params: Params) => {
           console.log(
             `[onUploadFiles] single-file path: name=${files[0].name} size=${files[0].size} kind=${files[0].kind} mime=${files[0].mimeType} contentLen=${files[0].content?.length ?? 0} caseId=${params.caseId} workspaceId=${params.workspaceId} role=${params.currentRole}`
           );
-          let ingested =
-            await params.legalCopilotWorkflowService.intakeDocuments({
-              caseId: params.caseId,
-              workspaceId: params.workspaceId,
-              documents: allDocuments,
-              commitId,
-            });
+          let ingested = await workflowService.intakeDocuments({
+            caseId: params.caseId,
+            workspaceId: params.workspaceId,
+            documents: allDocuments,
+            commitId,
+          });
 
           const { ocrQueuedCount, failedCount } = summarizeIngested(
             ingested as any
@@ -492,29 +553,7 @@ export const usePanelWorkflowActions = (params: Params) => {
           ).length;
 
           if (scanCount > 0) {
-            const now = Date.now();
-            const canRunBackgroundOcr =
-              !backgroundOcrInFlightRef.current &&
-              now >= backgroundOcrNextAllowedAtRef.current;
-            if (canRunBackgroundOcr) {
-              backgroundOcrInFlightRef.current = true;
-              backgroundOcrNextAllowedAtRef.current =
-                now + BACKGROUND_OCR_COOLDOWN_MS;
-              const ocrRunId = createId('ocr-run');
-              void params.legalCopilotWorkflowService
-                .processPendingOcr(params.caseId, params.workspaceId, {
-                  ocrRunId,
-                })
-                .catch(error => {
-                  console.warn(
-                    '[upload] background OCR processing failed',
-                    error
-                  );
-                })
-                .finally(() => {
-                  backgroundOcrInFlightRef.current = false;
-                });
-            }
+            triggerBackgroundOcr();
           }
 
           const statusParts = [
@@ -612,12 +651,12 @@ export const usePanelWorkflowActions = (params: Params) => {
         }
 
         const ingested: Awaited<
-          ReturnType<typeof params.legalCopilotWorkflowService.intakeDocuments>
+          ReturnType<typeof workflowService.intakeDocuments>
         > = [];
         for (let index = 0; index < chunks.length; index++) {
           const chunk = chunks[index];
           const chunkResult = await withTimeout(
-            params.legalCopilotWorkflowService.intakeDocuments({
+            workflowService.intakeDocuments({
               caseId: params.caseId,
               workspaceId: params.workspaceId,
               documents: chunk,
@@ -672,29 +711,7 @@ export const usePanelWorkflowActions = (params: Params) => {
           d => d.processingStatus === 'needs_review'
         ).length;
         if (scanCount > 0) {
-          const now = Date.now();
-          const canRunBackgroundOcr =
-            !backgroundOcrInFlightRef.current &&
-            now >= backgroundOcrNextAllowedAtRef.current;
-          if (canRunBackgroundOcr) {
-            backgroundOcrInFlightRef.current = true;
-            backgroundOcrNextAllowedAtRef.current =
-              now + BACKGROUND_OCR_COOLDOWN_MS;
-            const ocrRunId = createId('ocr-run');
-            void params.legalCopilotWorkflowService
-              .processPendingOcr(params.caseId, params.workspaceId, {
-                ocrRunId,
-              })
-              .catch(error => {
-                console.warn(
-                  '[upload] background OCR processing failed',
-                  error
-                );
-              })
-              .finally(() => {
-                backgroundOcrInFlightRef.current = false;
-              });
-          }
+          triggerBackgroundOcr();
         }
 
         const statusParts = [
@@ -757,16 +774,17 @@ export const usePanelWorkflowActions = (params: Params) => {
       params.intakeDraft.folderPath,
       params.intakeDraft.internalFileNumber,
       params.intakeDraft.tags,
-      params.legalCopilotWorkflowService,
-      params.setIngestionStatus,
-      params.setIsWorkflowBusy,
+      workflowService,
+      setWorkflowIngestionStatus,
+      setWorkflowBusy,
+      triggerBackgroundOcr,
       params.workspaceId,
     ]
   );
 
   const onProcessOcr = useCallback(async () => {
     if (!params.ocrEndpoint.trim()) {
-      params.setIngestionStatus(
+      setWorkflowIngestionStatus(
         'OCR kann nicht gestartet werden: Remote OCR Provider ist nicht konfiguriert (Endpoint fehlt). Öffne „Phase 2 — OCR ausführen“ und speichere den Endpoint.'
       );
       return;
@@ -775,19 +793,16 @@ export const usePanelWorkflowActions = (params: Params) => {
     const pendingBeforeRun = params.caseDocuments.filter(
       doc => doc.status === 'ocr_pending' || doc.status === 'ocr_running'
     ).length;
-    params.setIsWorkflowBusy(true);
+    setWorkflowBusy(true);
     try {
       const done = await withTimeout(
-        params.legalCopilotWorkflowService.processPendingOcr(
-          params.caseId,
-          params.workspaceId
-        ),
+        workflowService.processPendingOcr(params.caseId, params.workspaceId),
         OCR_RUN_TIMEOUT_MS,
         'OCR-Lauf Zeitlimit überschritten (4 Minuten)'
       );
 
       const pendingAfterRun = (
-        params.legalCopilotWorkflowService.legalDocuments$.value ?? []
+        workflowService.legalDocuments$.value ?? []
       ).filter(
         doc =>
           doc.caseId === params.caseId &&
@@ -796,7 +811,7 @@ export const usePanelWorkflowActions = (params: Params) => {
       ).length;
 
       if (done.length === 0) {
-        params.setIngestionStatus(
+        setWorkflowIngestionStatus(
           pendingBeforeRun > 0
             ? `OCR-Lauf beendet: ${pendingBeforeRun} Job(s) geprüft, 0 abgeschlossen${
                 pendingAfterRun > 0
@@ -807,7 +822,7 @@ export const usePanelWorkflowActions = (params: Params) => {
         );
         return;
       }
-      params.setIngestionStatus(
+      setWorkflowIngestionStatus(
         `OCR abgeschlossen: ${done.length} Job(s) verarbeitet${
           pendingAfterRun > 0 ? `, ${pendingAfterRun} weiterhin ausstehend` : ''
         }.`
@@ -815,30 +830,27 @@ export const usePanelWorkflowActions = (params: Params) => {
     } catch (error) {
       const message =
         error instanceof Error ? error.message : 'unbekannter OCR-Fehler';
-      params.setIngestionStatus(`OCR fehlgeschlagen: ${message}`);
+      setWorkflowIngestionStatus(`OCR fehlgeschlagen: ${message}`);
       throw error;
     } finally {
-      params.setIsWorkflowBusy(false);
+      setWorkflowBusy(false);
     }
   }, [
     params.caseId,
     params.caseDocuments,
     params.currentRole,
-    params.legalCopilotWorkflowService,
-    params.setIngestionStatus,
-    params.setIsWorkflowBusy,
+    workflowService,
+    setWorkflowIngestionStatus,
+    setWorkflowBusy,
     params.workspaceId,
     withTimeout,
   ]);
 
   const onAnalyzeCase = useCallback(async () => {
-    params.setIsWorkflowBusy(true);
+    setWorkflowBusy(true);
     try {
       const result = await withTimeout(
-        params.legalCopilotWorkflowService.analyzeCase(
-          params.caseId,
-          params.workspaceId
-        ),
+        workflowService.analyzeCase(params.caseId, params.workspaceId),
         ANALYSIS_RUN_TIMEOUT_MS,
         'Analyse-Zeitlimit überschritten (3 Minuten)'
       );
@@ -846,28 +858,28 @@ export const usePanelWorkflowActions = (params: Params) => {
         const blockedMessage = formatAnalysisBlockedMessage(
           result.blockedReason
         );
-        params.setIngestionStatus(blockedMessage);
+        setWorkflowIngestionStatus(blockedMessage);
         throw new Error(
           `analysis-blocked:${result.blockedReason ?? 'unknown'}`
         );
       }
-      params.setIngestionStatus(
+      setWorkflowIngestionStatus(
         `Analyse abgeschlossen: ${result.findings.length} Findings, ${result.tasks.length} Tasks.`
       );
     } catch (error) {
       const message =
         error instanceof Error ? error.message : 'unbekannter Analyse-Fehler';
-      params.setIngestionStatus(`Analyse fehlgeschlagen: ${message}`);
+      setWorkflowIngestionStatus(`Analyse fehlgeschlagen: ${message}`);
       throw error;
     } finally {
-      params.setIsWorkflowBusy(false);
+      setWorkflowBusy(false);
     }
   }, [
     params.caseId,
     params.currentRole,
-    params.legalCopilotWorkflowService,
-    params.setIngestionStatus,
-    params.setIsWorkflowBusy,
+    workflowService,
+    setWorkflowIngestionStatus,
+    setWorkflowBusy,
     params.workspaceId,
     formatAnalysisBlockedMessage,
     withTimeout,
@@ -888,31 +900,25 @@ export const usePanelWorkflowActions = (params: Params) => {
       return;
     }
 
-    params.setIsWorkflowBusy(true);
+    setWorkflowBusy(true);
     try {
       const pendingOcrBeforeRun = params.caseDocuments.filter(
         doc => doc.status === 'ocr_pending' || doc.status === 'ocr_running'
       ).length;
 
       const completedOcrJobs = await withTimeout(
-        params.legalCopilotWorkflowService.processPendingOcr(
-          params.caseId,
-          params.workspaceId
-        ),
+        workflowService.processPendingOcr(params.caseId, params.workspaceId),
         OCR_RUN_TIMEOUT_MS,
         'OCR-Zeitlimit überschritten (4 Minuten)'
       );
       const analysis = await withTimeout(
-        params.legalCopilotWorkflowService.analyzeCase(
-          params.caseId,
-          params.workspaceId
-        ),
+        workflowService.analyzeCase(params.caseId, params.workspaceId),
         ANALYSIS_RUN_TIMEOUT_MS,
         'Analyse-Zeitlimit überschritten (3 Minuten)'
       );
 
       if (!analysis.run) {
-        params.setIngestionStatus(
+        setWorkflowIngestionStatus(
           `Full Workflow blockiert: ${formatAnalysisBlockedMessage(analysis.blockedReason)}`
         );
         return;
@@ -926,68 +932,68 @@ export const usePanelWorkflowActions = (params: Params) => {
             ? 'keine OCR-Jobs abgeschlossen'
             : 'keine OCR erforderlich';
 
-      params.setIngestionStatus(
+      setWorkflowIngestionStatus(
         `Full Workflow abgeschlossen: ${params.caseDocuments.length} Dokument(e) im Akt, ${ocrSummary}, ${analyzedDocumentCount} Dokument(e) analysiert, ${analysis.findings.length} Findings.`
       );
     } catch (error) {
       const message =
         error instanceof Error ? error.message : 'unbekannter Pipeline-Fehler';
-      params.setIngestionStatus(`Full Workflow fehlgeschlagen: ${message}`);
+      setWorkflowIngestionStatus(`Full Workflow fehlgeschlagen: ${message}`);
       throw error;
     } finally {
-      params.setIsWorkflowBusy(false);
+      setWorkflowBusy(false);
     }
   }, [
     params.caseId,
     params.caseDocuments,
     params.currentRole,
     params.ocrEndpoint,
-    params.legalCopilotWorkflowService,
-    params.setIngestionStatus,
-    params.setIsWorkflowBusy,
+    workflowService,
+    setWorkflowIngestionStatus,
+    setWorkflowBusy,
     params.workspaceId,
     formatAnalysisBlockedMessage,
     withTimeout,
   ]);
 
   const onFolderSearch = useCallback(async () => {
-    const matches = await params.legalCopilotWorkflowService.searchFolder({
+    const matches = await workflowService.searchFolder({
       caseId: params.caseId,
       workspaceId: params.workspaceId,
       folderPath: params.folderQuery,
     });
     params.setFolderSearchCount(matches.length);
-    params.setIngestionStatus(
+    setWorkflowIngestionStatus(
       `Folder-Suche '${params.folderQuery || '*'}': ${matches.length} Dokument(e) gefunden.`
     );
   }, [
     params.caseId,
     params.folderQuery,
-    params.legalCopilotWorkflowService,
+    workflowService,
     params.setFolderSearchCount,
-    params.setIngestionStatus,
+    setWorkflowIngestionStatus,
     params.workspaceId,
   ]);
 
   const onFolderSummarize = useCallback(async () => {
-    const summary = await params.legalCopilotWorkflowService.summarizeFolder({
+    const summary = await workflowService.summarizeFolder({
       caseId: params.caseId,
       workspaceId: params.workspaceId,
       folderPath: params.folderQuery,
     });
     if (!summary) {
-      params.setIngestionStatus(
+      setWorkflowIngestionStatus(
         `Folder-Summary blockiert: Rolle ${params.currentRole} benötigt Operator oder höher.`
       );
       return;
     }
-    params.setIngestionStatus(summary.summary);
+    setWorkflowIngestionStatus(summary.summary);
   }, [
     params.caseId,
     params.currentRole,
     params.folderQuery,
-    params.legalCopilotWorkflowService,
-    params.setIngestionStatus,
+    workflowService,
+    setWorkflowIngestionStatus,
     params.workspaceId,
   ]);
 
@@ -1006,7 +1012,7 @@ export const usePanelWorkflowActions = (params: Params) => {
       params.providerSettingsService.clearToken('ocr');
       params.setHasStoredOcrToken(false);
     }
-    params.setIngestionStatus(
+    setWorkflowIngestionStatus(
       params.ocrEndpoint.trim()
         ? `OCR-Provider gespeichert. Nächste OCR-Läufe nutzen den Remote-Provider.${
             params.ocrToken.trim() || params.hasStoredOcrToken
@@ -1021,7 +1027,7 @@ export const usePanelWorkflowActions = (params: Params) => {
     params.ocrToken,
     params.providerSettingsService,
     params.setHasStoredOcrToken,
-    params.setIngestionStatus,
+    setWorkflowIngestionStatus,
   ]);
 
   const onTaskAssigneeChange = useCallback(
@@ -1036,27 +1042,25 @@ export const usePanelWorkflowActions = (params: Params) => {
       taskId: string,
       status: 'open' | 'in_progress' | 'blocked' | 'done'
     ) => {
-      const updated = await params.legalCopilotWorkflowService.updateTaskStatus(
-        {
-          taskId,
-          status,
-          assignee: params.taskAssignees[taskId]?.trim() || undefined,
-        }
-      );
+      const updated = await workflowService.updateTaskStatus({
+        taskId,
+        status,
+        assignee: params.taskAssignees[taskId]?.trim() || undefined,
+      });
       if (!updated) {
-        params.setIngestionStatus(
+        setWorkflowIngestionStatus(
           `Task-Update blockiert: Rolle ${params.currentRole} benötigt Operator oder höher.`
         );
         return;
       }
-      params.setIngestionStatus(
+      setWorkflowIngestionStatus(
         `Task '${updated.title}' aktualisiert (${updated.status}).`
       );
     },
     [
       params.currentRole,
-      params.legalCopilotWorkflowService,
-      params.setIngestionStatus,
+      workflowService,
+      setWorkflowIngestionStatus,
       params.taskAssignees,
     ]
   );
@@ -1065,20 +1069,19 @@ export const usePanelWorkflowActions = (params: Params) => {
     if (!params.latestBlueprint) {
       return;
     }
-    const updated =
-      await params.legalCopilotWorkflowService.updateBlueprintReview({
-        blueprintId: params.latestBlueprint.id,
-        objective: params.blueprintObjectiveDraft.trim(),
-        reviewStatus: params.blueprintReviewStatus,
-        reviewNote: params.blueprintReviewNoteDraft.trim() || undefined,
-      });
+    const updated = await workflowService.updateBlueprintReview({
+      blueprintId: params.latestBlueprint.id,
+      objective: params.blueprintObjectiveDraft.trim(),
+      reviewStatus: params.blueprintReviewStatus,
+      reviewNote: params.blueprintReviewNoteDraft.trim() || undefined,
+    });
     if (!updated) {
-      params.setIngestionStatus(
+      setWorkflowIngestionStatus(
         `Blueprint-Review blockiert: Rolle ${params.currentRole} benötigt Operator oder höher.`
       );
       return;
     }
-    params.setIngestionStatus(
+    setWorkflowIngestionStatus(
       `Blueprint-Review gespeichert (${updated.reviewStatus ?? 'draft'}).`
     );
   }, [
@@ -1087,8 +1090,8 @@ export const usePanelWorkflowActions = (params: Params) => {
     params.blueprintReviewStatus,
     params.currentRole,
     params.latestBlueprint,
-    params.legalCopilotWorkflowService,
-    params.setIngestionStatus,
+    workflowService,
+    setWorkflowIngestionStatus,
   ]);
 
   const onSearchNorms = useCallback(async () => {
@@ -1202,29 +1205,28 @@ export const usePanelWorkflowActions = (params: Params) => {
 
     try {
       // AI-powered generation: uses full RAG context (chunks, findings, blueprint, normen, parties)
-      const doc =
-        await params.legalCopilotWorkflowService.generateSchriftsatzFromAkte({
-          caseId: params.caseId,
-          workspaceId: params.workspaceId,
-          template: params.docGenTemplate as DocumentTemplate,
-          additionalInstructions:
-            [
-              params.docGenPartyKlaeger.trim()
-                ? `Kläger: ${params.docGenPartyKlaeger.trim()}`
-                : '',
-              params.docGenPartyBeklagter.trim()
-                ? `Beklagter: ${params.docGenPartyBeklagter.trim()}`
-                : '',
-              params.docGenGericht.trim()
-                ? `Gericht: ${params.docGenGericht.trim()}`
-                : '',
-              params.docGenAktenzeichen.trim()
-                ? `Aktenzeichen: ${params.docGenAktenzeichen.trim()}`
-                : '',
-            ]
-              .filter(Boolean)
-              .join('. ') || undefined,
-        });
+      const doc = await workflowService.generateSchriftsatzFromAkte({
+        caseId: params.caseId,
+        workspaceId: params.workspaceId,
+        template: params.docGenTemplate as DocumentTemplate,
+        additionalInstructions:
+          [
+            params.docGenPartyKlaeger.trim()
+              ? `Kläger: ${params.docGenPartyKlaeger.trim()}`
+              : '',
+            params.docGenPartyBeklagter.trim()
+              ? `Beklagter: ${params.docGenPartyBeklagter.trim()}`
+              : '',
+            params.docGenGericht.trim()
+              ? `Gericht: ${params.docGenGericht.trim()}`
+              : '',
+            params.docGenAktenzeichen.trim()
+              ? `Aktenzeichen: ${params.docGenAktenzeichen.trim()}`
+              : '',
+          ]
+            .filter(Boolean)
+            .join('. ') || undefined,
+      });
       params.setGeneratedDoc(doc);
       const aiFlag = doc.sections.some(
         s => s.content.length > 200 && !s.content.includes('[')
@@ -1308,21 +1310,21 @@ export const usePanelWorkflowActions = (params: Params) => {
     params.caseDocuments,
     params.caseFindings,
     params.caseRecord,
+    params.caseId,
     params.costStreitwert,
     params.docGenAktenzeichen,
     params.docGenGericht,
     params.docGenPartyBeklagter,
     params.docGenPartyKlaeger,
     params.docGenTemplate,
-    params.caseId,
-    params.casePlatformOrchestrationService,
     params.documentGeneratorService,
     params.latestBlueprint,
-    params.legalCopilotWorkflowService,
     params.legalNormsService,
+    params.casePlatformOrchestrationService,
     params.setGeneratedDoc,
-    params.setIngestionStatus,
     params.sourceDoc,
+    setWorkflowIngestionStatus,
+    workflowService,
     params.workspaceId,
   ]);
 
@@ -1580,62 +1582,48 @@ export const usePanelWorkflowActions = (params: Params) => {
 
   const onRetryFailedDocument = useCallback(
     async (documentId: string): Promise<boolean> => {
-      params.setIsWorkflowBusy(true);
+      setWorkflowBusy(true);
       try {
-        const success =
-          await params.legalCopilotWorkflowService.retryFailedDocument(
-            documentId
-          );
-        params.setIngestionStatus(
+        const success = await workflowService.retryFailedDocument(documentId);
+        setWorkflowIngestionStatus(
           success
             ? 'Dokument erfolgreich neu verarbeitet.'
             : 'Retry fehlgeschlagen — Dokument konnte nicht verarbeitet werden.'
         );
         return success;
       } catch (err) {
-        params.setIngestionStatus(
+        setWorkflowIngestionStatus(
           `Retry-Fehler: ${err instanceof Error ? err.message : 'Unbekannter Fehler'}`
         );
         return false;
       } finally {
-        params.setIsWorkflowBusy(false);
+        setWorkflowBusy(false);
       }
     },
-    [
-      params.legalCopilotWorkflowService,
-      params.setIngestionStatus,
-      params.setIsWorkflowBusy,
-    ]
+    [workflowService, setWorkflowIngestionStatus, setWorkflowBusy]
   );
 
   const onRemoveFailedDocument = useCallback(
     async (documentId: string): Promise<boolean> => {
-      params.setIsWorkflowBusy(true);
+      setWorkflowBusy(true);
       try {
-        const success =
-          await params.legalCopilotWorkflowService.removeFailedDocument(
-            documentId
-          );
-        params.setIngestionStatus(
+        const success = await workflowService.removeFailedDocument(documentId);
+        setWorkflowIngestionStatus(
           success
             ? 'Dokument wurde aus dem Akt entfernt.'
             : 'Dokument konnte nicht entfernt werden.'
         );
         return success;
       } catch (err) {
-        params.setIngestionStatus(
+        setWorkflowIngestionStatus(
           `Entfernen-Fehler: ${err instanceof Error ? err.message : 'Unbekannter Fehler'}`
         );
         return false;
       } finally {
-        params.setIsWorkflowBusy(false);
+        setWorkflowBusy(false);
       }
     },
-    [
-      params.legalCopilotWorkflowService,
-      params.setIngestionStatus,
-      params.setIsWorkflowBusy,
-    ]
+    [workflowService, setWorkflowIngestionStatus, setWorkflowBusy]
   );
 
   return {
