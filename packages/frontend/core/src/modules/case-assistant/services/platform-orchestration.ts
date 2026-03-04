@@ -76,6 +76,52 @@ export class CasePlatformOrchestrationService extends Service {
     super();
   }
 
+  private toLegalDocumentPayload(record: LegalDocumentRecord) {
+    return {
+      id: record.id,
+      caseFileId: record.caseId,
+      title: record.title,
+      kind: record.kind,
+      status: record.status,
+      sourceMimeType: record.sourceMimeType,
+      sourceSizeBytes: record.sourceSizeBytes,
+      sourceLastModifiedAt: record.sourceLastModifiedAt,
+      sourceBlobId: record.sourceBlobId,
+      sourceSha256: record.sourceSha256,
+      sourceRef: record.sourceRef,
+      folderPath: record.folderPath,
+      internalFileNumber: record.internalFileNumber,
+      paragraphReferences: record.paragraphReferences,
+      documentRevision: record.documentRevision,
+      contentFingerprint: record.contentFingerprint,
+      rawText: record.rawText,
+      normalizedText: record.normalizedText,
+      language: record.language,
+      qualityScore: record.qualityScore,
+      pageCount: record.pageCount,
+      ocrEngine: record.ocrEngine,
+      tags: record.tags,
+      processingStatus: record.processingStatus,
+      chunkCount: record.chunkCount,
+      entityCount: record.entityCount,
+      overallQualityScore: record.overallQualityScore,
+      processingDurationMs: record.processingDurationMs,
+      extractionEngine: record.extractionEngine,
+      processingError: record.processingError,
+      preflight: record.preflight,
+      discardedBinaryAt: record.discardedBinaryAt,
+      trashedAt: record.trashedAt,
+      purgeAt: record.purgeAt,
+      extractionFidelityRatio: record.extractionFidelityRatio,
+      extractionYieldPerPage: record.extractionYieldPerPage,
+      extractedPageCount: record.extractedPageCount,
+      extractionIntegrityOk: record.extractionIntegrityOk,
+      ragIndexed: record.ragIndexed,
+      createdAt: record.createdAt,
+      updatedAt: record.updatedAt,
+    };
+  }
+
   syncAnalysisForCase(caseId: string, workspaceId: string): void {
     this._syncCaseAnalysis(caseId, workspaceId);
   }
@@ -87,28 +133,54 @@ export class CasePlatformOrchestrationService extends Service {
       this.store.getLegalFindings(),
       this.store.getCopilotTasks(),
       this.store.getBlueprints(),
-    ]).then(([graph, findings, tasks, blueprints]) => {
-      const caseFindingsList = findings.filter((f: LegalFinding) => f.caseId === caseId && f.workspaceId === workspaceId);
-      const caseTasksList = tasks.filter((t: CopilotTask) => t.caseId === caseId && t.workspaceId === workspaceId);
-      const caseBlueprint = blueprints
-        .filter((b: CaseBlueprint) => b.caseId === caseId && b.workspaceId === workspaceId)
-        .sort((a: CaseBlueprint, b: CaseBlueprint) => new Date(b.generatedAt).getTime() - new Date(a.generatedAt).getTime())[0] ?? null;
-      const caseFile = Object.values(graph.cases ?? {}).find((c: any) => c.id === caseId) as any;
-      const issueIds: string[] = caseFile?.issueIds ?? [];
-      const actorIds: string[] = caseFile?.actorIds ?? [];
-      const memoryEventIds: string[] = caseFile?.memoryEventIds ?? [];
-      const caseIssues = issueIds.map((id: string) => graph.issues?.[id]).filter(Boolean);
-      const caseActors = actorIds.map((id: string) => graph.actors?.[id]).filter(Boolean);
-      const caseMemoryEvents = memoryEventIds.map((id: string) => graph.memoryEvents?.[id]).filter(Boolean);
-      this.ragSync.saveAnalysis(workspaceId, caseId, {
-        findings: caseFindingsList,
-        tasks: caseTasksList,
-        blueprint: caseBlueprint,
-        issues: caseIssues,
-        actors: caseActors,
-        memoryEvents: caseMemoryEvents,
-      }).catch(() => {});
-    }).catch(() => {});
+    ])
+      .then(([graph, findings, tasks, blueprints]) => {
+        const caseFindingsList = findings.filter(
+          (f: LegalFinding) =>
+            f.caseId === caseId && f.workspaceId === workspaceId
+        );
+        const caseTasksList = tasks.filter(
+          (t: CopilotTask) =>
+            t.caseId === caseId && t.workspaceId === workspaceId
+        );
+        const caseBlueprint =
+          blueprints
+            .filter(
+              (b: CaseBlueprint) =>
+                b.caseId === caseId && b.workspaceId === workspaceId
+            )
+            .sort(
+              (a: CaseBlueprint, b: CaseBlueprint) =>
+                new Date(b.generatedAt).getTime() -
+                new Date(a.generatedAt).getTime()
+            )[0] ?? null;
+        const caseFile = Object.values(graph.cases ?? {}).find(
+          (c: any) => c.id === caseId
+        ) as any;
+        const issueIds: string[] = caseFile?.issueIds ?? [];
+        const actorIds: string[] = caseFile?.actorIds ?? [];
+        const memoryEventIds: string[] = caseFile?.memoryEventIds ?? [];
+        const caseIssues = issueIds
+          .map((id: string) => graph.issues?.[id])
+          .filter(Boolean);
+        const caseActors = actorIds
+          .map((id: string) => graph.actors?.[id])
+          .filter(Boolean);
+        const caseMemoryEvents = memoryEventIds
+          .map((id: string) => graph.memoryEvents?.[id])
+          .filter(Boolean);
+        this.ragSync
+          .saveAnalysis(workspaceId, caseId, {
+            findings: caseFindingsList,
+            tasks: caseTasksList,
+            blueprint: caseBlueprint,
+            issues: caseIssues,
+            actors: caseActors,
+            memoryEvents: caseMemoryEvents,
+          })
+          .catch(() => {});
+      })
+      .catch(() => {});
   }
 
   readonly graph$ = this.store.watchGraph();
@@ -308,6 +380,7 @@ export class CasePlatformOrchestrationService extends Service {
       clientsRes,
       mattersRes,
       caseFilesRes,
+      documentsRes,
       deadlinesRes,
       timeEntriesRes,
       invoicesRes,
@@ -320,6 +393,9 @@ export class CasePlatformOrchestrationService extends Service {
       ),
       this.getLegalApi<{ items?: any[] }>(
         `/api/legal/workspaces/${encodeURIComponent(workspaceId)}/case-files?limit=1000`
+      ),
+      this.getLegalApi<{ items?: any[] }>(
+        `/api/legal/workspaces/${encodeURIComponent(workspaceId)}/documents?limit=2000&includeTrashed=true`
       ),
       this.getLegalApi<{ items?: any[] }>(
         `/api/legal/workspaces/${encodeURIComponent(workspaceId)}/deadlines?limit=1000`
@@ -335,6 +411,7 @@ export class CasePlatformOrchestrationService extends Service {
     const remoteClients = clientsRes?.items ?? [];
     const remoteMatters = mattersRes?.items ?? [];
     const remoteCaseFiles = caseFilesRes?.items ?? [];
+    const remoteDocuments = documentsRes?.items ?? [];
     const remoteDeadlines = deadlinesRes?.items ?? [];
     const remoteTimeEntries = timeEntriesRes?.items ?? [];
     const remoteInvoices = invoicesRes?.items ?? [];
@@ -344,6 +421,7 @@ export class CasePlatformOrchestrationService extends Service {
       remoteClients.length === 0 &&
       remoteMatters.length === 0 &&
       remoteCaseFiles.length === 0 &&
+      remoteDocuments.length === 0 &&
       remoteDeadlines.length === 0 &&
       remoteTimeEntries.length === 0 &&
       remoteInvoices.length === 0
@@ -394,6 +472,179 @@ export class CasePlatformOrchestrationService extends Service {
       ) {
         nextGraph.clients[c.id] = clientRecord;
         hasClientChanges = true;
+      }
+    }
+
+    // Legal documents
+    let hasDocumentChanges = false;
+    if (remoteDocuments.length > 0) {
+      const existingActiveDocs = await this.store.getLegalDocuments();
+      const existingTrashedDocs = await this.store.getTrashedLegalDocuments();
+      const existingDocuments = new Map<string, LegalDocumentRecord>(
+        [...existingActiveDocs, ...existingTrashedDocs].map(item => [
+          item.id,
+          item,
+        ])
+      );
+      const nextActiveDocs: LegalDocumentRecord[] = [];
+      const nextTrashedDocs: LegalDocumentRecord[] = [];
+
+      for (const item of remoteDocuments) {
+        const caseId =
+          (typeof item.caseFileId === 'string' && item.caseFileId) ||
+          Object.values(nextGraph.cases).find(c => c.matterId === item.matterId)
+            ?.id ||
+          `case:${item.matterId ?? item.id}`;
+
+        const normalizedStatus: LegalDocumentRecord['status'] =
+          item.status === 'uploaded' ||
+          item.status === 'ocr_pending' ||
+          item.status === 'ocr_running' ||
+          item.status === 'ocr_completed' ||
+          item.status === 'failed'
+            ? item.status
+            : 'indexed';
+
+        const docRecord: LegalDocumentRecord = {
+          id: String(item.id),
+          caseId,
+          workspaceId,
+          title: String(item.title ?? 'Dokument'),
+          kind: (item.kind as LegalDocumentRecord['kind']) ?? 'other',
+          status: normalizedStatus,
+          sourceMimeType:
+            typeof item.sourceMimeType === 'string'
+              ? item.sourceMimeType
+              : undefined,
+          sourceSizeBytes:
+            typeof item.sourceSizeBytes === 'number'
+              ? item.sourceSizeBytes
+              : undefined,
+          sourceLastModifiedAt: item.sourceLastModifiedAt
+            ? new Date(item.sourceLastModifiedAt).toISOString()
+            : undefined,
+          sourceBlobId:
+            typeof item.sourceBlobId === 'string'
+              ? item.sourceBlobId
+              : undefined,
+          sourceSha256:
+            typeof item.sourceSha256 === 'string'
+              ? item.sourceSha256
+              : undefined,
+          sourceRef:
+            typeof item.sourceRef === 'string' ? item.sourceRef : undefined,
+          folderPath:
+            typeof item.folderPath === 'string' ? item.folderPath : undefined,
+          internalFileNumber:
+            typeof item.internalFileNumber === 'string'
+              ? item.internalFileNumber
+              : undefined,
+          paragraphReferences: Array.isArray(item.paragraphReferences)
+            ? item.paragraphReferences.map(String)
+            : [],
+          documentRevision:
+            typeof item.documentRevision === 'number'
+              ? item.documentRevision
+              : 1,
+          contentFingerprint:
+            typeof item.contentFingerprint === 'string'
+              ? item.contentFingerprint
+              : undefined,
+          rawText: typeof item.rawText === 'string' ? item.rawText : '',
+          normalizedText:
+            typeof item.normalizedText === 'string'
+              ? item.normalizedText
+              : undefined,
+          language:
+            typeof item.language === 'string' ? item.language : undefined,
+          qualityScore:
+            typeof item.qualityScore === 'number'
+              ? item.qualityScore
+              : undefined,
+          pageCount:
+            typeof item.pageCount === 'number' ? item.pageCount : undefined,
+          ocrEngine:
+            typeof item.ocrEngine === 'string' ? item.ocrEngine : undefined,
+          tags: Array.isArray(item.tags) ? item.tags.map(String) : [],
+          processingStatus:
+            typeof item.processingStatus === 'string'
+              ? item.processingStatus
+              : undefined,
+          chunkCount:
+            typeof item.chunkCount === 'number' ? item.chunkCount : undefined,
+          entityCount:
+            typeof item.entityCount === 'number' ? item.entityCount : undefined,
+          overallQualityScore:
+            typeof item.overallQualityScore === 'number'
+              ? item.overallQualityScore
+              : undefined,
+          processingDurationMs:
+            typeof item.processingDurationMs === 'number'
+              ? item.processingDurationMs
+              : undefined,
+          extractionEngine:
+            typeof item.extractionEngine === 'string'
+              ? item.extractionEngine
+              : undefined,
+          processingError:
+            typeof item.processingError === 'string'
+              ? item.processingError
+              : undefined,
+          preflight: item.preflight ?? undefined,
+          discardedBinaryAt: item.discardedBinaryAt
+            ? new Date(item.discardedBinaryAt).toISOString()
+            : undefined,
+          trashedAt: item.trashedAt
+            ? new Date(item.trashedAt).toISOString()
+            : undefined,
+          purgeAt: item.purgeAt
+            ? new Date(item.purgeAt).toISOString()
+            : undefined,
+          extractionFidelityRatio:
+            typeof item.extractionFidelityRatio === 'number'
+              ? item.extractionFidelityRatio
+              : undefined,
+          extractionYieldPerPage:
+            typeof item.extractionYieldPerPage === 'number'
+              ? item.extractionYieldPerPage
+              : undefined,
+          extractedPageCount:
+            typeof item.extractedPageCount === 'number'
+              ? item.extractedPageCount
+              : undefined,
+          extractionIntegrityOk:
+            typeof item.extractionIntegrityOk === 'boolean'
+              ? item.extractionIntegrityOk
+              : undefined,
+          ragIndexed: Boolean(item.ragIndexed),
+          createdAt: new Date(item.createdAt ?? Date.now()).toISOString(),
+          updatedAt: new Date(item.updatedAt ?? Date.now()).toISOString(),
+        };
+
+        const existing = existingDocuments.get(docRecord.id);
+        if (
+          !existing ||
+          JSON.stringify(existing) !== JSON.stringify(docRecord)
+        ) {
+          hasDocumentChanges = true;
+        }
+
+        if (docRecord.trashedAt) {
+          nextTrashedDocs.push(docRecord);
+        } else {
+          nextActiveDocs.push(docRecord);
+        }
+      }
+
+      if (
+        hasDocumentChanges ||
+        nextActiveDocs.length !== existingActiveDocs.length ||
+        nextTrashedDocs.length !== existingTrashedDocs.length
+      ) {
+        await Promise.all([
+          this.store.setLegalDocuments(nextActiveDocs),
+          this.store.setTrashedLegalDocuments(nextTrashedDocs),
+        ]);
       }
     }
 
@@ -747,47 +998,80 @@ export class CasePlatformOrchestrationService extends Service {
       for (const { data } of analysisFetchResults) {
         if (!data) continue;
 
-        const remoteFindings = Array.isArray(data.findings) ? data.findings as LegalFinding[] : [];
-        const remoteTasks = Array.isArray(data.tasks) ? data.tasks as CopilotTask[] : [];
+        const remoteFindings = Array.isArray(data.findings)
+          ? (data.findings as LegalFinding[])
+          : [];
+        const remoteTasks = Array.isArray(data.tasks)
+          ? (data.tasks as CopilotTask[])
+          : [];
         const remoteBlueprint = data.blueprint as CaseBlueprint | null;
-        const remoteIssues = Array.isArray(data.issues) ? data.issues as any[] : [];
-        const remoteActors = Array.isArray(data.actors) ? data.actors as any[] : [];
-        const remoteMemoryEvents = Array.isArray(data.memoryEvents) ? data.memoryEvents as CaseMemoryEvent[] : [];
+        const remoteIssues = Array.isArray(data.issues)
+          ? (data.issues as any[])
+          : [];
+        const remoteActors = Array.isArray(data.actors)
+          ? (data.actors as any[])
+          : [];
+        const remoteMemoryEvents = Array.isArray(data.memoryEvents)
+          ? (data.memoryEvents as CaseMemoryEvent[])
+          : [];
 
         const localFindings = await this.store.getLegalFindings();
-        const localFindingMap = new Map(localFindings.map((f: LegalFinding) => [f.id, f]));
+        const localFindingMap = new Map(
+          localFindings.map((f: LegalFinding) => [f.id, f])
+        );
         for (const rf of remoteFindings) {
           const lf = localFindingMap.get(rf.id);
-          if (!lf || new Date(rf.updatedAt ?? 0) > new Date(lf.updatedAt ?? 0)) {
+          if (
+            !lf ||
+            new Date(rf.updatedAt ?? 0) > new Date(lf.updatedAt ?? 0)
+          ) {
             await this.store.upsertLegalFinding(rf);
           }
         }
 
         const localTasks = await this.store.getCopilotTasks();
-        const localTaskMap = new Map(localTasks.map((t: CopilotTask) => [t.id, t]));
+        const localTaskMap = new Map(
+          localTasks.map((t: CopilotTask) => [t.id, t])
+        );
         for (const rt of remoteTasks) {
           const lt = localTaskMap.get(rt.id);
-          if (!lt || new Date(rt.updatedAt ?? 0) > new Date(lt.updatedAt ?? 0)) {
+          if (
+            !lt ||
+            new Date(rt.updatedAt ?? 0) > new Date(lt.updatedAt ?? 0)
+          ) {
             await this.store.upsertCopilotTask(rt);
           }
         }
 
         if (remoteBlueprint?.id) {
           const localBlueprints = await this.store.getBlueprints();
-          const lb = localBlueprints.find((b: CaseBlueprint) => b.id === remoteBlueprint.id);
-          if (!lb || new Date(remoteBlueprint.updatedAt ?? 0) > new Date(lb.updatedAt ?? 0)) {
+          const lb = localBlueprints.find(
+            (b: CaseBlueprint) => b.id === remoteBlueprint.id
+          );
+          if (
+            !lb ||
+            new Date(remoteBlueprint.updatedAt ?? 0) >
+              new Date(lb.updatedAt ?? 0)
+          ) {
             await this.store.upsertBlueprint(remoteBlueprint);
           }
         }
 
         // Merge issues, actors, memoryEvents back into the graph
-        if (remoteIssues.length > 0 || remoteActors.length > 0 || remoteMemoryEvents.length > 0) {
+        if (
+          remoteIssues.length > 0 ||
+          remoteActors.length > 0 ||
+          remoteMemoryEvents.length > 0
+        ) {
           const currentGraph = await this.store.getGraph();
           let graphChanged = false;
           for (const ri of remoteIssues) {
             if (!ri?.id) continue;
             const li = currentGraph.issues?.[ri.id];
-            if (!li || new Date(ri.updatedAt ?? 0) > new Date(li.updatedAt ?? 0)) {
+            if (
+              !li ||
+              new Date(ri.updatedAt ?? 0) > new Date(li.updatedAt ?? 0)
+            ) {
               currentGraph.issues = currentGraph.issues ?? {};
               currentGraph.issues[ri.id] = ri;
               graphChanged = true;
@@ -796,7 +1080,10 @@ export class CasePlatformOrchestrationService extends Service {
           for (const ra of remoteActors) {
             if (!ra?.id) continue;
             const la = currentGraph.actors?.[ra.id];
-            if (!la || new Date(ra.updatedAt ?? 0) > new Date(la.updatedAt ?? 0)) {
+            if (
+              !la ||
+              new Date(ra.updatedAt ?? 0) > new Date(la.updatedAt ?? 0)
+            ) {
               currentGraph.actors = currentGraph.actors ?? {};
               currentGraph.actors[ra.id] = ra;
               graphChanged = true;
@@ -805,7 +1092,10 @@ export class CasePlatformOrchestrationService extends Service {
           for (const rm of remoteMemoryEvents) {
             if (!rm?.id) continue;
             const lm = currentGraph.memoryEvents?.[rm.id];
-            if (!lm || new Date(rm.createdAt ?? 0) > new Date(lm.createdAt ?? 0)) {
+            if (
+              !lm ||
+              new Date(rm.createdAt ?? 0) > new Date(lm.createdAt ?? 0)
+            ) {
               currentGraph.memoryEvents = currentGraph.memoryEvents ?? {};
               currentGraph.memoryEvents[rm.id] = rm;
               graphChanged = true;
@@ -816,11 +1106,15 @@ export class CasePlatformOrchestrationService extends Service {
             await this.store.setGraph(currentGraph);
           }
         }
-
       }
     }
 
-    return hasGraphChanges || hasTimeEntryChanges || hasInvoiceChanges;
+    return (
+      hasGraphChanges ||
+      hasDocumentChanges ||
+      hasTimeEntryChanges ||
+      hasInvoiceChanges
+    );
   }
 
   private toLegalClientPayload(record: ClientRecord) {
@@ -1617,7 +1911,9 @@ export class CasePlatformOrchestrationService extends Service {
     graph.updatedAt = now;
 
     const activeDocs = nextLegalDocuments.filter(doc => !doc.trashedAt);
-    const trashedDocs = nextLegalDocuments.filter(doc => Boolean(doc.trashedAt));
+    const trashedDocs = nextLegalDocuments.filter(doc =>
+      Boolean(doc.trashedAt)
+    );
 
     await Promise.all([
       this.store.setGraph(graph),
@@ -1629,7 +1925,9 @@ export class CasePlatformOrchestrationService extends Service {
       this.store.setCopilotTasks(copilotTasks.map(remapRequiredCaseId)),
       this.store.setBlueprints(blueprints.map(remapRequiredCaseId)),
       this.store.setCopilotRuns(copilotRuns.map(remapRequiredCaseId)),
-      this.store.setJudikaturSuggestions(judikaturSuggestions.map(remapRequiredCaseId)),
+      this.store.setJudikaturSuggestions(
+        judikaturSuggestions.map(remapRequiredCaseId)
+      ),
       this.store.setCitationChains(citationChains.map(remapRequiredCaseId)),
       this.store.setSemanticChunks(semanticChunks.map(remapRequiredCaseId)),
       this.store.setQualityReports(qualityReports.map(remapRequiredCaseId)),
@@ -2915,12 +3213,15 @@ export class CasePlatformOrchestrationService extends Service {
     const permission =
       await this.accessControlService.evaluate('document.upload');
     if (!permission.ok) {
-      console.warn('[deleteDocumentsCascade] Permission denied for document.upload', {
-        reason: permission.message,
-        role: permission.role,
-        requiredRole: permission.requiredRole,
-        documentIds: uniqueDocumentIds,
-      });
+      console.warn(
+        '[deleteDocumentsCascade] Permission denied for document.upload',
+        {
+          reason: permission.message,
+          role: permission.role,
+          requiredRole: permission.requiredRole,
+          documentIds: uniqueDocumentIds,
+        }
+      );
       for (const documentId of uniqueDocumentIds) {
         blockedIds.push(documentId);
       }
@@ -2979,11 +3280,14 @@ export class CasePlatformOrchestrationService extends Service {
           purgeAt,
         });
       } catch (error) {
-        console.error('[deleteDocumentsCascade] Failed to move document to trash', {
-          documentId,
-          documentTitle: doc.title,
-          error,
-        });
+        console.error(
+          '[deleteDocumentsCascade] Failed to move document to trash',
+          {
+            documentId,
+            documentTitle: doc.title,
+            error,
+          }
+        );
         failedIds.push(documentId);
       }
     }
@@ -3017,6 +3321,15 @@ export class CasePlatformOrchestrationService extends Service {
         ),
         this.store.setLegalFindings(nextFindings),
       ]);
+
+      await Promise.all(
+        movedDocs.map(doc =>
+          this.postLegalApi(
+            `/api/legal/workspaces/${encodeURIComponent(doc.workspaceId)}/documents/${encodeURIComponent(doc.id)}/trash`,
+            { retentionDays: DOCUMENT_TRASH_RETENTION_DAYS }
+          )
+        )
+      );
 
       const auditGroups = new Map<
         string,
@@ -3147,6 +3460,19 @@ export class CasePlatformOrchestrationService extends Service {
         this.store.setLegalDocuments([...activeById.values()]),
         this.store.setTrashedLegalDocuments([...trashedById.values()]),
       ]);
+
+      await Promise.all(
+        succeededIds.map(documentId => {
+          const restored = activeById.get(documentId);
+          if (!restored) {
+            return Promise.resolve(null);
+          }
+          return this.postLegalApi(
+            `/api/legal/workspaces/${encodeURIComponent(restored.workspaceId)}/documents/${encodeURIComponent(documentId)}/restore`,
+            {}
+          );
+        })
+      );
     }
 
     return {
@@ -3263,6 +3589,10 @@ export class CasePlatformOrchestrationService extends Service {
   }
 
   async upsertLegalDocument(input: LegalDocumentRecord) {
+    await this.postLegalApi(
+      `/api/legal/workspaces/${encodeURIComponent(input.workspaceId)}/documents`,
+      this.toLegalDocumentPayload(input)
+    );
     await this.store.upsertLegalDocument(input);
     await this.appendWorkflowEvent({
       type: 'document.uploaded',
@@ -3294,8 +3624,13 @@ export class CasePlatformOrchestrationService extends Service {
     }
 
     const storeAny = this.store as unknown as {
-      setSemanticChunksForDocument?: (documentId: string, chunks: SemanticChunk[]) => Promise<void>;
-      getSemanticChunksForDocument?: (documentId: string) => Promise<SemanticChunk[]>;
+      setSemanticChunksForDocument?: (
+        documentId: string,
+        chunks: SemanticChunk[]
+      ) => Promise<void>;
+      getSemanticChunksForDocument?: (
+        documentId: string
+      ) => Promise<SemanticChunk[]>;
     };
 
     // State-of-the-art path: segmented persistence per document (IndexedDB)
@@ -3304,7 +3639,9 @@ export class CasePlatformOrchestrationService extends Service {
       const persistedForDocument =
         typeof storeAny.getSemanticChunksForDocument === 'function'
           ? await storeAny.getSemanticChunksForDocument(documentId)
-          : (await this.store.getSemanticChunks()).filter(c => c.documentId === documentId);
+          : (await this.store.getSemanticChunks()).filter(
+              c => c.documentId === documentId
+            );
       if (persistedForDocument.length !== chunks.length) {
         throw new Error(
           `Semantic chunk persistence mismatch for ${documentId}: expected ${chunks.length}, got ${persistedForDocument.length}.`
@@ -3315,7 +3652,9 @@ export class CasePlatformOrchestrationService extends Service {
 
     // Fallback: monolithic array persistence
     const existing = await this.store.getSemanticChunks();
-    const filtered = existing.filter((c: SemanticChunk) => c.documentId !== documentId);
+    const filtered = existing.filter(
+      (c: SemanticChunk) => c.documentId !== documentId
+    );
     const nextChunks = filtered.concat(chunks);
     await this.store.setSemanticChunks(nextChunks);
     const persistedForDocument = (await this.store.getSemanticChunks()).filter(

@@ -1639,6 +1639,7 @@ model LegalMatter {
   client          LegalClient          @relation("primary_client", fields: [clientId], references: [id], onDelete: Cascade)
   matterClients   LegalMatterClient[]
   caseFiles       LegalCaseFile[]
+  documents       LegalDocument[]
   deadlines       LegalDeadline[]
   timeEntries     LegalTimeEntry[]
   invoices        LegalInvoice[]
@@ -1681,11 +1682,81 @@ model LegalCaseFile {
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  matter LegalMatter @relation(fields: [matterId], references: [id], onDelete: Cascade)
+  matter     LegalMatter     @relation(fields: [matterId], references: [id], onDelete: Cascade)
+  documents  LegalDocument[]
 
   @@index([workspaceId])
   @@index([matterId])
   @@map("legal_case_files")
+}
+
+enum LegalDocumentLifecycleStatus {
+  queued
+  processing
+  indexed
+  needs_review
+  failed
+  ocr_pending
+  archived
+}
+
+// Persisted legal source documents (cloud source of truth)
+model LegalDocument {
+  id                     String                       @id @default(uuid()) @db.VarChar
+  workspaceId            String                       @map("workspace_id") @db.VarChar
+  caseFileId             String?                      @map("case_file_id") @db.VarChar
+  matterId               String?                      @map("matter_id") @db.VarChar
+  title                  String                       @db.VarChar
+  kind                   String                       @default("other") @db.VarChar(40)
+  status                 LegalDocumentLifecycleStatus @default(indexed)
+  sourceMimeType         String?                      @map("source_mime_type") @db.VarChar
+  sourceSizeBytes        Int?                         @map("source_size_bytes")
+  sourceLastModifiedAt   DateTime?                    @map("source_last_modified_at") @db.Timestamptz(3)
+  sourceBlobId           String?                      @map("source_blob_id") @db.VarChar
+  sourceSha256           String?                      @map("source_sha256") @db.VarChar(128)
+  sourceRef              String?                      @map("source_ref") @db.VarChar
+  folderPath             String?                      @map("folder_path") @db.VarChar
+  internalFileNumber     String?                      @map("internal_file_number") @db.VarChar
+  paragraphReferences    String[]                     @default([]) @map("paragraph_references") @db.VarChar
+  documentRevision       Int                          @default(1) @map("document_revision")
+  contentFingerprint     String?                      @map("content_fingerprint") @db.VarChar
+  rawText                String                       @default("") @map("raw_text") @db.Text
+  normalizedText         String?                      @map("normalized_text") @db.Text
+  language               String?                      @db.VarChar(12)
+  qualityScore           Float?                       @map("quality_score")
+  pageCount              Int?                         @map("page_count")
+  ocrEngine              String?                      @map("ocr_engine") @db.VarChar(80)
+  tags                   String[]                     @default([]) @db.VarChar
+  processingStatus       String?                      @map("processing_status") @db.VarChar(40)
+  chunkCount             Int?                         @map("chunk_count")
+  entityCount            Int?                         @map("entity_count")
+  overallQualityScore    Float?                       @map("overall_quality_score")
+  processingDurationMs   Int?                         @map("processing_duration_ms")
+  extractionEngine       String?                      @map("extraction_engine") @db.VarChar(120)
+  processingError        String?                      @map("processing_error") @db.Text
+  preflight              Json?                        @db.JsonB
+  discardedBinaryAt      DateTime?                    @map("discarded_binary_at") @db.Timestamptz(3)
+  trashedAt              DateTime?                    @map("trashed_at") @db.Timestamptz(3)
+  purgeAt                DateTime?                    @map("purge_at") @db.Timestamptz(3)
+  extractionFidelityRatio Float?                      @map("extraction_fidelity_ratio")
+  extractionYieldPerPage Float?                       @map("extraction_yield_per_page")
+  extractedPageCount     Int?                         @map("extracted_page_count")
+  extractionIntegrityOk  Boolean?                     @map("extraction_integrity_ok")
+  ragIndexed             Boolean                      @default(false) @map("rag_indexed")
+  createdAt              DateTime                     @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt              DateTime                     @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  caseFile LegalCaseFile? @relation(fields: [caseFileId], references: [id], onDelete: SetNull)
+  matter   LegalMatter?   @relation(fields: [matterId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, updatedAt(sort: Desc)])
+  @@index([workspaceId, caseFileId])
+  @@index([workspaceId, matterId])
+  @@index([workspaceId, status])
+  @@index([workspaceId, sourceBlobId])
+  @@index([workspaceId, sourceSha256])
+  @@index([workspaceId, trashedAt])
+  @@map("legal_documents")
 }
 
 enum LegalDeadlineStatus {

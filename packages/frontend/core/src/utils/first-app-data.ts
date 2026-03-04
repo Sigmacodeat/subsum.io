@@ -67,6 +67,17 @@ export async function buildShowcaseWorkspace(
 
 const logger = new DebugLogger('createFirstAppData');
 
+function buildFirstWorkspaceName() {
+  if (typeof window === 'undefined') {
+    return DEFAULT_WORKSPACE_NAME;
+  }
+  const host = window.location.hostname.toLowerCase();
+  if (host === 'localhost' || host === '127.0.0.1' || host.endsWith('.local')) {
+    return DEFAULT_WORKSPACE_NAME;
+  }
+  return `${DEFAULT_WORKSPACE_NAME} (${host})`;
+}
+
 export async function createFirstAppData(workspacesService: WorkspacesService) {
   if (localStorage.getItem('is-first-open') !== null) {
     return;
@@ -75,7 +86,7 @@ export async function createFirstAppData(workspacesService: WorkspacesService) {
   const { meta, defaultDocId } = await buildShowcaseWorkspace(
     workspacesService,
     'local',
-    DEFAULT_WORKSPACE_NAME
+    buildFirstWorkspaceName()
   );
   logger.info('create first workspace', defaultDocId);
   return { meta, defaultPageId: defaultDocId };

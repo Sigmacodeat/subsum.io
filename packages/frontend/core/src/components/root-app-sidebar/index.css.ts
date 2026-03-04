@@ -29,6 +29,52 @@ export const workspaceWrapper = style({
   flex: 1,
 });
 
+export const workspaceIdentityRow = style({
+  marginTop: 4,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: 6,
+  borderRadius: 8,
+  border: `1px solid ${cssVarV2('layer/insideBorder/border')}`,
+  background: cssVarV2('layer/background/primary'),
+  padding: '4px 6px',
+  minHeight: 24,
+});
+
+export const workspaceIdentityText = style({
+  color: cssVarV2('text/secondary'),
+  fontSize: 10,
+  lineHeight: 1.2,
+  fontFamily:
+    'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+  flex: 1,
+});
+
+export const workspaceIdentityCopyButton = style({
+  border: `1px solid ${cssVarV2('layer/insideBorder/border')}`,
+  borderRadius: 6,
+  background: cssVarV2('layer/background/secondary'),
+  color: cssVarV2('text/primary'),
+  padding: '2px 6px',
+  fontSize: 10,
+  lineHeight: 1.2,
+  fontWeight: 600,
+  cursor: 'pointer',
+  selectors: {
+    '&:hover': {
+      background: cssVarV2('layer/background/hoverOverlay'),
+    },
+    '&:focus-visible': {
+      outline: `2px solid ${cssVarV2('button/primary')}`,
+      outlineOffset: 1,
+    },
+  },
+});
+
 export const bottomContainer = style({
   gap: 6,
   borderTop: `1px solid ${cssVarV2('layer/insideBorder/border')}`,
@@ -62,7 +108,8 @@ export const aiCreditsTier = style({
   minHeight: 20,
   borderRadius: 999,
   padding: '0 8px',
-  border: '1px solid var(--affine-v2-badge-accent-border, rgba(6, 182, 212, 0.22))',
+  border:
+    '1px solid var(--affine-v2-badge-accent-border, rgba(6, 182, 212, 0.22))',
   background: 'var(--affine-v2-badge-accent-bg, rgba(6, 182, 212, 0.10))',
   color: 'var(--affine-v2-badge-accent-text, #0891b2)',
   fontSize: 10,

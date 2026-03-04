@@ -481,6 +481,7 @@ type Props = {
   activeSessionMessages: LegalChatMessage[];
   activeMode: LegalChatMode;
   isChatBusy: boolean;
+  isCaseResolving?: boolean;
   caseClientName: string | null;
   caseMatterTitle: string | null;
   caseContextStatus?: string;
@@ -554,6 +555,7 @@ export const PremiumChatSection = ({
   onSelectModel,
   activeMode,
   isChatBusy,
+  isCaseResolving = false,
   caseClientName,
   caseMatterTitle,
   caseContextStatus,
@@ -1211,6 +1213,7 @@ export const PremiumChatSection = ({
                   type="button"
                   className={localStyles.casePickerButton}
                   onClick={() => {
+                    if (isCaseResolving) return;
                     setShowCasePicker(prev => !prev);
                     if (!showCasePicker) {
                       setCaseQuery('');
@@ -1219,16 +1222,24 @@ export const PremiumChatSection = ({
                   aria-haspopup="listbox"
                   aria-expanded={showCasePicker}
                   aria-label="Akte auswählen"
+                  aria-busy={isCaseResolving}
+                  disabled={isCaseResolving}
                 >
                   <span className={localStyles.casePickerButtonLabel}>
-                    {selectedCaseOption
-                      ? selectedCaseOption.meta
-                        ? `${selectedCaseOption.label} — ${selectedCaseOption.meta}`
-                        : selectedCaseOption.label
-                      : 'Akte auswählen…'}
+                    {isCaseResolving
+                      ? 'Akte wird geladen…'
+                      : selectedCaseOption
+                        ? selectedCaseOption.meta
+                          ? `${selectedCaseOption.label} — ${selectedCaseOption.meta}`
+                          : selectedCaseOption.label
+                        : 'Akte auswählen…'}
                   </span>
                   <span className={localStyles.iconSm}>
-                    {showCasePicker ? 'Schließen' : 'Öffnen'}
+                    {isCaseResolving
+                      ? '⧗'
+                      : showCasePicker
+                        ? 'Schließen'
+                        : 'Öffnen'}
                   </span>
                 </button>
                 {showCasePicker ? (

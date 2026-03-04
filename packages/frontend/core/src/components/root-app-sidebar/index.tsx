@@ -1,3 +1,4 @@
+import { notify } from '@affine/component';
 import {
   AddPageButton,
   AppDownloadButton,
@@ -24,7 +25,10 @@ import {
   WorkspaceDialogService,
 } from '@affine/core/modules/dialogs';
 import { CMDKQuickSearchService } from '@affine/core/modules/quicksearch/services/cmdk';
-import type { Workspace } from '@affine/core/modules/workspace';
+import {
+  type Workspace,
+  WorkspaceService,
+} from '@affine/core/modules/workspace';
 import type { GraphQLQuery } from '@affine/graphql';
 import { useI18n } from '@affine/i18n';
 import { track } from '@affine/track';
@@ -39,8 +43,8 @@ import {
   SettingsIcon,
 } from '@blocksuite/icons/rc';
 import { AiOutlineIcon } from '@blocksuite/icons/rc';
-import { cssVarV2 } from '@toeverything/theme/v2';
 import { useLiveData, useService, useServices } from '@toeverything/infra';
+import { cssVarV2 } from '@toeverything/theme/v2';
 import type { ReactElement } from 'react';
 import { memo, useCallback, useEffect, useState } from 'react';
 
@@ -68,6 +72,9 @@ import {
   quickSearch,
   quickSearchAndNewPage,
   workspaceAndUserWrapper,
+  workspaceIdentityCopyButton,
+  workspaceIdentityRow,
+  workspaceIdentityText,
   workspaceWrapper,
 } from './index.css';
 import { InviteMembersButton } from './invite-members-button';
@@ -86,6 +93,8 @@ type OrganizationSummary = {
 };
 
 const AFFILIATE_REF_STORAGE_KEY = 'affiliate_referral_code';
+const NON_CANONICAL_DOMAIN_WARNED_KEY = 'subsumio:warned:non-canonical-domain';
+const CANONICAL_APP_HOSTNAME = 'app.subsum.io';
 
 const captureAffiliateReferralMutation: GraphQLQuery = {
   id: 'captureAffiliateReferralFromUrlMutation',
@@ -334,7 +343,10 @@ export const RootAppSidebar = memo((): ReactElement => {
   const globalDialogService = useService(GlobalDialogService);
   const creditGateway = useService(CreditGatewayService);
   const legalChatService = useService(LegalChatService);
+  const workspaceService = useService(WorkspaceService);
   const creditBalances = useLiveData(creditGateway.balances$) ?? [];
+  const currentWorkspaceId = workspaceService.workspace.id;
+  const [workspaceIdCopied, setWorkspaceIdCopied] = useState(false);
   const workbench = workbenchService.workbench;
   const workspaceSelectorOpen = useLiveData(workbench.workspaceSelectorOpen$);
   const onOpenQuickSearchModal = useCallback(() => {
@@ -354,6 +366,31 @@ export const RootAppSidebar = memo((): ReactElement => {
     });
     track.$.navigationPanel.$.openSettings();
   }, [workspaceDialogService]);
+
+  const onCopyWorkspaceId = useCallback(() => {
+    if (typeof navigator === 'undefined' || !navigator.clipboard) {
+      notify.warning({
+        title: 'Workspace-ID konnte nicht kopiert werden',
+        message: 'Clipboard ist in diesem Kontext nicht verfügbar.',
+      });
+      return;
+    }
+    void navigator.clipboard
+      .writeText(currentWorkspaceId)
+      .then(() => {
+        setWorkspaceIdCopied(true);
+        notify.success({
+          title: 'Workspace-ID kopiert',
+          message: currentWorkspaceId,
+        });
+      })
+      .catch(() => {
+        notify.error({
+          title: 'Workspace-ID konnte nicht kopiert werden',
+          message: currentWorkspaceId,
+        });
+      });
+  }, [currentWorkspaceId]);
 
   const onOpenBillingModal = useCallback(() => {
     workspaceDialogService.open('setting', {
@@ -485,6 +522,51 @@ export const RootAppSidebar = memo((): ReactElement => {
   }, [graphQLService, isAuthenticated]);
 
   useEffect(() => {
+    if (!workspaceIdCopied) {
+      return;
+    }
+    const timeoutId = window.setTimeout(() => {
+      setWorkspaceIdCopied(false);
+    }, 1800);
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [workspaceIdCopied]);
+
+  useEffect(() => {
+    if (BUILD_CONFIG.isElectron || typeof window === 'undefined') {
+      return;
+    }
+
+    const hostname = window.location.hostname.toLowerCase();
+    const isLocalDev =
+      hostname === 'localhost' ||
+      hostname === '127.0.0.1' ||
+      hostname.endsWith('.local');
+
+    if (isLocalDev || hostname === CANONICAL_APP_HOSTNAME) {
+      return;
+    }
+
+    const isPreviewOrAltHost =
+      hostname.endsWith('.vercel.app') || hostname.endsWith('.subsumio.com');
+    if (!isPreviewOrAltHost) {
+      return;
+    }
+
+    if (sessionStorage.getItem(NON_CANONICAL_DOMAIN_WARNED_KEY) === '1') {
+      return;
+    }
+    sessionStorage.setItem(NON_CANONICAL_DOMAIN_WARNED_KEY, '1');
+
+    notify.warning({
+      title: 'Achtung: alternative Domain aktiv',
+      message:
+        'Du bist nicht auf app.subsum.io. Lokale Workspace-Daten können dadurch abweichen.',
+    });
+  }, []);
+
+  useEffect(() => {
     if (!isAuthenticated || !serverFeatures?.payment) {
       return;
     }
@@ -526,6 +608,22 @@ export const RootAppSidebar = memo((): ReactElement => {
               onOpenChange={onWorkspaceSelectorOpenChange}
               dense
             />
+            <div className={workspaceIdentityRow}>
+              <span
+                className={workspaceIdentityText}
+                title={currentWorkspaceId}
+              >
+                ID: {currentWorkspaceId}
+              </span>
+              <button
+                type="button"
+                className={workspaceIdentityCopyButton}
+                onClick={onCopyWorkspaceId}
+                aria-label="Workspace-ID kopieren"
+              >
+                {workspaceIdCopied ? 'Kopiert' : 'Kopieren'}
+              </button>
+            </div>
             <OrganizationSwitcher
               isAuthenticated={isAuthenticated}
               onOpenOrganizationSettings={onOpenOrganizationSettingModal}

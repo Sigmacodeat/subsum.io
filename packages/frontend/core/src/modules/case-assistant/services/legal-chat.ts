@@ -249,6 +249,24 @@ type TenantLlmModelResponse = {
   thinkingLevel?: LlmModelOption['thinkingLevel'];
 };
 
+type TenantLlmChatResponse = {
+  answer?: string;
+  content?: string;
+  text?: string;
+  model?: string;
+};
+
+class TenantLlmRequestError extends Error {
+  constructor(
+    readonly status: number,
+    message: string,
+    readonly code?: string
+  ) {
+    super(message);
+    this.name = 'TenantLlmRequestError';
+  }
+}
+
 const TENANT_MODELS_ENDPOINT = '/api/copilot/tenant-llm/models';
 const TENANT_CHAT_ENDPOINT = '/api/copilot/tenant-llm/chat';
 
@@ -679,11 +697,14 @@ export class LegalChatService extends Service {
 
   setSessionModel(sessionId: string, modelId: string): void {
     const sessions = this.store.getChatSessions();
-    const session = sessions.find(s => s.id === sessionId);
-    if (!session) return;
-    session.modelId = modelId;
-    session.updatedAt = new Date().toISOString();
-    this.store.setChatSessions([...sessions]);
+    if (!sessions.some(s => s.id === sessionId)) return;
+    this.store.setChatSessions(
+      sessions.map(s =>
+        s.id === sessionId
+          ? { ...s, modelId, updatedAt: new Date().toISOString() }
+          : s
+      )
+    );
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -1247,13 +1268,11 @@ export class LegalChatService extends Service {
     };
 
     const sessions = this.store.getChatSessions();
-    sessions.unshift(session);
-    this.store.setChatSessions(sessions);
+    this.store.setChatSessions([session, ...sessions]);
     return session;
   }
 
   getSessions(caseId: string, workspaceId: string): LegalChatSession[] {
-    this.purgeExpiredTrash();
     return this.store
       .getChatSessions()
       .filter(s => s.caseId === caseId && s.workspaceId === workspaceId)
@@ -1266,7 +1285,6 @@ export class LegalChatService extends Service {
   }
 
   getSessionMessages(sessionId: string): LegalChatMessage[] {
-    this.purgeExpiredTrash();
     return this.store
       .getChatMessages()
       .filter(m => m.sessionId === sessionId)
@@ -1323,36 +1341,49 @@ export class LegalChatService extends Service {
 
   togglePinSession(sessionId: string): void {
     const sessions = this.store.getChatSessions();
-    const session = sessions.find(s => s.id === sessionId);
-    if (!session) return;
-    session.isPinned = !session.isPinned;
-    session.updatedAt = new Date().toISOString();
-    this.store.setChatSessions([...sessions]);
+    if (!sessions.some(s => s.id === sessionId)) return;
+    this.store.setChatSessions(
+      sessions.map(s =>
+        s.id === sessionId
+          ? { ...s, isPinned: !s.isPinned, updatedAt: new Date().toISOString() }
+          : s
+      )
+    );
   }
 
   renameSession(sessionId: string, title: string): void {
     const sessions = this.store.getChatSessions();
     const session = sessions.find(s => s.id === sessionId);
     if (!session) return;
-    session.title = title.trim() || session.title;
-    session.updatedAt = new Date().toISOString();
-    this.store.setChatSessions([...sessions]);
+    this.store.setChatSessions(
+      sessions.map(s =>
+        s.id === sessionId
+          ? {
+              ...s,
+              title: title.trim() || s.title,
+              updatedAt: new Date().toISOString(),
+            }
+          : s
+      )
+    );
   }
 
   switchSessionMode(sessionId: string, mode: LegalChatMode): void {
     const sessions = this.store.getChatSessions();
-    const session = sessions.find(s => s.id === sessionId);
-    if (!session) return;
-    session.mode = mode;
-    session.updatedAt = new Date().toISOString();
-    this.store.setChatSessions([...sessions]);
+    if (!sessions.some(s => s.id === sessionId)) return;
+    this.store.setChatSessions(
+      sessions.map(s =>
+        s.id === sessionId
+          ? { ...s, mode, updatedAt: new Date().toISOString() }
+          : s
+      )
+    );
   }
 
   appendMessages(messages: LegalChatMessage[]): void {
     if (messages.length === 0) return;
     const current = this.store.getChatMessages();
-    current.push(...messages);
-    this.store.setChatMessages(current);
+    this.store.setChatMessages([...current, ...messages]);
 
     const bySession = new Map<string, LegalChatMessage[]>();
     for (const message of messages) {
@@ -1362,22 +1393,23 @@ export class LegalChatService extends Service {
     }
 
     const sessions = this.store.getChatSessions();
-    for (const session of sessions) {
+    const updatedSessions = sessions.map(session => {
       const added = bySession.get(session.id);
-      if (!added || added.length === 0) continue;
-
-      session.messageCount += added.length;
-      session.totalTokens += added.reduce(
-        (sum, m) => sum + (m.tokenEstimate ?? 0),
-        0
-      );
+      if (!added || added.length === 0) return session;
       const lastUser = [...added].reverse().find(m => m.role === 'user');
-      if (lastUser) {
-        session.lastMessagePreview = lastUser.content.slice(0, 100);
-      }
-      session.updatedAt = new Date().toISOString();
-    }
-    this.store.setChatSessions([...sessions]);
+      return {
+        ...session,
+        messageCount: session.messageCount + added.length,
+        totalTokens:
+          session.totalTokens +
+          added.reduce((sum, m) => sum + (m.tokenEstimate ?? 0), 0),
+        lastMessagePreview: lastUser
+          ? lastUser.content.slice(0, 100)
+          : session.lastMessagePreview,
+        updatedAt: new Date().toISOString(),
+      };
+    });
+    this.store.setChatSessions(updatedSessions);
   }
 
   removeMessage(messageId: string): void {
@@ -1417,14 +1449,22 @@ export class LegalChatService extends Service {
       .reverse()
       .find(m => m.role === 'user');
 
-    session.messageCount = Math.max(0, session.messageCount - 1);
-    session.totalTokens = Math.max(
-      0,
-      session.totalTokens - (removed.tokenEstimate ?? 0)
+    this.store.setChatSessions(
+      sessions.map(s =>
+        s.id === removed.sessionId
+          ? {
+              ...s,
+              messageCount: Math.max(0, s.messageCount - 1),
+              totalTokens: Math.max(
+                0,
+                s.totalTokens - (removed.tokenEstimate ?? 0)
+              ),
+              lastMessagePreview: lastUser?.content.slice(0, 100) ?? '',
+              updatedAt: new Date().toISOString(),
+            }
+          : s
+      )
     );
-    session.lastMessagePreview = lastUser?.content.slice(0, 100) ?? '';
-    session.updatedAt = new Date().toISOString();
-    this.store.setChatSessions([...sessions]);
   }
 
   markArtifactSaved(
@@ -2301,8 +2341,7 @@ export class LegalChatService extends Service {
     };
 
     const allMessages = this.store.getChatMessages();
-    allMessages.push(userMessage);
-    this.store.setChatMessages(allMessages);
+    this.store.setChatMessages([...allMessages, userMessage]);
 
     // 2) Create pending assistant message with tool calls visible
     const assistantMessage: LegalChatMessage = {
@@ -2323,8 +2362,7 @@ export class LegalChatService extends Service {
     };
 
     const msgs2 = this.store.getChatMessages();
-    msgs2.push(assistantMessage);
-    this.store.setChatMessages(msgs2);
+    this.store.setChatMessages([...msgs2, assistantMessage]);
 
     // 3) Build conversation history for context
     const history = this.getSessionMessages(sessionId).filter(
@@ -2668,40 +2706,100 @@ export class LegalChatService extends Service {
       role: m.role,
       content: m.content.slice(0, 3000),
     }));
+    const baseRequestBody = {
+      systemPrompt: context.systemPrompt,
+      messages: [
+        ...conversationMessages,
+        { role: 'user' as const, content: userMessage },
+      ],
+      temperature: 0.3,
+      maxTokens: 4000,
+    };
 
+    try {
+      const primary = await this.requestTenantLlm({
+        ...baseRequestBody,
+        model: model.id,
+      });
+      return { answer: primary.answer };
+    } catch (error) {
+      if (!this.shouldRetryWithAutoModel(error)) {
+        throw error;
+      }
+    }
+
+    const fallback = await this.requestTenantLlm(baseRequestBody);
+    void this.refreshAvailableModels(true).catch(() => {
+      // Best-effort only: keep latest known model catalog in sync after auto-fallback.
+    });
+    return { answer: fallback.answer };
+  }
+
+  private shouldRetryWithAutoModel(error: unknown): boolean {
+    if (!(error instanceof TenantLlmRequestError)) {
+      return false;
+    }
+
+    if (error.status === 401 || error.status === 403 || error.status === 404) {
+      return false;
+    }
+
+    const marker = `${error.code ?? ''} ${error.message}`.toLowerCase();
+    return (
+      marker.includes('no_copilot_provider_available') ||
+      marker.includes('provider') ||
+      marker.includes('model') ||
+      marker.includes('not supported')
+    );
+  }
+
+  private async requestTenantLlm(body: {
+    model?: string;
+    systemPrompt: string;
+    messages: Array<{ role: string; content: string }>;
+    temperature: number;
+    maxTokens: number;
+  }): Promise<{ answer: string; model?: string }> {
     const response = await fetch(TENANT_CHAT_ENDPOINT, {
       method: 'POST',
       credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        model: model.id,
-        systemPrompt: context.systemPrompt,
-        messages: [
-          ...conversationMessages,
-          { role: 'user', content: userMessage },
-        ],
-        temperature: 0.3,
-        maxTokens: 4000,
-      }),
+      body: JSON.stringify(body),
     });
 
-    if (!response.ok) {
-      throw new Error(`LLM request failed: ${response.status}`);
+    let payload: TenantLlmChatResponse | null = null;
+    if (response.headers.get('content-type')?.includes('application/json')) {
+      payload = (await response.json()) as TenantLlmChatResponse;
     }
 
-    const payload = (await response.json()) as {
-      answer?: string;
-      content?: string;
-      text?: string;
-    };
-    const answer = payload.answer ?? payload.content ?? payload.text ?? '';
+    if (!response.ok) {
+      const payloadRecord = payload as Record<string, unknown> | null;
+      const nestedError = payloadRecord?.error as
+        | Record<string, unknown>
+        | undefined;
+      const codeCandidate = payloadRecord?.code ?? nestedError?.code;
+      const messageCandidate = payloadRecord?.message ?? nestedError?.message;
+      const code =
+        typeof codeCandidate === 'string' ? codeCandidate : undefined;
+      const message =
+        typeof messageCandidate === 'string' &&
+        messageCandidate.trim().length > 0
+          ? messageCandidate
+          : `LLM request failed: ${response.status}`;
+      throw new TenantLlmRequestError(response.status, message, code);
+    }
+
+    const answer = payload?.answer ?? payload?.content ?? payload?.text ?? '';
     if (!answer.trim()) {
       throw new Error('Empty LLM response');
     }
 
-    return { answer: answer.trim() };
+    return {
+      answer: answer.trim(),
+      model: typeof payload?.model === 'string' ? payload.model : undefined,
+    };
   }
 
   private buildLocalFallbackAnswer(
@@ -2907,14 +3005,20 @@ export class LegalChatService extends Service {
     addedTokens: number
   ): void {
     const sessions = this.store.getChatSessions();
-    const session = sessions.find(s => s.id === sessionId);
-    if (!session) return;
-
-    session.messageCount += 2;
-    session.totalTokens += addedTokens;
-    session.lastMessagePreview = lastUserMessage.slice(0, 100);
-    session.updatedAt = new Date().toISOString();
-    this.store.setChatSessions([...sessions]);
+    if (!sessions.some(s => s.id === sessionId)) return;
+    this.store.setChatSessions(
+      sessions.map(s =>
+        s.id === sessionId
+          ? {
+              ...s,
+              messageCount: s.messageCount + 2,
+              totalTokens: s.totalTokens + addedTokens,
+              lastMessagePreview: lastUserMessage.slice(0, 100),
+              updatedAt: new Date().toISOString(),
+            }
+          : s
+      )
+    );
   }
 
   // ═══════════════════════════════════════════════════════════════════════════

@@ -53,6 +53,51 @@ const UpsertClientInputSchema = z
   })
   .passthrough();
 
+const UpsertLegalDocumentInputSchema = z
+  .object({
+    id: z.string().min(1).optional(),
+    caseFileId: z.string().min(1).optional(),
+    matterId: z.string().min(1).optional(),
+    title: z.string().trim().min(1),
+    kind: z.string().trim().optional(),
+    status: z.string().trim().optional(),
+    sourceMimeType: z.string().trim().optional(),
+    sourceSizeBytes: z.number().nonnegative().optional(),
+    sourceLastModifiedAt: z.string().trim().regex(ISO_DATE_REGEX).optional(),
+    sourceBlobId: z.string().trim().optional(),
+    sourceSha256: z.string().trim().optional(),
+    sourceRef: z.string().trim().optional(),
+    folderPath: z.string().trim().optional(),
+    internalFileNumber: z.string().trim().optional(),
+    paragraphReferences: z.array(z.string()).optional(),
+    documentRevision: z.number().int().positive().optional(),
+    contentFingerprint: z.string().trim().optional(),
+    rawText: z.string().optional(),
+    normalizedText: z.string().optional(),
+    language: z.string().trim().optional(),
+    qualityScore: z.number().optional(),
+    pageCount: z.number().int().nonnegative().optional(),
+    ocrEngine: z.string().trim().optional(),
+    tags: z.array(z.string()).optional(),
+    processingStatus: z.string().trim().optional(),
+    chunkCount: z.number().int().nonnegative().optional(),
+    entityCount: z.number().int().nonnegative().optional(),
+    overallQualityScore: z.number().optional(),
+    processingDurationMs: z.number().int().nonnegative().optional(),
+    extractionEngine: z.string().trim().optional(),
+    processingError: z.string().optional(),
+    preflight: z.unknown().optional(),
+    discardedBinaryAt: z.string().trim().regex(ISO_DATE_REGEX).optional(),
+    trashedAt: z.string().trim().regex(ISO_DATE_REGEX).optional(),
+    purgeAt: z.string().trim().regex(ISO_DATE_REGEX).optional(),
+    extractionFidelityRatio: z.number().optional(),
+    extractionYieldPerPage: z.number().optional(),
+    extractedPageCount: z.number().int().nonnegative().optional(),
+    extractionIntegrityOk: z.boolean().optional(),
+    ragIndexed: z.boolean().optional(),
+  })
+  .passthrough();
+
 const UpsertCaseFileInputSchema = z
   .object({
     id: z.string().min(1).optional(),
@@ -98,7 +143,9 @@ const UpsertDeadlineInputSchema = z
     description: z.string().optional(),
     category: z.enum(['frist', 'wiedervorlage', 'termin', 'custom']).optional(),
     priority: z.enum(['critical', 'high', 'medium', 'low']).optional(),
-    status: z.enum(['open', 'alerted', 'acknowledged', 'completed', 'expired']).optional(),
+    status: z
+      .enum(['open', 'alerted', 'acknowledged', 'completed', 'expired'])
+      .optional(),
     dueAt: z.string().trim().regex(ISO_DATE_REGEX),
     allDay: z.boolean().optional(),
     reminderOffsetsMinutes: z.array(z.number().int().nonnegative()).optional(),
@@ -129,7 +176,9 @@ const UpsertTimeEntryInputSchema = z
     durationMinutes: z.number().int().positive(),
     hourlyRate: z.number().positive(),
     date: z.string().trim().regex(ISO_DATE_REGEX),
-    status: z.enum(['draft', 'submitted', 'approved', 'rejected', 'invoiced']).optional(),
+    status: z
+      .enum(['draft', 'submitted', 'approved', 'rejected', 'invoiced'])
+      .optional(),
     invoiceId: z.string().min(1).optional(),
     metadata: z.unknown().optional(),
   })
@@ -140,7 +189,9 @@ const CreateInvoiceInputSchema = z
     matterId: z.string().min(1),
     clientId: z.string().min(1),
     invoiceNumber: z.string().trim().min(1).optional(),
-    status: z.enum(['draft', 'sent', 'paid', 'overdue', 'cancelled', 'credited']).optional(),
+    status: z
+      .enum(['draft', 'sent', 'paid', 'overdue', 'cancelled', 'credited'])
+      .optional(),
     currency: z.string().trim().length(3).optional(),
     subtotalCents: z.number().int().nonnegative(),
     taxRateBps: z.number().int().nonnegative().optional(),
@@ -191,7 +242,9 @@ const UpsertVollmachtSigningRequestInputSchema = z
     portalRequestId: z.string().optional(),
     vollmachtId: z.string().optional(),
     mode: z.enum(['upload', 'esign']).optional(),
-    provider: z.enum(['none', 'docusign', 'signaturit', 'dropbox_sign']).optional(),
+    provider: z
+      .enum(['none', 'docusign', 'signaturit', 'dropbox_sign'])
+      .optional(),
     providerEnvelopeId: z.string().optional(),
     providerStatus: z.string().optional(),
     status: z.string().optional(),
@@ -229,7 +282,9 @@ function parseOptionalNumber(
   if (value === undefined) return undefined;
   const parsed = Number(value);
   if (!Number.isFinite(parsed) || parsed < 0) {
-    throw new BadRequestException(`${field} muss eine nicht-negative Zahl sein.`);
+    throw new BadRequestException(
+      `${field} muss eine nicht-negative Zahl sein.`
+    );
   }
   return parsed;
 }
@@ -524,6 +579,127 @@ export class LegalCaseController {
       caseFileId,
     });
     return { ok: deleted };
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // DOCUMENTS
+  // ═══════════════════════════════════════════════════════════════════════
+
+  @Get('/workspaces/:workspaceId/documents')
+  async listDocuments(
+    @CurrentUser() user: CurrentUser,
+    @Param('workspaceId') workspaceId: string,
+    @Query('caseFileId') caseFileId?: string,
+    @Query('matterId') matterId?: string,
+    @Query('status') status?: string,
+    @Query('search') search?: string,
+    @Query('includeTrashed') includeTrashed?: string,
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string
+  ) {
+    await this.assertWorkspaceAccess(user.id, workspaceId, 'Workspace.Read');
+
+    return this.service.listDocuments(workspaceId, {
+      caseFileId,
+      matterId,
+      status,
+      search,
+      includeTrashed: includeTrashed === 'true',
+      limit: parseOptionalNumber(limit, 'limit'),
+      offset: parseOptionalNumber(offset, 'offset'),
+    });
+  }
+
+  @Get('/workspaces/:workspaceId/documents/:documentId')
+  async getDocument(
+    @CurrentUser() user: CurrentUser,
+    @Param('workspaceId') workspaceId: string,
+    @Param('documentId') documentId: string
+  ) {
+    await this.assertWorkspaceAccess(user.id, workspaceId, 'Workspace.Read');
+
+    const doc = await this.service.getDocument(workspaceId, documentId);
+    if (!doc) return { ok: false, code: 'not_found' };
+    return doc;
+  }
+
+  @Post('/workspaces/:workspaceId/documents')
+  @HttpCode(HttpStatus.OK)
+  async upsertDocument(
+    @CurrentUser() user: CurrentUser,
+    @Param('workspaceId') workspaceId: string,
+    @Body() body: any,
+    @Req() req: Request
+  ) {
+    await this.assertWorkspaceAccess(user.id, workspaceId, 'Workspace.Sync');
+
+    const parsed = UpsertLegalDocumentInputSchema.safeParse(body);
+    if (!parsed.success) {
+      throw new BadRequestException(formatZodError(parsed.error));
+    }
+
+    const result = await this.service.upsertDocument({
+      userId: user.id,
+      workspaceId,
+      input: parsed.data,
+      ipAddress: getIp(req),
+    });
+    return { ok: true, data: result };
+  }
+
+  @Post('/workspaces/:workspaceId/documents/:documentId/trash')
+  @HttpCode(HttpStatus.OK)
+  async trashDocument(
+    @CurrentUser() user: CurrentUser,
+    @Param('workspaceId') workspaceId: string,
+    @Param('documentId') documentId: string,
+    @Body('retentionDays') retentionDays?: number
+  ) {
+    await this.assertWorkspaceAccess(user.id, workspaceId, 'Workspace.Sync');
+
+    const result = await this.service.trashDocument({
+      userId: user.id,
+      workspaceId,
+      documentId,
+      retentionDays,
+    });
+    if (!result) return { ok: false, code: 'not_found' };
+    return { ok: true, data: result };
+  }
+
+  @Post('/workspaces/:workspaceId/documents/:documentId/restore')
+  @HttpCode(HttpStatus.OK)
+  async restoreDocument(
+    @CurrentUser() user: CurrentUser,
+    @Param('workspaceId') workspaceId: string,
+    @Param('documentId') documentId: string
+  ) {
+    await this.assertWorkspaceAccess(user.id, workspaceId, 'Workspace.Sync');
+
+    const result = await this.service.restoreDocument({
+      userId: user.id,
+      workspaceId,
+      documentId,
+    });
+    if (!result) return { ok: false, code: 'not_found' };
+    return { ok: true, data: result };
+  }
+
+  @Delete('/workspaces/:workspaceId/documents/:documentId')
+  async deleteDocument(
+    @CurrentUser() user: CurrentUser,
+    @Param('workspaceId') workspaceId: string,
+    @Param('documentId') documentId: string
+  ) {
+    await this.assertWorkspaceAccess(user.id, workspaceId, 'Workspace.Sync');
+
+    const deleted = await this.service.deleteDocument({
+      userId: user.id,
+      workspaceId,
+      documentId,
+    });
+    if (!deleted) return { ok: false, code: 'not_found' };
+    return { ok: true, data: deleted };
   }
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -946,7 +1122,10 @@ export class LegalCaseController {
   ) {
     await this.assertWorkspaceAccess(user.id, workspaceId, 'Workspace.Read');
 
-    const result = await this.service.getVollmachtSigningRequest(workspaceId, id);
+    const result = await this.service.getVollmachtSigningRequest(
+      workspaceId,
+      id
+    );
     if (!result) return { ok: false, code: 'not_found' };
     return { ok: true, data: result };
   }
@@ -1050,17 +1229,20 @@ export class LegalCaseController {
 
     const parsed = z
       .object({
-        caseId:     z.string().min(1),
+        caseId: z.string().min(1),
         documentId: z.string().min(1),
-        chunks: z.array(
-          z.object({
-            index:        z.number().int().nonnegative(),
-            text:         z.string().min(1),
-            category:     z.string().default('sonstiges'),
-            keywords:     z.array(z.string()).default([]),
-            qualityScore: z.number().min(0).max(1).default(0.5),
-          })
-        ).min(1).max(500),
+        chunks: z
+          .array(
+            z.object({
+              index: z.number().int().nonnegative(),
+              text: z.string().min(1),
+              category: z.string().default('sonstiges'),
+              keywords: z.array(z.string()).default([]),
+              qualityScore: z.number().min(0).max(1).default(0.5),
+            })
+          )
+          .min(1)
+          .max(500),
       })
       .safeParse(body);
     if (!parsed.success) {
@@ -1069,7 +1251,10 @@ export class LegalCaseController {
 
     const { caseId, documentId, chunks } = parsed.data;
     const indexed = await this.ragService.indexChunks(
-      workspaceId, caseId, documentId, chunks
+      workspaceId,
+      caseId,
+      documentId,
+      chunks
     );
     return { ok: true, indexed };
   }
@@ -1085,9 +1270,9 @@ export class LegalCaseController {
 
     const parsed = z
       .object({
-        caseId:    z.string().min(1),
-        query:     z.string().min(1).max(2000),
-        topK:      z.number().int().positive().max(50).default(12),
+        caseId: z.string().min(1),
+        query: z.string().min(1).max(2000),
+        topK: z.number().int().positive().max(50).default(12),
         threshold: z.number().min(0).max(1).default(0.6),
       })
       .safeParse(body);
@@ -1097,7 +1282,11 @@ export class LegalCaseController {
 
     const { caseId, query, topK, threshold } = parsed.data;
     const chunks = await this.ragService.searchSemantic(
-      workspaceId, caseId, query, topK, threshold
+      workspaceId,
+      caseId,
+      query,
+      topK,
+      threshold
     );
     return { ok: true, chunks, semanticAvailable: this.ragService.isAvailable };
   }
@@ -1133,16 +1322,19 @@ export class LegalCaseController {
     @Body() body: any
   ) {
     await this.assertWorkspaceAccess(user.id, workspaceId, 'Workspace.Sync');
-    const parsed = z.object({
-      caseId: z.string().min(1),
-      findings: z.array(z.unknown()).optional().default([]),
-      tasks: z.array(z.unknown()).optional().default([]),
-      blueprint: z.unknown().nullable().optional(),
-      issues: z.array(z.unknown()).optional().default([]),
-      actors: z.array(z.unknown()).optional().default([]),
-      memoryEvents: z.array(z.unknown()).optional().default([]),
-    }).safeParse(body);
-    if (!parsed.success) throw new BadRequestException('Invalid analysis payload');
+    const parsed = z
+      .object({
+        caseId: z.string().min(1),
+        findings: z.array(z.unknown()).optional().default([]),
+        tasks: z.array(z.unknown()).optional().default([]),
+        blueprint: z.unknown().nullable().optional(),
+        issues: z.array(z.unknown()).optional().default([]),
+        actors: z.array(z.unknown()).optional().default([]),
+        memoryEvents: z.array(z.unknown()).optional().default([]),
+      })
+      .safeParse(body);
+    if (!parsed.success)
+      throw new BadRequestException('Invalid analysis payload');
     const { caseId, ...data } = parsed.data;
     await this.ragService.saveAnalysisData(workspaceId, caseId, data);
     return { ok: true };

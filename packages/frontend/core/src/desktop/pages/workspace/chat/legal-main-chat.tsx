@@ -35,7 +35,14 @@ import { WorkspaceService } from '@affine/core/modules/workspace';
 import { useI18n } from '@affine/i18n';
 import { AiOutlineIcon } from '@blocksuite/icons/rc';
 import { useLiveData, useService } from '@toeverything/infra';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  startTransition,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { useLocation } from 'react-router-dom';
 
 import {
@@ -109,6 +116,8 @@ export const Component = () => {
     'Bitte zuerst eine Akte auswählen.'
   );
   const announcedRouteContextRef = useRef<string>('');
+  const [isResolvingCase, setIsResolvingCase] = useState(false);
+  const resolvingMatterRef = useRef<string | null>(null);
   const documentGeneratorService = useService(DocumentGeneratorService);
 
   const availableModels =
@@ -186,6 +195,7 @@ export const Component = () => {
   );
 
   useEffect(() => {
+    if (resolvingMatterRef.current) return;
     if (caseFiles.length === 0) {
       setSelectedCaseId('');
       return;
@@ -227,7 +237,9 @@ export const Component = () => {
         : '');
 
     if (preferredCaseId !== selectedCaseId) {
-      setSelectedCaseId(preferredCaseId);
+      startTransition(() => {
+        setSelectedCaseId(preferredCaseId);
+      });
     }
   }, [
     caseFiles,
@@ -2045,6 +2057,54 @@ export const Component = () => {
     [activeChatSessionId, legalChatService]
   );
 
+  const onSelectCase = useCallback(
+    async (matterId: string) => {
+      if (!matterId) {
+        setSelectedCaseId('');
+        setActiveChatSessionId(null);
+        return;
+      }
+      if (resolvingMatterRef.current === matterId) return;
+      resolvingMatterRef.current = matterId;
+      setIsResolvingCase(true);
+      try {
+        const caseId = await resolveCaseFileForMatter(matterId);
+        if (!caseId) {
+          setTransientStatus('Akte konnte nicht geladen werden.');
+          return;
+        }
+        const existingSessions = legalChatService.getSessions(
+          caseId,
+          workspaceId
+        );
+        const newSessionId =
+          existingSessions.length === 0
+            ? legalChatService.createSession({
+                caseId,
+                workspaceId,
+                mode: 'general',
+              }).id
+            : null;
+        startTransition(() => {
+          setSelectedCaseId(caseId);
+          setActiveChatSessionId(newSessionId);
+        });
+      } catch (error) {
+        console.error('[workspace-chat] onSelectCase failed', error);
+        setTransientStatus('Fehler beim Öffnen der Akte.');
+      } finally {
+        resolvingMatterRef.current = null;
+        setIsResolvingCase(false);
+      }
+    },
+    [
+      legalChatService,
+      resolveCaseFileForMatter,
+      setTransientStatus,
+      workspaceId,
+    ]
+  );
+
   const onSaveInsight = useCallback(
     async (
       messageId: string,
@@ -2257,20 +2317,10 @@ export const Component = () => {
               legalChatService.renameSession(sessionId, title)
             }
             onSwitchMode={onSwitchMode}
-            onSelectCase={(matterId: string) => {
-              (async () => {
-                if (!matterId) {
-                  setSelectedCaseId('');
-                  setActiveChatSessionId(null);
-                  return;
-                }
-                const caseId = await resolveCaseFileForMatter(matterId);
-                if (caseId) {
-                  setSelectedCaseId(caseId);
-                  setActiveChatSessionId(null);
-                }
-              })().catch(() => {});
+            onSelectCase={matterId => {
+              onSelectCase(matterId).catch(() => {});
             }}
+            isCaseResolving={isResolvingCase}
             onSendMessage={(content, attachments) => {
               onSendChatMessage(content, attachments).catch(() => {});
             }}

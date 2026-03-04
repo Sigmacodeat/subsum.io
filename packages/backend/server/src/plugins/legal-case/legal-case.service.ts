@@ -466,6 +466,356 @@ export class LegalCaseService {
   }
 
   // ═══════════════════════════════════════════════════════════════════════
+  // LEGAL DOCUMENTS (Dokumente, cloud source-of-truth)
+  // ═══════════════════════════════════════════════════════════════════════
+
+  async listDocuments(
+    workspaceId: string,
+    options?: {
+      caseFileId?: string;
+      matterId?: string;
+      status?: string;
+      search?: string;
+      includeTrashed?: boolean;
+      limit?: number;
+      offset?: number;
+    }
+  ) {
+    const dbAny = this.db as any;
+    const where = {
+      workspaceId,
+      ...(options?.includeTrashed ? {} : { trashedAt: null }),
+      ...(options?.caseFileId ? { caseFileId: options.caseFileId } : {}),
+      ...(options?.matterId ? { matterId: options.matterId } : {}),
+      ...(options?.status ? { status: options.status as any } : {}),
+      ...(options?.search
+        ? {
+            OR: [
+              { title: { contains: options.search, mode: 'insensitive' } },
+              {
+                sourceRef: {
+                  contains: options.search,
+                  mode: 'insensitive',
+                },
+              },
+              {
+                sourceSha256: {
+                  contains: options.search,
+                  mode: 'insensitive',
+                },
+              },
+            ],
+          }
+        : {}),
+    };
+
+    const [items, total] = await Promise.all([
+      dbAny.legalDocument.findMany({
+        where,
+        orderBy: { updatedAt: 'desc' },
+        take: options?.limit ?? 200,
+        skip: options?.offset ?? 0,
+      }),
+      dbAny.legalDocument.count({ where }),
+    ]);
+
+    return { items, total };
+  }
+
+  async getDocument(workspaceId: string, documentId: string) {
+    const dbAny = this.db as any;
+    return dbAny.legalDocument.findFirst({
+      where: {
+        id: documentId,
+        workspaceId,
+      },
+    });
+  }
+
+  async upsertDocument(params: {
+    userId: string;
+    workspaceId: string;
+    input: any;
+    ipAddress?: string;
+  }) {
+    const { userId, workspaceId, input, ipAddress } = params;
+
+    let caseFileId: string | undefined;
+    let matterId: string | undefined;
+
+    if (input.caseFileId) {
+      const caseFile = await this.db.legalCaseFile.findFirst({
+        where: {
+          id: input.caseFileId,
+          workspaceId,
+        },
+        select: { id: true, matterId: true },
+      });
+      if (!caseFile) {
+        throw new Error('Case file nicht gefunden.');
+      }
+      caseFileId = caseFile.id;
+      matterId = caseFile.matterId;
+    }
+
+    if (input.matterId) {
+      const matter = await this.db.legalMatter.findFirst({
+        where: {
+          id: input.matterId,
+          workspaceId,
+        },
+        select: { id: true },
+      });
+      if (!matter) {
+        throw new Error('Matter nicht gefunden.');
+      }
+      matterId = matter.id;
+    }
+
+    const lifecycleStatus =
+      input.status ??
+      (input.processingStatus === 'failed'
+        ? 'failed'
+        : input.processingStatus === 'needs_review'
+          ? 'needs_review'
+          : input.processingStatus === 'extracting'
+            ? 'processing'
+            : 'indexed');
+
+    const data = {
+      workspaceId,
+      caseFileId,
+      matterId,
+      title: input.title,
+      kind: input.kind ?? 'other',
+      status: lifecycleStatus,
+      sourceMimeType: input.sourceMimeType,
+      sourceSizeBytes:
+        typeof input.sourceSizeBytes === 'number'
+          ? Math.round(input.sourceSizeBytes)
+          : undefined,
+      sourceLastModifiedAt: input.sourceLastModifiedAt
+        ? new Date(input.sourceLastModifiedAt)
+        : undefined,
+      sourceBlobId: input.sourceBlobId,
+      sourceSha256: input.sourceSha256,
+      sourceRef: input.sourceRef,
+      folderPath: input.folderPath,
+      internalFileNumber: input.internalFileNumber,
+      paragraphReferences: Array.isArray(input.paragraphReferences)
+        ? input.paragraphReferences.map(String)
+        : [],
+      documentRevision:
+        typeof input.documentRevision === 'number'
+          ? Math.max(1, Math.round(input.documentRevision))
+          : 1,
+      contentFingerprint: input.contentFingerprint,
+      rawText: input.rawText ?? '',
+      normalizedText: input.normalizedText,
+      language: input.language,
+      qualityScore:
+        typeof input.qualityScore === 'number' ? input.qualityScore : undefined,
+      pageCount:
+        typeof input.pageCount === 'number'
+          ? Math.max(0, Math.round(input.pageCount))
+          : undefined,
+      ocrEngine: input.ocrEngine,
+      tags: Array.isArray(input.tags) ? input.tags.map(String) : [],
+      processingStatus: input.processingStatus,
+      chunkCount:
+        typeof input.chunkCount === 'number'
+          ? Math.max(0, Math.round(input.chunkCount))
+          : undefined,
+      entityCount:
+        typeof input.entityCount === 'number'
+          ? Math.max(0, Math.round(input.entityCount))
+          : undefined,
+      overallQualityScore:
+        typeof input.overallQualityScore === 'number'
+          ? input.overallQualityScore
+          : undefined,
+      processingDurationMs:
+        typeof input.processingDurationMs === 'number'
+          ? Math.max(0, Math.round(input.processingDurationMs))
+          : undefined,
+      extractionEngine: input.extractionEngine,
+      processingError: input.processingError,
+      preflight: input.preflight,
+      discardedBinaryAt: input.discardedBinaryAt
+        ? new Date(input.discardedBinaryAt)
+        : undefined,
+      trashedAt: input.trashedAt ? new Date(input.trashedAt) : undefined,
+      purgeAt: input.purgeAt ? new Date(input.purgeAt) : undefined,
+      extractionFidelityRatio:
+        typeof input.extractionFidelityRatio === 'number'
+          ? input.extractionFidelityRatio
+          : undefined,
+      extractionYieldPerPage:
+        typeof input.extractionYieldPerPage === 'number'
+          ? input.extractionYieldPerPage
+          : undefined,
+      extractedPageCount:
+        typeof input.extractedPageCount === 'number'
+          ? Math.max(0, Math.round(input.extractedPageCount))
+          : undefined,
+      extractionIntegrityOk:
+        typeof input.extractionIntegrityOk === 'boolean'
+          ? input.extractionIntegrityOk
+          : undefined,
+      ragIndexed: Boolean(input.ragIndexed),
+    };
+
+    const dbAny = this.db as any;
+
+    const result = input.id
+      ? await dbAny.legalDocument.upsert({
+          where: { id: input.id },
+          update: data,
+          create: { id: input.id, ...data },
+        })
+      : await dbAny.legalDocument.create({ data });
+
+    await this.audit.append({
+      workspaceId,
+      userId,
+      matterId: result.matterId ?? undefined,
+      action: input.id ? 'document.updated' : 'document.created',
+      details: `Dokument "${result.title}" wurde ${input.id ? 'aktualisiert' : 'angelegt'}.`,
+      ipAddress,
+      metadata: {
+        documentId: result.id,
+        caseFileId: result.caseFileId ?? undefined,
+        sourceBlobId: result.sourceBlobId ?? undefined,
+        status: result.status,
+      },
+    });
+
+    return result;
+  }
+
+  async trashDocument(params: {
+    userId: string;
+    workspaceId: string;
+    documentId: string;
+    retentionDays?: number;
+  }) {
+    const dbAny = this.db as any;
+    const doc = await dbAny.legalDocument.findFirst({
+      where: {
+        id: params.documentId,
+        workspaceId: params.workspaceId,
+      },
+    });
+    if (!doc) return null;
+
+    const now = new Date();
+    const retentionDays = Math.max(1, params.retentionDays ?? 30);
+    const purgeAt = new Date(
+      now.getTime() + retentionDays * 24 * 60 * 60 * 1000
+    );
+
+    const updated = await dbAny.legalDocument.update({
+      where: { id: doc.id },
+      data: {
+        status: 'archived',
+        trashedAt: now,
+        purgeAt,
+      },
+    });
+
+    await this.audit.append({
+      workspaceId: params.workspaceId,
+      userId: params.userId,
+      matterId: doc.matterId ?? undefined,
+      action: 'document.trashed',
+      severity: 'warning',
+      details: `Dokument "${doc.title}" in den Papierkorb verschoben. Purge am ${purgeAt.toISOString().slice(0, 10)}.`,
+      metadata: {
+        documentId: doc.id,
+        retentionDays: String(retentionDays),
+        sourceBlobId: doc.sourceBlobId ?? undefined,
+      },
+    });
+
+    return updated;
+  }
+
+  async restoreDocument(params: {
+    userId: string;
+    workspaceId: string;
+    documentId: string;
+  }) {
+    const dbAny = this.db as any;
+    const doc = await dbAny.legalDocument.findFirst({
+      where: {
+        id: params.documentId,
+        workspaceId: params.workspaceId,
+      },
+    });
+    if (!doc) return null;
+
+    const updated = await dbAny.legalDocument.update({
+      where: { id: doc.id },
+      data: {
+        status: doc.processingStatus === 'failed' ? 'failed' : 'indexed',
+        trashedAt: null,
+        purgeAt: null,
+      },
+    });
+
+    await this.audit.append({
+      workspaceId: params.workspaceId,
+      userId: params.userId,
+      matterId: doc.matterId ?? undefined,
+      action: 'document.restored',
+      details: `Dokument "${doc.title}" wurde wiederhergestellt.`,
+      metadata: {
+        documentId: doc.id,
+      },
+    });
+
+    return updated;
+  }
+
+  async deleteDocument(params: {
+    userId: string;
+    workspaceId: string;
+    documentId: string;
+  }) {
+    const dbAny = this.db as any;
+    const doc = await dbAny.legalDocument.findFirst({
+      where: {
+        id: params.documentId,
+        workspaceId: params.workspaceId,
+      },
+    });
+    if (!doc) return null;
+
+    await dbAny.legalDocument.delete({
+      where: { id: doc.id },
+    });
+
+    await this.audit.append({
+      workspaceId: params.workspaceId,
+      userId: params.userId,
+      matterId: doc.matterId ?? undefined,
+      action: 'document.deleted',
+      severity: 'warning',
+      details: `Dokument "${doc.title}" endgültig gelöscht.`,
+      metadata: {
+        documentId: doc.id,
+        sourceBlobId: doc.sourceBlobId ?? undefined,
+      },
+    });
+
+    return {
+      id: doc.id,
+      sourceBlobId: doc.sourceBlobId ?? null,
+      title: doc.title,
+    };
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
   // DEADLINES (Fristen)
   // ═══════════════════════════════════════════════════════════════════════
 
