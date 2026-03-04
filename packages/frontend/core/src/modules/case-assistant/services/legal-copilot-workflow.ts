@@ -4014,11 +4014,33 @@ export class LegalCopilotWorkflowService extends Service {
           suspiciousLowYield: processed.contentFidelity.suspiciousLowYield,
         });
         if (qualityGateFailed) {
-          throw new Error(
-            `OCR quality gate failed: score=${processed.qualityReport.overallScore}, fidelity=${processed.contentFidelity.fidelityRatio.toFixed(
-              3
-            )}, yield=${Math.round(processed.contentFidelity.extractionYieldPerPage)}`
+          console.warn(
+            `[processPendingOcr:qualityGate] Soft-degradation "${doc.title}": ` +
+              `score=${processed.qualityReport.overallScore}, ` +
+              `fidelity=${processed.contentFidelity.fidelityRatio.toFixed(3)}, ` +
+              `yield=${Math.round(processed.contentFidelity.extractionYieldPerPage)}ch/pg — saved as needs_review.`
           );
+          await this.orchestration.appendAuditEntry({
+            caseId,
+            workspaceId,
+            action: 'document.ocr.quality_gate_degraded',
+            severity: 'warning',
+            details:
+              `OCR Quality Gate: "${doc.title}" — score=${processed.qualityReport.overallScore}, ` +
+              `fidelity=${processed.contentFidelity.fidelityRatio.toFixed(3)}, ` +
+              `yield=${Math.round(processed.contentFidelity.extractionYieldPerPage)} Zeichen/Seite. ` +
+              `Text wird als "needs_review" gespeichert statt verworfen.`,
+            metadata: {
+              ocrRunId,
+              documentId: doc.id,
+              title: doc.title,
+              score: String(processed.qualityReport.overallScore),
+              fidelityRatio: processed.contentFidelity.fidelityRatio.toFixed(4),
+              extractionYieldPerPage: Math.round(
+                processed.contentFidelity.extractionYieldPerPage
+              ).toString(),
+            },
+          });
         }
 
         const nextStatus: LegalDocumentRecord['status'] =
@@ -4063,7 +4085,10 @@ export class LegalCopilotWorkflowService extends Service {
             processed.qualityReport.extractedPageCount,
           paragraphReferences: mergedRefs,
           ocrEngine: ocrResult.engine ?? queued.engine,
-          processingStatus: processed.processingStatus,
+          processingStatus:
+            qualityGateFailed && processed.processingStatus !== 'failed'
+              ? 'needs_review'
+              : processed.processingStatus,
           chunkCount: processed.chunks.length,
           entityCount:
             processed.allEntities.persons.length +
@@ -4078,7 +4103,9 @@ export class LegalCopilotWorkflowService extends Service {
                   ocrResult.engine ?? queued.engine ?? 'ocr-empty',
                   doc.title
                 ) ?? 'OCR verarbeitet, aber Nachanalyse fehlgeschlagen.')
-              : undefined,
+              : qualityGateFailed
+                ? `OCR-Qualität niedrig (score=${processed.qualityReport.overallScore}, yield=${Math.round(processed.contentFidelity.extractionYieldPerPage)}ch/Seite) — Text extrahiert, bitte Dokument prüfen.`
+                : undefined,
           documentRevision: (doc.documentRevision ?? 1) + 1,
           contentFingerprint: this.documentProcessingService.computeFingerprint(
             doc.title,

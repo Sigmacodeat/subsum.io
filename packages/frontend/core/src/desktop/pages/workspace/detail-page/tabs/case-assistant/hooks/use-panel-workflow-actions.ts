@@ -34,8 +34,6 @@ import { useCallback, useEffect, useRef } from 'react';
 import type { DraftReviewStatus, IntakeDraft } from '../panel-types';
 import { buildExportFileName, extractDocPlainText } from '../utils';
 
-/* oxlint-disable react-hooks/exhaustive-deps */
-
 function createId(prefix: string) {
   return `${prefix}:${Date.now().toString(36)}:${Math.random().toString(36).slice(2, 8)}`;
 }
@@ -299,6 +297,18 @@ export const usePanelWorkflowActions = (params: Params) => {
   const workflowService = params.legalCopilotWorkflowService;
   const setWorkflowIngestionStatus = params.setIngestionStatus;
   const setWorkflowBusy = params.setIsWorkflowBusy;
+  const setFolderSearchCount = params.setFolderSearchCount;
+  const setHasStoredOcrToken = params.setHasStoredOcrToken;
+  const setTaskAssignees = params.setTaskAssignees;
+  const setNormSearchResults = params.setNormSearchResults;
+  const setContradictionMatrix = params.setContradictionMatrix;
+  const setCostResult = params.setCostResult;
+  const setCostVergleichResult = params.setCostVergleichResult;
+  const setGeneratedDoc = params.setGeneratedDoc;
+  const setEvidenceCount = params.setEvidenceCount;
+  const setEvidenceSummaryMarkdown = params.setEvidenceSummaryMarkdown;
+  const setHasStoredLegalAnalysisToken = params.setHasStoredLegalAnalysisToken;
+  const setHasStoredJudikaturToken = params.setHasStoredJudikaturToken;
 
   const triggerBackgroundOcr = useCallback(() => {
     if (backgroundOcrInFlightRef.current) {
@@ -457,7 +467,7 @@ export const usePanelWorkflowActions = (params: Params) => {
               'document.upload'
             );
           if (permission.ok) {
-            params.setIngestionStatus(
+            setWorkflowIngestionStatus(
               'Rolle wurde automatisch auf Operator synchronisiert, Upload wird fortgesetzt.'
             );
           }
@@ -516,7 +526,7 @@ export const usePanelWorkflowActions = (params: Params) => {
       // overhead so wizard sequential uploads stay lean and stable.
       // ═══════════════════════════════════════════════════════════════════
       if (files.length === 1) {
-        params.setIsWorkflowBusy(true);
+        setWorkflowBusy(true);
         const commitId = createId('commit');
         try {
           await ensureUploadPermission();
@@ -573,7 +583,7 @@ export const usePanelWorkflowActions = (params: Params) => {
           if (failedCount > 0) {
             statusParts.push(`${failedCount} Verarbeitung fehlgeschlagen.`);
           }
-          params.setIngestionStatus(statusParts.join(' '));
+          setWorkflowIngestionStatus(statusParts.join(' '));
 
           return {
             commitId,
@@ -588,19 +598,19 @@ export const usePanelWorkflowActions = (params: Params) => {
             error instanceof Error
               ? error.message
               : 'upload-single-file-failed';
-          params.setIngestionStatus(
+          setWorkflowIngestionStatus(
             `Upload-Fehler (${files[0].name}): ${message}`
           );
           throw error;
         } finally {
-          params.setIsWorkflowBusy(false);
+          setWorkflowBusy(false);
         }
       }
 
       // ═══════════════════════════════════════════════════════════════════
       // BATCH PATH (legacy / non-wizard callers)
       // ═══════════════════════════════════════════════════════════════════
-      params.setIsWorkflowBusy(true);
+      setWorkflowBusy(true);
       const commitId = createId('commit');
       let jobId: string | null = null;
       try {
@@ -687,7 +697,7 @@ export const usePanelWorkflowActions = (params: Params) => {
               progress: 100,
             });
           }
-          params.setIngestionStatus(
+          setWorkflowIngestionStatus(
             `Keine neuen Dateien aufgenommen (mögliche Ursache: Duplikate oder fehlende Berechtigung für Rolle ${params.currentRole}).`
           );
           return {
@@ -731,7 +741,7 @@ export const usePanelWorkflowActions = (params: Params) => {
         if (failedCount > 0) {
           statusParts.push(`${failedCount} Verarbeitung fehlgeschlagen.`);
         }
-        params.setIngestionStatus(statusParts.join(' '));
+        setWorkflowIngestionStatus(statusParts.join(' '));
 
         if (jobId) {
           await params.casePlatformOrchestrationService.updateJobStatus({
@@ -764,7 +774,7 @@ export const usePanelWorkflowActions = (params: Params) => {
         }
         throw error;
       } finally {
-        params.setIsWorkflowBusy(false);
+        setWorkflowBusy(false);
       }
     },
     [
@@ -839,6 +849,7 @@ export const usePanelWorkflowActions = (params: Params) => {
     params.caseId,
     params.caseDocuments,
     params.currentRole,
+    params.ocrEndpoint,
     workflowService,
     setWorkflowIngestionStatus,
     setWorkflowBusy,
@@ -876,7 +887,6 @@ export const usePanelWorkflowActions = (params: Params) => {
     }
   }, [
     params.caseId,
-    params.currentRole,
     workflowService,
     setWorkflowIngestionStatus,
     setWorkflowBusy,
@@ -887,14 +897,14 @@ export const usePanelWorkflowActions = (params: Params) => {
 
   const onRunFullWorkflow = useCallback(async () => {
     if (params.caseDocuments.length === 0) {
-      params.setIngestionStatus(
+      setWorkflowIngestionStatus(
         'Vollworkflow benötigt mindestens 1 hochgeladenes Dokument im Akt.'
       );
       return;
     }
 
     if (!params.ocrEndpoint.trim()) {
-      params.setIngestionStatus(
+      setWorkflowIngestionStatus(
         'Vollworkflow kann nicht starten: Remote OCR Provider ist nicht konfiguriert (Endpoint fehlt). Bitte in „Phase 2 — OCR ausführen“ konfigurieren und speichern.'
       );
       return;
@@ -946,7 +956,6 @@ export const usePanelWorkflowActions = (params: Params) => {
   }, [
     params.caseId,
     params.caseDocuments,
-    params.currentRole,
     params.ocrEndpoint,
     workflowService,
     setWorkflowIngestionStatus,
@@ -962,7 +971,7 @@ export const usePanelWorkflowActions = (params: Params) => {
       workspaceId: params.workspaceId,
       folderPath: params.folderQuery,
     });
-    params.setFolderSearchCount(matches.length);
+    setFolderSearchCount(matches.length);
     setWorkflowIngestionStatus(
       `Folder-Suche '${params.folderQuery || '*'}': ${matches.length} Dokument(e) gefunden.`
     );
@@ -970,7 +979,7 @@ export const usePanelWorkflowActions = (params: Params) => {
     params.caseId,
     params.folderQuery,
     workflowService,
-    params.setFolderSearchCount,
+    setFolderSearchCount,
     setWorkflowIngestionStatus,
     params.workspaceId,
   ]);
@@ -1007,10 +1016,10 @@ export const usePanelWorkflowActions = (params: Params) => {
         'ocr',
         params.ocrToken.trim()
       );
-      params.setHasStoredOcrToken(true);
+      setHasStoredOcrToken(true);
     } else if (params.hasStoredOcrToken) {
       params.providerSettingsService.clearToken('ocr');
-      params.setHasStoredOcrToken(false);
+      setHasStoredOcrToken(false);
     }
     setWorkflowIngestionStatus(
       params.ocrEndpoint.trim()
@@ -1026,15 +1035,15 @@ export const usePanelWorkflowActions = (params: Params) => {
     params.ocrEndpoint,
     params.ocrToken,
     params.providerSettingsService,
-    params.setHasStoredOcrToken,
+    setHasStoredOcrToken,
     setWorkflowIngestionStatus,
   ]);
 
   const onTaskAssigneeChange = useCallback(
     (taskId: string, assignee: string) => {
-      params.setTaskAssignees(prev => ({ ...prev, [taskId]: assignee }));
+      setTaskAssignees(prev => ({ ...prev, [taskId]: assignee }));
     },
-    [params.setTaskAssignees]
+    [setTaskAssignees]
   );
 
   const onUpdateTaskStatus = useCallback(
@@ -1097,27 +1106,27 @@ export const usePanelWorkflowActions = (params: Params) => {
   const onSearchNorms = useCallback(async () => {
     const query = params.normSearchQuery.trim();
     if (!query) {
-      params.setNormSearchResults([]);
+      setNormSearchResults([]);
       return;
     }
     const results = params.legalNormsService.searchNorms(query, 8, {
       jurisdictions: [params.activeJurisdiction],
     });
-    params.setNormSearchResults(results);
-    params.setIngestionStatus(
+    setNormSearchResults(results);
+    setWorkflowIngestionStatus(
       `Normensuche: ${results.length} Treffer für "${query}".`
     );
   }, [
     params.legalNormsService,
     params.activeJurisdiction,
     params.normSearchQuery,
-    params.setIngestionStatus,
-    params.setNormSearchResults,
+    setNormSearchResults,
+    setWorkflowIngestionStatus,
   ]);
 
   const onRunContradictionAnalysis = useCallback(async () => {
     if (params.caseDocuments.length < 2) {
-      params.setIngestionStatus(
+      setWorkflowIngestionStatus(
         'Widerspruchsanalyse benötigt mindestens 2 Dokumente.'
       );
       return;
@@ -1127,23 +1136,23 @@ export const usePanelWorkflowActions = (params: Params) => {
       workspaceId: params.workspaceId,
       documents: params.caseDocuments,
     });
-    params.setContradictionMatrix(matrix);
-    params.setIngestionStatus(
+    setContradictionMatrix(matrix);
+    setWorkflowIngestionStatus(
       `Widerspruchsanalyse: ${matrix.contradictions.length} Widersprüche in ${matrix.totalComparisons} Vergleichen.`
     );
   }, [
     params.caseDocuments,
     params.caseId,
     params.contradictionDetectorService,
-    params.setContradictionMatrix,
-    params.setIngestionStatus,
+    setContradictionMatrix,
+    setWorkflowIngestionStatus,
     params.workspaceId,
   ]);
 
   const onCalculateCosts = useCallback(async () => {
     const sw = parseFloat(params.costStreitwert);
     if (!Number.isFinite(sw) || sw <= 0) {
-      params.setIngestionStatus('Bitte einen gültigen Streitwert eingeben.');
+      setWorkflowIngestionStatus('Bitte einen gültigen Streitwert eingeben.');
       return;
     }
     const result = params.costCalculatorService.berechneKostenrisiko({
@@ -1155,8 +1164,8 @@ export const usePanelWorkflowActions = (params: Params) => {
         Math.max(0, parseFloat(params.costObsiegen) || 50)
       ),
     });
-    params.setCostResult(result);
-    params.setIngestionStatus(
+    setCostResult(result);
+    setWorkflowIngestionStatus(
       `Kostenrisiko: ${result.gesamtrisiko.toLocaleString('de-DE')} € (${result.risikoklasse}).`
     );
   }, [
@@ -1165,14 +1174,14 @@ export const usePanelWorkflowActions = (params: Params) => {
     params.costObsiegen,
     params.costStreitwert,
     params.costVerfahren,
-    params.setCostResult,
-    params.setIngestionStatus,
+    setCostResult,
+    setWorkflowIngestionStatus,
   ]);
 
   const onCalculateVergleich = useCallback(async () => {
     const sw = parseFloat(params.costStreitwert);
     if (!Number.isFinite(sw) || sw <= 0) {
-      params.setIngestionStatus('Bitte einen gültigen Streitwert eingeben.');
+      setWorkflowIngestionStatus('Bitte einen gültigen Streitwert eingeben.');
       return;
     }
     const result = params.costCalculatorService.berechneVergleichswert({
@@ -1184,8 +1193,8 @@ export const usePanelWorkflowActions = (params: Params) => {
         Math.max(0, parseFloat(params.costVergleichQuote) || 60)
       ),
     });
-    params.setCostVergleichResult(result);
-    params.setIngestionStatus(
+    setCostVergleichResult(result);
+    setWorkflowIngestionStatus(
       `Vergleichswert: ${result.vergleichswert.toLocaleString('de-DE')} €.`
     );
   }, [
@@ -1194,12 +1203,12 @@ export const usePanelWorkflowActions = (params: Params) => {
     params.costStreitwert,
     params.costVerfahren,
     params.costVergleichQuote,
-    params.setCostVergleichResult,
-    params.setIngestionStatus,
+    setCostVergleichResult,
+    setWorkflowIngestionStatus,
   ]);
 
   const onGenerateDocument = useCallback(async () => {
-    params.setIngestionStatus(
+    setWorkflowIngestionStatus(
       'AI-Schriftsatz wird generiert – Akte-Kontext wird geladen…'
     );
 
@@ -1227,13 +1236,13 @@ export const usePanelWorkflowActions = (params: Params) => {
             .filter(Boolean)
             .join('. ') || undefined,
       });
-      params.setGeneratedDoc(doc);
+      setGeneratedDoc(doc);
       const aiFlag = doc.sections.some(
         s => s.content.length > 200 && !s.content.includes('[')
       )
         ? '🤖 AI-generiert'
         : '📋 Vorlagen-basiert';
-      params.setIngestionStatus(
+      setWorkflowIngestionStatus(
         `${aiFlag}: "${doc.title}" (${doc.sections.length} Abschnitte, ${doc.warnings.length} Warnungen).`
       );
     } catch (aiError) {
@@ -1298,8 +1307,8 @@ export const usePanelWorkflowActions = (params: Params) => {
         sachverhalt: sachverhalt.length > 40 ? sachverhalt : undefined,
         streitwert: parseFloat(params.costStreitwert) || undefined,
       });
-      params.setGeneratedDoc(doc);
-      params.setIngestionStatus(
+      setGeneratedDoc(doc);
+      setWorkflowIngestionStatus(
         `📋 Dokument generiert (Fallback/Vorlage): "${doc.title}" (${doc.sections.length} Abschnitte).`
       );
     }
@@ -1321,8 +1330,8 @@ export const usePanelWorkflowActions = (params: Params) => {
     params.latestBlueprint,
     params.legalNormsService,
     params.casePlatformOrchestrationService,
-    params.setGeneratedDoc,
     params.sourceDoc,
+    setGeneratedDoc,
     setWorkflowIngestionStatus,
     workflowService,
     params.workspaceId,
@@ -1330,7 +1339,7 @@ export const usePanelWorkflowActions = (params: Params) => {
 
   const onExportGeneratedDocumentPdf = useCallback(async () => {
     if (!params.generatedDoc) {
-      params.setIngestionStatus(
+      setWorkflowIngestionStatus(
         'Kein generiertes Dokument für PDF-Export vorhanden.'
       );
       return;
@@ -1366,7 +1375,7 @@ export const usePanelWorkflowActions = (params: Params) => {
       citations: citations.slice(0, 20),
     };
 
-    params.setIngestionStatus('PDF wird serverseitig erzeugt…');
+    setWorkflowIngestionStatus('PDF wird serverseitig erzeugt…');
 
     let res: Response;
     try {
@@ -1379,18 +1388,18 @@ export const usePanelWorkflowActions = (params: Params) => {
         body: JSON.stringify(payload),
       });
     } catch {
-      params.setIngestionStatus('PDF-Export fehlgeschlagen: Netzwerkfehler.');
+      setWorkflowIngestionStatus('PDF-Export fehlgeschlagen: Netzwerkfehler.');
       return;
     }
 
     if (!res.ok) {
       try {
         const err = (await res.json()) as { message?: string };
-        params.setIngestionStatus(
+        setWorkflowIngestionStatus(
           `PDF-Export fehlgeschlagen: ${err.message ?? `HTTP ${res.status}`}`
         );
       } catch {
-        params.setIngestionStatus(
+        setWorkflowIngestionStatus(
           `PDF-Export fehlgeschlagen (HTTP ${res.status}).`
         );
       }
@@ -1418,7 +1427,7 @@ export const usePanelWorkflowActions = (params: Params) => {
     setTimeout(() => URL.revokeObjectURL(url), 4000);
 
     const savedDocId = res.headers.get('x-legal-pdf-doc-id');
-    params.setIngestionStatus(
+    setWorkflowIngestionStatus(
       savedDocId
         ? `PDF exportiert und als Dokumentversion gespeichert (Doc: ${savedDocId}).`
         : 'PDF exportiert und gespeichert.'
@@ -1430,7 +1439,7 @@ export const usePanelWorkflowActions = (params: Params) => {
     params.docGenPartyBeklagter,
     params.docGenPartyKlaeger,
     params.generatedDoc,
-    params.setIngestionStatus,
+    setWorkflowIngestionStatus,
     params.caseId,
     params.workspaceId,
     params.anwaltDisplayName,
@@ -1440,13 +1449,13 @@ export const usePanelWorkflowActions = (params: Params) => {
 
   const onInsertGeneratedDocumentIntoCurrentDoc = useCallback(async () => {
     if (!params.generatedDoc) {
-      params.setIngestionStatus(
+      setWorkflowIngestionStatus(
         'Kein generierter Schriftsatz zum Einfügen vorhanden.'
       );
       return;
     }
     if (!params.sourceDoc) {
-      params.setIngestionStatus('Aktuelles Dokument ist nicht verfügbar.');
+      setWorkflowIngestionStatus('Aktuelles Dokument ist nicht verfügbar.');
       return;
     }
 
@@ -1454,7 +1463,7 @@ export const usePanelWorkflowActions = (params: Params) => {
     const firstNote = notes[0];
     const parentId = firstNote?.id ?? params.sourceDoc.root?.id;
     if (!parentId) {
-      params.setIngestionStatus(
+      setWorkflowIngestionStatus(
         'Kein gültiger Einfügepunkt im Dokument gefunden.'
       );
       return;
@@ -1468,19 +1477,19 @@ export const usePanelWorkflowActions = (params: Params) => {
       firstNote?.model?.children?.length ?? 0
     );
 
-    params.setIngestionStatus(
+    setWorkflowIngestionStatus(
       'Generierter Schriftsatz wurde in das aktuelle Dokument eingefügt.'
     );
   }, [
     params.editorContainer,
     params.generatedDoc,
-    params.setIngestionStatus,
+    setWorkflowIngestionStatus,
     params.sourceDoc,
   ]);
 
   const onAutoDetectEvidence = useCallback(async () => {
     if (params.caseDocuments.length === 0) {
-      params.setIngestionStatus(
+      setWorkflowIngestionStatus(
         'Keine Dokumente für Beweismittel-Erkennung vorhanden.'
       );
       return;
@@ -1494,18 +1503,18 @@ export const usePanelWorkflowActions = (params: Params) => {
       params.caseId,
       params.workspaceId
     );
-    params.setEvidenceCount(detected.length);
-    params.setEvidenceSummaryMarkdown(summary.beweisangebotMarkdown);
-    params.setIngestionStatus(
+    setEvidenceCount(detected.length);
+    setEvidenceSummaryMarkdown(summary.beweisangebotMarkdown);
+    setWorkflowIngestionStatus(
       `Beweismittel: ${detected.length} erkannt, ${summary.luecken.length} Lücken identifiziert.`
     );
   }, [
     params.caseDocuments,
     params.caseId,
     params.evidenceRegisterService,
-    params.setEvidenceCount,
-    params.setEvidenceSummaryMarkdown,
-    params.setIngestionStatus,
+    setEvidenceCount,
+    setEvidenceSummaryMarkdown,
+    setWorkflowIngestionStatus,
     params.workspaceId,
   ]);
 
@@ -1519,10 +1528,10 @@ export const usePanelWorkflowActions = (params: Params) => {
         'legal-analysis',
         params.legalAnalysisToken.trim()
       );
-      params.setHasStoredLegalAnalysisToken(true);
+      setHasStoredLegalAnalysisToken(true);
     } else if (params.hasStoredLegalAnalysisToken) {
       params.providerSettingsService.clearToken('legal-analysis');
-      params.setHasStoredLegalAnalysisToken(false);
+      setHasStoredLegalAnalysisToken(false);
     }
 
     await params.providerSettingsService.setEndpoint(
@@ -1534,10 +1543,10 @@ export const usePanelWorkflowActions = (params: Params) => {
         'judikatur',
         params.judikaturToken.trim()
       );
-      params.setHasStoredJudikaturToken(true);
+      setHasStoredJudikaturToken(true);
     } else if (params.hasStoredJudikaturToken) {
       params.providerSettingsService.clearToken('judikatur');
-      params.setHasStoredJudikaturToken(false);
+      setHasStoredJudikaturToken(false);
     }
 
     const legalTokenState =
@@ -1549,7 +1558,7 @@ export const usePanelWorkflowActions = (params: Params) => {
         ? 'Token gesetzt'
         : 'kein Token';
 
-    params.setIngestionStatus(
+    setWorkflowIngestionStatus(
       `Legal-Analysis/Judikatur-Provider gespeichert (${legalTokenState}, ${judikaturTokenState}).`
     );
   }, [
@@ -1560,9 +1569,9 @@ export const usePanelWorkflowActions = (params: Params) => {
     params.legalAnalysisEndpoint,
     params.legalAnalysisToken,
     params.providerSettingsService,
-    params.setHasStoredJudikaturToken,
-    params.setHasStoredLegalAnalysisToken,
-    params.setIngestionStatus,
+    setHasStoredJudikaturToken,
+    setHasStoredLegalAnalysisToken,
+    setWorkflowIngestionStatus,
   ]);
 
   const onUploadFiles = useCallback(
