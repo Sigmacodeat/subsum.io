@@ -40,8 +40,8 @@ import type { PDFMeta } from '../../pdf/renderer/types';
 const OCR_RENDER_SCALE = 4;
 const OCR_RENDER_SCALE_MIN = 2;
 const OCR_RENDER_MAX_PIXELS = 6_000_000;
-/** Maximum pages to OCR per document (prevent runaway on huge docs) */
-const OCR_MAX_PAGES = 300;
+/** Soft warning threshold for very large OCR page counts (no hard truncation). */
+const OCR_PAGE_WARN_THRESHOLD = 300;
 /** Timeout per page OCR in ms */
 const OCR_PAGE_TIMEOUT_MS = 30_000;
 /**
@@ -57,8 +57,8 @@ const OCR_MIN_CONFIDENCE = 25;
 /** Confidence threshold below which a second enhanced OCR pass is attempted */
 const OCR_RETRY_CONFIDENCE_THRESHOLD = 65;
 const OCR_MAX_RETRY_PAGES_PER_DOC = 10;
-/** Maximum base64 length to attempt local OCR (~37 MB raw) */
-const OCR_MAX_BASE64_LENGTH = 50_000_000;
+/** Maximum base64 length to attempt local OCR (~150 MB raw — covers all practical legal PDFs) */
+const OCR_MAX_BASE64_LENGTH = 200_000_000;
 const OCR_WORKER_RECOVERY_TIMEOUT_MS = 5_000;
 const OCR_MAX_CONSECUTIVE_TIMEOUTS_BEFORE_RECOVERY = 2;
 
@@ -222,12 +222,34 @@ function imageDataToRecognizeInput(
 }
 
 function base64ToUint8Array(base64: string): Uint8Array {
-  const binary = atob(base64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) {
-    bytes[i] = binary.charCodeAt(i);
+  // Decode in chunks to avoid one massive atob() allocation for very large PDFs.
+  const BASE64_DECODE_CHUNK = 16_000_000; // multiple of 4
+  if (base64.length <= BASE64_DECODE_CHUNK) {
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    return bytes;
   }
-  return bytes;
+
+  const padding = base64.endsWith('==') ? 2 : base64.endsWith('=') ? 1 : 0;
+  const totalBytes = Math.floor((base64.length * 3) / 4) - padding;
+  const out = new Uint8Array(totalBytes);
+  let offset = 0;
+
+  for (let i = 0; i < base64.length; ) {
+    const rawEnd = Math.min(i + BASE64_DECODE_CHUNK, base64.length);
+    const end = rawEnd - (rawEnd % 4);
+    if (end <= i) break;
+    const binary = atob(base64.slice(i, end));
+    for (let j = 0; j < binary.length; j++) {
+      out[offset++] = binary.charCodeAt(j);
+    }
+    i = end;
+  }
+
+  return offset === out.length ? out : out.slice(0, offset);
 }
 
 function tryBase64ToUint8Array(base64: string): Uint8Array | null {
@@ -864,7 +886,12 @@ export async function ocrPdfFromBase64(
   }
 
   const pageCount = pdfMeta.pageCount;
-  const pagesToOcr = Math.min(pageCount, OCR_MAX_PAGES);
+  const pagesToOcr = pageCount;
+  if (pageCount > OCR_PAGE_WARN_THRESHOLD) {
+    console.info(
+      `[local-ocr] Large PDF detected: ${pageCount} pages (processing all pages, no cap)`
+    );
+  }
   const pageTexts: string[] = [];
   const perPageConfidence: number[] = [];
   const pageClassifications: PageClassification[] = [];
@@ -875,6 +902,7 @@ export async function ocrPdfFromBase64(
   let retryBudgetRemaining = OCR_MAX_RETRY_PAGES_PER_DOC;
   let consecutiveNoYieldPages = 0;
   let totalYieldChars = 0;
+  let lowYieldWarningEmitted = false;
 
   try {
     let tesseract = await withTimeout(
@@ -885,13 +913,14 @@ export async function ocrPdfFromBase64(
     let consecutiveTimeouts = 0;
 
     const totalDeadline = Date.now() + OCR_TOTAL_TIMEOUT_MS;
+    let totalTimeoutWarningEmitted = false;
 
     for (let pageNum = 0; pageNum < pagesToOcr; pageNum++) {
-      if (Date.now() > totalDeadline) {
+      if (!totalTimeoutWarningEmitted && Date.now() > totalDeadline) {
         console.warn(
-          `[local-ocr] Total timeout reached after ${pageNum} pages`
+          `[local-ocr] Total timeout budget exceeded after ${pageNum} pages — continuing page-by-page to avoid truncation.`
         );
-        break;
+        totalTimeoutWarningEmitted = true;
       }
 
       try {
@@ -1036,17 +1065,17 @@ export async function ocrPdfFromBase64(
           totalYieldChars += pageText.length;
         }
 
-        // If we see multiple pages with virtually no text, abort to avoid minutes of wasted OCR.
+        // If we see multiple pages with virtually no text, warn but keep processing.
         if (
+          !lowYieldWarningEmitted &&
           pageNum >= 4 &&
           consecutiveNoYieldPages >= 5 &&
           totalYieldChars < 200
         ) {
           console.warn(
-            `[local-ocr] Early stop: no viable text yield after ${pageNum + 1} pages (yield=${totalYieldChars})`
+            `[local-ocr] Low-yield sequence detected after ${pageNum + 1} pages (yield=${totalYieldChars}) — continuing all remaining pages.`
           );
-          failedPages++;
-          break;
+          lowYieldWarningEmitted = true;
         }
 
         // ── Stage 6: Post-Processing ──

@@ -215,14 +215,14 @@ function hexToString(hex: string): string {
   return result;
 }
 
-/** Maximum Base64 chars to decode for PDF text extraction (~22.5 MB raw) */
-const PDF_DECODE_LIMIT = 30_000_000;
+/** Base64 chunk size used when decoding large PDFs (≈24 MB raw per chunk, multiple of 4). */
+const PDF_BASE64_CHUNK = 32_000_000;
 /** Maximum Base64 chars to decode for Office formats (DOCX/XLSX/PPTX) (~37 MB raw) */
 const OFFICE_DECODE_LIMIT = 50_000_000;
-/** Maximum BT/ET blocks to process in PDF deep parser to prevent O(n²) hangs */
-const PDF_MAX_BT_BLOCKS = 15000;
-/** Maximum streams to scan in PDF fallback path */
-const PDF_MAX_STREAM_SCANS = 2000;
+/** Maximum BT/ET blocks to process per binary chunk — raised to handle 400+ page PDFs */
+const PDF_MAX_BT_BLOCKS = 200_000;
+/** Maximum streams to scan in PDF fallback path — raised for large multi-stream PDFs */
+const PDF_MAX_STREAM_SCANS = 20_000;
 
 /**
  * Run local Tesseract.js OCR on a base64 PDF.
@@ -256,13 +256,13 @@ async function localOcrPdfAsync(base64: string): Promise<{
 
 async function extractTextFromPdfiumWorkerAsync(
   base64: string,
-  maxPages = 500
+  maxPages?: number
 ): Promise<{ text: string; pageCount?: number; engine: string } | null> {
   try {
     if (typeof Worker === 'undefined') {
       return null;
     }
-    const binary = atob(base64);
+    const binary = decodeBase64ToBinaryFull(base64);
     const bytes = decodeBinaryStringToU8(binary);
     const renderer = new PDFRenderer();
     try {
@@ -270,7 +270,10 @@ async function extractTextFromPdfiumWorkerAsync(
         renderer.ob$('open', { data: bytes.buffer as ArrayBuffer })
       );
       const extracted = await firstValueFrom(
-        renderer.ob$('extractText', { maxPages })
+        renderer.ob$(
+          'extractText',
+          typeof maxPages === 'number' ? { maxPages } : {}
+        )
       );
       return {
         text: extracted.text ?? '',
@@ -341,21 +344,77 @@ function isPdfEncrypted(binary: string): boolean {
   return /\/Encrypt\s/.test(binary) || /\/EncryptMetadata\s/.test(binary);
 }
 
+/**
+ * Decode an arbitrarily large base64 string into a binary string without
+ * creating a single massive allocation. Processes in PDF_BASE64_CHUNK-sized
+ * slices (always aligned to 4-char base64 boundaries).
+ */
+function decodeBase64ToBinaryFull(base64: string): string {
+  if (base64.length <= PDF_BASE64_CHUNK) return atob(base64);
+  const parts: string[] = [];
+  let i = 0;
+  while (i < base64.length) {
+    // Align end to nearest lower multiple of 4 so atob() always gets valid input.
+    const rawEnd = Math.min(i + PDF_BASE64_CHUNK, base64.length);
+    const end = rawEnd - (rawEnd % 4);
+    if (end <= i) break;
+    parts.push(atob(base64.slice(i, end)));
+    i = end;
+  }
+  return parts.join('');
+}
+
+/**
+ * Inflate all FlateDecode content streams found in a binary PDF string and
+ * extract text segments from each. Mutates the shared `textSegments` array.
+ */
+function extractFlateDecodeStreams(
+  binary: string,
+  textSegments: string[]
+): void {
+  const streamRegex = /stream\r?\n([\s\S]*?)\r?\nendstream/g;
+  let sm: RegExpExecArray | null;
+  let streamCount = 0;
+  while ((sm = streamRegex.exec(binary)) !== null) {
+    if (++streamCount > PDF_MAX_STREAM_SCANS) break;
+    const streamBody = sm[1] ?? '';
+    const headerStart = Math.max(0, sm.index - 4096);
+    const header = binary.slice(headerStart, sm.index);
+    const isFlate =
+      /\/FlateDecode\b/.test(header) ||
+      /\/Filter\s*\[[^\]]*\/FlateDecode\b/.test(header);
+    if (isFlate) {
+      try {
+        const inflated = inflateSync(decodeBinaryStringToU8(streamBody));
+        const inflatedText = decodeU8ToLatin1String(inflated);
+        extractTextFromPdfContentStream(inflatedText, textSegments);
+        if (textSegments.length > 0) break;
+      } catch {
+        // ignore individual stream inflate errors
+      }
+    }
+    // Readable stream fallback (uncompressed)
+    if (!isFlate) {
+      const readable = streamBody.replace(/[^\x20-\x7E\xC0-\xFF]/g, '');
+      if (readable.length > 30 && readable.length / streamBody.length > 0.25) {
+        textSegments.push(readable);
+      }
+    }
+  }
+}
+
 function extractTextFromBase64PdfDeep(base64: string): {
   text: string;
   pageCount: number | undefined;
   encrypted?: boolean;
 } {
   try {
-    // For very large PDFs, only decode the first portion to avoid
-    // massive heap allocation. Most text-layer content is at the start.
-    const isLarge = base64.length > PDF_DECODE_LIMIT;
-    const decodePortion = isLarge ? base64.slice(0, PDF_DECODE_LIMIT) : base64;
-    const binary = atob(decodePortion);
+    // Decode the FULL PDF binary in chunks so that no pages are ever silently
+    // truncated. Previously a 30 M-char cap cut off content from large PDFs
+    // (e.g. a 25 MB file has ~34 M base64 chars — the last pages were lost).
+    const binary = decodeBase64ToBinaryFull(base64);
 
     // ── Encrypted PDF Detection ──
-    // Password-protected PDFs cannot be text-extracted or OCR'd without
-    // the password. Detect early and return a clear signal.
     if (isPdfEncrypted(binary)) {
       const pageCount =
         estimatePdfPageCountFromBinary(binary) ??
@@ -367,49 +426,14 @@ function extractTextFromBase64PdfDeep(base64: string): {
 
     extractTextFromPdfContentStream(binary, textSegments);
 
-    // FlateDecode stream inflation (common for PDFs)
+    // FlateDecode stream inflation fallback (common for scanned/image PDFs)
     if (textSegments.length === 0) {
-      const streamRegex = /stream\r?\n([\s\S]*?)\r?\nendstream/g;
-      let sm: RegExpExecArray | null;
-      let streamCount = 0;
-      while ((sm = streamRegex.exec(binary)) !== null) {
-        if (++streamCount > PDF_MAX_STREAM_SCANS) break;
-
-        const streamBody = sm[1] ?? '';
-        const headerStart = Math.max(0, sm.index - 4096);
-        const header = binary.slice(headerStart, sm.index);
-        const isFlate =
-          /\/FlateDecode\b/.test(header) ||
-          /\/Filter\s*\[[^\]]*\/FlateDecode\b/.test(header);
-
-        if (isFlate) {
-          try {
-            const inflated = inflateSync(decodeBinaryStringToU8(streamBody));
-            const inflatedText = decodeU8ToLatin1String(inflated);
-            extractTextFromPdfContentStream(inflatedText, textSegments);
-            if (textSegments.length > 0) break;
-          } catch {
-            // ignore individual stream inflate errors
-          }
-        }
-
-        // Readable stream fallback (uncompressed)
-        if (!isFlate) {
-          const readable = streamBody.replace(/[^\x20-\x7E\xC0-\xFF]/g, '');
-          if (
-            readable.length > 30 &&
-            readable.length / streamBody.length > 0.25
-          ) {
-            textSegments.push(readable);
-          }
-        }
-      }
+      extractFlateDecodeStreams(binary, textSegments);
     }
 
-    // Estimate page count from the SAME decoded binary — no second atob() call
-    const pageCount = isLarge
-      ? estimatePdfPageCountFromBase64Size(base64.length)
-      : estimatePdfPageCountFromBinary(binary);
+    const pageCount =
+      estimatePdfPageCountFromBinary(binary) ??
+      estimatePdfPageCountFromBase64Size(base64.length);
     return {
       text: textSegments.join(' ').replace(/\s+/g, ' ').trim(),
       pageCount,

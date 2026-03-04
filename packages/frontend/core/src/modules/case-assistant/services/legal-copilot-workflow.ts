@@ -230,12 +230,12 @@ const ONBOARDING_LLM_TIMEOUT_MS = 20_000;
 const INTAKE_DOC_PROCESS_TIMEOUT_MS = 60_000;
 const OCR_JOB_TIMEOUT_BASE_MS = 90_000;
 const OCR_JOB_TIMEOUT_PER_PAGE_MS = 20_000;
-const OCR_JOB_TIMEOUT_MAX_MS = 8 * 60_000;
+const OCR_JOB_TIMEOUT_MAX_MS = 90 * 60_000;
 const OCR_RUNNING_STALE_THRESHOLD_MS = 15 * 60_000;
 const OCR_QUEUED_STALE_THRESHOLD_MS = 30 * 60_000;
 const OCR_TEXT_LAYER_TIMEOUT_MS = 45_000;
-const OCR_POSTPROCESS_TIMEOUT_MS = 75_000;
-const OCR_CHUNK_PERSIST_TIMEOUT_MS = 30_000;
+const OCR_POSTPROCESS_TIMEOUT_MS = 5 * 60_000;
+const OCR_CHUNK_PERSIST_TIMEOUT_MS = 2 * 60_000;
 const OCR_DEAD_LETTER_MAX_ATTEMPTS = 4;
 const OCR_RETRY_BACKOFF_BASE_MS = 15_000;
 const OCR_QUALITY_GATE_MIN_SCORE = 55;
@@ -551,7 +551,7 @@ function parseIsoToEpochMs(value: string | undefined) {
 }
 
 function computeOcrJobTimeoutMs(pageCount: number | undefined) {
-  const pages = Math.max(1, Math.min(500, pageCount ?? 1));
+  const pages = Math.max(1, pageCount ?? 1);
   return Math.min(
     OCR_JOB_TIMEOUT_BASE_MS + (pages - 1) * OCR_JOB_TIMEOUT_PER_PAGE_MS,
     OCR_JOB_TIMEOUT_MAX_MS
