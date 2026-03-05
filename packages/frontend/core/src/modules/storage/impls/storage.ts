@@ -17,11 +17,27 @@ const isQuotaExceededError = (error: unknown): boolean => {
   );
 };
 
+const CASE_ASSISTANT_LOCALSTORAGE_BYPASS_SUFFIXES = [
+  ':legal-documents',
+  ':legal-documents-trash',
+  ':semantic-chunks',
+];
+
+const shouldBypassLocalStorageForKey = (key: string): boolean => {
+  if (!key.startsWith('case-assistant:')) {
+    return false;
+  }
+  return CASE_ASSISTANT_LOCALSTORAGE_BYPASS_SUFFIXES.some(suffix =>
+    key.endsWith(suffix)
+  );
+};
+
 export class StorageMemento implements Memento {
   // eventEmitter is used for same tab event
   private readonly eventEmitter = new EventEmitter2();
   // channel is used for cross-tab event
   private readonly channel = new BroadcastChannel(this.prefix);
+  private readonly quotaWarnedKeys = new Set<string>();
   constructor(
     private readonly storage: Storage,
     private readonly prefix: string
@@ -67,6 +83,17 @@ export class StorageMemento implements Memento {
   }
   set<T>(key: string, value: T): void {
     const storageKey = this.prefix + key;
+
+    // Keep large case-assistant payloads out of localStorage to avoid
+    // quota churn and noisy write-failure loops. IndexedDB cache remains
+    // the durable persistence layer for these keys.
+    if (shouldBypassLocalStorageForKey(key)) {
+      this.storage.removeItem(storageKey);
+      this.eventEmitter.emit(key, value);
+      this.channel.postMessage({ key, value });
+      return;
+    }
+
     const serializedValue = JSON.stringify(value);
 
     try {
@@ -86,9 +113,12 @@ export class StorageMemento implements Memento {
           throw retryError;
         }
 
-        console.warn(
-          `[storage] Skip persisting "${storageKey}" due to localStorage quota limits.`
-        );
+        if (!this.quotaWarnedKeys.has(storageKey)) {
+          this.quotaWarnedKeys.add(storageKey);
+          console.warn(
+            `[storage] Skip persisting "${storageKey}" due to localStorage quota limits.`
+          );
+        }
       }
     }
 

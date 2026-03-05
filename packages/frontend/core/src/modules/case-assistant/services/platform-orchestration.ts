@@ -67,6 +67,9 @@ function buildTrashTimestamps(retentionDays: number) {
 }
 
 export class CasePlatformOrchestrationService extends Service {
+  private legalApiUnavailable = false;
+  private readonly warnedMalformedLegalEndpoint = new Set<string>();
+
   constructor(
     private readonly store: CaseAssistantStore,
     private readonly accessControlService: CaseAccessControlService,
@@ -312,7 +315,16 @@ export class CasePlatformOrchestrationService extends Service {
     endpoint: string,
     payload: unknown
   ): Promise<T | null> {
-    if (typeof globalThis.fetch !== 'function') {
+    if (typeof globalThis.fetch !== 'function' || this.legalApiUnavailable) {
+      return null;
+    }
+    if (endpoint.includes('/api/legal/workspaces//')) {
+      if (!this.warnedMalformedLegalEndpoint.has(endpoint)) {
+        this.warnedMalformedLegalEndpoint.add(endpoint);
+        console.warn(
+          `[legal-api] Skip malformed endpoint (missing workspaceId): ${endpoint}`
+        );
+      }
       return null;
     }
     try {
@@ -325,6 +337,12 @@ export class CasePlatformOrchestrationService extends Service {
         body: JSON.stringify(payload),
       });
       if (!res.ok) {
+        if (
+          res.status === 404 &&
+          endpoint.startsWith('/api/legal/workspaces/')
+        ) {
+          this.legalApiUnavailable = true;
+        }
         return null;
       }
       return (await res.json()) as T;
@@ -334,7 +352,16 @@ export class CasePlatformOrchestrationService extends Service {
   }
 
   private async deleteLegalApi(endpoint: string): Promise<boolean> {
-    if (typeof globalThis.fetch !== 'function') {
+    if (typeof globalThis.fetch !== 'function' || this.legalApiUnavailable) {
+      return false;
+    }
+    if (endpoint.includes('/api/legal/workspaces//')) {
+      if (!this.warnedMalformedLegalEndpoint.has(endpoint)) {
+        this.warnedMalformedLegalEndpoint.add(endpoint);
+        console.warn(
+          `[legal-api] Skip malformed endpoint (missing workspaceId): ${endpoint}`
+        );
+      }
       return false;
     }
     try {
@@ -344,6 +371,13 @@ export class CasePlatformOrchestrationService extends Service {
           'x-affine-version': BUILD_CONFIG.appVersion,
         },
       });
+      if (
+        !res.ok &&
+        res.status === 404 &&
+        endpoint.startsWith('/api/legal/workspaces/')
+      ) {
+        this.legalApiUnavailable = true;
+      }
       return res.ok;
     } catch {
       return false;
@@ -351,7 +385,16 @@ export class CasePlatformOrchestrationService extends Service {
   }
 
   private async getLegalApi<T = any>(endpoint: string): Promise<T | null> {
-    if (typeof globalThis.fetch !== 'function') {
+    if (typeof globalThis.fetch !== 'function' || this.legalApiUnavailable) {
+      return null;
+    }
+    if (endpoint.includes('/api/legal/workspaces//')) {
+      if (!this.warnedMalformedLegalEndpoint.has(endpoint)) {
+        this.warnedMalformedLegalEndpoint.add(endpoint);
+        console.warn(
+          `[legal-api] Skip malformed endpoint (missing workspaceId): ${endpoint}`
+        );
+      }
       return null;
     }
     try {
@@ -3589,23 +3632,32 @@ export class CasePlatformOrchestrationService extends Service {
   }
 
   async upsertLegalDocument(input: LegalDocumentRecord) {
+    const workspaceId = input.workspaceId || this.store.getWorkspaceId();
+    const normalizedInput =
+      workspaceId === input.workspaceId
+        ? input
+        : {
+            ...input,
+            workspaceId,
+          };
+
     await this.postLegalApi(
-      `/api/legal/workspaces/${encodeURIComponent(input.workspaceId)}/documents`,
-      this.toLegalDocumentPayload(input)
+      `/api/legal/workspaces/${encodeURIComponent(workspaceId)}/documents`,
+      this.toLegalDocumentPayload(normalizedInput)
     );
-    await this.store.upsertLegalDocument(input);
+    await this.store.upsertLegalDocument(normalizedInput);
     await this.appendWorkflowEvent({
       type: 'document.uploaded',
       actor: 'user',
-      caseId: input.caseId,
-      workspaceId: input.workspaceId,
+      caseId: normalizedInput.caseId,
+      workspaceId: normalizedInput.workspaceId,
       payload: {
-        documentId: input.id,
-        documentKind: input.kind,
-        status: input.status,
+        documentId: normalizedInput.id,
+        documentKind: normalizedInput.kind,
+        status: normalizedInput.status,
       },
     });
-    return input;
+    return normalizedInput;
   }
 
   async upsertSemanticChunks(documentId: string, chunks: SemanticChunk[]) {

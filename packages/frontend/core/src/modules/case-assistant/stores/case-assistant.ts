@@ -75,11 +75,12 @@ const EMPTY_GRAPH: CaseGraphRecord = {
   updatedAt: new Date(0).toISOString(),
 };
 
-// Maximum rawText size per document stored in the reactive/serialized store.
-// Anything larger is a bug (e.g. base64 content leaking into rawText).
-// 256 KB is generous for extracted plaintext; base64 binaries are 20-100 MB.
-const MAX_RAW_TEXT_STORE_BYTES = 256 * 1024;
+// Maximum rawText size per document stored in reactive state.
+// 1 MB keeps long legal documents intact while still guarding against
+// accidental binary/base64 payload leaks into rawText.
+const MAX_RAW_TEXT_STORE_BYTES = 1024 * 1024;
 const BINARY_PLACEHOLDER = '[binary-in-ocr-cache]';
+const sanitizeWarnedDocumentKeys = new Set<string>();
 
 function sanitizeLegalDocForStore(
   doc: LegalDocumentRecord
@@ -91,9 +92,13 @@ function sanitizeLegalDocForStore(
   // Replace with placeholder to prevent JSON.stringify from exceeding V8 string limit.
   const isBase64 =
     doc.rawText.startsWith('data:') && doc.rawText.includes(';base64,');
-  console.warn(
-    `[store] sanitizeLegalDocForStore: rawText too large for doc "${doc.title}" (${doc.rawText.length} chars, isBase64=${isBase64}). Truncating.`
-  );
+  const warnKey = `${doc.id}:${doc.rawText.length}:${isBase64 ? 'b64' : 'txt'}`;
+  if (!sanitizeWarnedDocumentKeys.has(warnKey)) {
+    sanitizeWarnedDocumentKeys.add(warnKey);
+    console.warn(
+      `[store] sanitizeLegalDocForStore: rawText too large for doc "${doc.title}" (${doc.rawText.length} chars, isBase64=${isBase64}). Truncating.`
+    );
+  }
   return {
     ...doc,
     rawText: isBase64
