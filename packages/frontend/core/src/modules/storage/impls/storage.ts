@@ -18,8 +18,18 @@ const isQuotaExceededError = (error: unknown): boolean => {
 };
 
 const CASE_ASSISTANT_LOCALSTORAGE_BYPASS_SUFFIXES = [
+  ':graph',
+  ':connectors',
+  ':ingestion-jobs',
   ':legal-documents',
   ':legal-documents-trash',
+  ':ocr-jobs',
+  ':legal-findings',
+  ':blueprints',
+  ':workflow-events',
+  ':audit-entries',
+  ':audit-anchors',
+  ':quality-reports',
   ':semantic-chunks',
 ];
 
