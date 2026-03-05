@@ -56,6 +56,7 @@ function createId(prefix: string) {
 
 const DOCUMENT_TRASH_RETENTION_DAYS = 30;
 const MATTER_TRASH_RETENTION_DAYS = 90;
+const LEGAL_API_REQUEST_TIMEOUT_MS = 8_000;
 
 function buildTrashTimestamps(retentionDays: number) {
   const now = new Date();
@@ -327,6 +328,10 @@ export class CasePlatformOrchestrationService extends Service {
       }
       return null;
     }
+    const controller = new AbortController();
+    const timeoutHandle = setTimeout(() => {
+      controller.abort();
+    }, LEGAL_API_REQUEST_TIMEOUT_MS);
     try {
       const res = await globalThis.fetch(endpoint, {
         method: 'POST',
@@ -335,6 +340,7 @@ export class CasePlatformOrchestrationService extends Service {
           'x-affine-version': BUILD_CONFIG.appVersion,
         },
         body: JSON.stringify(payload),
+        signal: controller.signal,
       });
       if (!res.ok) {
         if (
@@ -348,6 +354,8 @@ export class CasePlatformOrchestrationService extends Service {
       return (await res.json()) as T;
     } catch {
       return null;
+    } finally {
+      clearTimeout(timeoutHandle);
     }
   }
 
@@ -364,12 +372,17 @@ export class CasePlatformOrchestrationService extends Service {
       }
       return false;
     }
+    const controller = new AbortController();
+    const timeoutHandle = setTimeout(() => {
+      controller.abort();
+    }, LEGAL_API_REQUEST_TIMEOUT_MS);
     try {
       const res = await globalThis.fetch(endpoint, {
         method: 'DELETE',
         headers: {
           'x-affine-version': BUILD_CONFIG.appVersion,
         },
+        signal: controller.signal,
       });
       if (
         !res.ok &&
@@ -381,6 +394,8 @@ export class CasePlatformOrchestrationService extends Service {
       return res.ok;
     } catch {
       return false;
+    } finally {
+      clearTimeout(timeoutHandle);
     }
   }
 
@@ -397,12 +412,17 @@ export class CasePlatformOrchestrationService extends Service {
       }
       return null;
     }
+    const controller = new AbortController();
+    const timeoutHandle = setTimeout(() => {
+      controller.abort();
+    }, LEGAL_API_REQUEST_TIMEOUT_MS);
     try {
       const res = await globalThis.fetch(endpoint, {
         method: 'GET',
         headers: {
           'x-affine-version': BUILD_CONFIG.appVersion,
         },
+        signal: controller.signal,
       });
       if (!res.ok) {
         return null;
@@ -410,6 +430,8 @@ export class CasePlatformOrchestrationService extends Service {
       return (await res.json()) as T;
     } catch {
       return null;
+    } finally {
+      clearTimeout(timeoutHandle);
     }
   }
 
@@ -3644,11 +3666,12 @@ export class CasePlatformOrchestrationService extends Service {
             workspaceId,
           };
 
-    await this.postLegalApi(
+    // Local-first write: never block UI/ingestion pipeline on backend latency.
+    await this.store.upsertLegalDocument(normalizedInput);
+    void this.postLegalApi(
       `/api/legal/workspaces/${encodeURIComponent(workspaceId)}/documents`,
       this.toLegalDocumentPayload(normalizedInput)
-    );
-    await this.store.upsertLegalDocument(normalizedInput);
+    ).catch(() => null);
     if (!opts?.skipWorkflowEvent) {
       await this.appendWorkflowEvent({
         type: 'document.uploaded',

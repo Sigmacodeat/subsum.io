@@ -712,7 +712,6 @@ export const CaseOnboardingWizard = (props: Props) => {
   }, [
     props.currentClient?.displayName,
     props.clientDraftName,
-    hasMatterContext,
     props.matterDraftTitle,
     props.matterDraftExternalRef,
     props.matterDraftGericht,
@@ -1370,6 +1369,7 @@ export const CaseOnboardingWizard = (props: Props) => {
         // Collect all files with content for the pipeline
         const filesWithContent: UploadedFile[] = [...directReadyFiles];
         let readCount = 0;
+        let rejectedReadCount = 0;
         const readStartTs = Date.now();
 
         const addCommitLog = (event: Omit<CommitLogEvent, 'id' | 'ts'>) => {
@@ -1480,12 +1480,17 @@ export const CaseOnboardingWizard = (props: Props) => {
               }
             }
             readCount += batch.prepared.length;
+            rejectedReadCount += batch.rejected.length;
+            const processedCount = Math.min(
+              refsToRead.length,
+              batch.processedSoFar
+            );
             const elapsedSec = Math.max(0.1, (Date.now() - readStartTs) / 1000);
-            const throughput = readCount / elapsedSec;
-            const remaining = refsToRead.length - readCount;
+            const throughput = processedCount / elapsedSec;
+            const remaining = refsToRead.length - processedCount;
             const etaSec = throughput > 0 ? remaining / throughput : 0;
             setCommitLiveMetrics({
-              fileCurrent: readCount,
+              fileCurrent: processedCount,
               fileTotal: refsToRead.length,
               throughput,
               etaSec,
@@ -1493,7 +1498,7 @@ export const CaseOnboardingWizard = (props: Props) => {
             });
             setUploadBatchStatus(
               t.t('com.affine.caseAssistant.wizard.upload.reading', {
-                read: readCount,
+                read: processedCount,
                 total: refsToRead.length,
               })
             );
@@ -1501,15 +1506,21 @@ export const CaseOnboardingWizard = (props: Props) => {
               if (!prev) return prev;
               return {
                 ...prev,
-                batchIndex: readCount,
+                uploadedCount: readCount,
+                batchIndex: processedCount,
                 totalBatches: refsToRead.length,
               };
             });
           }
 
           addCommitLog({
-            level: readCount === refsToRead.length ? 'success' : 'warn',
-            label: `Lesen abgeschlossen: ${readCount}/${refsToRead.length} Dateien`,
+            level:
+              readCount + rejectedReadCount === refsToRead.length
+                ? 'success'
+                : 'warn',
+            label:
+              `Lesen abgeschlossen: ${readCount} bereit, ${rejectedReadCount} fehlgeschlagen ` +
+              `(gesamt ${refsToRead.length})`,
             phase: 'read',
             durationMs: Date.now() - readStartTs,
           });
