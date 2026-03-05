@@ -16,6 +16,10 @@ import type {
 const playwrightBaseUrl =
   process.env.PLAYWRIGHT_BASE_URL ?? 'http://localhost:8080/';
 
+const skipWebServer =
+  process.env.SKIP_PLAYWRIGHT_WEBSERVER === '1' ||
+  process.env.SKIP_PLAYWRIGHT_WEBSERVER === 'true';
+
 const config: PlaywrightTestConfig = {
   testDir: './e2e',
   fullyParallel: true,
@@ -44,17 +48,19 @@ const config: PlaywrightTestConfig = {
   // default 'list' when running locally
   // See https://playwright.dev/docs/test-reporters#github-actions-annotations
   reporter: process.env.CI ? 'github' : 'list',
-  webServer: [
-    {
-      command: 'yarn run -T affine dev -p @affine/web',
-      timeout: 120 * 1000,
-      reuseExistingServer: !process.env.CI,
-      env: {
-        COVERAGE: process.env.COVERAGE || 'false',
-      },
-      url: new URL(playwrightBaseUrl).origin,
-    },
-  ],
+  webServer: skipWebServer
+    ? []
+    : [
+        {
+          command: 'yarn run -T affine dev -p @affine/web',
+          timeout: 120 * 1000,
+          reuseExistingServer: !process.env.CI,
+          env: {
+            COVERAGE: process.env.COVERAGE || 'false',
+          },
+          url: new URL(playwrightBaseUrl).origin,
+        },
+      ],
 };
 
 if (process.env.CI) {
