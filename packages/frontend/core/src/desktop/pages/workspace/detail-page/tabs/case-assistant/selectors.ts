@@ -31,7 +31,9 @@ export function selectWorkspaceMatters(
   );
 }
 
-export function buildIdMap<T extends { id: string }>(items: T[]): Map<string, T> {
+export function buildIdMap<T extends { id: string }>(
+  items: T[]
+): Map<string, T> {
   return new Map(items.map(item => [item.id, item]));
 }
 
@@ -39,14 +41,18 @@ export function selectCaseMatter(
   caseRecord: CaseFile | undefined,
   mattersById: Map<string, MatterRecord>
 ): MatterRecord | null {
-  return caseRecord?.matterId ? (mattersById.get(caseRecord.matterId) ?? null) : null;
+  return caseRecord?.matterId
+    ? (mattersById.get(caseRecord.matterId) ?? null)
+    : null;
 }
 
 export function selectCaseClient(
   caseMatter: MatterRecord | null,
   clientsById: Map<string, ClientRecord>
 ): ClientRecord | null {
-  return caseMatter?.clientId ? (clientsById.get(caseMatter.clientId) ?? null) : null;
+  return caseMatter?.clientId
+    ? (clientsById.get(caseMatter.clientId) ?? null)
+    : null;
 }
 
 export function selectVisibleClients(params: {
@@ -82,7 +88,10 @@ export function selectVisibleMatters(params: {
     if (!params.showArchivedMatters && matter.status === 'archived') {
       return false;
     }
-    if (params.selectedClientId && matter.clientId !== params.selectedClientId) {
+    if (
+      params.selectedClientId &&
+      matter.clientId !== params.selectedClientId
+    ) {
       return false;
     }
     if (!normalizedQuery) {
@@ -100,7 +109,7 @@ export function selectCaseDocuments(
   legalDocuments: LegalDocumentRecord[],
   caseId: string,
   workspaceId: string,
-  limit = 8
+  limit = 100
 ): LegalDocumentRecord[] {
   return legalDocuments
     .filter(doc => doc.caseId === caseId && doc.workspaceId === workspaceId)
@@ -112,12 +121,15 @@ export function selectCaseOcrJobs(
   caseId: string,
   workspaceId: string
 ): OcrJob[] {
-  return ocrJobs.filter(job => job.caseId === caseId && job.workspaceId === workspaceId);
+  return ocrJobs.filter(
+    job => job.caseId === caseId && job.workspaceId === workspaceId
+  );
 }
 
 export function selectOcrRunningCount(caseOcrJobs: OcrJob[]): number {
-  return caseOcrJobs.filter(job => job.status === 'queued' || job.status === 'running')
-    .length;
+  return caseOcrJobs.filter(
+    job => job.status === 'queued' || job.status === 'running'
+  ).length;
 }
 
 export function selectOcrFailedCount(caseOcrJobs: OcrJob[]): number {
@@ -131,7 +143,10 @@ export function selectCaseFindings(
   limit = 8
 ): LegalFinding[] {
   return legalFindings
-    .filter(finding => finding.caseId === caseId && finding.workspaceId === workspaceId)
+    .filter(
+      finding =>
+        finding.caseId === caseId && finding.workspaceId === workspaceId
+    )
     .slice(0, limit);
 }
 
@@ -153,7 +168,8 @@ export function selectLatestBlueprint(
 ): CaseBlueprint | null {
   return (
     caseBlueprints.find(
-      blueprint => blueprint.caseId === caseId && blueprint.workspaceId === workspaceId
+      blueprint =>
+        blueprint.caseId === caseId && blueprint.workspaceId === workspaceId
     ) ?? null
   );
 }
@@ -164,8 +180,9 @@ export function selectLatestCopilotRun(
   workspaceId: string
 ): CopilotRun | null {
   return (
-    copilotRuns.find(run => run.caseId === caseId && run.workspaceId === workspaceId) ??
-    null
+    copilotRuns.find(
+      run => run.caseId === caseId && run.workspaceId === workspaceId
+    ) ?? null
   );
 }
 

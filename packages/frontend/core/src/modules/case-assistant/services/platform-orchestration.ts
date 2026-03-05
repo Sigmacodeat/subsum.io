@@ -3631,7 +3631,10 @@ export class CasePlatformOrchestrationService extends Service {
     return job;
   }
 
-  async upsertLegalDocument(input: LegalDocumentRecord) {
+  async upsertLegalDocument(
+    input: LegalDocumentRecord,
+    opts?: { skipWorkflowEvent?: boolean }
+  ) {
     const workspaceId = input.workspaceId || this.store.getWorkspaceId();
     const normalizedInput =
       workspaceId === input.workspaceId
@@ -3646,17 +3649,19 @@ export class CasePlatformOrchestrationService extends Service {
       this.toLegalDocumentPayload(normalizedInput)
     );
     await this.store.upsertLegalDocument(normalizedInput);
-    await this.appendWorkflowEvent({
-      type: 'document.uploaded',
-      actor: 'user',
-      caseId: normalizedInput.caseId,
-      workspaceId: normalizedInput.workspaceId,
-      payload: {
-        documentId: normalizedInput.id,
-        documentKind: normalizedInput.kind,
-        status: normalizedInput.status,
-      },
-    });
+    if (!opts?.skipWorkflowEvent) {
+      await this.appendWorkflowEvent({
+        type: 'document.uploaded',
+        actor: 'user',
+        caseId: normalizedInput.caseId,
+        workspaceId: normalizedInput.workspaceId,
+        payload: {
+          documentId: normalizedInput.id,
+          documentKind: normalizedInput.kind,
+          status: normalizedInput.status,
+        },
+      });
+    }
     return normalizedInput;
   }
 

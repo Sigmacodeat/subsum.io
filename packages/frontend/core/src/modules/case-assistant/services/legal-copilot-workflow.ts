@@ -2444,23 +2444,26 @@ export class LegalCopilotWorkflowService extends Service {
       const now = new Date().toISOString();
       const hasText = (processed.extractedText ?? '').trim().length > 20;
 
-      await this.orchestration.upsertLegalDocument({
-        ...doc,
-        status: hasText ? 'indexed' : 'failed',
-        processingStatus: hasText
-          ? processed.qualityReport.overallScore < 40
-            ? 'needs_review'
-            : 'ready'
-          : 'failed',
-        rawText: (processed.extractedText ?? '').slice(0, 256 * 1024),
-        normalizedText: (processed.normalizedText ?? '').slice(0, 256 * 1024),
-        extractionEngine: processed.extractionEngine ?? 'retry',
-        overallQualityScore: processed.qualityReport.overallScore,
-        processingError: hasText
-          ? undefined
-          : 'Retry: Kein nutzbarer Text extrahierbar.',
-        updatedAt: now,
-      });
+      await this.orchestration.upsertLegalDocument(
+        {
+          ...doc,
+          status: hasText ? 'indexed' : 'failed',
+          processingStatus: hasText
+            ? processed.qualityReport.overallScore < 40
+              ? 'needs_review'
+              : 'ready'
+            : 'failed',
+          rawText: (processed.extractedText ?? '').slice(0, 256 * 1024),
+          normalizedText: (processed.normalizedText ?? '').slice(0, 256 * 1024),
+          extractionEngine: processed.extractionEngine ?? 'retry',
+          overallQualityScore: processed.qualityReport.overallScore,
+          processingError: hasText
+            ? undefined
+            : 'Retry: Kein nutzbarer Text extrahierbar.',
+          updatedAt: now,
+        },
+        { skipWorkflowEvent: true }
+      );
 
       if (processed.chunks.length > 0) {
         await withTimeout(
@@ -2514,13 +2517,16 @@ export class LegalCopilotWorkflowService extends Service {
     }
 
     const now = new Date().toISOString();
-    await this.orchestration.upsertLegalDocument({
-      ...doc,
-      status: 'excluded' as any,
-      processingStatus: 'failed',
-      processingError: 'Dokument wurde manuell aus dem Akt entfernt.',
-      updatedAt: now,
-    });
+    await this.orchestration.upsertLegalDocument(
+      {
+        ...doc,
+        status: 'excluded' as any,
+        processingStatus: 'failed',
+        processingError: 'Dokument wurde manuell aus dem Akt entfernt.',
+        updatedAt: now,
+      },
+      { skipWorkflowEvent: true }
+    );
 
     // Remove orphaned chunks by upserting empty array for this document
     await withTimeout(
@@ -2810,7 +2816,16 @@ export class LegalCopilotWorkflowService extends Service {
             preflight: doc.preflight,
           };
 
-          await this.orchestration.upsertLegalDocument(record);
+          try {
+            await this.orchestration.upsertLegalDocument(record, {
+              skipWorkflowEvent: false,
+            });
+          } catch (storeErr) {
+            console.error(
+              `[intakeDocuments] upsertLegalDocument failed for binary-OCR "${doc.title}":`,
+              storeErr instanceof Error ? storeErr.message : storeErr
+            );
+          }
           records.push(record);
           existingDocs.push(record);
 
@@ -2863,6 +2878,43 @@ export class LegalCopilotWorkflowService extends Service {
           continue;
         }
 
+        // ── Sofortiger Platzhalter: Dokument erscheint unmittelbar in der UI ──
+        // Setzt ein Skeletons-Record BEVOR die bis zu 60-sekündige Textextraktion
+        // startet, damit der Nutzer das Dokument sofort sieht (nicht erst danach).
+        // Der finale upsert nach processDocumentAsync überschreibt diesen Platzhalter.
+        const placeholderRecord: LegalDocumentRecord = {
+          id: documentId,
+          caseId: input.caseId,
+          workspaceId: input.workspaceId,
+          title: doc.title,
+          kind: doc.kind,
+          status: 'ocr_pending',
+          processingStatus: 'extracting',
+          processingError: 'Textextraktion läuft…',
+          rawText: '',
+          contentFingerprint: fingerprint,
+          tags: doc.tags ?? [],
+          sourceMimeType: doc.sourceMimeType,
+          sourceSizeBytes: doc.sourceSizeBytes,
+          sourceRef: doc.sourceRef,
+          folderPath: doc.folderPath,
+          paragraphReferences: [...(doc.paragraphReferences ?? [])],
+          documentRevision: 1,
+          createdAt: now,
+          updatedAt: now,
+          chunkCount: 0,
+          entityCount: 0,
+          extractionEngine: 'text-extracting',
+        };
+        this.orchestration
+          .upsertLegalDocument(placeholderRecord, { skipWorkflowEvent: true })
+          .catch(e => {
+            console.warn(
+              `[intakeDocuments] placeholder upsert silently failed for "${doc.title}":`,
+              e instanceof Error ? e.message : e
+            );
+          });
+
         // ── Sofort-Verarbeitung: Text-Extraktion + Chunking + Entities + Quality ──
         const processingResult = await withTimeout(
           this.documentProcessingService.processDocumentAsync({
@@ -2881,7 +2933,7 @@ export class LegalCopilotWorkflowService extends Service {
 
         const isPdfNoTextLayerOcrRoute =
           isBase64 &&
-          doc.kind === 'pdf' &&
+          (doc.kind === 'pdf' || doc.kind === 'scan-pdf') &&
           processingResult.extractionEngine === 'pdf-no-text-layer' &&
           ocrEligible;
 
@@ -3129,11 +3181,14 @@ export class LegalCopilotWorkflowService extends Service {
               .then(async verification => {
                 if (verification?.ok && this.ragSync.isBackendAvailable) {
                   void this.orchestration
-                    .upsertLegalDocument({
-                      ...record,
-                      ragIndexed: true,
-                      updatedAt: new Date().toISOString(),
-                    })
+                    .upsertLegalDocument(
+                      {
+                        ...record,
+                        ragIndexed: true,
+                        updatedAt: new Date().toISOString(),
+                      },
+                      { skipWorkflowEvent: true }
+                    )
                     .catch(() => undefined);
                   return;
                 }
@@ -3155,11 +3210,14 @@ export class LegalCopilotWorkflowService extends Service {
 
                 if (!verification.ok) {
                   void this.orchestration
-                    .upsertLegalDocument({
-                      ...record,
-                      ragIndexed: false,
-                      updatedAt: new Date().toISOString(),
-                    })
+                    .upsertLegalDocument(
+                      {
+                        ...record,
+                        ragIndexed: false,
+                        updatedAt: new Date().toISOString(),
+                      },
+                      { skipWorkflowEvent: true }
+                    )
                     .catch(() => undefined);
 
                   const mismatchSummary = [
@@ -3231,7 +3289,9 @@ export class LegalCopilotWorkflowService extends Service {
               processingError: `Semantic chunk persistence failed: ${chunkPersistError}`,
               updatedAt: new Date().toISOString(),
             };
-            await this.orchestration.upsertLegalDocument(failedRecord);
+            await this.orchestration.upsertLegalDocument(failedRecord, {
+              skipWorkflowEvent: true,
+            });
             await this.orchestration.appendAuditEntry({
               caseId: input.caseId,
               workspaceId: input.workspaceId,
@@ -3429,7 +3489,9 @@ export class LegalCopilotWorkflowService extends Service {
             extractionEngine: `crash-recovery:${crashMessage.slice(0, 80)}`,
             preflight: doc.preflight,
           };
-          await this.orchestration.upsertLegalDocument(crashRecord);
+          await this.orchestration.upsertLegalDocument(crashRecord, {
+            skipWorkflowEvent: true,
+          });
           records.push(crashRecord);
           existingDocs.push(crashRecord);
         } catch {
@@ -3754,15 +3816,19 @@ export class LegalCopilotWorkflowService extends Service {
         (item: LegalDocumentRecord) => item.id === job.documentId
       );
       if (staleDoc) {
-        await this.orchestration.upsertLegalDocument({
-          ...staleDoc,
-          status: 'failed',
-          processingStatus: 'failed',
-          extractionEngine: `stale-watchdog:${staleMeta.staleKind}`,
-          processingError:
-            deriveProcessingError('stale-watchdog', staleDoc.title) ?? staleMsg,
-          updatedAt: failedAt,
-        });
+        await this.orchestration.upsertLegalDocument(
+          {
+            ...staleDoc,
+            status: 'failed',
+            processingStatus: 'failed',
+            extractionEngine: `stale-watchdog:${staleMeta.staleKind}`,
+            processingError:
+              deriveProcessingError('stale-watchdog', staleDoc.title) ??
+              staleMsg,
+            updatedAt: failedAt,
+          },
+          { skipWorkflowEvent: true }
+        );
       }
 
       await this.orchestration.appendAuditEntry({
@@ -3855,11 +3921,14 @@ export class LegalCopilotWorkflowService extends Service {
       };
 
       await this.orchestration.upsertOcrJob(retryJob);
-      await this.orchestration.upsertLegalDocument({
-        ...doc,
-        status: 'ocr_pending',
-        updatedAt: now,
-      });
+      await this.orchestration.upsertLegalDocument(
+        {
+          ...doc,
+          status: 'ocr_pending',
+          updatedAt: now,
+        },
+        { skipWorkflowEvent: true }
+      );
 
       retryJobs.push(retryJob);
       activeOcrDocIds.add(doc.id);
@@ -3902,13 +3971,16 @@ export class LegalCopilotWorkflowService extends Service {
             `(Versuch ${(queued.retryAttempt ?? 0) + 1}/${OCR_DEAD_LETTER_MAX_ATTEMPTS}). ` +
             `Grund: ${queued.errorMessage ?? 'Unbekannt'}`;
           if (retryDoc.processingError !== pendingMessage) {
-            await this.orchestration.upsertLegalDocument({
-              ...retryDoc,
-              status: 'ocr_pending',
-              processingStatus: 'extracting',
-              processingError: pendingMessage,
-              updatedAt: new Date().toISOString(),
-            });
+            await this.orchestration.upsertLegalDocument(
+              {
+                ...retryDoc,
+                status: 'ocr_pending',
+                processingStatus: 'extracting',
+                processingError: pendingMessage,
+                updatedAt: new Date().toISOString(),
+              },
+              { skipWorkflowEvent: true }
+            );
           }
         }
         continue;
@@ -4008,16 +4080,19 @@ export class LegalCopilotWorkflowService extends Service {
               finishedAt: failedAt,
               updatedAt: failedAt,
             });
-            await this.orchestration.upsertLegalDocument({
-              ...doc,
-              status: 'failed',
-              processingStatus: 'failed',
-              extractionEngine: 'binary-cache-lost',
-              processingError:
-                deriveProcessingError('binary-cache-lost', doc.title) ??
-                'Binärdaten nicht mehr verfügbar. Bitte Dokument erneut hochladen.',
-              updatedAt: failedAt,
-            });
+            await this.orchestration.upsertLegalDocument(
+              {
+                ...doc,
+                status: 'failed',
+                processingStatus: 'failed',
+                extractionEngine: 'binary-cache-lost',
+                processingError:
+                  deriveProcessingError('binary-cache-lost', doc.title) ??
+                  'Binärdaten nicht mehr verfügbar. Bitte Dokument erneut hochladen.',
+                updatedAt: failedAt,
+              },
+              { skipWorkflowEvent: true }
+            );
             await this.orchestration.appendAuditEntry({
               caseId,
               workspaceId,
@@ -4032,11 +4107,14 @@ export class LegalCopilotWorkflowService extends Service {
           }
         }
 
-        await this.orchestration.upsertLegalDocument({
-          ...doc,
-          status: 'ocr_running',
-          updatedAt: startedAt,
-        });
+        await this.orchestration.upsertLegalDocument(
+          {
+            ...doc,
+            status: 'ocr_running',
+            updatedAt: startedAt,
+          },
+          { skipWorkflowEvent: true }
+        );
 
         let lastProgress = 30;
         let lastPage = 0;
@@ -4127,19 +4205,22 @@ export class LegalCopilotWorkflowService extends Service {
           const fallbackErrorMessage = remoteFallbackFailed
             ? 'Remote OCR nicht erreichbar/timeout; lokaler Fallback konnte das Dokument nicht extrahieren.'
             : 'Kein Text konnte aus dem Dokument extrahiert werden (OCR leer).';
-          await this.orchestration.upsertLegalDocument({
-            ...doc,
-            status: 'failed',
-            processingStatus: 'failed',
-            extractionEngine: ocrResult.engine ?? 'ocr-empty',
-            processingError:
-              deriveProcessingError(
-                ocrResult.engine ?? 'ocr-empty',
-                doc.title
-              ) ?? fallbackErrorMessage,
-            overallQualityScore: 0,
-            updatedAt: finishedAt,
-          });
+          await this.orchestration.upsertLegalDocument(
+            {
+              ...doc,
+              status: 'failed',
+              processingStatus: 'failed',
+              extractionEngine: ocrResult.engine ?? 'ocr-empty',
+              processingError:
+                deriveProcessingError(
+                  ocrResult.engine ?? 'ocr-empty',
+                  doc.title
+                ) ?? fallbackErrorMessage,
+              overallQualityScore: 0,
+              updatedAt: finishedAt,
+            },
+            { skipWorkflowEvent: true }
+          );
           await this.orchestration.upsertOcrJob({
             ...queued,
             status: 'failed',
@@ -4302,7 +4383,9 @@ export class LegalCopilotWorkflowService extends Service {
           extractionIntegrityOk: processed.contentFidelity.contentIntegrityOk,
         };
 
-        await this.orchestration.upsertLegalDocument(updatedDoc);
+        await this.orchestration.upsertLegalDocument(updatedDoc, {
+          skipWorkflowEvent: true,
+        });
 
         await withTimeout(
           this.orchestration.upsertSemanticChunks(doc.id, processed.chunks),
@@ -4323,11 +4406,14 @@ export class LegalCopilotWorkflowService extends Service {
             .then(async verification => {
               if (verification?.ok && this.ragSync.isBackendAvailable) {
                 void this.orchestration
-                  .upsertLegalDocument({
-                    ...updatedDoc,
-                    ragIndexed: true,
-                    updatedAt: new Date().toISOString(),
-                  })
+                  .upsertLegalDocument(
+                    {
+                      ...updatedDoc,
+                      ragIndexed: true,
+                      updatedAt: new Date().toISOString(),
+                    },
+                    { skipWorkflowEvent: true }
+                  )
                   .catch(() => undefined);
                 return;
               }
@@ -4350,11 +4436,14 @@ export class LegalCopilotWorkflowService extends Service {
 
               if (!verification.ok) {
                 void this.orchestration
-                  .upsertLegalDocument({
-                    ...updatedDoc,
-                    ragIndexed: false,
-                    updatedAt: new Date().toISOString(),
-                  })
+                  .upsertLegalDocument(
+                    {
+                      ...updatedDoc,
+                      ragIndexed: false,
+                      updatedAt: new Date().toISOString(),
+                    },
+                    { skipWorkflowEvent: true }
+                  )
                   .catch(() => undefined);
 
                 const mismatchSummary = [
@@ -4611,15 +4700,18 @@ export class LegalCopilotWorkflowService extends Service {
             (item: LegalDocumentRecord) => item.id === queued.documentId
           );
           if (retryDoc) {
-            await this.orchestration.upsertLegalDocument({
-              ...retryDoc,
-              status: 'ocr_pending',
-              processingStatus: 'extracting',
-              processingError:
-                `Automatischer OCR-Retry geplant (${nextAttempt}/${OCR_DEAD_LETTER_MAX_ATTEMPTS}). ` +
-                `Nächster Versuch: ${new Date(nextRetryAt).toLocaleTimeString()}.`,
-              updatedAt: failedAt,
-            });
+            await this.orchestration.upsertLegalDocument(
+              {
+                ...retryDoc,
+                status: 'ocr_pending',
+                processingStatus: 'extracting',
+                processingError:
+                  `Automatischer OCR-Retry geplant (${nextAttempt}/${OCR_DEAD_LETTER_MAX_ATTEMPTS}). ` +
+                  `Nächster Versuch: ${new Date(nextRetryAt).toLocaleTimeString()}.`,
+                updatedAt: failedAt,
+              },
+              { skipWorkflowEvent: true }
+            );
           }
           continue;
         }
@@ -4643,19 +4735,22 @@ export class LegalCopilotWorkflowService extends Service {
           (item: LegalDocumentRecord) => item.id === queued.documentId
         );
         if (doc) {
-          await this.orchestration.upsertLegalDocument({
-            ...doc,
-            status: 'failed',
-            processingStatus: 'failed',
-            extractionEngine: `crash-recovery:${failureCode}:${rawMessage.slice(0, 64)}`,
-            processingError:
-              deriveProcessingError(
-                `crash-recovery:${failureCode}`,
-                doc.title
-              ) ??
-              'OCR-Verarbeitung ist abgestürzt. Bitte Dokument erneut hochladen.',
-            updatedAt: failedAt,
-          });
+          await this.orchestration.upsertLegalDocument(
+            {
+              ...doc,
+              status: 'failed',
+              processingStatus: 'failed',
+              extractionEngine: `crash-recovery:${failureCode}:${rawMessage.slice(0, 64)}`,
+              processingError:
+                deriveProcessingError(
+                  `crash-recovery:${failureCode}`,
+                  doc.title
+                ) ??
+                'OCR-Verarbeitung ist abgestürzt. Bitte Dokument erneut hochladen.',
+              updatedAt: failedAt,
+            },
+            { skipWorkflowEvent: true }
+          );
         }
 
         await this.orchestration.appendAuditEntry({
