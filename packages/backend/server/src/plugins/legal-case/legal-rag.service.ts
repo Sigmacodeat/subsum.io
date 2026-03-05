@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 import { Injectable, Logger } from '@nestjs/common';
 import { ModuleRef } from '@nestjs/core';
 import { PrismaClient } from '@prisma/client';
@@ -11,6 +13,27 @@ export interface LegalChunkInput {
   category: string;
   keywords: string[];
   qualityScore: number;
+}
+
+export interface LegalChunkVerifyInput {
+  index: number;
+  hash: string;
+  length: number;
+}
+
+export interface LegalRagVerifyResult {
+  ok: boolean;
+  expectedCount: number;
+  persistedCount: number;
+  withEmbeddingCount: number;
+  matchedCount: number;
+  missingChunkIndexes: number[];
+  hashMismatchIndexes: number[];
+  lengthMismatchIndexes: number[];
+  sourceHashMatched: boolean | null;
+  expectedSourceHash: string | null;
+  persistedSourceHash: string;
+  coverage: number;
 }
 
 export interface LegalRagSearchResult {
@@ -28,6 +51,14 @@ const DEFAULT_THRESHOLD = 0.6;
 const DEFAULT_TOP_K = 12;
 /** Maximum chunks to embed in a single OpenAI/Gemini batch call. */
 const EMBED_BATCH_SIZE = 96;
+
+function canonicalizeChunkText(text: string) {
+  return text.replace(/\r\n/g, '\n');
+}
+
+function sha256Hex(input: string) {
+  return createHash('sha256').update(input, 'utf8').digest('hex');
+}
 
 @Injectable()
 export class LegalRagService {
@@ -237,7 +268,10 @@ export class LegalRagService {
     topK: number,
     threshold: number
   ): Promise<LegalRagSearchResult[]> {
-    const embedResult = await this.embeddingClient!.getEmbeddings([query]);
+    if (!this.embeddingClient) {
+      return [];
+    }
+    const embedResult = await this.embeddingClient.getEmbeddings([query]);
     const queryVec = embedResult[0]?.embedding;
     if (!queryVec || queryVec.length === 0) return [];
 
@@ -356,6 +390,101 @@ export class LegalRagService {
     `;
   }
 
+  // ── Verification ───────────────────────────────────────────────────────────
+
+  async verifyDocumentChunks(
+    workspaceId: string,
+    caseId: string,
+    documentId: string,
+    expectedChunks: LegalChunkVerifyInput[],
+    expectedSourceHash?: string
+  ): Promise<LegalRagVerifyResult> {
+    type Row = {
+      chunkIndex: number;
+      content: string;
+      hasEmbedding: boolean;
+    };
+
+    const rows = await this.db.$queryRaw<Row[]>`
+      SELECT
+        "chunk_index" AS "chunkIndex",
+        "content"     AS "content",
+        ("embedding" IS NOT NULL) AS "hasEmbedding"
+      FROM "legal_document_chunk_embeddings"
+      WHERE "workspace_id" = ${workspaceId}
+        AND "case_id" = ${caseId}
+        AND "document_id" = ${documentId}
+      ORDER BY "chunk_index" ASC;
+    `;
+
+    const byIndex = new Map<number, Row>();
+    for (const row of rows) {
+      byIndex.set(Number(row.chunkIndex), row);
+    }
+
+    const missingChunkIndexes: number[] = [];
+    const hashMismatchIndexes: number[] = [];
+    const lengthMismatchIndexes: number[] = [];
+    let matchedCount = 0;
+
+    for (const expected of expectedChunks) {
+      const persisted = byIndex.get(expected.index);
+      if (!persisted) {
+        missingChunkIndexes.push(expected.index);
+        continue;
+      }
+
+      const persistedText = canonicalizeChunkText(persisted.content ?? '');
+      const persistedHash = sha256Hex(persistedText);
+      if (persistedHash !== expected.hash) {
+        hashMismatchIndexes.push(expected.index);
+        continue;
+      }
+      if (persistedText.length !== expected.length) {
+        lengthMismatchIndexes.push(expected.index);
+        continue;
+      }
+      matchedCount += 1;
+    }
+
+    const persistedSourceHash = sha256Hex(
+      rows.map(row => canonicalizeChunkText(row.content ?? '')).join('\n')
+    );
+    const sourceHashMatched =
+      expectedSourceHash && expectedSourceHash.trim()
+        ? persistedSourceHash === expectedSourceHash.trim().toLowerCase()
+        : null;
+    const withEmbeddingCount = rows.reduce(
+      (sum, row) => (row.hasEmbedding ? sum + 1 : sum),
+      0
+    );
+
+    const expectedCount = expectedChunks.length;
+    const persistedCount = rows.length;
+    const coverage = expectedCount > 0 ? matchedCount / expectedCount : 1;
+    const ok =
+      expectedCount === persistedCount &&
+      missingChunkIndexes.length === 0 &&
+      hashMismatchIndexes.length === 0 &&
+      lengthMismatchIndexes.length === 0 &&
+      (sourceHashMatched === null || sourceHashMatched);
+
+    return {
+      ok,
+      expectedCount,
+      persistedCount,
+      withEmbeddingCount,
+      matchedCount,
+      missingChunkIndexes,
+      hashMismatchIndexes,
+      lengthMismatchIndexes,
+      sourceHashMatched,
+      expectedSourceHash: expectedSourceHash?.trim()?.toLowerCase() ?? null,
+      persistedSourceHash,
+      coverage,
+    };
+  }
+
   // ── Analysis Snapshot Persistence ─────────────────────────────────────────
 
   /**
@@ -379,7 +508,8 @@ export class LegalRagService {
     try {
       const findingsJson = JSON.stringify(data.findings ?? []);
       const tasksJson = JSON.stringify(data.tasks ?? []);
-      const blueprintJson = data.blueprint != null ? JSON.stringify(data.blueprint) : null;
+      const blueprintJson =
+        data.blueprint != null ? JSON.stringify(data.blueprint) : null;
       const issuesJson = JSON.stringify(data.issues ?? []);
       const actorsJson = JSON.stringify(data.actors ?? []);
       const memoryEventsJson = JSON.stringify(data.memoryEvents ?? []);

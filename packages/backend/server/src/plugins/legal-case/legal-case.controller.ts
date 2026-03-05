@@ -1291,6 +1291,47 @@ export class LegalCaseController {
     return { ok: true, chunks, semanticAvailable: this.ragService.isAvailable };
   }
 
+  @Post('/workspaces/:workspaceId/rag/verify')
+  @HttpCode(HttpStatus.OK)
+  async ragVerify(
+    @CurrentUser() user: CurrentUser,
+    @Param('workspaceId') workspaceId: string,
+    @Body() body: any
+  ) {
+    await this.assertWorkspaceAccess(user.id, workspaceId, 'Workspace.Read');
+
+    const parsed = z
+      .object({
+        caseId: z.string().min(1),
+        documentId: z.string().min(1),
+        expectedSourceHash: z.string().trim().optional(),
+        chunks: z
+          .array(
+            z.object({
+              index: z.number().int().nonnegative(),
+              hash: z.string().trim().length(64),
+              length: z.number().int().nonnegative(),
+            })
+          )
+          .min(1)
+          .max(500),
+      })
+      .safeParse(body);
+    if (!parsed.success) {
+      throw new BadRequestException(formatZodError(parsed.error));
+    }
+
+    const { caseId, documentId, chunks, expectedSourceHash } = parsed.data;
+    const result = await this.ragService.verifyDocumentChunks(
+      workspaceId,
+      caseId,
+      documentId,
+      chunks,
+      expectedSourceHash
+    );
+    return { ok: result.ok, result };
+  }
+
   @Delete('/workspaces/:workspaceId/rag/documents/:documentId')
   async ragDeleteDocument(
     @CurrentUser() user: CurrentUser,

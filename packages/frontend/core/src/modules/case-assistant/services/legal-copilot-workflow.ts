@@ -762,12 +762,54 @@ export class LegalCopilotWorkflowService extends Service {
    * Prevents concurrent OCR processing for the same case (race conditions,
    * duplicate chunk writes, and unnecessary redundant OCR calls). */
   private readonly _runningOcrCases = new Set<string>();
+  private readonly _pendingOcrRerunCases = new Set<string>();
+  private readonly _ocrRetryWakeTimers = new Map<
+    string,
+    ReturnType<typeof setTimeout>
+  >();
 
   /** Last auto-detected onboarding metadata (updated after OCR re-detection). */
   private _lastOnboardingDetection: OnboardingDetectionResult | null = null;
 
   get lastOnboardingDetection(): OnboardingDetectionResult | null {
     return this._lastOnboardingDetection;
+  }
+
+  private buildOcrRunKey(caseId: string, workspaceId: string) {
+    return `${workspaceId}:${caseId}`;
+  }
+
+  private clearOcrRetryWakeup(caseId: string, workspaceId: string) {
+    const key = this.buildOcrRunKey(caseId, workspaceId);
+    const timer = this._ocrRetryWakeTimers.get(key);
+    if (!timer) return;
+    clearTimeout(timer);
+    this._ocrRetryWakeTimers.delete(key);
+  }
+
+  private scheduleOcrRetryWakeup(
+    caseId: string,
+    workspaceId: string,
+    nextRetryAtMs: number
+  ) {
+    if (!Number.isFinite(nextRetryAtMs)) return;
+    const key = this.buildOcrRunKey(caseId, workspaceId);
+    const now = Date.now();
+    const delayMs = Math.max(250, nextRetryAtMs - now + 250);
+
+    this.clearOcrRetryWakeup(caseId, workspaceId);
+    const timer = setTimeout(() => {
+      this._ocrRetryWakeTimers.delete(key);
+      void this.processPendingOcr(caseId, workspaceId, {
+        ocrRunId: createId('ocr-retry-wakeup'),
+      }).catch(error => {
+        console.warn(
+          '[processPendingOcr] scheduled retry wakeup failed',
+          error
+        );
+      });
+    }, delayMs);
+    this._ocrRetryWakeTimers.set(key, timer);
   }
 
   private releaseBinary(documentId: string) {
@@ -3075,16 +3117,17 @@ export class LegalCopilotWorkflowService extends Service {
               OCR_CHUNK_PERSIST_TIMEOUT_MS,
               `Semantic chunk persistence timeout (${OCR_CHUNK_PERSIST_TIMEOUT_MS}ms): ${doc.title}`
             );
-            // ── RAG Sync: push chunks to backend pgvector ──
+            // ── RAG Sync + Verification: push chunks + read-back integrity check ──
             this.ragSync
-              .syncChunksToBackend(
+              .syncAndVerifyChunks(
                 input.workspaceId,
                 input.caseId,
                 documentId,
-                processingResult.chunks
+                processingResult.chunks,
+                processingResult.normalizedText
               )
-              .then(() => {
-                if (this.ragSync.isBackendAvailable) {
+              .then(async verification => {
+                if (verification?.ok && this.ragSync.isBackendAvailable) {
                   void this.orchestration
                     .upsertLegalDocument({
                       ...record,
@@ -3092,6 +3135,81 @@ export class LegalCopilotWorkflowService extends Service {
                       updatedAt: new Date().toISOString(),
                     })
                     .catch(() => undefined);
+                  return;
+                }
+
+                if (!verification) {
+                  await this.orchestration.appendAuditEntry({
+                    caseId: input.caseId,
+                    workspaceId: input.workspaceId,
+                    action: 'document.rag.verify_unavailable',
+                    severity: 'warning',
+                    details: `RAG-Verifikation konnte nicht ausgeführt werden (Backend/Timeout) für ${doc.title}.`,
+                    metadata: {
+                      documentId,
+                      title: doc.title,
+                    },
+                  });
+                  return;
+                }
+
+                if (!verification.ok) {
+                  void this.orchestration
+                    .upsertLegalDocument({
+                      ...record,
+                      ragIndexed: false,
+                      updatedAt: new Date().toISOString(),
+                    })
+                    .catch(() => undefined);
+
+                  const mismatchSummary = [
+                    verification.missingChunkIndexes.length > 0
+                      ? `missing=${verification.missingChunkIndexes.join(',')}`
+                      : null,
+                    verification.hashMismatchIndexes.length > 0
+                      ? `hash=${verification.hashMismatchIndexes.join(',')}`
+                      : null,
+                    verification.lengthMismatchIndexes.length > 0
+                      ? `length=${verification.lengthMismatchIndexes.join(',')}`
+                      : null,
+                    verification.sourceHashMatched === false
+                      ? 'source_hash_mismatch=true'
+                      : null,
+                  ]
+                    .filter(Boolean)
+                    .join(' | ');
+
+                  await this.orchestration.appendAuditEntry({
+                    caseId: input.caseId,
+                    workspaceId: input.workspaceId,
+                    action: 'document.rag.verify_failed',
+                    severity: 'warning',
+                    details:
+                      `RAG-Verifikation fehlgeschlagen für ${doc.title}: ` +
+                      `coverage=${(verification.coverage * 100).toFixed(1)}%, ` +
+                      `matched=${verification.matchedCount}/${verification.expectedCount}. ` +
+                      `${mismatchSummary || 'unknown mismatch'}`,
+                    metadata: {
+                      documentId,
+                      title: doc.title,
+                      expectedCount: String(verification.expectedCount),
+                      persistedCount: String(verification.persistedCount),
+                      matchedCount: String(verification.matchedCount),
+                      coverage: verification.coverage.toFixed(4),
+                      missingChunkIndexes:
+                        verification.missingChunkIndexes.join(','),
+                      hashMismatchIndexes:
+                        verification.hashMismatchIndexes.join(','),
+                      lengthMismatchIndexes:
+                        verification.lengthMismatchIndexes.join(','),
+                      sourceHashMatched:
+                        verification.sourceHashMatched === null
+                          ? 'null'
+                          : verification.sourceHashMatched
+                            ? 'true'
+                            : 'false',
+                    },
+                  });
                 }
               })
               .catch(() => undefined);
@@ -3522,17 +3640,27 @@ export class LegalCopilotWorkflowService extends Service {
     // ── Mutex: prevent concurrent OCR runs for the same case ──
     // Concurrent runs would cause duplicate chunk writes and race conditions.
     if (this._runningOcrCases.has(caseId)) {
+      this._pendingOcrRerunCases.add(caseId);
       console.log(
         `[processPendingOcr] Skipped — OCR already running for case ${caseId}`
       );
       return [] as OcrJob[];
     }
+    this.clearOcrRetryWakeup(caseId, workspaceId);
     this._runningOcrCases.add(caseId);
 
     try {
       return await this._processPendingOcrInternal(caseId, workspaceId, input);
     } finally {
       this._runningOcrCases.delete(caseId);
+      if (this._pendingOcrRerunCases.has(caseId)) {
+        this._pendingOcrRerunCases.delete(caseId);
+        void this.processPendingOcr(caseId, workspaceId, {
+          ocrRunId: createId('ocr-rerun'),
+        }).catch(error => {
+          console.warn('[processPendingOcr] deferred rerun failed', error);
+        });
+      }
     }
   }
 
@@ -3749,6 +3877,7 @@ export class LegalCopilotWorkflowService extends Service {
     const completed: OcrJob[] = [];
 
     let crashedJobs = 0;
+    let earliestDeferredRetryAtMs: number | null = null;
 
     for (let jobIndex = 0; jobIndex < jobs.length; jobIndex++) {
       if (jobIndex > 0 && jobIndex % OCR_YIELD_EVERY === 0) {
@@ -3759,6 +3888,29 @@ export class LegalCopilotWorkflowService extends Service {
       const nowMs = Date.now();
       const nextRetryAtMs = parseIsoToEpochMs(queued.nextRetryAt);
       if (nextRetryAtMs && nextRetryAtMs > nowMs) {
+        earliestDeferredRetryAtMs =
+          earliestDeferredRetryAtMs === null
+            ? nextRetryAtMs
+            : Math.min(earliestDeferredRetryAtMs, nextRetryAtMs);
+
+        const retryDoc = (this.legalDocuments$.value ?? []).find(
+          (item: LegalDocumentRecord) => item.id === queued.documentId
+        );
+        if (retryDoc) {
+          const pendingMessage =
+            `OCR-Retry wartet bis ${new Date(nextRetryAtMs).toLocaleTimeString()} ` +
+            `(Versuch ${(queued.retryAttempt ?? 0) + 1}/${OCR_DEAD_LETTER_MAX_ATTEMPTS}). ` +
+            `Grund: ${queued.errorMessage ?? 'Unbekannt'}`;
+          if (retryDoc.processingError !== pendingMessage) {
+            await this.orchestration.upsertLegalDocument({
+              ...retryDoc,
+              status: 'ocr_pending',
+              processingStatus: 'extracting',
+              processingError: pendingMessage,
+              updatedAt: new Date().toISOString(),
+            });
+          }
+        }
         continue;
       }
       const startedAt = new Date().toISOString();
@@ -4158,12 +4310,18 @@ export class LegalCopilotWorkflowService extends Service {
           `Semantic chunk persistence timeout (${OCR_CHUNK_PERSIST_TIMEOUT_MS}ms): ${doc.title}`
         );
 
-        // ── RAG Sync: push structure-aware chunks to backend pgvector ──
+        // ── RAG Sync + Verification: push chunks + read-back integrity check ──
         if (nextStatus === 'indexed' && processed.chunks.length > 0) {
           this.ragSync
-            .syncChunksToBackend(workspaceId, caseId, doc.id, processed.chunks)
-            .then(() => {
-              if (this.ragSync.isBackendAvailable) {
+            .syncAndVerifyChunks(
+              workspaceId,
+              caseId,
+              doc.id,
+              processed.chunks,
+              processed.normalizedText
+            )
+            .then(async verification => {
+              if (verification?.ok && this.ragSync.isBackendAvailable) {
                 void this.orchestration
                   .upsertLegalDocument({
                     ...updatedDoc,
@@ -4171,6 +4329,83 @@ export class LegalCopilotWorkflowService extends Service {
                     updatedAt: new Date().toISOString(),
                   })
                   .catch(() => undefined);
+                return;
+              }
+
+              if (!verification) {
+                await this.orchestration.appendAuditEntry({
+                  caseId,
+                  workspaceId,
+                  action: 'document.rag.verify_unavailable',
+                  severity: 'warning',
+                  details: `RAG-Verifikation konnte nicht ausgeführt werden (Backend/Timeout) für ${doc.title}.`,
+                  metadata: {
+                    ocrRunId,
+                    documentId: doc.id,
+                    title: doc.title,
+                  },
+                });
+                return;
+              }
+
+              if (!verification.ok) {
+                void this.orchestration
+                  .upsertLegalDocument({
+                    ...updatedDoc,
+                    ragIndexed: false,
+                    updatedAt: new Date().toISOString(),
+                  })
+                  .catch(() => undefined);
+
+                const mismatchSummary = [
+                  verification.missingChunkIndexes.length > 0
+                    ? `missing=${verification.missingChunkIndexes.join(',')}`
+                    : null,
+                  verification.hashMismatchIndexes.length > 0
+                    ? `hash=${verification.hashMismatchIndexes.join(',')}`
+                    : null,
+                  verification.lengthMismatchIndexes.length > 0
+                    ? `length=${verification.lengthMismatchIndexes.join(',')}`
+                    : null,
+                  verification.sourceHashMatched === false
+                    ? 'source_hash_mismatch=true'
+                    : null,
+                ]
+                  .filter(Boolean)
+                  .join(' | ');
+
+                await this.orchestration.appendAuditEntry({
+                  caseId,
+                  workspaceId,
+                  action: 'document.rag.verify_failed',
+                  severity: 'warning',
+                  details:
+                    `RAG-Verifikation fehlgeschlagen für ${doc.title}: ` +
+                    `coverage=${(verification.coverage * 100).toFixed(1)}%, ` +
+                    `matched=${verification.matchedCount}/${verification.expectedCount}. ` +
+                    `${mismatchSummary || 'unknown mismatch'}`,
+                  metadata: {
+                    ocrRunId,
+                    documentId: doc.id,
+                    title: doc.title,
+                    expectedCount: String(verification.expectedCount),
+                    persistedCount: String(verification.persistedCount),
+                    matchedCount: String(verification.matchedCount),
+                    coverage: verification.coverage.toFixed(4),
+                    missingChunkIndexes:
+                      verification.missingChunkIndexes.join(','),
+                    hashMismatchIndexes:
+                      verification.hashMismatchIndexes.join(','),
+                    lengthMismatchIndexes:
+                      verification.lengthMismatchIndexes.join(','),
+                    sourceHashMatched:
+                      verification.sourceHashMatched === null
+                        ? 'null'
+                        : verification.sourceHashMatched
+                          ? 'true'
+                          : 'false',
+                  },
+                });
               }
             })
             .catch(() => undefined);
@@ -4339,6 +4574,10 @@ export class LegalCopilotWorkflowService extends Service {
             nextAttempt
           );
           const nextRetryAt = new Date(Date.now() + delayMs).toISOString();
+          const nextRetryAtMs = parseIsoToEpochMs(nextRetryAt);
+          if (nextRetryAtMs !== null) {
+            this.scheduleOcrRetryWakeup(caseId, workspaceId, nextRetryAtMs);
+          }
           await this.orchestration.upsertOcrJob({
             ...queued,
             status: 'queued',
@@ -4441,6 +4680,14 @@ export class LegalCopilotWorkflowService extends Service {
           },
         });
       }
+    }
+
+    if (earliestDeferredRetryAtMs !== null) {
+      this.scheduleOcrRetryWakeup(
+        caseId,
+        workspaceId,
+        earliestDeferredRetryAtMs
+      );
     }
 
     // ── Batch completion summary log ──

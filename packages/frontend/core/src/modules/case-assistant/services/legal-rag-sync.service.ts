@@ -23,6 +23,24 @@ interface RagIndexResponse {
   indexed: number;
 }
 
+interface RagVerifyResponse {
+  ok: boolean;
+  result: {
+    ok: boolean;
+    expectedCount: number;
+    persistedCount: number;
+    withEmbeddingCount: number;
+    matchedCount: number;
+    missingChunkIndexes: number[];
+    hashMismatchIndexes: number[];
+    lengthMismatchIndexes: number[];
+    sourceHashMatched: boolean | null;
+    expectedSourceHash: string | null;
+    persistedSourceHash: string;
+    coverage: number;
+  };
+}
+
 interface RagStatsResponse {
   ok: boolean;
   stats: { total: number; withEmbedding: number; documents: number };
@@ -35,6 +53,57 @@ const INDEX_BATCH_SIZE = 500;
 const INDEX_TIMEOUT_MS = 30_000;
 /** Timeout for search requests (ms). */
 const SEARCH_TIMEOUT_MS = 8_000;
+const VERIFY_TIMEOUT_MS = 20_000;
+
+function canonicalizeChunkText(text: string) {
+  return text.replace(/\r\n/g, '\n');
+}
+
+function sha256Hex(text: string) {
+  const normalized = canonicalizeChunkText(text);
+  if (globalThis.crypto?.subtle === undefined) {
+    // deterministic fallback for non-browser envs
+    let hash = 2166136261;
+    for (let i = 0; i < normalized.length; i++) {
+      hash ^= normalized.charCodeAt(i);
+      hash = Math.imul(hash, 16777619);
+    }
+    return `fnv1a-${(hash >>> 0).toString(16).padStart(8, '0')}`;
+  }
+  return '';
+}
+
+async function sha256Browser(text: string) {
+  const normalized = canonicalizeChunkText(text);
+  if (globalThis.crypto?.subtle === undefined) {
+    return sha256Hex(normalized);
+  }
+  const bytes = new TextEncoder().encode(normalized);
+  const digest = await globalThis.crypto.subtle.digest('SHA-256', bytes);
+  return Array.from(new Uint8Array(digest))
+    .map(byte => byte.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+export interface RagVerifyPayload {
+  chunks: Array<{ index: number; hash: string; length: number }>;
+  expectedSourceHash: string;
+}
+
+export interface RagVerifyResult {
+  ok: boolean;
+  expectedCount: number;
+  persistedCount: number;
+  withEmbeddingCount: number;
+  matchedCount: number;
+  missingChunkIndexes: number[];
+  hashMismatchIndexes: number[];
+  lengthMismatchIndexes: number[];
+  sourceHashMatched: boolean | null;
+  expectedSourceHash: string | null;
+  persistedSourceHash: string;
+  coverage: number;
+}
 
 /**
  * LegalRagSyncService — bridges the frontend document-processing pipeline with
@@ -111,6 +180,86 @@ export class LegalRagSyncService extends Service {
         clearTimeout(timer);
       }
     }
+  }
+
+  async buildVerifyPayload(
+    chunks: SemanticChunk[],
+    normalizedSourceText: string
+  ): Promise<RagVerifyPayload> {
+    const expectedChunks = await Promise.all(
+      chunks.map(async chunk => ({
+        index: chunk.index,
+        hash: await sha256Browser(chunk.text),
+        length: canonicalizeChunkText(chunk.text).length,
+      }))
+    );
+    const expectedSourceHash = await sha256Browser(normalizedSourceText);
+
+    return {
+      chunks: expectedChunks,
+      expectedSourceHash,
+    };
+  }
+
+  async verifyIndexedDocument(
+    workspaceId: string,
+    caseId: string,
+    documentId: string,
+    payload: RagVerifyPayload
+  ): Promise<RagVerifyResult | null> {
+    if (typeof globalThis.fetch !== 'function') return null;
+    if (payload.chunks.length === 0) return null;
+
+    const endpoint = `/api/legal/workspaces/${encodeURIComponent(workspaceId)}/rag/verify`;
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), VERIFY_TIMEOUT_MS);
+
+    try {
+      const res = await globalThis.fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-affine-version': BUILD_CONFIG.appVersion,
+        },
+        body: JSON.stringify({
+          caseId,
+          documentId,
+          expectedSourceHash: payload.expectedSourceHash,
+          chunks: payload.chunks,
+        }),
+        signal: ctrl.signal,
+      });
+      if (!res.ok) {
+        this._backendAvailable = false;
+        return null;
+      }
+      const json = (await res.json()) as RagVerifyResponse;
+      this._backendAvailable = true;
+      return json.result;
+    } catch (err) {
+      console.warn('[LegalRagSync] verifyIndexedDocument failed:', err);
+      this._backendAvailable = false;
+      return null;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  async syncAndVerifyChunks(
+    workspaceId: string,
+    caseId: string,
+    documentId: string,
+    chunks: SemanticChunk[],
+    normalizedSourceText: string
+  ): Promise<RagVerifyResult | null> {
+    await this.syncChunksToBackend(workspaceId, caseId, documentId, chunks);
+    const payload = await this.buildVerifyPayload(chunks, normalizedSourceText);
+    return await this.verifyIndexedDocument(
+      workspaceId,
+      caseId,
+      documentId,
+      payload
+    );
   }
 
   // ── Search ─────────────────────────────────────────────────────────────────
