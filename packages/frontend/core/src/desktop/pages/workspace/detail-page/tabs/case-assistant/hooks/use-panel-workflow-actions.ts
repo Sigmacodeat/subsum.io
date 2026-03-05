@@ -148,10 +148,11 @@ function buildDocumentPreflight(file: {
   }
 
   if (isPdf) {
-    reasonCodes.push('pdf-binary');
+    const isExplicitScanPdf = file.kind === 'scan-pdf';
+    reasonCodes.push(isExplicitScanPdf ? 'scan-pdf-binary' : 'pdf-binary');
     return {
       version: 'v1',
-      routeDecision: 'ocr_queue',
+      routeDecision: isExplicitScanPdf ? 'ocr_queue' : 'text_extract',
       riskLevel: 'warning',
       reasonCodes,
       mimeByHeader,

@@ -2652,14 +2652,39 @@ export class LegalCopilotWorkflowService extends Service {
           doc.content.startsWith('data:') && doc.content.includes(';base64,');
         const ocrEligible = isBase64 && isOcrEligibleDocument(doc);
         const preflightRoute = doc.preflight?.routeDecision;
+        const isImageBinary = normalizedMime.startsWith('image/');
+        const isScanPdf = doc.kind === 'scan-pdf';
+        const preflightRequestsOcrQueue = preflightRoute === 'ocr_queue';
+        const preflightOcrAllowedKind = isScanPdf || isImageBinary;
+
+        if (preflightRequestsOcrQueue && !preflightOcrAllowedKind) {
+          await this.orchestration.appendAuditEntry({
+            caseId: input.caseId,
+            workspaceId: input.workspaceId,
+            action: 'document.preflight.route_corrected',
+            severity: 'warning',
+            details:
+              `Preflight-Routing korrigiert für "${doc.title}": ` +
+              `ocr_queue → text_extract (normales PDF).`,
+            metadata: {
+              commitId,
+              documentId,
+              title: doc.title,
+              docKind: doc.kind,
+              sourceMimeType: normalizedMime,
+              preflightRoute: preflightRoute ?? 'unknown',
+            },
+          });
+        }
+
         // Fast-path OCR only for images and explicitly marked scan-pdfs.
         // Regular PDFs go through processDocumentAsync for text-layer extraction first.
         const isBinaryOcrCandidate =
           isBase64 &&
           remoteOcrGate.ok &&
-          (preflightRoute === 'ocr_queue' ||
-            doc.kind === 'scan-pdf' ||
-            normalizedMime.startsWith('image/'));
+          (isScanPdf ||
+            isImageBinary ||
+            (preflightRequestsOcrQueue && preflightOcrAllowedKind));
 
         // ── Duplikat-Check via Fingerprint ──
         const fingerprint = this.documentProcessingService.computeFingerprint(
