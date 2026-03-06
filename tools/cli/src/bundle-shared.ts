@@ -31,7 +31,12 @@ const httpProxyMiddlewareLogLevel = IN_CI ? 'silent' : 'error';
 
 // Reserve :3000 for the public marketing site by default.
 // Dashboard/web dev server can still be explicitly moved via PORT/DEV_PORT.
-const DEV_SERVER_PORT = Number(process.env.PORT ?? process.env.DEV_PORT ?? 8080);
+const DEV_SERVER_PORT = Number(
+  process.env.PORT ?? process.env.DEV_PORT ?? 8080
+);
+const DEV_API_SERVER_ORIGIN =
+  process.env.AFFINE_DEV_API_ORIGIN ??
+  `http://localhost:${process.env.AFFINE_SERVER_PORT ?? 3010}`;
 
 export const DEFAULT_DEV_SERVER_CONFIG: WebpackDevServerConfiguration = {
   host: '0.0.0.0',
@@ -76,18 +81,18 @@ export const DEFAULT_DEV_SERVER_CONFIG: WebpackDevServerConfiguration = {
     },
     {
       context: '/api',
-      target: 'http://localhost:3010',
+      target: DEV_API_SERVER_ORIGIN,
       logLevel: httpProxyMiddlewareLogLevel,
     },
     {
       context: '/socket.io',
-      target: 'http://localhost:3010',
+      target: DEV_API_SERVER_ORIGIN,
       ws: true,
       logLevel: httpProxyMiddlewareLogLevel,
     },
     {
       context: '/graphql',
-      target: 'http://localhost:3010',
+      target: DEV_API_SERVER_ORIGIN,
       logLevel: httpProxyMiddlewareLogLevel,
     },
   ],

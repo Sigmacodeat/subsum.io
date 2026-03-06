@@ -3383,6 +3383,7 @@ export class LegalCopilotWorkflowService extends Service {
         if (
           processingResult.processingStatus === 'failed' &&
           ocrEligible &&
+          !nonRecoverable &&
           remoteOcrGate.ok &&
           !activeOcrDocIds.has(record.id)
         ) {

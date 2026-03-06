@@ -50,11 +50,20 @@ import {
 } from '../../../../modules/case-assistant/services/document-repository-routing';
 import type { UploadedFile } from '../detail-page/tabs/case-assistant/sections/file-upload-zone';
 import { PremiumChatSection } from '../detail-page/tabs/case-assistant/sections/premium-chat-section';
+import { runChatUploadPipeline } from './chat-upload-pipeline';
 import * as styles from './index.css';
 
 function createId(prefix: string) {
   return `${prefix}:${Date.now().toString(36)}:${Math.random().toString(36).slice(2, 8)}`;
 }
+
+type ChatWorkflowService = LegalCopilotWorkflowService & {
+  processPendingOcr(
+    caseId: string,
+    workspaceId: string,
+    input?: { ocrRunId?: string }
+  ): Promise<Array<{ id?: string }>>;
+};
 
 const roleRank = {
   viewer: 0,
@@ -73,7 +82,9 @@ export const Component = () => {
   const workbench = useService(WorkbenchService).workbench;
   const caseAssistantService = useService(CaseAssistantService);
   const legalChatService = useService(LegalChatService);
-  const legalCopilotWorkflowService = useService(LegalCopilotWorkflowService);
+  const legalCopilotWorkflowService = useService(
+    LegalCopilotWorkflowService
+  ) as ChatWorkflowService;
   const casePlatformAdapterService = useService(CasePlatformAdapterService);
   const casePlatformOrchestrationService = useService(
     CasePlatformOrchestrationService
@@ -676,87 +687,21 @@ export const Component = () => {
         sourceSizeBytes?: number;
         sourceLastModifiedAt?: string;
         sourceRef: string;
+        folderPath?: string;
       }>,
       sourceRef: string,
       sourceType: 'upload' | 'folder' = 'upload'
     ) => {
-      if (!selectedCaseId) {
-        return [] as Awaited<
-          ReturnType<typeof legalCopilotWorkflowService.intakeDocuments>
-        >;
-      }
-
-      let jobId: string | null = null;
-      try {
-        const job = await casePlatformOrchestrationService.enqueueIngestionJob({
-          caseId: selectedCaseId,
-          workspaceId,
-          sourceType,
-          sourceRef,
-        });
-        jobId = job.id;
-
-        await casePlatformOrchestrationService.updateJobStatus({
-          jobId,
-          status: 'running',
-          progress: 3,
-        });
-
-        const chunks: Array<typeof documents> = [];
-        for (let i = 0; i < documents.length; i += CHAT_UPLOAD_CHUNK_SIZE) {
-          chunks.push(documents.slice(i, i + CHAT_UPLOAD_CHUNK_SIZE));
-        }
-
-        const ingested: Awaited<
-          ReturnType<typeof legalCopilotWorkflowService.intakeDocuments>
-        > = [];
-        for (let index = 0; index < chunks.length; index++) {
-          const chunk = chunks[index];
-          const chunkResult = await legalCopilotWorkflowService.intakeDocuments(
-            {
-              caseId: selectedCaseId,
-              workspaceId,
-              documents: chunk,
-            }
-          );
-          ingested.push(...chunkResult);
-
-          const progress = Math.min(
-            95,
-            Math.round(((index + 1) / chunks.length) * 92) + 3
-          );
-          await casePlatformOrchestrationService.updateJobStatus({
-            jobId,
-            status: 'running',
-            progress,
-          });
-        }
-
-        const failedCount = ingested.filter(
-          item => item.processingStatus === 'failed'
-        ).length;
-        await casePlatformOrchestrationService.updateJobStatus({
-          jobId,
-          status: failedCount > 0 ? 'failed' : 'completed',
-          progress: 100,
-          errorMessage:
-            failedCount > 0
-              ? `${failedCount} Datei(en) in der Verarbeitung fehlgeschlagen.`
-              : undefined,
-        });
-
-        return ingested;
-      } catch (error) {
-        if (jobId) {
-          await casePlatformOrchestrationService.updateJobStatus({
-            jobId,
-            status: 'failed',
-            progress: 100,
-            errorMessage: 'Upload über Chat fehlgeschlagen',
-          });
-        }
-        throw error;
-      }
+      return await runChatUploadPipeline({
+        documents,
+        selectedCaseId,
+        workspaceId,
+        sourceRef,
+        sourceType,
+        chatUploadChunkSize: CHAT_UPLOAD_CHUNK_SIZE,
+        legalCopilotWorkflowService,
+        casePlatformOrchestrationService,
+      });
     },
     [
       casePlatformOrchestrationService,

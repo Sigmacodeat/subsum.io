@@ -4,17 +4,16 @@ import { resolve } from 'node:path';
 
 import { skipOnboarding, test } from '@affine-test/kit/playwright';
 import { openHomePage } from '@affine-test/kit/utils/load-page';
-import {
-  clickNewPageButton,
-  waitForEditorLoad,
-} from '@affine-test/kit/utils/page-logic';
 import { expect } from '@playwright/test';
 
 declare global {
   interface Window {
     __AFFINE_E2E__?: {
       getWorkspaceId: () => string;
-      ensureCase: (input: { caseId: string; title: string }) => Promise<{ caseId: string; workspaceId: string }>;
+      ensureCase: (input: {
+        caseId: string;
+        title: string;
+      }) => Promise<{ caseId: string; workspaceId: string }>;
       intakeDocuments: (input: {
         caseId: string;
         documents: Array<{
@@ -28,7 +27,10 @@ declare global {
           folderPath?: string;
         }>;
       }) => Promise<any>;
-      drainOcr: (input: { caseId: string; maxRounds?: number }) => Promise<any[]>;
+      drainOcr: (input: {
+        caseId: string;
+        maxRounds?: number;
+      }) => Promise<any[]>;
       snapshotCaseState: (input: { caseId: string }) => Promise<{
         workspaceId: string;
         documentCount: number;
@@ -43,9 +45,37 @@ declare global {
       }>;
 
       analyzeCase: (input: { caseId: string }) => Promise<any>;
+      buildChatContext: (input: {
+        caseId: string;
+        query: string;
+        mode?:
+          | 'general'
+          | 'strategie'
+          | 'subsumtion'
+          | 'gegner'
+          | 'beweislage'
+          | 'fristen'
+          | 'normen';
+      }) => Promise<{
+        relevantChunks: Array<{
+          documentId: string;
+          documentTitle: string;
+          text: string;
+          relevanceScore: number;
+        }>;
+        findingsSummary: string;
+        activeNorms: string[];
+        deadlineWarnings: string[];
+      }>;
 
-      getOcrProviderConfig: () => Promise<{ endpoint: string; hasToken: boolean }>;
-      setOcrProviderConfig: (input: { endpoint?: string; token?: string }) => Promise<{ endpoint: string; hasToken: boolean }>;
+      getOcrProviderConfig: () => Promise<{
+        endpoint: string;
+        hasToken: boolean;
+      }>;
+      setOcrProviderConfig: (input: {
+        endpoint?: string;
+        token?: string;
+      }) => Promise<{ endpoint: string; hasToken: boolean }>;
     };
   }
 }
@@ -56,7 +86,9 @@ const MAX_PDFS = Number.parseInt(process.env.MAX_PDFS ?? '50', 10);
 const BATCH_SIZE = Number.parseInt(process.env.BATCH_SIZE ?? '10', 10);
 const MAX_OCR_ROUNDS = Number.parseInt(process.env.MAX_OCR_ROUNDS ?? '80', 10);
 const MIN_TEXT_CHARS = Number.parseInt(process.env.MIN_TEXT_CHARS ?? '0', 10);
-const MIN_INDEXED_RATIO = Number.parseFloat(process.env.MIN_INDEXED_RATIO ?? '0');
+const MIN_INDEXED_RATIO = Number.parseFloat(
+  process.env.MIN_INDEXED_RATIO ?? '0'
+);
 const OCR_ENDPOINT = (process.env.OCR_ENDPOINT ?? '').trim();
 const OCR_TOKEN = (process.env.OCR_TOKEN ?? '').trim();
 const SMOKE_PDF_REGEX = (process.env.SMOKE_PDF_REGEX ?? '').trim();
@@ -115,7 +147,10 @@ test.describe('OCR Bulk PDF Ingestion — Desktop "Akt neu"', () => {
     await skipOnboarding(context);
   });
 
-  test('ingests all PDFs, auto-OCR when needed, and persists hybrid state consistently', async ({ page, workspace }) => {
+  test('ingests all PDFs, auto-OCR when needed, and persists hybrid state consistently', async ({
+    page,
+    workspace,
+  }) => {
     test.setTimeout(BULK_OCR_TIMEOUT_MS);
 
     // If we run a smoke selection, we must list more than MAX_PDFS first,
@@ -138,20 +173,24 @@ test.describe('OCR Bulk PDF Ingestion — Desktop "Akt neu"', () => {
     expect(pdfFiles.length).toBeGreaterThan(0);
 
     await openHomePage(page);
-    await waitForEditorLoad(page);
-    await clickNewPageButton(page);
-    await workspace.current();
-
     // Ensure E2E bridge exists (this is our readiness signal on :3000)
-    await page.waitForFunction(() => !!window.__AFFINE_E2E__, null, { timeout: 60_000 });
+    await page.waitForFunction(() => !!window.__AFFINE_E2E__, null, {
+      timeout: 60_000,
+    });
 
-    await page.waitForFunction(() => {
-      try {
-        return !!window.__AFFINE_E2E__?.getWorkspaceId();
-      } catch {
-        return false;
-      }
-    }, null, { timeout: 60_000 });
+    await page.waitForFunction(
+      () => {
+        try {
+          return !!window.__AFFINE_E2E__?.getWorkspaceId();
+        } catch {
+          return false;
+        }
+      },
+      null,
+      { timeout: 60_000 }
+    );
+
+    await workspace.current();
 
     const caseId = toCaseId('akt-neu');
 
@@ -191,7 +230,9 @@ test.describe('OCR Bulk PDF Ingestion — Desktop "Akt neu"', () => {
             throw err;
           }
           await page.waitForLoadState('domcontentloaded', { timeout: 60_000 });
-          await page.waitForFunction(() => !!window.__AFFINE_E2E__, null, { timeout: 60_000 });
+          await page.waitForFunction(() => !!window.__AFFINE_E2E__, null, {
+            timeout: 60_000,
+          });
         }
       }
       throw lastErr;
@@ -206,10 +247,14 @@ test.describe('OCR Bulk PDF Ingestion — Desktop "Akt neu"', () => {
       console.log('[bulk-ocr-ticker]', { tSec: 0, phase: 'started' });
       while (!tickerStop) {
         try {
-          const snap = await resilientEvaluate(async cid => {
-            const api = window.__AFFINE_E2E__!;
-            return await api.snapshotCaseState({ caseId: cid });
-          }, caseId, 1);
+          const snap = await resilientEvaluate(
+            async cid => {
+              const api = window.__AFFINE_E2E__!;
+              return await api.snapshotCaseState({ caseId: cid });
+            },
+            caseId,
+            1
+          );
 
           const jobs = (snap.ocrJobs ?? []) as any[];
           const running = jobs.filter(j => j.status === 'running');
@@ -247,7 +292,9 @@ test.describe('OCR Bulk PDF Ingestion — Desktop "Akt neu"', () => {
             completed: completed.length,
             failed: failed.length,
             avgProgress: Number(avgProgress.toFixed(1)),
-            maxHeartbeatAgeSec: maxHeartbeatAgeMs ? Math.round(maxHeartbeatAgeMs / 1000) : 0,
+            maxHeartbeatAgeSec: maxHeartbeatAgeMs
+              ? Math.round(maxHeartbeatAgeMs / 1000)
+              : 0,
           });
 
           // Stuck detection: if we have running jobs and no heartbeat updates for 75s → fail fast
@@ -313,9 +360,16 @@ test.describe('OCR Bulk PDF Ingestion — Desktop "Akt neu"', () => {
         async ({ cid }) => {
           const api = window.__AFFINE_E2E__!;
           const snapshot = await api.snapshotCaseState({ caseId: cid });
-          if (!snapshot || !snapshot.documents || snapshot.documents.length === 0) return false;
+          if (
+            !snapshot ||
+            !snapshot.documents ||
+            snapshot.documents.length === 0
+          )
+            return false;
           return snapshot.documents.every(d => {
-            const hasReport = snapshot.qualityReports.some(r => r.documentId === d.id);
+            const hasReport = snapshot.qualityReports.some(
+              r => r.documentId === d.id
+            );
             return hasReport || d.status === 'failed';
           });
         },
@@ -351,7 +405,9 @@ test.describe('OCR Bulk PDF Ingestion — Desktop "Akt neu"', () => {
         if (openJobs.length > 0) return false;
         // Quality reports should exist for all indexed/ready documents.
         // Failed OCR documents may legitimately have no report.
-        const reportsByDoc = new Set((snap.qualityReports ?? []).map((r: any) => r.documentId));
+        const reportsByDoc = new Set(
+          (snap.qualityReports ?? []).map((r: any) => r.documentId)
+        );
         return (snap.documents ?? []).every(
           (d: any) => d.status === 'failed' || reportsByDoc.has(d.id)
         );
@@ -371,22 +427,36 @@ test.describe('OCR Bulk PDF Ingestion — Desktop "Akt neu"', () => {
     // ── Metrics summary (quality/coverage) ──
     const indexedDocs = snapshot.documents.filter(d => d.status === 'indexed');
     const failedDocs = snapshot.documents.filter(d => d.status === 'failed');
-    const pendingDocs = snapshot.documents.filter(d => d.status === 'ocr_pending' || d.status === 'ocr_running');
-    const totalTextChars = snapshot.documents.reduce((sum, d) => sum + String(d.normalizedText ?? '').length, 0);
+    const pendingDocs = snapshot.documents.filter(
+      d => d.status === 'ocr_pending' || d.status === 'ocr_running'
+    );
+    const totalTextChars = snapshot.documents.reduce(
+      (sum, d) => sum + String(d.normalizedText ?? '').length,
+      0
+    );
     const totalChunks = snapshot.semanticChunks.length;
     const totalReports = snapshot.qualityReports.length;
-    const totalEntities = snapshot.documents.reduce((sum, d) => sum + (Number(d.entityCount) || 0), 0);
-    const indexedRatio = snapshot.documents.length > 0 ? indexedDocs.length / snapshot.documents.length : 0;
+    const totalEntities = snapshot.documents.reduce(
+      (sum, d) => sum + (Number(d.entityCount) || 0),
+      0
+    );
+    const indexedRatio =
+      snapshot.documents.length > 0
+        ? indexedDocs.length / snapshot.documents.length
+        : 0;
 
-    const crashEntries = (snapshot.auditEntries ?? []).filter((e: any) => 
-      e.action?.includes('crash') || e.severity === 'error'
+    const crashEntries = (snapshot.auditEntries ?? []).filter(
+      (e: any) => e.action?.includes('crash') || e.severity === 'error'
     );
     if (crashEntries.length > 0) {
-      console.log('[bulk-ocr-crashes]', crashEntries.slice(0, 5).map((e: any) => ({
-        action: e.action,
-        details: e.details,
-        metadata: e.metadata,
-      })));
+      console.log(
+        '[bulk-ocr-crashes]',
+        crashEntries.slice(0, 5).map((e: any) => ({
+          action: e.action,
+          details: e.details,
+          metadata: e.metadata,
+        }))
+      );
     }
 
     // Sample failed docs for debugging
@@ -416,24 +486,35 @@ test.describe('OCR Bulk PDF Ingestion — Desktop "Akt neu"', () => {
     const fidelityStats = indexedDocs
       .filter((d: any) => d.processingStatus !== 'failed')
       .map((d: any) => {
-        const docChunks = snapshot.semanticChunks.filter((c: any) => c.documentId === d.id);
-        const totalChunkChars = docChunks.reduce((s: number, c: any) => s + String(c.text ?? '').length, 0);
+        const docChunks = snapshot.semanticChunks.filter(
+          (c: any) => c.documentId === d.id
+        );
+        const totalChunkChars = docChunks.reduce(
+          (s: number, c: any) => s + String(c.text ?? '').length,
+          0
+        );
         const normalizedLen = String(d.normalizedText ?? '').length;
         if (normalizedLen <= 100) return null;
         const estimatedOverlap = Math.max(
           0,
           (docChunks.length - 1) * CHUNK_OVERLAP_CHARS
         );
-        const effectiveChunkChars = Math.max(0, totalChunkChars - estimatedOverlap);
+        const effectiveChunkChars = Math.max(
+          0,
+          totalChunkChars - estimatedOverlap
+        );
         return effectiveChunkChars / normalizedLen;
       })
       .filter((r: number | null): r is number => r !== null);
 
     const avgFidelityRatio =
       fidelityStats.length > 0
-        ? fidelityStats.reduce((s: number, r: number) => s + r, 0) / fidelityStats.length
+        ? fidelityStats.reduce((s: number, r: number) => s + r, 0) /
+          fidelityStats.length
         : 1;
-    const integrityViolations = fidelityStats.filter((r: number) => r < 0.75 || r > 1.15).length;
+    const integrityViolations = fidelityStats.filter(
+      (r: number) => r < 0.75 || r > 1.15
+    ).length;
 
     // Print a compact report for CI/local debugging
     console.log('[bulk-ocr-metrics]', {
@@ -492,19 +573,32 @@ test.describe('OCR Bulk PDF Ingestion — Desktop "Akt neu"', () => {
 
       // If indexed/ready, must have chunks
       if (doc.status === 'indexed' && doc.processingStatus !== 'failed') {
-        const docChunks = snapshot.semanticChunks.filter(c => c.documentId === doc.id);
+        const docChunks = snapshot.semanticChunks.filter(
+          c => c.documentId === doc.id
+        );
         expect(docChunks.length).toBeGreaterThan(0);
-        const emptyChunks = docChunks.filter(c => String(c.text ?? '').trim().length === 0);
+        const emptyChunks = docChunks.filter(
+          c => String(c.text ?? '').trim().length === 0
+        );
         expect(emptyChunks.length).toBe(0);
 
         // ── 1:1 Content Fidelity Gate ──
         // Total chars in semantic chunks must be within 75%–125% of normalized source.
         // This verifies that chunking preserved the content without loss or corruption.
-        const totalChunkChars = docChunks.reduce((s, c) => s + String(c.text ?? '').length, 0);
+        const totalChunkChars = docChunks.reduce(
+          (s, c) => s + String(c.text ?? '').length,
+          0
+        );
         const normalizedLen = String(doc.normalizedText ?? '').length;
         if (normalizedLen > 100) {
-          const estimatedOverlap = Math.max(0, (docChunks.length - 1) * CHUNK_OVERLAP_CHARS);
-          const effectiveChunkChars = Math.max(0, totalChunkChars - estimatedOverlap);
+          const estimatedOverlap = Math.max(
+            0,
+            (docChunks.length - 1) * CHUNK_OVERLAP_CHARS
+          );
+          const effectiveChunkChars = Math.max(
+            0,
+            totalChunkChars - estimatedOverlap
+          );
           const fidelityRatio = effectiveChunkChars / normalizedLen;
           expect(fidelityRatio).toBeGreaterThanOrEqual(0.75);
           expect(fidelityRatio).toBeLessThanOrEqual(1.15);
@@ -513,8 +607,61 @@ test.describe('OCR Bulk PDF Ingestion — Desktop "Akt neu"', () => {
     }
 
     // OCR jobs must not be stuck in queued/running
-    const openJobs = snapshot.ocrJobs.filter(j => j.status === 'queued' || j.status === 'running');
+    const openJobs = snapshot.ocrJobs.filter(
+      j => j.status === 'queued' || j.status === 'running'
+    );
     expect(openJobs.length).toBe(0);
+
+    const retrievalCandidate = indexedDocs.find(
+      (doc: any) => String(doc.normalizedText ?? '').trim().length >= 80
+    );
+    if (retrievalCandidate) {
+      const normalizedText = String(
+        retrievalCandidate.normalizedText ?? ''
+      ).trim();
+      const sentenceSeed =
+        normalizedText
+          .split(/(?<=[.!?])\s+/)
+          .map(item => item.trim())
+          .find(item => item.length >= 30) ?? normalizedText.slice(0, 180);
+      const queryTokens = sentenceSeed
+        .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+        .split(/\s+/)
+        .map(token => token.trim())
+        .filter(token => token.length >= 5)
+        .slice(0, 8);
+      const retrievalQuery = queryTokens.join(' ');
+
+      expect(retrievalQuery.length).toBeGreaterThan(0);
+
+      const retrieval = await page.evaluate(
+        async ({ cid, query }) => {
+          const api = window.__AFFINE_E2E__!;
+          return await api.buildChatContext({
+            caseId: cid,
+            query,
+            mode: 'general',
+          });
+        },
+        { cid: caseId, query: retrievalQuery }
+      );
+
+      expect(Array.isArray(retrieval.relevantChunks)).toBe(true);
+      expect(retrieval.relevantChunks.length).toBeGreaterThan(0);
+      expect(
+        retrieval.relevantChunks.some(
+          chunk =>
+            chunk.documentId === retrievalCandidate.id ||
+            chunk.documentTitle === retrievalCandidate.title
+        )
+      ).toBe(true);
+      expect(
+        retrieval.relevantChunks.some(
+          chunk =>
+            typeof chunk.relevanceScore === 'number' && chunk.relevanceScore > 0
+        )
+      ).toBe(true);
+    }
 
     // At least some OCR activity should exist for scanned PDFs
     // (Not strict, but helps detect regression where OCR never triggers)

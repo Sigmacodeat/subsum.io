@@ -1,4 +1,4 @@
-import { inflateSync } from 'fflate';
+import { decompressSync } from 'fflate';
 import { firstValueFrom } from 'rxjs';
 
 import { Service } from '../../../../../../common/infra/src/framework/core';
@@ -385,7 +385,7 @@ function extractFlateDecodeStreams(
       /\/Filter\s*\[[^\]]*\/FlateDecode\b/.test(header);
     if (isFlate) {
       try {
-        const inflated = inflateSync(decodeBinaryStringToU8(streamBody));
+        const inflated = decompressSync(decodeBinaryStringToU8(streamBody));
         const inflatedText = decodeU8ToLatin1String(inflated);
         extractTextFromPdfContentStream(inflatedText, textSegments);
         if (textSegments.length > 0) break;

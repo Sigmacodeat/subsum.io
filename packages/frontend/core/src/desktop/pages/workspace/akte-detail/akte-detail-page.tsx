@@ -1462,7 +1462,7 @@ export const AkteDetailPage = () => {
 
     const currentWorkflowEvents = workflowEvents;
     const deadlineEvents = openDeadlines.slice(0, 6).map(deadline => {
-      const days = deadlineDays(deadline.dueAt);
+      const days = daysUntil(deadline.dueAt);
       return {
         id: `deadline-${deadline.id}`,
         at: new Date(deadline.dueAt).getTime(),

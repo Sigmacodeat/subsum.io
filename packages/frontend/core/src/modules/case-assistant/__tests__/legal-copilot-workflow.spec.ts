@@ -221,6 +221,25 @@ describe('LegalCopilotWorkflowService OCR queueing', () => {
       },
     };
 
+    const ragSync = {
+      syncChunksToBackend: vi.fn().mockResolvedValue(undefined),
+      syncAndVerifyChunks: vi.fn().mockResolvedValue({
+        ok: true,
+        expectedCount: 1,
+        persistedCount: 1,
+        withEmbeddingCount: 1,
+        matchedCount: 1,
+        missingChunkIndexes: [],
+        hashMismatchIndexes: [],
+        lengthMismatchIndexes: [],
+        sourceHashMatched: true,
+        expectedSourceHash: 'source-hash',
+        persistedSourceHash: 'source-hash',
+        coverage: 1,
+      }),
+      isBackendAvailable: true,
+    };
+
     const service = new LegalCopilotWorkflowService(
       orchestration as any,
       workspaceService as any,
@@ -238,7 +257,7 @@ describe('LegalCopilotWorkflowService OCR queueing', () => {
       {} as any,
       {} as any,
       creditGateway as any,
-      { syncChunksToBackend: vi.fn().mockResolvedValue(undefined) } as any,
+      ragSync as any,
       {} as any
     );
 
@@ -250,6 +269,7 @@ describe('LegalCopilotWorkflowService OCR queueing', () => {
       residencyPolicyService,
       providerSettingsService,
       workspaceService,
+      ragSync,
     };
   }
 
@@ -452,6 +472,524 @@ describe('LegalCopilotWorkflowService OCR queueing', () => {
     );
   });
 
+  test('intakeDocuments marks document ragIndexed true when backend verify succeeds', async () => {
+    const { service, orchestration, documentProcessingService, ragSync } =
+      createHarness();
+    const now = new Date().toISOString();
+
+    const chunks: SemanticChunk[] = [
+      {
+        id: 'chunk-rag-ok-1',
+        documentId: 'doc-rag-ok-1',
+        caseId,
+        workspaceId,
+        index: 0,
+        text: '§ 433 BGB Kaufvertrag und Zahlungsanspruch.',
+        category: 'rechtsausfuehrung',
+        keywords: ['433', 'kaufvertrag'],
+        qualityScore: 0.93,
+        extractedEntities: {
+          persons: [],
+          organizations: [],
+          dates: [],
+          legalRefs: ['§ 433 BGB'],
+          amounts: [],
+          caseNumbers: [],
+          addresses: [],
+          ibans: [],
+        },
+        createdAt: now,
+      },
+    ];
+
+    documentProcessingService.processDocumentAsync.mockResolvedValue({
+      ...createProcessingResult({
+        documentId: 'doc-rag-ok-1',
+        caseId,
+        workspaceId,
+        processingStatus: 'ready',
+        extractionEngine: 'pdf-text',
+        chunks,
+      }),
+      normalizedText: '§ 433 BGB Kaufvertrag und Zahlungsanspruch.',
+    });
+
+    const records = await service.intakeDocuments({
+      caseId,
+      workspaceId,
+      documents: [
+        {
+          id: 'doc-rag-ok-1',
+          title: 'kaufvertrag.pdf',
+          kind: 'pdf',
+          content: 'data:application/pdf;base64,AAAA',
+          sourceMimeType: 'application/pdf',
+          sourceRef: 'upload:kaufvertrag',
+        },
+      ],
+    });
+
+    expect(records).toHaveLength(1);
+    expect(ragSync.syncAndVerifyChunks).toHaveBeenCalledWith(
+      workspaceId,
+      caseId,
+      'doc-rag-ok-1',
+      chunks,
+      '§ 433 BGB Kaufvertrag und Zahlungsanspruch.'
+    );
+
+    await Promise.resolve();
+
+    expect(orchestration.upsertLegalDocument).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'doc-rag-ok-1',
+        ragIndexed: true,
+      }),
+      expect.objectContaining({ skipWorkflowEvent: true })
+    );
+  });
+
+  test('intakeDocuments marks document ragIndexed false and audits when backend verify fails', async () => {
+    const { service, orchestration, documentProcessingService, ragSync } =
+      createHarness();
+    const now = new Date().toISOString();
+
+    const chunks: SemanticChunk[] = [
+      {
+        id: 'chunk-rag-fail-1',
+        documentId: 'doc-rag-fail-1',
+        caseId,
+        workspaceId,
+        index: 0,
+        text: 'Mahnung mit Fristsetzung bis zum 10.03.2026.',
+        category: 'sachverhalt',
+        keywords: ['mahnung', 'fristsetzung'],
+        qualityScore: 0.88,
+        extractedEntities: {
+          persons: [],
+          organizations: [],
+          dates: ['10.03.2026'],
+          legalRefs: [],
+          amounts: [],
+          caseNumbers: [],
+          addresses: [],
+          ibans: [],
+        },
+        createdAt: now,
+      },
+    ];
+
+    ragSync.syncAndVerifyChunks.mockResolvedValueOnce({
+      ok: false,
+      expectedCount: 1,
+      persistedCount: 0,
+      withEmbeddingCount: 0,
+      matchedCount: 0,
+      missingChunkIndexes: [0],
+      hashMismatchIndexes: [],
+      lengthMismatchIndexes: [],
+      sourceHashMatched: false,
+      expectedSourceHash: 'expected-hash',
+      persistedSourceHash: 'persisted-hash',
+      coverage: 0,
+    });
+
+    documentProcessingService.processDocumentAsync.mockResolvedValue({
+      ...createProcessingResult({
+        documentId: 'doc-rag-fail-1',
+        caseId,
+        workspaceId,
+        processingStatus: 'ready',
+        extractionEngine: 'pdf-text',
+        chunks,
+      }),
+      normalizedText: 'Mahnung mit Fristsetzung bis zum 10.03.2026.',
+    });
+
+    const records = await service.intakeDocuments({
+      caseId,
+      workspaceId,
+      documents: [
+        {
+          id: 'doc-rag-fail-1',
+          title: 'mahnung.pdf',
+          kind: 'pdf',
+          content: 'data:application/pdf;base64,BBBB',
+          sourceMimeType: 'application/pdf',
+          sourceRef: 'upload:mahnung',
+        },
+      ],
+    });
+
+    expect(records).toHaveLength(1);
+
+    await Promise.resolve();
+
+    expect(orchestration.upsertLegalDocument).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'doc-rag-fail-1',
+        ragIndexed: false,
+      }),
+      expect.objectContaining({ skipWorkflowEvent: true })
+    );
+    expect(orchestration.appendAuditEntry).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'document.rag.verify_failed',
+        severity: 'warning',
+        metadata: expect.objectContaining({
+          documentId: 'doc-rag-fail-1',
+          expectedCount: '1',
+          persistedCount: '0',
+          matchedCount: '0',
+          sourceHashMatched: 'false',
+        }),
+      })
+    );
+  });
+
+  test('intakeDocuments audits when backend verify is unavailable', async () => {
+    const { service, orchestration, documentProcessingService, ragSync } =
+      createHarness();
+    const now = new Date().toISOString();
+
+    const chunks: SemanticChunk[] = [
+      {
+        id: 'chunk-rag-unavailable-1',
+        documentId: 'doc-rag-unavailable-1',
+        caseId,
+        workspaceId,
+        index: 0,
+        text: 'Beweisfoto mit OCR-erkanntem Vermerk.',
+        category: 'beweis',
+        keywords: ['beweisfoto', 'ocr'],
+        qualityScore: 0.81,
+        extractedEntities: {
+          persons: [],
+          organizations: [],
+          dates: [],
+          legalRefs: [],
+          amounts: [],
+          caseNumbers: [],
+          addresses: [],
+          ibans: [],
+        },
+        createdAt: now,
+      },
+    ];
+
+    ragSync.syncAndVerifyChunks.mockResolvedValueOnce(null);
+
+    documentProcessingService.processDocumentAsync.mockResolvedValue({
+      ...createProcessingResult({
+        documentId: 'doc-rag-unavailable-1',
+        caseId,
+        workspaceId,
+        processingStatus: 'ready',
+        extractionEngine: 'remote-ocr',
+        chunks,
+      }),
+      normalizedText: 'Beweisfoto mit OCR-erkanntem Vermerk.',
+    });
+
+    const records = await service.intakeDocuments({
+      caseId,
+      workspaceId,
+      documents: [
+        {
+          id: 'doc-rag-unavailable-1',
+          title: 'beweisfoto.png',
+          kind: 'pdf',
+          content: 'data:application/pdf;base64,Q0NDQw==',
+          sourceMimeType: 'application/pdf',
+          sourceRef: 'upload:beweisfoto',
+        },
+      ],
+    });
+
+    expect(records).toHaveLength(1);
+    expect(ragSync.syncAndVerifyChunks).toHaveBeenCalledWith(
+      workspaceId,
+      caseId,
+      'doc-rag-unavailable-1',
+      chunks,
+      'Beweisfoto mit OCR-erkanntem Vermerk.'
+    );
+
+    await Promise.resolve();
+    await Promise.resolve();
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    expect(orchestration.appendAuditEntry).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'document.rag.verify_unavailable',
+        severity: 'warning',
+        metadata: expect.objectContaining({
+          documentId: 'doc-rag-unavailable-1',
+          title: 'beweisfoto.png',
+        }),
+      })
+    );
+  });
+
+  test('intakeDocuments does not enqueue OCR for encrypted PDFs and returns failed record', async () => {
+    const { service, orchestration, documentProcessingService } =
+      createHarness();
+
+    documentProcessingService.processDocumentAsync.mockResolvedValue(
+      createProcessingResult({
+        documentId: 'doc-pdf-encrypted-1',
+        caseId,
+        workspaceId,
+        processingStatus: 'failed',
+        extractionEngine: 'pdf-encrypted',
+      })
+    );
+
+    const records = await service.intakeDocuments({
+      caseId,
+      workspaceId,
+      documents: [
+        {
+          id: 'doc-pdf-encrypted-1',
+          title: 'schutz.pdf',
+          kind: 'pdf',
+          content: 'data:application/pdf;base64,RU5DUllQVEVE',
+          sourceMimeType: 'application/pdf',
+          sourceRef: 'upload:encrypted',
+        },
+      ],
+    });
+
+    expect(records).toHaveLength(1);
+    expect(records[0].status).toBe('failed');
+    expect(records[0].processingStatus).toBe('failed');
+    expect(orchestration.upsertOcrJob).not.toHaveBeenCalled();
+    expect(orchestration.upsertLegalDocument).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'doc-pdf-encrypted-1',
+        status: 'failed',
+        extractionEngine: 'pdf-encrypted',
+      })
+    );
+  });
+
+  test('intakeDocuments routes PDF without text layer into OCR queue', async () => {
+    const { service, orchestration, documentProcessingService } =
+      createHarness();
+
+    documentProcessingService.processDocumentAsync.mockResolvedValue(
+      createProcessingResult({
+        documentId: 'doc-pdf-no-text-1',
+        caseId,
+        workspaceId,
+        processingStatus: 'failed',
+        extractionEngine: 'pdf-no-text-layer',
+      })
+    );
+
+    const records = await service.intakeDocuments({
+      caseId,
+      workspaceId,
+      documents: [
+        {
+          id: 'doc-pdf-no-text-1',
+          title: 'scan-ohne-textlayer.pdf',
+          kind: 'pdf',
+          content: 'data:application/pdf;base64,Tk9fVEVYVF9MQVlFUg==',
+          sourceMimeType: 'application/pdf',
+          sourceRef: 'upload:no-text-layer',
+        },
+      ],
+    });
+
+    expect(records).toHaveLength(1);
+    expect(records[0].status).toBe('ocr_pending');
+    expect(records[0].processingStatus).toBe('extracting');
+    expect(orchestration.upsertOcrJob).toHaveBeenCalledWith(
+      expect.objectContaining({
+        documentId: 'doc-pdf-no-text-1',
+        status: 'queued',
+      })
+    );
+  });
+
+  test('intakeDocuments audits fidelity warnings for low-yield OCR results', async () => {
+    const { service, orchestration, documentProcessingService } =
+      createHarness();
+    const now = new Date().toISOString();
+
+    const chunks: SemanticChunk[] = [
+      {
+        id: 'chunk-fidelity-1',
+        documentId: 'doc-fidelity-1',
+        caseId,
+        workspaceId,
+        index: 0,
+        text: 'Kurztext',
+        category: 'beweis',
+        keywords: ['ocr'],
+        qualityScore: 0.4,
+        extractedEntities: {
+          persons: [],
+          organizations: [],
+          dates: [],
+          legalRefs: [],
+          amounts: [],
+          caseNumbers: [],
+          addresses: [],
+          ibans: [],
+        },
+        createdAt: now,
+      },
+    ];
+
+    documentProcessingService.processDocumentAsync.mockResolvedValue({
+      ...createProcessingResult({
+        documentId: 'doc-fidelity-1',
+        caseId,
+        workspaceId,
+        processingStatus: 'needs_review',
+        extractionEngine: 'remote-ocr',
+        chunks,
+      }),
+      normalizedText: 'Kurztext',
+      contentFidelity: {
+        extractedChars: 8,
+        normalizedChars: 8,
+        chunkCount: 1,
+        totalChunkChars: 8,
+        estimatedOverlapChars: 0,
+        effectiveChunkChars: 8,
+        fidelityRatio: 0.58,
+        extractionYieldPerPage: 12,
+        suspiciousLowYield: true,
+        suspiciousHighRatio: false,
+        contentIntegrityOk: false,
+      },
+    });
+
+    const records = await service.intakeDocuments({
+      caseId,
+      workspaceId,
+      documents: [
+        {
+          id: 'doc-fidelity-1',
+          title: 'schlechter-scan.pdf',
+          kind: 'pdf',
+          content: 'data:application/pdf;base64,TE9XX1lJRUxE',
+          sourceMimeType: 'application/pdf',
+          sourceRef: 'upload:low-yield',
+        },
+      ],
+    });
+
+    expect(records).toHaveLength(1);
+    expect(records[0].processingStatus).toBe('needs_review');
+    expect(orchestration.appendAuditEntry).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'document.fidelity.warning',
+        severity: 'warning',
+        metadata: expect.objectContaining({
+          documentId: 'doc-fidelity-1',
+          extractionEngine: 'remote-ocr',
+        }),
+      })
+    );
+  });
+
+  test('intakeDocuments marks document failed when semantic chunk persistence fails', async () => {
+    const { service, orchestration, documentProcessingService } =
+      createHarness();
+    const now = new Date().toISOString();
+
+    const chunks: SemanticChunk[] = [
+      {
+        id: 'chunk-persist-fail-1',
+        documentId: 'doc-persist-fail-1',
+        caseId,
+        workspaceId,
+        index: 0,
+        text: 'Relevanter Vertragsinhalt.',
+        category: 'vertrag',
+        keywords: ['vertrag'],
+        qualityScore: 0.91,
+        extractedEntities: {
+          persons: [],
+          organizations: [],
+          dates: [],
+          legalRefs: [],
+          amounts: [],
+          caseNumbers: [],
+          addresses: [],
+          ibans: [],
+        },
+        createdAt: now,
+      },
+    ];
+
+    documentProcessingService.processDocumentAsync.mockResolvedValue({
+      ...createProcessingResult({
+        documentId: 'doc-persist-fail-1',
+        caseId,
+        workspaceId,
+        processingStatus: 'ready',
+        extractionEngine: 'pdf-text',
+        chunks,
+      }),
+      normalizedText: 'Relevanter Vertragsinhalt.',
+    });
+    orchestration.upsertSemanticChunks = vi
+      .fn()
+      .mockRejectedValue(new Error('disk full'));
+
+    const records = await service.intakeDocuments({
+      caseId,
+      workspaceId,
+      documents: [
+        {
+          id: 'doc-persist-fail-1',
+          title: 'vertrag.pdf',
+          kind: 'pdf',
+          content: 'data:application/pdf;base64,Q0hVTktfRkFJTA==',
+          sourceMimeType: 'application/pdf',
+          sourceRef: 'upload:vertrag',
+        },
+      ],
+    });
+
+    expect(records).toHaveLength(1);
+    expect(records[0].status).toBe('failed');
+    expect(records[0].processingStatus).toBe('failed');
+    expect(
+      (orchestration.upsertLegalDocument as any).mock.calls.some(
+        ([payload]: [
+          {
+            id: string;
+            status: string;
+            processingStatus: string;
+            processingError?: string;
+          },
+        ]) =>
+          payload.id === 'doc-persist-fail-1' &&
+          payload.status === 'failed' &&
+          payload.processingStatus === 'failed' &&
+          (payload.processingError ?? '').includes(
+            'Semantic chunk persistence failed'
+          )
+      )
+    ).toBe(true);
+    expect(orchestration.appendAuditEntry).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'document.semantic_chunks.persist_failed',
+        severity: 'warning',
+        metadata: expect.objectContaining({
+          documentId: 'doc-persist-fail-1',
+          error: 'disk full',
+        }),
+      })
+    );
+  });
+
   test('processPendingOcr retries transient remote OCR failures and sets deterministic fallback error reason', async () => {
     const { service, orchestration, documentProcessingService } =
       createHarness();
@@ -585,12 +1123,19 @@ describe('LegalCopilotWorkflowService OCR queueing', () => {
         status: 'queued',
       })
     );
-    expect(orchestration.upsertLegalDocument).toHaveBeenCalledWith(
-      expect.objectContaining({
-        id: 'doc-failed-retry-1',
-        status: 'ocr_pending',
-      })
-    );
+    expect(
+      (orchestration.upsertLegalDocument as any).mock.calls.some(
+        ([payload]: [{ id: string; status: string }]) =>
+          payload.id === 'doc-failed-retry-1' &&
+          payload.status === 'ocr_pending'
+      )
+    ).toBe(true);
+    expect(
+      (orchestration.upsertLegalDocument as any).mock.calls.some(
+        ([payload]: [{ id: string; status: string }]) =>
+          payload.id === 'doc-failed-retry-1' && payload.status === 'indexed'
+      )
+    ).toBe(true);
   });
 
   test('processPendingOcr continues remaining jobs when one OCR job crashes', async () => {

@@ -2,11 +2,15 @@ import { AffineContext } from '@affine/core/components/context';
 import { AppContainer } from '@affine/core/desktop/components/app-container';
 import { router } from '@affine/core/desktop/router';
 import { configureCommonModules } from '@affine/core/modules';
-import type { CaseFile, LegalDocumentKind } from '@affine/core/modules/case-assistant';
+import type {
+  CaseFile,
+  LegalDocumentKind,
+} from '@affine/core/modules/case-assistant';
 import {
   CaseAssistantService,
   CasePlatformOrchestrationService,
   CaseProviderSettingsService,
+  LegalChatService,
   LegalCopilotWorkflowService,
 } from '@affine/core/modules/case-assistant';
 import { I18nProvider } from '@affine/core/modules/i18n';
@@ -119,17 +123,19 @@ if (enableE2EBridge) {
     return current?.meta?.id ?? current?.id;
   };
 
+  const requireWorkspaceId = () => {
+    const id = resolveWorkspaceId();
+    if (!id) {
+      throw new Error('E2E bridge: currentWorkspace is not ready');
+    }
+    return id;
+  };
+
   (window as any).__AFFINE_E2E__ = {
-    getWorkspaceId: () => {
-      const id = resolveWorkspaceId();
-      if (!id) {
-        throw new Error('E2E bridge: currentWorkspace is not ready');
-      }
-      return id;
-    },
+    getWorkspaceId: () => requireWorkspaceId(),
 
     ensureCase: async (input: { caseId: string; title: string }) => {
-      const workspaceId = (window as any).__AFFINE_E2E__!.getWorkspaceId();
+      const workspaceId = requireWorkspaceId();
       const now = new Date().toISOString();
       const record: CaseFile = {
         id: input.caseId,
@@ -161,9 +167,11 @@ if (enableE2EBridge) {
         folderPath?: string;
       }>;
     }) => {
-      const workspaceId = (window as any).__AFFINE_E2E__!.getWorkspaceId();
+      const workspaceId = requireWorkspaceId();
       const scope = resolveWorkspaceScope();
-      return await (scope.get(LegalCopilotWorkflowService) as any).runFullWorkflow({
+      return await (
+        scope.get(LegalCopilotWorkflowService) as any
+      ).runFullWorkflow({
         caseId: input.caseId,
         workspaceId,
         documents: input.documents,
@@ -183,9 +191,11 @@ if (enableE2EBridge) {
         folderPath?: string;
       }>;
     }) => {
-      const workspaceId = (window as any).__AFFINE_E2E__!.getWorkspaceId();
+      const workspaceId = requireWorkspaceId();
       const scope = resolveWorkspaceScope();
-      return await (scope.get(LegalCopilotWorkflowService) as any).intakeDocuments({
+      return await (
+        scope.get(LegalCopilotWorkflowService) as any
+      ).intakeDocuments({
         caseId: input.caseId,
         workspaceId,
         documents: input.documents,
@@ -193,7 +203,7 @@ if (enableE2EBridge) {
     },
 
     processPendingOcr: async (input: { caseId: string }) => {
-      const workspaceId = (window as any).__AFFINE_E2E__!.getWorkspaceId();
+      const workspaceId = requireWorkspaceId();
       const scope = resolveWorkspaceScope();
       return await scope
         .get(LegalCopilotWorkflowService)
@@ -201,7 +211,7 @@ if (enableE2EBridge) {
     },
 
     drainOcr: async (input: { caseId: string; maxRounds?: number }) => {
-      const workspaceId = (window as any).__AFFINE_E2E__!.getWorkspaceId();
+      const workspaceId = requireWorkspaceId();
       const scope = resolveWorkspaceScope();
       const workflow = scope.get(LegalCopilotWorkflowService) as any;
       const orchestration = scope.get(CasePlatformOrchestrationService) as any;
@@ -216,14 +226,17 @@ if (enableE2EBridge) {
             (j.status === 'queued' || j.status === 'running')
         );
         if (open.length === 0) break;
-        const batch = await workflow.processPendingOcr(input.caseId, workspaceId);
+        const batch = await workflow.processPendingOcr(
+          input.caseId,
+          workspaceId
+        );
         completed.push(...batch);
       }
       return completed;
     },
 
     snapshotCaseState: async (input: { caseId: string }) => {
-      const workspaceId = (window as any).__AFFINE_E2E__!.getWorkspaceId();
+      const workspaceId = requireWorkspaceId();
       const scope = resolveWorkspaceScope();
       const orchestration = scope.get(CasePlatformOrchestrationService) as any;
       const docs = (orchestration.legalDocuments$.value ?? []).filter(
@@ -258,18 +271,53 @@ if (enableE2EBridge) {
     },
 
     analyzeCase: async (input: { caseId: string }) => {
-      const workspaceId = (window as any).__AFFINE_E2E__!.getWorkspaceId();
+      const workspaceId = requireWorkspaceId();
       const scope = resolveWorkspaceScope();
       const workflow = scope.get(LegalCopilotWorkflowService) as any;
       return await workflow.analyzeCase(input.caseId, workspaceId);
     },
 
-    getOcrProviderConfig: async () => {
+    buildChatContext: async (input: {
+      caseId: string;
+      query: string;
+      mode?:
+        | 'general'
+        | 'strategie'
+        | 'subsumtion'
+        | 'gegner'
+        | 'beweislage'
+        | 'fristen'
+        | 'normen';
+    }) => {
+      const workspaceId = requireWorkspaceId();
       const scope = resolveWorkspaceScope();
-      return await scope.get(CaseProviderSettingsService).getProviderConfig('ocr');
+      const chat = scope.get(LegalChatService) as any;
+      const context = await chat.buildContextSnapshot({
+        caseId: input.caseId,
+        workspaceId,
+        mode: input.mode ?? 'general',
+        userQuery: input.query,
+        conversationHistory: [],
+      });
+      return {
+        relevantChunks: context.relevantChunks,
+        findingsSummary: context.findingsSummary,
+        activeNorms: context.activeNorms,
+        deadlineWarnings: context.deadlineWarnings,
+      };
     },
 
-    setOcrProviderConfig: async (input: { endpoint?: string; token?: string }) => {
+    getOcrProviderConfig: async () => {
+      const scope = resolveWorkspaceScope();
+      return await scope
+        .get(CaseProviderSettingsService)
+        .getProviderConfig('ocr');
+    },
+
+    setOcrProviderConfig: async (input: {
+      endpoint?: string;
+      token?: string;
+    }) => {
       const scope = resolveWorkspaceScope();
       const service = scope.get(CaseProviderSettingsService);
       if (typeof input.endpoint === 'string') {
@@ -292,16 +340,16 @@ if (enableE2EBridge) {
       title?: string;
       dueAt?: string;
     }) => {
-      const workspaceId = (window as any).__AFFINE_E2E__!.getWorkspaceId();
+      const workspaceId = requireWorkspaceId();
       const scope = resolveWorkspaceScope();
       const caseAssistant = scope.get(CaseAssistantService) as any;
 
       const caseId = input?.caseId ?? 'e2e-case-legal';
       const matterId = input?.matterId ?? `matter:${workspaceId}:${caseId}`;
-      const deadlineId = input?.deadlineId ?? `deadline:${workspaceId}:${caseId}`;
+      const deadlineId =
+        input?.deadlineId ?? `deadline:${workspaceId}:${caseId}`;
       const dueAt =
-        input?.dueAt ??
-        new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString();
+        input?.dueAt ?? new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString();
       const title = input?.title ?? 'E2E Frist: Schriftsatz einreichen';
 
       await caseAssistant.upsertMatter({
