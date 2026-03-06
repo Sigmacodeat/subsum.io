@@ -71,6 +71,23 @@ const REVIEW_STATUS_DONE_LABEL = 'Abgleich abgeschlossen';
 const REVIEW_STATUS_ATTENTION_LABEL = 'Manuell prüfen';
 const ANALYSE_OCR_ERROR_LABEL = 'OCR-Problem';
 const EMPTY_WORKFLOW_EVENTS: WorkflowEvent[] = [];
+const EMPTY_GRAPH = {
+  clients: {},
+  matters: {},
+  cases: {},
+  actors: {},
+  issues: {},
+  deadlines: {},
+  memoryEvents: {},
+  updatedAt: new Date(0).toISOString(),
+};
+const EMPTY_LEGAL_DOCS: LegalDocumentRecord[] = [];
+const EMPTY_LEGAL_FINDINGS: LegalFinding[] = [];
+const EMPTY_COPILOT_TASKS: CopilotTask[] = [];
+const EMPTY_BLUEPRINTS: CaseBlueprint[] = [];
+const EMPTY_SEMANTIC_CHUNKS: SemanticChunk[] = [];
+const EMPTY_CHAT_SESSIONS: LegalChatSession[] = [];
+const EMPTY_CHAT_MESSAGES: LegalChatMessage[] = [];
 
 const STATUS_STYLE: Record<MatterStatus, string> = {
   open: styles.statusOpen,
@@ -439,16 +456,7 @@ export const AkteDetailPage = () => {
   const none = t['com.affine.caseAssistant.akteDetail.fallback.none']();
   const language = t.language;
 
-  const graph = (useLiveData(store.watchGraph()) ?? {
-    clients: {},
-    matters: {},
-    cases: {},
-    actors: {},
-    issues: {},
-    deadlines: {},
-    memoryEvents: {},
-    updatedAt: new Date(0).toISOString(),
-  }) as {
+  const graph = (useLiveData(store.watchGraph()) ?? EMPTY_GRAPH) as {
     clients: Record<string, ClientRecord>;
     matters: Record<string, MatterRecord>;
     cases: Record<string, CaseFile>;
@@ -461,19 +469,19 @@ export const AkteDetailPage = () => {
   };
 
   const legalDocs: LegalDocumentRecord[] =
-    useLiveData(copilotWorkflowService.legalDocuments$) ?? [];
+    useLiveData(copilotWorkflowService.legalDocuments$) ?? EMPTY_LEGAL_DOCS;
   const legalFindings: LegalFinding[] =
-    useLiveData(copilotWorkflowService.findings$) ?? [];
+    useLiveData(copilotWorkflowService.findings$) ?? EMPTY_LEGAL_FINDINGS;
   const copilotTasks: CopilotTask[] =
-    useLiveData(copilotWorkflowService.tasks$) ?? [];
+    useLiveData(copilotWorkflowService.tasks$) ?? EMPTY_COPILOT_TASKS;
   const allBlueprints: CaseBlueprint[] =
-    useLiveData(copilotWorkflowService.blueprints$) ?? [];
+    useLiveData(copilotWorkflowService.blueprints$) ?? EMPTY_BLUEPRINTS;
   const semanticChunks: SemanticChunk[] =
-    useLiveData(store.watchSemanticChunks()) ?? [];
+    useLiveData(store.watchSemanticChunks()) ?? EMPTY_SEMANTIC_CHUNKS;
   const chatSessions: LegalChatSession[] =
-    useLiveData(chatService.chatSessions$) ?? [];
+    useLiveData(chatService.chatSessions$) ?? EMPTY_CHAT_SESSIONS;
   const chatMessages: LegalChatMessage[] =
-    useLiveData(chatService.chatMessages$) ?? [];
+    useLiveData(chatService.chatMessages$) ?? EMPTY_CHAT_MESSAGES;
   const workflowEvents$ = useMemo(() => store.watchWorkflowEvents(), [store]);
   const workflowEventsSnapshot = useLiveData(workflowEvents$);
   const workflowEvents: WorkflowEvent[] = useMemo(
@@ -495,7 +503,7 @@ export const AkteDetailPage = () => {
   );
   const anwaelte = useMemo(
     () => (graph as any).anwaelte ?? {},
-    [graph]
+    [graph.anwaelte]
   ) as Record<string, AnwaltProfile>;
   const assignedAnwalt = useMemo(
     () =>
@@ -513,6 +521,10 @@ export const AkteDetailPage = () => {
     [graph.cases, matterId]
   );
   const caseIds = useMemo(() => new Set(caseFiles.map(c => c.id)), [caseFiles]);
+  const akteUploadSourcePrefix = useMemo(
+    () => `akte-upload:${matterId}:`,
+    [matterId]
+  );
 
   const docKindLabel = useMemo(
     () => ({
@@ -557,21 +569,52 @@ export const AkteDetailPage = () => {
     [t]
   );
 
-  const matterDocs = useMemo(
-    () =>
-      legalDocs.filter(
-        d => caseIds.has(d.caseId) && d.workspaceId === workspaceId
-      ),
-    [legalDocs, caseIds, workspaceId]
-  );
+  const matterDocs = useMemo(() => {
+    const docsById = new Map<string, LegalDocumentRecord>();
+    for (const doc of legalDocs) {
+      if (doc.workspaceId !== workspaceId) {
+        continue;
+      }
+      const linkedByCase = caseIds.has(doc.caseId);
+      const linkedByAkteUpload = (doc.sourceRef ?? '').startsWith(
+        akteUploadSourcePrefix
+      );
+      if (!linkedByCase && !linkedByAkteUpload) {
+        continue;
+      }
+      docsById.set(doc.id, doc);
+    }
+    return [...docsById.values()].sort(
+      (a, b) =>
+        new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+    );
+  }, [legalDocs, caseIds, workspaceId, akteUploadSourcePrefix]);
+  const fallbackCaseIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const doc of matterDocs) {
+      if (doc.caseId) {
+        ids.add(doc.caseId);
+      }
+    }
+    return ids;
+  }, [matterDocs]);
+  const effectiveCaseIds = useMemo(() => {
+    const ids = new Set<string>(caseIds);
+    for (const caseId of fallbackCaseIds) {
+      ids.add(caseId);
+    }
+    return ids;
+  }, [caseIds, fallbackCaseIds]);
+  const isUsingFallbackMatterLinking =
+    caseIds.size === 0 && matterDocs.length > 0 && fallbackCaseIds.size > 0;
 
   const matterChunks = useMemo(
     () =>
       semanticChunks.filter(
         (c: SemanticChunk) =>
-          caseIds.has(c.caseId) && c.workspaceId === workspaceId
+          effectiveCaseIds.has(c.caseId) && c.workspaceId === workspaceId
       ),
-    [semanticChunks, caseIds, workspaceId]
+    [semanticChunks, effectiveCaseIds, workspaceId]
   );
 
   const matterFindings = useMemo(
@@ -579,7 +622,8 @@ export const AkteDetailPage = () => {
       legalFindings
         .filter(
           (finding: LegalFinding) =>
-            caseIds.has(finding.caseId) && finding.workspaceId === workspaceId
+            effectiveCaseIds.has(finding.caseId) &&
+            finding.workspaceId === workspaceId
         )
         .sort((a, b) => {
           const rankDiff =
@@ -587,7 +631,7 @@ export const AkteDetailPage = () => {
           if (rankDiff !== 0) return rankDiff;
           return b.confidence - a.confidence;
         }),
-    [legalFindings, caseIds, workspaceId]
+    [legalFindings, effectiveCaseIds, workspaceId]
   );
 
   const matterTasks = useMemo(
@@ -595,12 +639,12 @@ export const AkteDetailPage = () => {
       copilotTasks
         .filter(
           (t: CopilotTask) =>
-            caseIds.has(t.caseId) && t.workspaceId === workspaceId
+            effectiveCaseIds.has(t.caseId) && t.workspaceId === workspaceId
         )
         .sort(
           (a, b) => getPriorityRank(b.priority) - getPriorityRank(a.priority)
         ),
-    [copilotTasks, caseIds, workspaceId]
+    [copilotTasks, effectiveCaseIds, workspaceId]
   );
 
   const matterBlueprint = useMemo(
@@ -608,14 +652,14 @@ export const AkteDetailPage = () => {
       allBlueprints
         .filter(
           (bp: CaseBlueprint) =>
-            caseIds.has(bp.caseId) && bp.workspaceId === workspaceId
+            effectiveCaseIds.has(bp.caseId) && bp.workspaceId === workspaceId
         )
         .sort(
           (a, b) =>
             new Date(b.generatedAt).getTime() -
             new Date(a.generatedAt).getTime()
         )[0] ?? null,
-    [allBlueprints, caseIds, workspaceId]
+    [allBlueprints, effectiveCaseIds, workspaceId]
   );
 
   const matterNotes = useMemo(() => {
@@ -629,7 +673,7 @@ export const AkteDetailPage = () => {
       summary: string;
       createdAt?: string;
     }>;
-  }, [caseFiles, graph]);
+  }, [caseFiles, graph.memoryEvents]);
 
   const matterIssues = useMemo(() => {
     const issueIds = caseFiles.flatMap(c => c.issueIds ?? []);
@@ -645,7 +689,7 @@ export const AkteDetailPage = () => {
       priority?: CasePriority;
       confidence?: number;
     }>;
-  }, [caseFiles, graph]);
+  }, [caseFiles, graph.issues]);
 
   const deadlines = useMemo(() => {
     const allDeadlineIds = caseFiles.flatMap(c => c.deadlineIds);
@@ -718,7 +762,7 @@ export const AkteDetailPage = () => {
     const relevantEvents = currentWorkflowEvents
       .filter(
         event =>
-          caseIds.has(event.caseId ?? '') &&
+          effectiveCaseIds.has(event.caseId ?? '') &&
           (event.type === 'finding.acknowledged' ||
             event.type === 'finding.dismissed')
       )
@@ -739,7 +783,7 @@ export const AkteDetailPage = () => {
       );
     }
     return state;
-  }, [caseIds, workflowEvents]);
+  }, [effectiveCaseIds, workflowEvents]);
 
   const linkedPageIds = useMemo(
     () => matter?.linkedPageIds ?? [],
@@ -863,21 +907,25 @@ export const AkteDetailPage = () => {
     // Get ALL sessions from the store and filter by the matter's case IDs
     const allSessions = chatSessions;
     return allSessions
-      .filter(s => caseIds.has(s.caseId) && s.workspaceId === workspaceId)
+      .filter(
+        s => effectiveCaseIds.has(s.caseId) && s.workspaceId === workspaceId
+      )
       .sort((a, b) => {
         if (a.isPinned !== b.isPinned) return a.isPinned ? -1 : 1;
         return (
           new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
         );
       });
-  }, [caseIds, workspaceId, chatSessions]);
+  }, [effectiveCaseIds, workspaceId, chatSessions]);
 
   const activeChatMessages = useMemo(
     () =>
       activeChatSessionId
-        ? chatService.getSessionMessages(activeChatSessionId)
-        : [],
-    [chatService, activeChatSessionId, chatMessages]
+        ? chatMessages.filter(
+            message => message.sessionId === activeChatSessionId
+          )
+        : EMPTY_CHAT_MESSAGES,
+    [activeChatSessionId, chatMessages]
   );
 
   // Auto-select first chat session
@@ -1444,11 +1492,15 @@ export const AkteDetailPage = () => {
     ]
   );
 
-  const timelineEvents = useMemo(() => {
-    const actorLabel = (actor: string) =>
+  const actorLabel = useCallback(
+    (actor: string) =>
       actor === 'user'
         ? t['com.affine.caseAssistant.akteDetail.timeline.actor.user']()
-        : t['com.affine.caseAssistant.akteDetail.timeline.actor.system']();
+        : t['com.affine.caseAssistant.akteDetail.timeline.actor.system'](),
+    [t]
+  );
+
+  const timelineEvents = useMemo(() => {
     const daysLabel = (days: number) =>
       days < 0
         ? t.t('com.affine.caseAssistant.akteDetail.days.overdue', {
@@ -1526,7 +1578,7 @@ export const AkteDetailPage = () => {
     const workflowAuditEvents = currentWorkflowEvents
       .filter(
         event =>
-          caseIds.has(event.caseId ?? '') &&
+          effectiveCaseIds.has(event.caseId ?? '') &&
           [
             'deadline.acknowledged',
             'deadline.completed',
@@ -1671,13 +1723,15 @@ export const AkteDetailPage = () => {
       .sort((a, b) => b.at - a.at)
       .slice(0, 12);
   }, [
-    caseIds,
+    effectiveCaseIds,
     classifyDeadlineTier,
     classifyFindingTier,
     findingRiskAlerts,
     matterDocs,
     matterFindings,
     openDeadlines,
+    actorLabel,
+    docKindLabel,
     t,
     workflowEvents,
   ]);
@@ -3050,6 +3104,16 @@ export const AkteDetailPage = () => {
                         </section>
                       ) : null}
 
+                      {isUsingFallbackMatterLinking ? (
+                        <div className={styles.docListToolbar}>
+                          <span className={styles.docListCount}>
+                            Dokumente werden aus dem Upload-Kontext angezeigt,
+                            während die Akten-Verknüpfung im Hintergrund
+                            nachzieht.
+                          </span>
+                        </div>
+                      ) : null}
+
                       {filteredDocs.length === 0 ? (
                         <div className={styles.emptyState}>
                           <div className={styles.emptyIcon}></div>
@@ -3067,9 +3131,11 @@ export const AkteDetailPage = () => {
                               ? t[
                                   'com.affine.caseAssistant.akteDetail.documents.empty.filtered.description'
                                 ]()
-                              : t[
-                                  'com.affine.caseAssistant.akteDetail.documents.empty.initial.description'
-                                ]()}
+                              : isIntakeRunning || pipelineProgress.active
+                                ? 'Die Verarbeitung läuft bereits. Dokumente werden eingeblendet, sobald der lokale Zustand vollständig synchronisiert ist.'
+                                : t[
+                                    'com.affine.caseAssistant.akteDetail.documents.empty.initial.description'
+                                  ]()}
                           </div>
                         </div>
                       ) : (
