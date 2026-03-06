@@ -19,9 +19,6 @@
  *   6. Index → search: query returns relevant chunks (live)
  *   7. Delete → verify: chunks removed after delete (live)
  */
-import { existsSync,readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
-
 import { Framework } from '@toeverything/infra';
 import { beforeAll, describe, expect, test, vi } from 'vitest';
 
@@ -31,13 +28,6 @@ import type { SemanticChunk } from '../types';
 const SHOULD_RUN_RAG_E2E = process.env.RUN_RAG_E2E === '1';
 const RAG_BACKEND_URL = process.env.RAG_BACKEND_URL ?? 'http://localhost:3000';
 const RAG_AUTH_TOKEN = process.env.RAG_AUTH_TOKEN ?? '';
-
-const REPO_ROOT = resolve(__dirname, '../../../../../../..');
-const LOREM_IPSUM_PDF = resolve(REPO_ROOT, 'tests/fixtures/lorem-ipsum.pdf');
-const SAMPLE_PDF = resolve(
-  REPO_ROOT,
-  'packages/common/native/fixtures/sample.pdf'
-);
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -85,11 +75,6 @@ function buildGlobalMocks() {
   };
   w.AbortController ??= AbortController;
   w.structuredClone ??= (v: any) => JSON.parse(JSON.stringify(v));
-}
-
-function readPdfAsBase64DataUrl(filePath: string): string {
-  const buffer = readFileSync(filePath);
-  return `data:application/pdf;base64,${buffer.toString('base64')}`;
 }
 
 function makeTestChunks(count = 3): SemanticChunk[] {
@@ -265,7 +250,7 @@ describe('E2E RAG Integration — Payload Structure, Fallback & Live Backend', (
     };
 
     const originalFetch = globalThis.fetch;
-    (globalThis as any).fetch = async (url: string, opts: any) => {
+    (globalThis as any).fetch = async (url: string) => {
       if (url.includes('/rag/index')) {
         return { ok: true, json: async () => ({ ok: true, indexed: 3 }) };
       }
@@ -400,12 +385,11 @@ describe('E2E RAG Integration — Payload Structure, Fallback & Live Backend', (
           const fullUrl = url.startsWith('/')
             ? `${RAG_BACKEND_URL}${url}`
             : url;
-          const headers = {
-            ...(opts?.headers ?? {}),
-            ...(RAG_AUTH_TOKEN
-              ? { Authorization: `Bearer ${RAG_AUTH_TOKEN}` }
-              : {}),
-          };
+          const headers = Object.assign(
+            {},
+            opts?.headers,
+            RAG_AUTH_TOKEN ? { Authorization: `Bearer ${RAG_AUTH_TOKEN}` } : {}
+          );
           return originalFetch(fullUrl, { ...opts, headers });
         };
         ragService.resetAvailabilityCache();
