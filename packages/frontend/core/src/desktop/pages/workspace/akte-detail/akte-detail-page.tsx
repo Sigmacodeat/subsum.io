@@ -42,8 +42,12 @@ import type {
   WorkflowEvent,
 } from '../../../../modules/case-assistant/types';
 import { DocsService } from '../../../../modules/doc';
-import { ViewBody, ViewIcon, ViewTitle } from '../../../../modules/workbench';
-import { WorkbenchService } from '../../../../modules/workbench';
+import {
+  ViewBody,
+  ViewIcon,
+  ViewTitle,
+  WorkbenchService,
+} from '../../../../modules/workbench';
 import { ViewSidebarTab } from '../../../../modules/workbench/view/view-islands';
 import {
   FileUploadZone,
@@ -66,6 +70,7 @@ const DOC_REVIEW_ATTENTION_TAG = '__review_attention';
 const REVIEW_STATUS_DONE_LABEL = 'Abgleich abgeschlossen';
 const REVIEW_STATUS_ATTENTION_LABEL = 'Manuell prüfen';
 const ANALYSE_OCR_ERROR_LABEL = 'OCR-Problem';
+const EMPTY_WORKFLOW_EVENTS: WorkflowEvent[] = [];
 
 const STATUS_STYLE: Record<MatterStatus, string> = {
   open: styles.statusOpen,
@@ -210,7 +215,10 @@ function normalizeOcrTextForPage(value: string | undefined): string {
     return '';
   }
   // Filter binary cache placeholder
-  if (trimmed.includes('__binary_cache__') || trimmed === '[binary-in-ocr-cache]') {
+  if (
+    trimmed.includes('__binary_cache__') ||
+    trimmed === '[binary-in-ocr-cache]'
+  ) {
     return '';
   }
   // Filter legacy/variant binary placeholders
@@ -466,8 +474,12 @@ export const AkteDetailPage = () => {
     useLiveData(chatService.chatSessions$) ?? [];
   const chatMessages: LegalChatMessage[] =
     useLiveData(chatService.chatMessages$) ?? [];
-  const workflowEvents: WorkflowEvent[] =
-    useLiveData(store.watchWorkflowEvents()) ?? [];
+  const workflowEvents$ = useMemo(() => store.watchWorkflowEvents(), [store]);
+  const workflowEventsSnapshot = useLiveData(workflowEvents$);
+  const workflowEvents: WorkflowEvent[] = useMemo(
+    () => workflowEventsSnapshot ?? EMPTY_WORKFLOW_EVENTS,
+    [workflowEventsSnapshot]
+  );
 
   // ═══ Derived Data ═══
   const matter = useMemo(
@@ -581,35 +593,58 @@ export const AkteDetailPage = () => {
   const matterTasks = useMemo(
     () =>
       copilotTasks
-        .filter((t: CopilotTask) => caseIds.has(t.caseId) && t.workspaceId === workspaceId)
-        .sort((a, b) => getPriorityRank(b.priority) - getPriorityRank(a.priority)),
+        .filter(
+          (t: CopilotTask) =>
+            caseIds.has(t.caseId) && t.workspaceId === workspaceId
+        )
+        .sort(
+          (a, b) => getPriorityRank(b.priority) - getPriorityRank(a.priority)
+        ),
     [copilotTasks, caseIds, workspaceId]
   );
 
   const matterBlueprint = useMemo(
     () =>
       allBlueprints
-        .filter((bp: CaseBlueprint) => caseIds.has(bp.caseId) && bp.workspaceId === workspaceId)
-        .sort((a, b) => new Date(b.generatedAt).getTime() - new Date(a.generatedAt).getTime())[0] ?? null,
+        .filter(
+          (bp: CaseBlueprint) =>
+            caseIds.has(bp.caseId) && bp.workspaceId === workspaceId
+        )
+        .sort(
+          (a, b) =>
+            new Date(b.generatedAt).getTime() -
+            new Date(a.generatedAt).getTime()
+        )[0] ?? null,
     [allBlueprints, caseIds, workspaceId]
   );
 
   const matterNotes = useMemo(() => {
-    const noteIds = caseFiles.flatMap(c => (c.memoryEventIds ?? []));
+    const noteIds = caseFiles.flatMap(c => c.memoryEventIds ?? []);
     const events = (graph as any).memoryEvents ?? {};
     return noteIds
       .map((id: string) => events[id])
       .filter((e: any) => !!e && e.summary)
-      .slice(0, 50) as Array<{ id: string; summary: string; createdAt?: string }>;
+      .slice(0, 50) as Array<{
+      id: string;
+      summary: string;
+      createdAt?: string;
+    }>;
   }, [caseFiles, graph]);
 
   const matterIssues = useMemo(() => {
-    const issueIds = caseFiles.flatMap(c => (c.issueIds ?? []));
+    const issueIds = caseFiles.flatMap(c => c.issueIds ?? []);
     const issues = (graph as any).issues ?? {};
     return issueIds
       .map((id: string) => issues[id])
       .filter((issue: any) => !!issue && issue.title)
-      .slice(0, 50) as Array<{ id: string; title: string; description?: string; category?: string; priority?: CasePriority; confidence?: number }>;
+      .slice(0, 50) as Array<{
+      id: string;
+      title: string;
+      description?: string;
+      category?: string;
+      priority?: CasePriority;
+      confidence?: number;
+    }>;
   }, [caseFiles, graph]);
 
   const deadlines = useMemo(() => {
@@ -679,7 +714,8 @@ export const AkteDetailPage = () => {
   }, [matterFindings, matterDocs]);
 
   const findingDecisionById = useMemo(() => {
-    const relevantEvents = workflowEvents
+    const currentWorkflowEvents = workflowEvents;
+    const relevantEvents = currentWorkflowEvents
       .filter(
         event =>
           caseIds.has(event.caseId ?? '') &&
@@ -775,8 +811,11 @@ export const AkteDetailPage = () => {
           ? Math.max(10, Math.round((completedCount / total) * 100))
           : 100;
 
-    const pipelineActive = ocrRunningCount > 0 || ocrPendingCount > 0 ||
-      uploadedCount > 0 || ocrCompletedCount > 0;
+    const pipelineActive =
+      ocrRunningCount > 0 ||
+      ocrPendingCount > 0 ||
+      uploadedCount > 0 ||
+      ocrCompletedCount > 0;
 
     const phaseLabel = uploadStillRunning
       ? t['com.affine.caseAssistant.akteDetail.pipeline.phase.upload']()
@@ -787,10 +826,16 @@ export const AkteDetailPage = () => {
           : uploadedCount > 0 || ocrCompletedCount > 0
             ? 'Indexierung läuft'
             : indexedCount > 0
-              ? t['com.affine.caseAssistant.akteDetail.pipeline.phase.indexed']()
+              ? t[
+                  'com.affine.caseAssistant.akteDetail.pipeline.phase.indexed'
+                ]()
               : failedCount > 0
-                ? t['com.affine.caseAssistant.akteDetail.pipeline.phase.failed']()
-                : t['com.affine.caseAssistant.akteDetail.pipeline.phase.idle']();
+                ? t[
+                    'com.affine.caseAssistant.akteDetail.pipeline.phase.failed'
+                  ]()
+                : t[
+                    'com.affine.caseAssistant.akteDetail.pipeline.phase.idle'
+                  ]();
 
     return {
       phaseLabel,
@@ -898,7 +943,7 @@ export const AkteDetailPage = () => {
     for (const doc of filteredDocs) {
       const folder = doc.folderPath?.trim() || '/';
       if (!groups.has(folder)) groups.set(folder, []);
-      groups.get(folder)!.push(doc);
+      groups.get(folder)?.push(doc);
     }
     // Sort folders alphabetically, root first
     const sorted = Array.from(groups.entries()).sort(([a], [b]) => {
@@ -934,7 +979,7 @@ export const AkteDetailPage = () => {
     const map = new Map<string, SemanticChunk[]>();
     for (const chunk of matterChunks) {
       if (!map.has(chunk.documentId)) map.set(chunk.documentId, []);
-      map.get(chunk.documentId)!.push(chunk);
+      map.get(chunk.documentId)?.push(chunk);
     }
     return map;
   }, [matterChunks]);
@@ -1415,11 +1460,12 @@ export const AkteDetailPage = () => {
               count: days,
             });
 
-    const deadlineEvents = openDeadlines.map(deadline => {
-      const days = daysUntil(deadline.dueAt);
+    const currentWorkflowEvents = workflowEvents;
+    const deadlineEvents = openDeadlines.slice(0, 6).map(deadline => {
+      const days = deadlineDays(deadline.dueAt);
       return {
         id: `deadline-${deadline.id}`,
-        at: new Date(deadline.updatedAt || deadline.dueAt).getTime(),
+        at: new Date(deadline.dueAt).getTime(),
         title: t.t('com.affine.caseAssistant.akteDetail.timeline.deadline', {
           title: deadline.title,
         }),
@@ -1432,9 +1478,10 @@ export const AkteDetailPage = () => {
 
     const findingEvents = findingRiskAlerts.map(finding => ({
       id: `finding-${finding.id}`,
-      at: matterFindings.some(item => item.id === finding.id)
+      at: matterFindings.find(item => item.id === finding.id)?.updatedAt
         ? new Date(
-            matterFindings.find(item => item.id === finding.id)!.updatedAt
+            matterFindings.find(item => item.id === finding.id)?.updatedAt ??
+              Date.now()
           ).getTime()
         : Date.now(),
       title: t.t('com.affine.caseAssistant.akteDetail.timeline.risk', {
@@ -1476,7 +1523,7 @@ export const AkteDetailPage = () => {
         };
       });
 
-    const workflowAuditEvents = workflowEvents
+    const workflowAuditEvents = currentWorkflowEvents
       .filter(
         event =>
           caseIds.has(event.caseId ?? '') &&
@@ -1658,7 +1705,9 @@ export const AkteDetailPage = () => {
           updatedAt: new Date().toISOString(),
         });
         if (!result) {
-          console.warn('[handleOpenDocument] ensureMatterLinkedPage: upsertMatter returned null (non-critical, continuing)');
+          console.warn(
+            '[handleOpenDocument] ensureMatterLinkedPage: upsertMatter returned null (non-critical, continuing)'
+          );
         }
       };
 
@@ -1763,7 +1812,9 @@ export const AkteDetailPage = () => {
         // fallback to previous context-open behavior
       }
 
-      console.warn('[handleOpenDocument] openLinkedPage failed, staying on akte-detail');
+      console.warn(
+        '[handleOpenDocument] openLinkedPage failed, staying on akte-detail'
+      );
       workbench.openAkte(matterId);
     },
     [
@@ -2020,14 +2071,17 @@ export const AkteDetailPage = () => {
           closed = true;
           if (confirmed) {
             setIsBulkDeletingDocs(true);
-            casePlatformOrchestrationService.deleteDocumentsCascade([doc.id])
+            casePlatformOrchestrationService
+              .deleteDocumentsCascade([doc.id])
               .then(result => {
                 const succeeded = result.succeededIds.length > 0;
                 const failed = result.failedIds.length > 0;
                 const blocked = result.blockedIds.length > 0;
 
                 if (succeeded) {
-                  showStatus(`Dokument "${doc.title}" wurde in den Papierkorb verschoben.`);
+                  showStatus(
+                    `Dokument "${doc.title}" wurde in den Papierkorb verschoben.`
+                  );
                   setLastBulkTrashedDocIds(result.succeededIds);
                 }
                 if (failed) {
@@ -2243,14 +2297,21 @@ export const AkteDetailPage = () => {
         const failedCount = ingested.filter(
           (d: IngestedDoc) => d.processingStatus === 'failed'
         ).length;
-        let completedOcrJobsCount = 0;
         if (scanCount > 0) {
-          const completedOcrJobs =
-            await copilotWorkflowService.processPendingOcr(
-              targetCaseId,
-              workspaceId
-            );
-          completedOcrJobsCount = completedOcrJobs.length;
+          void copilotWorkflowService
+            .processPendingOcr(targetCaseId, workspaceId)
+            .catch(error => {
+              console.error('[akte-detail] background OCR failed', error);
+              const message =
+                error instanceof Error && error.message
+                  ? error.message
+                  : 'OCR-Hintergrundverarbeitung fehlgeschlagen';
+              showStatus(
+                t.t('com.affine.caseAssistant.akteDetail.toast.upload.failed', {
+                  message,
+                })
+              );
+            });
         }
 
         if (ingested.length === 0) {
@@ -2271,12 +2332,10 @@ export const AkteDetailPage = () => {
             count: ingested.length,
             ocrSuffix:
               scanCount > 0
-                ? completedOcrJobsCount > 0
-                  ? ` ${completedOcrJobsCount}/${scanCount} OCR abgeschlossen.`
-                  : t.t(
-                      'com.affine.caseAssistant.akteDetail.toast.upload.ocrSuffix',
-                      { count: scanCount }
-                    )
+                ? t.t(
+                    'com.affine.caseAssistant.akteDetail.toast.upload.ocrSuffix',
+                    { count: scanCount }
+                  )
                 : '',
             reviewSuffix:
               needsReviewCount > 0
@@ -3051,11 +3110,20 @@ export const AkteDetailPage = () => {
                                           const stripped = raw
                                             .replace(/^\d+\s*[-–—]?\s*/, '')
                                             .trim();
-                                          if (!stripped) return (doc.kind ?? 'D').slice(0, 2).toUpperCase();
-                                          const words = stripped.split(/\s+/).filter(Boolean);
+                                          if (!stripped)
+                                            return (doc.kind ?? 'D')
+                                              .slice(0, 2)
+                                              .toUpperCase();
+                                          const words = stripped
+                                            .split(/\s+/)
+                                            .filter(Boolean);
                                           if (words.length >= 2)
-                                            return (words[0][0] + (words[1][0] ?? '')).toUpperCase();
-                                          return stripped.slice(0, 2).toUpperCase();
+                                            return (
+                                              words[0][0] + (words[1][0] ?? '')
+                                            ).toUpperCase();
+                                          return stripped
+                                            .slice(0, 2)
+                                            .toUpperCase();
                                         })()}
                                       </span>
                                       <span className={styles.docCardThumbMeta}>
@@ -3102,11 +3170,13 @@ export const AkteDetailPage = () => {
                                           className={styles.docCardOpenPdf}
                                           onClick={e => {
                                             e.stopPropagation();
-                                            window.open(
-                                              doc.sourceRef!,
-                                              '_blank',
-                                              'noopener,noreferrer'
-                                            );
+                                            if (doc.sourceRef) {
+                                              window.open(
+                                                doc.sourceRef,
+                                                '_blank',
+                                                'noopener,noreferrer'
+                                              );
+                                            }
                                           }}
                                           aria-label={`Original PDF öffnen: ${doc.title}`}
                                         >
@@ -3332,16 +3402,21 @@ export const AkteDetailPage = () => {
                                                       {doc.chunkCount} Chunks
                                                     </span>
                                                   ) : null}
-                                                  {doc.extractionFidelityRatio !== undefined ? (
+                                                  {doc.extractionFidelityRatio !==
+                                                  undefined ? (
                                                     <span
                                                       className={`${styles.docKindBadge} ${doc.extractionIntegrityOk === false ? styles.docStatusPending : styles.docStatusReady}`}
                                                       title={
-                                                        doc.extractionIntegrityOk === false
+                                                        doc.extractionIntegrityOk ===
+                                                        false
                                                           ? `Extraktion möglicherweise unvollständig — Abdeckung: ${Math.round(doc.extractionFidelityRatio * 100)}%, ${Math.round(doc.extractionYieldPerPage ?? 0)} Zeichen/Seite`
                                                           : `Vollständig extrahiert — Abdeckung: ${Math.round(doc.extractionFidelityRatio * 100)}%, ${Math.round(doc.extractionYieldPerPage ?? 0)} Zeichen/Seite`
                                                       }
                                                     >
-                                                      {doc.extractionIntegrityOk === false ? '⚠ Extraktion' : '✓ Extraktion'}
+                                                      {doc.extractionIntegrityOk ===
+                                                      false
+                                                        ? '⚠ Extraktion'
+                                                        : '✓ Extraktion'}
                                                     </span>
                                                   ) : null}
                                                 </div>
@@ -3415,7 +3490,9 @@ export const AkteDetailPage = () => {
                                                     <span
                                                       className={`${styles.docStatusBadge} ${styles.docStatusPending}`}
                                                     >
-                                                      {REVIEW_STATUS_ATTENTION_LABEL}
+                                                      {
+                                                        REVIEW_STATUS_ATTENTION_LABEL
+                                                      }
                                                     </span>
                                                   ) : null}
                                                 </span>
@@ -3494,7 +3571,9 @@ export const AkteDetailPage = () => {
                                                     }
                                                     onClick={e => {
                                                       e.stopPropagation();
-                                                      handleDeleteDocument(doc).catch(() => {
+                                                      handleDeleteDocument(
+                                                        doc
+                                                      ).catch(() => {
                                                         showStatus(
                                                           `Löschen fehlgeschlagen: ${doc.title}`
                                                         );
@@ -3546,9 +3625,9 @@ export const AkteDetailPage = () => {
                       ) : (
                         <>
                           {matterDocs.map(doc => {
-                            const allChunks = (chunksByDocId.get(doc.id) ?? []).sort(
-                              (a, b) => b.qualityScore - a.qualityScore
-                            );
+                            const allChunks = (
+                              chunksByDocId.get(doc.id) ?? []
+                            ).sort((a, b) => b.qualityScore - a.qualityScore);
                             const goodChunks = allChunks.filter(
                               c => c.qualityScore >= 0.35
                             );
@@ -3560,7 +3639,7 @@ export const AkteDetailPage = () => {
                                   ) / allChunks.length
                                 : 0;
                             const isGarbage =
-                              allChunks.length > 0 && avgQ < 0.20;
+                              allChunks.length > 0 && avgQ < 0.2;
                             const qualityClass =
                               avgQ >= 0.65
                                 ? styles.qualityBadgeGood
@@ -3599,10 +3678,9 @@ export const AkteDetailPage = () => {
                                     <span className={styles.analyseChunkText}>
                                       Dieses Dokument enthält keine lesbaren
                                       Textabschnitte. Die Datei ist
-                                      möglicherweise ein Bild-Scan ohne
-                                      OCR-Text oder enthält binäre Bilddaten.
-                                      Original über „↗ Original öffnen"
-                                      aufrufen.
+                                      möglicherweise ein Bild-Scan ohne OCR-Text
+                                      oder enthält binäre Bilddaten. Original
+                                      über „↗ Original öffnen&quot; aufrufen.
                                     </span>
                                   </div>
                                 ) : (
@@ -3611,9 +3689,7 @@ export const AkteDetailPage = () => {
                                       key={chunk.id}
                                       className={styles.analyseChunkRow}
                                     >
-                                      <div
-                                        className={styles.analyseChunkText}
-                                      >
+                                      <div className={styles.analyseChunkText}>
                                         {chunk.text.slice(0, 240)}
                                         {chunk.text.length > 240 ? '…' : ''}
                                       </div>
@@ -3632,10 +3708,7 @@ export const AkteDetailPage = () => {
                                               : styles.qualityBadgePoor
                                         }
                                       >
-                                        {(chunk.qualityScore * 100).toFixed(
-                                          0
-                                        )}
-                                        %
+                                        {(chunk.qualityScore * 100).toFixed(0)}%
                                       </span>
                                     </div>
                                   ))
@@ -3646,11 +3719,13 @@ export const AkteDetailPage = () => {
                                       type="button"
                                       className={styles.docActionButton}
                                       onClick={() => {
-                                        window.open(
-                                          doc.sourceRef!,
-                                          '_blank',
-                                          'noopener,noreferrer'
-                                        );
+                                        if (doc.sourceRef) {
+                                          window.open(
+                                            doc.sourceRef,
+                                            '_blank',
+                                            'noopener,noreferrer'
+                                          );
+                                        }
                                       }}
                                       aria-label={`Original PDF öffnen: ${doc.title}`}
                                     >
@@ -3701,12 +3776,20 @@ export const AkteDetailPage = () => {
               >
                 {activeTab === 'strategie' && (
                   <div className={styles.docListContainer}>
-                    {matterFindings.length === 0 && matterTasks.length === 0 && !matterBlueprint && matterIssues.length === 0 ? (
+                    {matterFindings.length === 0 &&
+                    matterTasks.length === 0 &&
+                    !matterBlueprint &&
+                    matterIssues.length === 0 ? (
                       <div className={styles.emptyState}>
                         <div className={styles.emptyIcon}>🧠</div>
-                        <div className={styles.emptyTitle}>Noch keine Strategieauswertung</div>
+                        <div className={styles.emptyTitle}>
+                          Noch keine Strategieauswertung
+                        </div>
                         <div className={styles.emptyDescription}>
-                          Starte die Analyse über den Chat (<strong>/analyse</strong> oder <strong>/workflow</strong>), um Widersprüche, Risiken, Aufgaben und einen Arbeitsplan zu erzeugen.
+                          Starte die Analyse über den Chat (
+                          <strong>/analyse</strong> oder{' '}
+                          <strong>/workflow</strong>), um Widersprüche, Risiken,
+                          Aufgaben und einen Arbeitsplan zu erzeugen.
                         </div>
                       </div>
                     ) : (
@@ -3715,51 +3798,157 @@ export const AkteDetailPage = () => {
                         {matterFindings.length > 0 && (
                           <section style={{ marginBottom: 24 }}>
                             <div className={styles.strategieSectionHeader}>
-                              <span className={styles.strategieSectionIcon}>⚠️</span>
-                              <span className={styles.strategieSectionTitle}>Befunde &amp; Risiken</span>
-                              <span className={styles.strategieSectionCount}>{matterFindings.length}</span>
+                              <span className={styles.strategieSectionIcon}>
+                                ⚠️
+                              </span>
+                              <span className={styles.strategieSectionTitle}>
+                                Befunde &amp; Risiken
+                              </span>
+                              <span className={styles.strategieSectionCount}>
+                                {matterFindings.length}
+                              </span>
                             </div>
                             {matterFindings.map(finding => {
-                              const decision = findingDecisionById.get(finding.id);
+                              const decision = findingDecisionById.get(
+                                finding.id
+                              );
                               const tier = classifyFindingTier(finding);
-                              const tierClass = tier === 'P1' ? styles.alertTierP1 : tier === 'P2' ? styles.alertTierP2 : styles.alertTierP3;
-                              const typeLabel: Record<LegalFinding['type'], string> = {
-                                contradiction: 'Widerspruch', cross_reference: 'Querverweis',
-                                liability: 'Haftung', deadline_risk: 'Fristrisiko',
-                                evidence_gap: 'Beweislücke', action_recommendation: 'Maßnahme',
-                                norm_error: 'Normfehler', norm_warning: 'Normwarnung', norm_suggestion: 'Normhinweis',
+                              const tierClass =
+                                tier === 'P1'
+                                  ? styles.alertTierP1
+                                  : tier === 'P2'
+                                    ? styles.alertTierP2
+                                    : styles.alertTierP3;
+                              const typeLabel: Record<
+                                LegalFinding['type'],
+                                string
+                              > = {
+                                contradiction: 'Widerspruch',
+                                cross_reference: 'Querverweis',
+                                liability: 'Haftung',
+                                deadline_risk: 'Fristrisiko',
+                                evidence_gap: 'Beweislücke',
+                                action_recommendation: 'Maßnahme',
+                                norm_error: 'Normfehler',
+                                norm_warning: 'Normwarnung',
+                                norm_suggestion: 'Normhinweis',
                               };
                               return (
-                                <div key={finding.id} className={styles.alertCard} style={{ opacity: decision ? 0.55 : 1 }}>
+                                <div
+                                  key={finding.id}
+                                  className={styles.alertCard}
+                                  style={{ opacity: decision ? 0.55 : 1 }}
+                                >
                                   <div className={styles.alertCardHeader}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, minWidth: 0 }}>
-                                      <span className={tierClass} style={{ fontSize: 10, fontWeight: 700, padding: '1px 5px', borderRadius: 4, flexShrink: 0 }}>{tier}</span>
-                                      <span className={styles.alertCardTitle}>{typeLabel[finding.type] ?? finding.type}</span>
-                                      {decision && <span style={{ fontSize: 10, color: 'var(--affine-text-secondary-color)' }}>({decision === 'acknowledged' ? '✓ Geprüft' : '✗ Abgelehnt'})</span>}
+                                    <div
+                                      style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: 6,
+                                        flex: 1,
+                                        minWidth: 0,
+                                      }}
+                                    >
+                                      <span
+                                        className={tierClass}
+                                        style={{
+                                          fontSize: 10,
+                                          fontWeight: 700,
+                                          padding: '1px 5px',
+                                          borderRadius: 4,
+                                          flexShrink: 0,
+                                        }}
+                                      >
+                                        {tier}
+                                      </span>
+                                      <span className={styles.alertCardTitle}>
+                                        {typeLabel[finding.type] ??
+                                          finding.type}
+                                      </span>
+                                      {decision && (
+                                        <span
+                                          style={{
+                                            fontSize: 10,
+                                            color:
+                                              'var(--affine-text-secondary-color)',
+                                          }}
+                                        >
+                                          (
+                                          {decision === 'acknowledged'
+                                            ? '✓ Geprüft'
+                                            : '✗ Abgelehnt'}
+                                          )
+                                        </span>
+                                      )}
                                     </div>
                                     {!decision && (
                                       <div className={styles.alertCardActions}>
-                                        <button type="button" className={styles.alertActionAck} onClick={() => { handleAcknowledgeFinding(finding).catch(() => {}); }}>
+                                        <button
+                                          type="button"
+                                          className={styles.alertActionAck}
+                                          onClick={() => {
+                                            handleAcknowledgeFinding(
+                                              finding
+                                            ).catch(() => {});
+                                          }}
+                                        >
                                           Geprüft
                                         </button>
-                                        <button type="button" className={styles.alertActionDismiss} onClick={() => { handleDismissFinding(finding).catch(() => {}); }}>
+                                        <button
+                                          type="button"
+                                          className={styles.alertActionDismiss}
+                                          onClick={() => {
+                                            handleDismissFinding(finding).catch(
+                                              () => {}
+                                            );
+                                          }}
+                                        >
                                           Abweisen
                                         </button>
                                       </div>
                                     )}
                                   </div>
-                                  <div className={styles.alertCardDescription}>{finding.title}</div>
-                                  {finding.description && finding.description !== finding.title && (
-                                    <p className={styles.alertCardDescription} style={{ fontWeight: 400, marginTop: 2 }}>{finding.description.slice(0, 320)}{finding.description.length > 320 ? '…' : ''}</p>
-                                  )}
+                                  <div className={styles.alertCardDescription}>
+                                    {finding.title}
+                                  </div>
+                                  {finding.description &&
+                                    finding.description !== finding.title && (
+                                      <p
+                                        className={styles.alertCardDescription}
+                                        style={{
+                                          fontWeight: 400,
+                                          marginTop: 2,
+                                        }}
+                                      >
+                                        {finding.description.slice(0, 320)}
+                                        {finding.description.length > 320
+                                          ? '…'
+                                          : ''}
+                                      </p>
+                                    )}
                                   {finding.citations[0]?.quote && (
-                                    <blockquote className={styles.alertCardQuote}>
-                                      „{finding.citations[0].quote.slice(0, 200)}{finding.citations[0].quote.length > 200 ? '…' : ''}"
+                                    <blockquote
+                                      className={styles.alertCardQuote}
+                                    >
+                                      „
+                                      {finding.citations[0].quote.slice(0, 200)}
+                                      {finding.citations[0].quote.length > 200
+                                        ? '…'
+                                        : ''}
+                                      &quot;
                                     </blockquote>
                                   )}
                                   {finding.sourceDocumentIds.length > 0 && (
                                     <p className={styles.alertCardSource}>
-                                      Quellen: {finding.sourceDocumentIds.slice(0, 3).map(id => matterDocs.find(d => d.id === id)?.title ?? id).join(', ')}
+                                      Quellen:{' '}
+                                      {finding.sourceDocumentIds
+                                        .slice(0, 3)
+                                        .map(
+                                          id =>
+                                            matterDocs.find(d => d.id === id)
+                                              ?.title ?? id
+                                        )
+                                        .join(', ')}
                                     </p>
                                   )}
                                 </div>
@@ -3772,35 +3961,87 @@ export const AkteDetailPage = () => {
                         {matterTasks.length > 0 && (
                           <section style={{ marginBottom: 24 }}>
                             <div className={styles.strategieSectionHeader}>
-                              <span className={styles.strategieSectionIcon}>✅</span>
-                              <span className={styles.strategieSectionTitle}>Aufgaben</span>
-                              <span className={styles.strategieSectionCount}>{matterTasks.filter((t: CopilotTask) => t.status !== 'done').length} offen</span>
+                              <span className={styles.strategieSectionIcon}>
+                                ✅
+                              </span>
+                              <span className={styles.strategieSectionTitle}>
+                                Aufgaben
+                              </span>
+                              <span className={styles.strategieSectionCount}>
+                                {
+                                  matterTasks.filter(
+                                    (t: CopilotTask) => t.status !== 'done'
+                                  ).length
+                                }{' '}
+                                offen
+                              </span>
                             </div>
                             {matterTasks.map((task: CopilotTask) => {
-                              const statusLabel: Record<CopilotTaskStatus, string> = {
-                                open: 'Offen', in_progress: 'In Arbeit', blocked: 'Blockiert', done: 'Erledigt',
+                              const statusLabel: Record<
+                                CopilotTaskStatus,
+                                string
+                              > = {
+                                open: 'Offen',
+                                in_progress: 'In Arbeit',
+                                blocked: 'Blockiert',
+                                done: 'Erledigt',
                               };
-                              const nextStatus: Record<CopilotTaskStatus, CopilotTaskStatus> = {
-                                open: 'in_progress', in_progress: 'done', blocked: 'open', done: 'open',
+                              const nextStatus: Record<
+                                CopilotTaskStatus,
+                                CopilotTaskStatus
+                              > = {
+                                open: 'in_progress',
+                                in_progress: 'done',
+                                blocked: 'open',
+                                done: 'open',
                               };
                               return (
-                                <div key={task.id} className={styles.strategieTaskItem} data-done={task.status === 'done'}>
+                                <div
+                                  key={task.id}
+                                  className={styles.strategieTaskItem}
+                                  data-done={task.status === 'done'}
+                                >
                                   <button
                                     type="button"
                                     className={styles.strategieTaskStatus}
                                     data-status={task.status}
                                     onClick={() => {
-                                      copilotWorkflowService.updateTaskStatus({ taskId: task.id, status: nextStatus[task.status] }).catch(() => {});
+                                      copilotWorkflowService
+                                        .updateTaskStatus({
+                                          taskId: task.id,
+                                          status: nextStatus[task.status],
+                                        })
+                                        .catch(() => {});
                                     }}
                                     title={`Status: ${statusLabel[task.status]} → Klicken zum Weiterschalten`}
                                   >
-                                    {task.status === 'done' ? '✓' : task.status === 'in_progress' ? '▶' : task.status === 'blocked' ? '⊘' : '○'}
+                                    {task.status === 'done'
+                                      ? '✓'
+                                      : task.status === 'in_progress'
+                                        ? '▶'
+                                        : task.status === 'blocked'
+                                          ? '⊘'
+                                          : '○'}
                                   </button>
                                   <div style={{ flex: 1, minWidth: 0 }}>
-                                    <div className={styles.strategieTaskTitle}>{task.title}</div>
-                                    {task.description && <div className={styles.strategieTaskDesc}>{task.description.slice(0, 180)}{task.description.length > 180 ? '…' : ''}</div>}
+                                    <div className={styles.strategieTaskTitle}>
+                                      {task.title}
+                                    </div>
+                                    {task.description && (
+                                      <div className={styles.strategieTaskDesc}>
+                                        {task.description.slice(0, 180)}
+                                        {task.description.length > 180
+                                          ? '…'
+                                          : ''}
+                                      </div>
+                                    )}
                                   </div>
-                                  <span className={styles.strategieTaskPriority} data-priority={task.priority}>{task.priority}</span>
+                                  <span
+                                    className={styles.strategieTaskPriority}
+                                    data-priority={task.priority}
+                                  >
+                                    {task.priority}
+                                  </span>
                                 </div>
                               );
                             })}
@@ -3811,16 +4052,42 @@ export const AkteDetailPage = () => {
                         {matterBlueprint && (
                           <section style={{ marginBottom: 24 }}>
                             <div className={styles.strategieSectionHeader}>
-                              <span className={styles.strategieSectionIcon}>📋</span>
-                              <span className={styles.strategieSectionTitle}>Arbeitsplan (Blueprint)</span>
-                              <span className={styles.strategieSectionCount} style={{ textTransform: 'capitalize' }}>{matterBlueprint.reviewStatus ?? 'draft'}</span>
+                              <span className={styles.strategieSectionIcon}>
+                                📋
+                              </span>
+                              <span className={styles.strategieSectionTitle}>
+                                Arbeitsplan (Blueprint)
+                              </span>
+                              <span
+                                className={styles.strategieSectionCount}
+                                style={{ textTransform: 'capitalize' }}
+                              >
+                                {matterBlueprint.reviewStatus ?? 'draft'}
+                              </span>
                             </div>
                             <div className={styles.strategieBlueprintCard}>
-                              <p className={styles.strategieBlueprintObjective}>{matterBlueprint.objective}</p>
+                              <p className={styles.strategieBlueprintObjective}>
+                                {matterBlueprint.objective}
+                              </p>
                               {matterBlueprint.sections.map(section => (
-                                <div key={section.id} className={styles.strategieBlueprintSection}>
-                                  <div className={styles.strategieBlueprintSectionHeading}>{section.heading}</div>
-                                  <p className={styles.strategieBlueprintSectionContent}>{section.content}</p>
+                                <div
+                                  key={section.id}
+                                  className={styles.strategieBlueprintSection}
+                                >
+                                  <div
+                                    className={
+                                      styles.strategieBlueprintSectionHeading
+                                    }
+                                  >
+                                    {section.heading}
+                                  </div>
+                                  <p
+                                    className={
+                                      styles.strategieBlueprintSectionContent
+                                    }
+                                  >
+                                    {section.content}
+                                  </p>
                                 </div>
                               ))}
                             </div>
@@ -3831,15 +4098,35 @@ export const AkteDetailPage = () => {
                         {matterIssues.length > 0 && (
                           <section style={{ marginBottom: 24 }}>
                             <div className={styles.strategieSectionHeader}>
-                              <span className={styles.strategieSectionIcon}>💡</span>
-                              <span className={styles.strategieSectionTitle}>Gespeicherte Erkenntnisse</span>
-                              <span className={styles.strategieSectionCount}>{matterIssues.length}</span>
+                              <span className={styles.strategieSectionIcon}>
+                                💡
+                              </span>
+                              <span className={styles.strategieSectionTitle}>
+                                Gespeicherte Erkenntnisse
+                              </span>
+                              <span className={styles.strategieSectionCount}>
+                                {matterIssues.length}
+                              </span>
                             </div>
                             {matterIssues.map(issue => (
-                              <div key={issue.id} className={styles.strategieNoteItem}>
-                                <div className={styles.strategieNoteTitle}>{issue.title}</div>
-                                {issue.description && <div className={styles.strategieNoteBody}>{issue.description.slice(0, 200)}{issue.description.length > 200 ? '…' : ''}</div>}
-                                {issue.category && <span className={styles.strategieNoteTag}>{issue.category}</span>}
+                              <div
+                                key={issue.id}
+                                className={styles.strategieNoteItem}
+                              >
+                                <div className={styles.strategieNoteTitle}>
+                                  {issue.title}
+                                </div>
+                                {issue.description && (
+                                  <div className={styles.strategieNoteBody}>
+                                    {issue.description.slice(0, 200)}
+                                    {issue.description.length > 200 ? '…' : ''}
+                                  </div>
+                                )}
+                                {issue.category && (
+                                  <span className={styles.strategieNoteTag}>
+                                    {issue.category}
+                                  </span>
+                                )}
                               </div>
                             ))}
                           </section>
@@ -3849,15 +4136,30 @@ export const AkteDetailPage = () => {
                         {matterNotes.length > 0 && (
                           <section style={{ marginBottom: 24 }}>
                             <div className={styles.strategieSectionHeader}>
-                              <span className={styles.strategieSectionIcon}>📝</span>
-                              <span className={styles.strategieSectionTitle}>Chat-Notizen</span>
-                              <span className={styles.strategieSectionCount}>{matterNotes.length}</span>
+                              <span className={styles.strategieSectionIcon}>
+                                📝
+                              </span>
+                              <span className={styles.strategieSectionTitle}>
+                                Chat-Notizen
+                              </span>
+                              <span className={styles.strategieSectionCount}>
+                                {matterNotes.length}
+                              </span>
                             </div>
                             {matterNotes.map(note => (
-                              <div key={note.id} className={styles.strategieNoteItem}>
-                                <div className={styles.strategieNoteBody}>{note.summary}</div>
+                              <div
+                                key={note.id}
+                                className={styles.strategieNoteItem}
+                              >
+                                <div className={styles.strategieNoteBody}>
+                                  {note.summary}
+                                </div>
                                 {note.createdAt && (
-                                  <div className={styles.strategieNoteMeta}>{new Date(note.createdAt).toLocaleDateString('de-AT')}</div>
+                                  <div className={styles.strategieNoteMeta}>
+                                    {new Date(
+                                      note.createdAt
+                                    ).toLocaleDateString('de-AT')}
+                                  </div>
                                 )}
                               </div>
                             ))}
